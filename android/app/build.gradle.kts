@@ -1,6 +1,9 @@
 import java.util.Properties
 
-val appVersionName = "1.0.0-rc2"
+val appVersionName = "1.0.0"
+
+// CI passes its run number so every cloud build installs cleanly over the previous one.
+val ciBuildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
 
 plugins {
     alias(libs.plugins.android.application)
@@ -32,8 +35,21 @@ kotlin {
     }
 }
 
+// Glint signs every build with a key that belongs to this fork (android/keystore/glint.jks),
+// so phone updates install over each other. It never uses the upstream developer's keys.
+// A private key can be supplied instead through local.properties (RELEASE_*) or the
+// GLINT_KEYSTORE / GLINT_KEYSTORE_PASSWORD environment variables.
+val glintKeystore = System.getenv("GLINT_KEYSTORE")?.let { file(it) } ?: rootProject.file("keystore/glint.jks")
+val glintKeystorePassword = System.getenv("GLINT_KEYSTORE_PASSWORD") ?: "glint-public-key"
+
 android {
     signingConfigs {
+        create("glint") {
+            storeFile = glintKeystore
+            storePassword = glintKeystorePassword
+            keyAlias = System.getenv("GLINT_KEY_ALIAS") ?: "glint"
+            keyPassword = System.getenv("GLINT_KEY_PASSWORD") ?: glintKeystorePassword
+        }
         if (releaseSigningAvailable) {
             create("release") {
                 storeFile = file(props["RELEASE_STORE_FILE"] as String)
@@ -47,9 +63,9 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "me.kavishdevar.librepods"
+        applicationId = "io.github.jbyjre.glint"
         targetSdk = 37
-        versionCode = 63
+        versionCode = 100 + ciBuildNumber
         versionName = appVersionName
     }
     buildTypes {
@@ -64,17 +80,13 @@ android {
                     arguments += "-DCMAKE_BUILD_TYPE=Release"
                 }
             }
-            if (releaseSigningAvailable) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            signingConfig = signingConfigs.getByName(if (releaseSigningAvailable) "release" else "glint")
             defaultConfig {
                 minSdk = 33
             }
         }
         debug {
-            if (releaseSigningAvailable) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            signingConfig = signingConfigs.getByName(if (releaseSigningAvailable) "release" else "glint")
             versionNameSuffix = "-debug"
             defaultConfig {
                 minSdk = 33
@@ -108,7 +120,7 @@ android {
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
+            version = providers.gradleProperty("cmakeVersion").getOrElse("3.22.1")
         }
     }
     sourceSets {
@@ -117,7 +129,7 @@ android {
         }
     }
 
-    ndkVersion = "30.0.14904198"
+    ndkVersion = providers.gradleProperty("ndkVersion").getOrElse("30.0.14904198")
 
     flavorDimensions += "env"
 }
@@ -158,6 +170,7 @@ dependencies {
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(libs.androidx.navigationevent)
+    testImplementation(libs.junit)
 }
 
 aboutLibraries {
