@@ -84,5 +84,7 @@ sealed interface Screen: NavKey {
     data object GlintLab: Screen
     @Serializable
     data object HeartRate: Screen
+    @Serializable
+    data object Recorder: Screen
 
 }

@@ -248,6 +248,8 @@ class AACPManager {
         fun onCapabilitiesReceived(capabilities: List<Capability>)
         /** A heart-rate reading from the AirPods' sensor stream. */
         fun onHeartRateReceived(bpm: Int) {}
+        /** A microphone-stream packet (experimental recorder). */
+        fun onMicrophonePacket(packet: ByteArray) {}
     }
 
     fun parseStemPressResponse(data: ByteArray): Pair<StemPressType, StemPressBudType> {
@@ -430,6 +432,7 @@ class AACPManager {
                     callback?.onUnknownPacketReceived(packet)
                     return
                 }
+                me.kavishdevar.librepods.services.CommandFeedback.received(controlCommand.identifier, controlCommand.value)
                 setControlCommandStatusValue(
                     ControlCommandIdentifiers.fromByte(controlCommand.identifier) ?: return,
                     controlCommand.value
@@ -483,6 +486,10 @@ class AACPManager {
 
             Opcodes.CONVERSATION_AWARENESS -> {
                 callback?.onConversationAwarenessReceived(packet)
+            }
+
+            me.kavishdevar.librepods.audio.AirPodsRecorder.OPCODE -> {
+                callback?.onMicrophonePacket(packet)
             }
 
             Opcodes.HEADTRACKING -> {

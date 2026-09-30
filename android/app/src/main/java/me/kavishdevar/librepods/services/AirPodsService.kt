@@ -91,6 +91,7 @@ import me.kavishdevar.librepods.MainActivity
 import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.bluetooth.AACPManager
 import me.kavishdevar.librepods.bluetooth.SensorProto
+import me.kavishdevar.librepods.audio.AirPodsRecorder
 import me.kavishdevar.librepods.bluetooth.AACPManager.Companion.StemPressType
 import me.kavishdevar.librepods.bluetooth.ATTHandles
 import me.kavishdevar.librepods.bluetooth.ATTManagerv2
@@ -704,6 +705,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     device = null
                     if (HeartRate.state.value.status != HeartRate.Status.Off) HeartRate.status(HeartRate.Status.NotConnected)
                     hrWatchdog?.cancel()
+                    if (AirPodsRecorder.state.value.recording) AirPodsRecorder.end()
                     cardGate.reset()
                     batteryEstimator.reset()
                     BatteryTimeLeft.publish(null)
@@ -1081,6 +1083,10 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
             override fun onHeartRateReceived(bpm: Int) {
                 onHeartRate(bpm)
+            }
+
+            override fun onMicrophonePacket(packet: ByteArray) {
+                AirPodsRecorder.onPacket(packet)
             }
 
             override fun onStemPressReceived(stemPress: ByteArray) {
@@ -1734,6 +1740,21 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 if (st.status == HeartRate.Status.Live && quiet) HeartRate.status(HeartRate.Status.NoSignal)
             }
         }
+    }
+
+    /** Experimental: record from the AirPods' microphones over their own link. */
+    fun startRecording(): Boolean {
+        if (BluetoothConnectionManager.aacpSocket?.isConnected != true) return false
+        AirPodsRecorder.begin(this) ?: return false
+        if (!aacpManager.sendDataPacket(AirPodsRecorder.START)) { AirPodsRecorder.end(); return false }
+        return true
+    }
+
+    fun stopRecording() {
+        if (BluetoothConnectionManager.aacpSocket?.isConnected == true) aacpManager.sendDataPacket(AirPodsRecorder.STOP)
+        AirPodsRecorder.end()
+        // The stream can pause music playback; bring normal audio back.
+        device?.let { connectAudio(this, it) }
     }
 
     fun stopHeartRate() {

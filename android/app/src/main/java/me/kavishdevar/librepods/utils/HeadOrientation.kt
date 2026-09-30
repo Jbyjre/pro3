@@ -32,6 +32,10 @@ object HeadTracking {
     private val _acceleration = MutableStateFlow(Acceleration())
     val acceleration = _acceleration.asStateFlow()
 
+    /** When the last motion report arrived (System.currentTimeMillis), 0 if none yet. */
+    private val _lastUpdate = MutableStateFlow(0L)
+    val lastUpdate = _lastUpdate.asStateFlow()
+
     private val calibrationSamples = mutableListOf<Triple<Int, Int, Int>>()
     private var isCalibrated = false
     private var o1Neutral = 19000
@@ -46,6 +50,7 @@ object HeadTracking {
         val o2 = bytesToInt(packet[45], packet[46])
         val o3 = bytesToInt(packet[47], packet[48])
 
+        _lastUpdate.value = System.currentTimeMillis()
         val horizontalAccel = bytesToInt(packet[51], packet[52]).toFloat()
         val verticalAccel = bytesToInt(packet[53], packet[54]).toFloat()
 

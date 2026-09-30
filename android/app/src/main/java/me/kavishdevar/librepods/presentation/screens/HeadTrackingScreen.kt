@@ -23,6 +23,13 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 
 import android.graphics.Paint
@@ -143,37 +150,20 @@ fun HeadTrackingScreen(viewModel: AirPodsViewModel, navigateToPurchase: () -> Un
                 .padding(horizontal = 16.dp)
         ) {
 
-            if (!state.isPremium) {
-                StyledButton(
-                    onClick = navigateToPurchase,
-                    backdrop = rememberLayerBackdrop(),
-                    modifier = Modifier.fillMaxWidth(),
-                    maxScale = 0.05f,
-                    surfaceColor = MaterialTheme.colorScheme.primary
-                ) {
-                    Text(
-                        stringResource(R.string.unlock_advanced_features),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
             StyledToggle(
                 label = "Head Gestures",
                 checked = state.headGesturesEnabled,
                 onCheckedChange = { viewModel.setHeadGesturesEnabled(it) },
-                enabled = state.isPremium || state.headGesturesEnabled,
-                description = stringResource(R.string.head_gestures_details),
+                description = "Nod to answer a call, shake your head to decline. Works while a call rings and your AirPods are in.",
                 header = true
             )
 
             Spacer(modifier = Modifier.height(16.dp))
+            HeadPosition()
 
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                "Velocity",
+                "Head movement",
                 style = TextStyle(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
@@ -299,8 +289,9 @@ private fun Plot() {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(28.dp)
     ) {
-        val horizontalColor = MaterialTheme.colorScheme.primary
-        val verticalColor = MaterialTheme.colorScheme.onPrimary
+        // Blue and orange: distinct for every kind of colour vision, readable in light and dark.
+        val horizontalColor = if (darkTheme) Color(0xFF3987E5) else Color(0xFF2A78D6)
+        val verticalColor = if (darkTheme) Color(0xFFD95926) else Color(0xFFEB6834)
 
         Box(
             modifier = Modifier
@@ -405,3 +396,59 @@ private fun Plot() {
         }
     }
 }
+
+/**
+ * Where your head points, live: a dot inside a ring moves as you turn (left/right) and tilt
+ * (up/down), relative to how you held your head when this screen opened. Recenter resets it.
+ */
+@Composable
+private fun HeadPosition() {
+    val orientation by HeadTracking.orientation.collectAsState()
+    val last by HeadTracking.lastUpdate.collectAsState()
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { delay(500); now = System.currentTimeMillis() } }
+    val live = last != 0L && now - last < 2_000
+    val dark = isSystemInDarkTheme()
+    val ink = if (dark) Color.White else Color.Black
+    val dot = if (dark) Color(0xFF3987E5) else Color(0xFF2A78D6)
+    val yaw = orientation.yaw.coerceIn(-45f, 45f)
+    val pitch = orientation.pitch.coerceIn(-45f, 45f)
+    fun side(v: Float, neg: String, pos: String) = when {
+        kotlin.math.abs(v) < 5f -> null
+        v < 0 -> "$neg ${kotlin.math.abs(v).toInt()}°"
+        else -> "$pos ${v.toInt()}°"
+    }
+    val words = listOfNotNull(side(yaw, "left", "right"), side(pitch, "down", "up")).joinToString(", ").ifEmpty { "straight ahead" }
+    Column(
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, RoundedCornerShape(28.dp)).padding(18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            if (live) "Tracking your head: $words" else "Waiting for motion from your AirPods… Put both buds in.",
+            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = glintFontFamily, color = ink, textAlign = TextAlign.Center),
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+        )
+        Spacer(Modifier.height(14.dp))
+        Canvas(Modifier.size(180.dp)) {
+            val c = center
+            val r = size.minDimension / 2f
+            val grid = ink.copy(alpha = if (dark) 0.14f else 0.1f)
+            drawCircle(grid, r, c, style = Stroke(1.dp.toPx()))
+            drawCircle(grid, r * 0.5f, c, style = Stroke(1.dp.toPx()))
+            drawLine(grid, Offset(c.x - r, c.y), Offset(c.x + r, c.y), 1.dp.toPx())
+            drawLine(grid, Offset(c.x, c.y - r), Offset(c.x, c.y + r), 1.dp.toPx())
+            val p = Offset(c.x + yaw / 45f * r * 0.9f, c.y - pitch / 45f * r * 0.9f)
+            drawCircle(MaterialTheme_surfaceRing(dark), 11.dp.toPx(), p)
+            drawCircle(if (live) dot else dot.copy(alpha = 0.35f), 9.dp.toPx(), p)
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Recenter",
+            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = glintFontFamily, color = dot),
+            modifier = Modifier.pointerInput(Unit) { detectTapGestures { HeadTracking.reset() } }.padding(6.dp)
+        )
+    }
+}
+
+private fun MaterialTheme_surfaceRing(dark: Boolean) = if (dark) Color(0xFF1C1C1E) else Color.White
+

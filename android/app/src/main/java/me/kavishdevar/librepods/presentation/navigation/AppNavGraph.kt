@@ -39,6 +39,7 @@ import me.kavishdevar.librepods.presentation.screens.UpdateHearingTestRoute
 import me.kavishdevar.librepods.presentation.screens.VersionScreen
 import me.kavishdevar.librepods.presentation.screens.GlintLabScreen
 import me.kavishdevar.librepods.presentation.screens.HeartRateScreen
+import me.kavishdevar.librepods.presentation.screens.RecorderScreen
 import me.kavishdevar.librepods.presentation.screens.StayConnectedScreen
 import me.kavishdevar.librepods.presentation.screens.onboarding.OnboardingScreen
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
@@ -113,6 +114,7 @@ fun AppNavGraph(
                                 navigateToCallControlScreen = { navigate(Screen.CallControl(it)) },
                                 navigateToMicrophoneSettings = { navigate(Screen.MicrophoneSettings) },
                                 navigateToHeartRate = { navigate(Screen.HeartRate) },
+                                navigateToRecorder = { navigate(Screen.Recorder) },
                             )
                         }
 
@@ -143,6 +145,9 @@ fun AppNavGraph(
 
                     Screen.HeartRate ->
                         NavEntry(screen) { HeartRateScreen() }
+
+                    Screen.Recorder ->
+                        NavEntry(screen) { RecorderScreen() }
 
                     Screen.Troubleshooting ->
                         NavEntry(screen) {
