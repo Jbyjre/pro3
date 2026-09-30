@@ -54,8 +54,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import me.kavishdevar.librepods.R
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
 import me.kavishdevar.librepods.data.BatteryStatus
+import me.kavishdevar.librepods.presentation.glint.GlintSymbols
+import me.kavishdevar.librepods.presentation.glint.SymbolText
 import me.kavishdevar.librepods.presentation.theme.LibrePodsTheme
 import kotlin.math.cos
 import kotlin.math.min
@@ -176,27 +180,30 @@ fun BatteryIndicator(
                 }
             }
 
-            Text(
-                text = "\uDBC0\uDEE6", style = TextStyle(
-                    fontSize = 14.sp,
-                    fontFamily = glintFontFamily,
-                    color = batteryFillColor,
-                    textAlign = TextAlign.Center
-                ), modifier = Modifier.scale(scaleAnim.value)
+            Icon(
+                GlintSymbols.BoltFill,
+                contentDescription = null,
+                tint = batteryFillColor,
+                modifier = Modifier.size(15.dp).scale(scaleAnim.value)
             )
         }
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        Text(
-            text = "$prefix $batteryPercentage%",
-            color = batteryTextColor,
-            style = TextStyle(
-                fontSize = 14.sp,
-                fontFamily = glintFontFamily,
-                textAlign = TextAlign.Center
-            ),
+        val labelStyle = TextStyle(
+            fontSize = 14.sp,
+            fontFamily = glintFontFamily,
+            fontFeatureSettings = "tnum",
+            textAlign = TextAlign.Center,
+            color = batteryTextColor
         )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (prefix.isNotBlank()) {
+                SymbolText(prefix, labelStyle.copy(fontSize = 13.sp))
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(text = "$batteryPercentage%", style = labelStyle)
+        }
     }
 }
 

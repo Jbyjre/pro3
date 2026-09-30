@@ -97,6 +97,7 @@ import com.kyant.backdrop.shadow.Shadow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import me.kavishdevar.librepods.R
+import me.kavishdevar.librepods.presentation.glint.SymbolText
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
 import me.kavishdevar.librepods.presentation.theme.LibrePodsTheme
 import me.kavishdevar.librepods.presentation.theme.LocalDesignSystem
@@ -320,7 +321,7 @@ fun StyledSlider(
                             ) {
 
                                 startIcon?.let {
-                                    Text(it, fontFamily = glintFontFamily)
+                                    SymbolText(it, TextStyle(fontFamily = glintFontFamily))
                                     Spacer(Modifier.width(12.dp))
                                 }
 
@@ -347,7 +348,7 @@ fun StyledSlider(
 
                                 endIcon?.let {
                                     Spacer(Modifier.width(12.dp))
-                                    Text(it, fontFamily = glintFontFamily)
+                                    SymbolText(it, TextStyle(fontFamily = glintFontFamily))
                                 }
                             }
                         }
@@ -454,7 +455,7 @@ fun StyledSlider(
                                     horizontalArrangement = Arrangement.spacedBy(0.dp)
                                 ) {
                                     if (startIcon != null) {
-                                        Text(
+                                        SymbolText(
                                             text = startIcon,
                                             style = TextStyle(
                                                 fontSize = 18.sp,
@@ -506,7 +507,7 @@ fun StyledSlider(
                                         )
                                     }
                                     if (endIcon != null) {
-                                        Text(
+                                        SymbolText(
                                             text = endIcon,
                                             style = TextStyle(
                                                 fontSize = 18.sp,

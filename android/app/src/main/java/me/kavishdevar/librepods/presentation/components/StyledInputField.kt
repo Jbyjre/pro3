@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.kavishdevar.librepods.R
+import me.kavishdevar.librepods.presentation.glint.SymbolText
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
 import me.kavishdevar.librepods.presentation.theme.LocalDesignSystem
 
@@ -155,7 +156,7 @@ fun StyledInputField(
                                         inputState.clearText()
                                     }
                                 ) {
-                                    Text(
+                                    SymbolText(
                                         text = "􀁡",
                                         style = TextStyle(
                                             fontSize = 16.sp,

@@ -87,6 +87,7 @@ import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import kotlinx.coroutines.launch
 import me.kavishdevar.librepods.R
+import me.kavishdevar.librepods.presentation.glint.SymbolText
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
 import me.kavishdevar.librepods.presentation.theme.LocalDesignSystem
 import me.kavishdevar.librepods.utils.inspectDragGestures
@@ -116,7 +117,7 @@ fun StyledIconButton(
                         enabled = enabled,
                         modifier = Modifier.size(52.dp)
                     ) {
-                        Text(
+                        SymbolText(
                             text = icon,
                             style = TextStyle(
                                 fontSize = 20.sp,
@@ -131,7 +132,7 @@ fun StyledIconButton(
                         enabled = enabled,
                         modifier = Modifier.size(52.dp)
                     ) {
-                        Text(
+                        SymbolText(
                             text = icon,
                             style = TextStyle(
                                 fontSize = 20.sp,
@@ -146,7 +147,7 @@ fun StyledIconButton(
                         enabled = enabled,
                         modifier = Modifier.size(52.dp)
                     ) {
-                        Text(
+                        SymbolText(
                             text = icon,
                             style = TextStyle(
                                 fontSize = 20.sp,
@@ -161,7 +162,7 @@ fun StyledIconButton(
                         enabled = enabled,
                         modifier = Modifier.size(52.dp)
                     ) {
-                        Text(
+                        SymbolText(
                             text = icon,
                             style = TextStyle(
                                 fontSize = 20.sp,
@@ -406,7 +407,7 @@ half4 main(float2 coord) {
                     }
                     .size(with(density) { 48.sp.toDp() }),
             ) {
-                Text(
+                SymbolText(
                     text = icon,
                     style = TextStyle(
                         fontSize = 20.sp,

@@ -40,8 +40,9 @@ fun AboutCard(
     val serialNumbers = when (LocalDesignSystem.current) {
         DesignSystem.Apple -> listOf(
             serialNumbers[0],
-            "􀀛 ${serialNumbers[1]}",
-            "􀀧 ${serialNumbers[2]}"
+            // Was SF Symbols' circled L/R, which only rendered with Apple's font.
+            stringResource(R.string.left) + " " + serialNumbers[1],
+            stringResource(R.string.right) + " " + serialNumbers[2],
         )
 
         DesignSystem.Material -> listOf(

@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import me.kavishdevar.librepods.R
+import me.kavishdevar.librepods.presentation.glint.SymbolText
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
 import me.kavishdevar.librepods.presentation.theme.LocalDesignSystem
 import me.kavishdevar.librepods.presentation.theme.sectionHeader
@@ -197,7 +198,7 @@ private fun StyledListItemContent(
                                 animationSpec = tween(durationMillis = 300)
                             )
 
-                            Text(
+                            SymbolText(
                                 text = "􀆅",
                                 style = TextStyle(
                                     fontSize = 20.sp,
@@ -207,7 +208,7 @@ private fun StyledListItemContent(
                                 modifier = Modifier.padding(end = 4.dp)
                             )
                         } else {
-                            Text(
+                            SymbolText(
                                 text = "􀯻",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface.copy(0.6f),
