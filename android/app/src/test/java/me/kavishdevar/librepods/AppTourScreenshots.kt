@@ -11,9 +11,6 @@ import me.kavishdevar.librepods.billing.FOSSBillingProvider
 import me.kavishdevar.librepods.presentation.glint.PodsVideoConfig
 import me.kavishdevar.librepods.presentation.navigation.NavigationRoot
 import me.kavishdevar.librepods.presentation.navigation.Screen
-import me.kavishdevar.librepods.presentation.screens.onboarding.NotSupportedPage
-import me.kavishdevar.librepods.presentation.screens.onboarding.PermissionsPage
-import me.kavishdevar.librepods.presentation.screens.onboarding.StayConnectedPage
 import me.kavishdevar.librepods.presentation.theme.LibrePodsTheme
 import me.kavishdevar.librepods.presentation.viewmodel.AirPodsViewModel
 import me.kavishdevar.librepods.services.GlintStatus
@@ -91,7 +88,6 @@ class AppTourScreenshots {
     @Test fun microphone() = both("19_microphone", listOf(Screen.MicrophoneSettings))
     @Test fun licenses() = both("20_licenses", listOf(Screen.OpenSourceLicenses))
     @Test fun releaseNotes() = both("21_release_notes", listOf(Screen.ReleaseNotes))
-    @Test fun onboardingStart() = tour("22_onboarding", dark = false, stack = emptyList(), onboarding = true)
 
     private fun page(name: String, content: @androidx.compose.runtime.Composable () -> Unit) {
         rule.setContent { LibrePodsTheme(m3eEnabled = false) { content() } }
@@ -99,7 +95,19 @@ class AppTourScreenshots {
         rule.onRoot().captureRoboImage("$out/$name.png")
     }
 
-    @Test fun onboardingPermissions() = page("23_onboarding_permissions") { PermissionsPage({}, {}) }
-    @Test fun onboardingThisPhone() = page("24_onboarding_this_phone") { NotSupportedPage {} }
-    @Test fun onboardingStayConnected() = page("25_onboarding_stay_connected") { StayConnectedPage(onFinish = {}) }
+    private fun setup(name: String, step: Int, dark: Boolean = false) {
+        // Phone-sized window (Galaxy S25 FE is about 412 x 915 dp) to judge proportions.
+        RuntimeEnvironment.setQualifiers(if (dark) "w412dp-h915dp-night-xxhdpi" else "w412dp-h915dp-xxhdpi")
+        rule.setContent { me.kavishdevar.librepods.presentation.screens.onboarding.OnboardingScreen(startStep = step) {} }
+        rule.mainClock.advanceTimeBy(1_500)
+        rule.onRoot().captureRoboImage("$out/$name.png")
+    }
+
+    @Test fun setupWelcome() = setup("23_setup_welcome", 0)
+    @Test fun setupWelcomeDark() = setup("23_setup_welcome_dark", 0, dark = true)
+    @Test fun setupPermissionsDark() = setup("25_setup_permissions_dark", 2, dark = true)
+    @Test fun setupThisPhone() = setup("24_setup_this_phone", 1)
+    @Test fun setupPermissions() = setup("25_setup_permissions", 2)
+    @Test fun setupStayConnected() = setup("26_setup_stay_connected", 3)
+    @Test fun setupStayConnectedDark() = setup("26_setup_stay_connected_dark", 3, dark = true)
 }

@@ -91,10 +91,11 @@ object GlassLooks {
 
     /** The connection card; follows the system light/dark theme. */
     fun card(dark: Boolean, density: Float) = if (dark) GlassLook(
-        fillTop = Color(0x9E2C2C32),
-        fillBottom = Color(0xB81A1A1E),
-        opaqueTop = Color(0xF72A2A2F),
-        opaqueBottom = Color(0xFA1B1B1F),
+        // Close to the connect clip's night backdrop (#1B1B1B) so the clip melts into the glass.
+        fillTop = Color(0xC21E1E20),
+        fillBottom = Color(0xD0161618),
+        opaqueTop = Color(0xFA1D1D1E),
+        opaqueBottom = Color(0xFC161617),
         blurTint = Color(0x40000000),
         blurRadiusPx = (56 * density).roundToInt(),
         sheen = 0.09f,
@@ -106,8 +107,9 @@ object GlassLooks {
         contentSecondary = Color(0x99EBEBF5),
         dark = true,
     ) else GlassLook(
-        fillTop = Color(0xB3FFFFFF),
-        fillBottom = Color(0xC7F4F4F8),
+        // Close to the connect clip's white backdrop so the clip melts into the glass.
+        fillTop = Color(0xC7FFFFFF),
+        fillBottom = Color(0xD2F6F6F9),
         opaqueTop = Color(0xFAFFFFFF),
         opaqueBottom = Color(0xFCF2F2F6),
         blurTint = Color(0x33FFFFFF),
