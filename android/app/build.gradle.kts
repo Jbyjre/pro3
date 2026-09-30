@@ -35,16 +35,17 @@ kotlin {
     }
 }
 
-// Glint signs every build with a key that belongs to this fork (android/keystore/glint.jks),
-// so phone updates install over each other. It never uses the upstream developer's keys.
-// A private key can be supplied instead through local.properties (RELEASE_*) or the
-// GLINT_KEYSTORE / GLINT_KEYSTORE_PASSWORD environment variables.
-val glintKeystore = System.getenv("GLINT_KEYSTORE")?.let { file(it) } ?: rootProject.file("keystore/glint.jks")
-val glintKeystorePassword = System.getenv("GLINT_KEYSTORE_PASSWORD") ?: "glint-public-key"
+// Glint never uses the upstream developer's signing keys. The cloud build creates a private
+// key for this fork, keeps it in GitHub's build cache (never in the public source), and passes
+// it in through GLINT_KEYSTORE / GLINT_KEYSTORE_PASSWORD. Local builds without it fall back to
+// the standard Android debug key.
+val glintKeystore = System.getenv("GLINT_KEYSTORE")?.takeIf { it.isNotBlank() }?.let { file(it) }
+val glintKeystorePassword = System.getenv("GLINT_KEYSTORE_PASSWORD") ?: ""
+val glintSigning = glintKeystore?.exists() == true
 
 android {
     signingConfigs {
-        create("glint") {
+        if (glintSigning) create("glint") {
             storeFile = glintKeystore
             storePassword = glintKeystorePassword
             keyAlias = System.getenv("GLINT_KEY_ALIAS") ?: "glint"
@@ -80,13 +81,25 @@ android {
                     arguments += "-DCMAKE_BUILD_TYPE=Release"
                 }
             }
-            signingConfig = signingConfigs.getByName(if (releaseSigningAvailable) "release" else "glint")
+            signingConfig = signingConfigs.getByName(
+                when {
+                    glintSigning -> "glint"
+                    releaseSigningAvailable -> "release"
+                    else -> "debug"
+                }
+            )
             defaultConfig {
                 minSdk = 33
             }
         }
         debug {
-            signingConfig = signingConfigs.getByName(if (releaseSigningAvailable) "release" else "glint")
+            signingConfig = signingConfigs.getByName(
+                when {
+                    glintSigning -> "glint"
+                    releaseSigningAvailable -> "release"
+                    else -> "debug"
+                }
+            )
             versionNameSuffix = "-debug"
             defaultConfig {
                 minSdk = 33

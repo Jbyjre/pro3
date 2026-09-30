@@ -10,7 +10,12 @@
 - Ask before spending money or doing anything hard to undo.
 
 ## Project notes
-- Android app lives in `android/`. Build with `./gradlew assembleFossDebug` (or the
-  `release-apk.yml` workflow, which signs with a keystore stored in repo secrets
-  that this fork owns, never the upstream developer's keys).
+- Android app ("Glint", a fork of LibrePods) lives in `android/`. Local build:
+  `./gradlew assembleFossDebug`. Cloud build: `.github/workflows/glint-apk.yml` runs on
+  every branch and publishes `Glint.apk` (main) or `Glint-preview.apk` (other branches)
+  as GitHub Releases. It signs with a key the workflow creates and keeps in the Actions
+  cache. Never commit signing keys to this public repo; never use upstream's keys.
+- Cloud sessions cannot reach dl.google.com / maven.google.com. `deps-snapshot.yml`
+  publishes a Gradle cache snapshot (release tag `ci-deps-snapshot`) that sessions can
+  download to build offline.
 - See `DECISIONS.md` and `TESTING.md` at the repo root.

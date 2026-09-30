@@ -22,9 +22,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
       - name: Install NDK
-        run: yes | sdkmanager "ndk;30.0.14904198" > /dev/null
+        run: |
+          SDKM=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" "ndk;30.0.14904198" "cmake;3.22.1" > /dev/null
       - name: Resolve everything with a clean Gradle home
         working-directory: android
         env:
