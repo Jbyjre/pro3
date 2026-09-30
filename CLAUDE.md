@@ -8,6 +8,8 @@
   hand him terminal commands to run. Do the repo/build/release work yourself.
 - Verify facts before stating them. Mark anything unchecked as "not verified".
 - Ask before spending money or doing anything hard to undo.
+- Always merge finished work into main yourself once you're confident in it (tests, lint and
+  release build pass, CI green on the latest commit). Jake asked for this; no need to ask first.
 
 ## Project notes
 - Android app ("Glint", a fork of LibrePods) lives in `android/`. Local build:
