@@ -18,6 +18,7 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.glint.GlintLight
 import android.content.res.Configuration
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -71,7 +72,6 @@ import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.Shadow
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -210,9 +210,7 @@ fun StyledSwitch(
                     { RoundedCornerShape(thumbHeight / 2) },
                     highlight = {
                         val progress = progressAnimation.value
-                        Highlight.Ambient.copy(
-                            alpha = progress
-                        )
+                        GlintLight.rim(progress)
                     },
                     shadow = {
                         Shadow(

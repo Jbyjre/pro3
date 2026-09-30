@@ -18,6 +18,7 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.glint.GlintLight
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -149,6 +150,7 @@ fun ConfirmationDialog(
                                     backdrop = backdrop,
                                     exportedBackdrop = innerBackdrop,
                                     shape = { RoundedCornerShape(48.dp) },
+                                    highlight = { GlintLight.rim(if (isDarkTheme) 0.6f else 0.8f) },
                                     effects = {
                                         vibrancy()
                                         blur(4f.dp.toPx())

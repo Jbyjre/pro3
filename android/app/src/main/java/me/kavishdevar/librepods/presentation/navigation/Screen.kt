@@ -83,6 +83,4 @@ sealed interface Screen: NavKey {
     @Serializable
     data object GlintLab: Screen
 
-    @Serializable
-    data object PodsViewer: Screen
 }

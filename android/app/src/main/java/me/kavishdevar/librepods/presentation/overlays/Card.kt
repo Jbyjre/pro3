@@ -211,6 +211,7 @@ internal fun CardHost(
                 }
             }
             onGone()
+            GlintOverlays.releaseIfIdle()
         }
     }
 
@@ -241,9 +242,11 @@ internal fun CardHost(
                     press = 1f
                     lastTouch++
                     var total = 0f
+                    var handled = false
                     while (true) {
                         val ev = awaitPointerEvent()
                         val ch = ev.changes.firstOrNull() ?: break
+                        if (ch.isConsumed) handled = true
                         if (!ch.pressed) break
                         total += ch.positionChange().y
                         dragY = total
@@ -253,6 +256,10 @@ internal fun CardHost(
                     touch = null
                     if (total > 60f * density) {
                         haptics.dismiss()
+                        onLeave()
+                    } else if (!handled && kotlin.math.abs(total) < 8f * density) {
+                        // A plain tap on the card opens Glint.
+                        GlintOverlays.openApp(context)
                         onLeave()
                     }
                     dragY = 0f
@@ -466,8 +473,9 @@ fun GlassPillButton(
                         val ch = ev.changes.firstOrNull() ?: break
                         val p = ch.position
                         inside = p.x in 0f..size.width.toFloat() && p.y in 0f..size.height.toFloat()
-                        if (!ch.pressed) break
+                        // Consume the release too, so the island/card behind doesn't also treat it as a tap.
                         ch.consume()
+                        if (!ch.pressed) break
                     }
                     pressed = false
                     if (inside) currentOnClick()

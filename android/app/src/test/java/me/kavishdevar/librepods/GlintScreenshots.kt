@@ -99,6 +99,7 @@ class GlintScreenshots {
     fun stillFramesOnly() {
         // No video decoder under Robolectric: overlays show the clips' still frames.
         PodsVideoConfig.enabled = false
+        me.kavishdevar.librepods.presentation.glint.PodsSpinnerConfig.idleTurn = false
     }
 
     /** Every replacement for the old SF Symbols, large and at text size, plus battery rings. */
@@ -158,6 +159,15 @@ class GlintScreenshots {
     @Test fun islandLowBattery() = island("island_low_battery", IslandEvent.LowBattery(9), IslandPhase.Compact, dark = false)
     @Test fun islandMode() = island("island_mode", IslandEvent.ListeningMode(2), IslandPhase.Compact)
     @Test fun islandExpanded() = island("island_expanded", IslandEvent.MovedToDevice("iPad", canTakeBack = true), IslandPhase.Expanded, dark = false)
+    @Test fun islandExpandedConnected() {
+        me.kavishdevar.librepods.services.GlintStatus.set(me.kavishdevar.librepods.services.LinkState.Connected("AirPods Pro"))
+        me.kavishdevar.librepods.services.BatteryTimeLeft.publish(
+            me.kavishdevar.librepods.services.BatteryEstimate(197, me.kavishdevar.librepods.services.BatteryEstimator.Confidence.MEASURED, worn = true, charging = false, caseCharges = 1.5)
+        )
+        island("island_expanded_connected", IslandEvent.Connected, IslandPhase.Expanded)
+        me.kavishdevar.librepods.services.BatteryTimeLeft.publish(null)
+        me.kavishdevar.librepods.services.GlintStatus.set(me.kavishdevar.librepods.services.LinkState.Idle)
+    }
 
     private fun card(name: String, dark: Boolean) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")

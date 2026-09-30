@@ -37,18 +37,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.services.BatteryEstimate
 import me.kavishdevar.librepods.services.BatteryWords
 
 /**
- * Listening time left (or time to full while charging) under the battery rings, and the
- * way into the 3D viewer. With no estimate (the AirPods' own link isn't up, so only coarse
+ * Listening time left (or time to full while charging) under the battery rings. With no estimate (the AirPods' own link isn't up, so only coarse
  * 10% levels are known) it says so instead of guessing.
  */
 @Composable
-fun BatteryTimeLeft(estimate: BatteryEstimate?, connected: Boolean, onViewIn3d: () -> Unit) {
+fun BatteryTimeLeft(estimate: BatteryEstimate?, connected: Boolean) {
     val dark = isSystemInDarkTheme()
     val ink = if (dark) Color.White else Color.Black
     Column(
@@ -75,14 +73,6 @@ fun BatteryTimeLeft(estimate: BatteryEstimate?, connected: Boolean, onViewIn3d: 
             estimate?.let { BatteryWords.case(it) }?.let {
                 Text(it, style = TextStyle(fontSize = 13.sp, fontFamily = glintFontFamily, color = ink.copy(alpha = 0.55f), textAlign = TextAlign.Center))
             }
-            Spacer(Modifier.height(14.dp))
-        }
-        StyledButton(onClick = onViewIn3d, backdrop = rememberLayerBackdrop(), maxScale = 0.06f) {
-            Text(
-                "View in 3D",
-                style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium, fontFamily = glintFontFamily, color = ink),
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
         }
     }
 }

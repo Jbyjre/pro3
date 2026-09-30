@@ -16,9 +16,7 @@ import me.kavishdevar.librepods.presentation.viewmodel.AirPodsViewModel
 import me.kavishdevar.librepods.services.GlintStatus
 import me.kavishdevar.librepods.services.LinkState
 import org.junit.Before
-import me.kavishdevar.librepods.presentation.glint.SpinView
 import me.kavishdevar.librepods.presentation.glint.PodsSpinnerConfig
-import me.kavishdevar.librepods.presentation.screens.PodsViewerScreen
 import me.kavishdevar.librepods.services.BatteryEstimate
 import me.kavishdevar.librepods.services.BatteryEstimator
 import me.kavishdevar.librepods.services.BatteryTimeLeft
@@ -102,20 +100,6 @@ class AppTourScreenshots {
     @Test fun microphone() = both("19_microphone", listOf(Screen.MicrophoneSettings))
     @Test fun licenses() = both("20_licenses", listOf(Screen.OpenSourceLicenses))
 
-    private fun viewer(name: String, view: SpinView, dark: Boolean = false) {
-        RuntimeEnvironment.setQualifiers(if (dark) "w412dp-h915dp-night-xxhdpi" else "w412dp-h915dp-xxhdpi")
-        rule.setContent { LibrePodsTheme(m3eEnabled = false) { PodsViewerScreen(initial = view) } }
-        rule.mainClock.advanceTimeBy(500)
-        Thread.sleep(1_500) // frames decode in the background
-        rule.mainClock.advanceTimeBy(500)
-        rule.onRoot().captureRoboImage("$out/$name.png")
-    }
-
-    @Test fun viewerBuds() = viewer("27_viewer_earbuds", SpinView.Buds)
-    @Test fun viewerBudsDark() = viewer("27_viewer_earbuds_dark", SpinView.Buds, dark = true)
-    @Test fun viewerCase() = viewer("28_viewer_case", SpinView.Case)
-    @Test fun viewerTogetherDark() = viewer("29_viewer_together_dark", SpinView.Together, dark = true)
-    @Test fun viewerInApp() = both("30_viewer_in_app", listOf(Screen.PodsViewer))
 
     private fun setup(name: String, step: Int, dark: Boolean = false) {
         // Phone-sized window (Galaxy S25 FE is about 412 x 915 dp) to judge proportions.

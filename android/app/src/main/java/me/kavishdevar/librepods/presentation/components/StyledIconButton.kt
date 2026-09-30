@@ -18,6 +18,7 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.glint.GlintLight
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 
 import android.content.res.Configuration.UI_MODE_NIGHT_NO
@@ -83,7 +84,6 @@ import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import kotlinx.coroutines.launch
 import me.kavishdevar.librepods.R
@@ -221,7 +221,7 @@ half4 main(float2 coord) {
                     .drawBackdrop(
                         backdrop = backdrop,
                         shape = { RoundedCornerShape(56.dp) },
-                        highlight = { Highlight.Ambient.copy(alpha = if (isDarkTheme) 1f else 0f) },
+                        highlight = { GlintLight.rim(if (isDarkTheme) 0.8f else 0.5f) },
                         innerShadow = {
                             if (isDarkTheme) {
                                 InnerShadow(

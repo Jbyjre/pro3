@@ -20,6 +20,7 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import me.kavishdevar.librepods.presentation.glint.GlintLight
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 
 // import me.kavishdevar.librepods.utils.RadareOffsetFinder
@@ -100,7 +101,6 @@ import androidx.core.net.toUri
 import androidx.graphics.shapes.Morph
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.highlight.Highlight
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import kotlinx.coroutines.delay
 import me.kavishdevar.librepods.BuildConfig
@@ -152,7 +152,6 @@ fun AirPodsSettingsRoute(
     navigateToTroubleshooting: () -> Unit,
     navigateToCallControlScreen: (action: String) -> Unit,
     navigateToMicrophoneSettings: () -> Unit,
-    navigateToViewer: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val timeLeft by BatteryTimeLeftFlow.estimate.collectAsState()
@@ -199,7 +198,6 @@ fun AirPodsSettingsRoute(
             navigateToTroubleshooting = navigateToTroubleshooting,
             navigateToCallControlScreen = navigateToCallControlScreen,
             navigateToMicrophoneSettings = navigateToMicrophoneSettings,
-            navigateToViewer = navigateToViewer,
             timeLeft = timeLeft,
 
             activateDemoMode = viewModel::activateDemoMode,
@@ -243,7 +241,6 @@ fun AirPodsSettingsScreen(
         navigateToTroubleshooting: () -> Unit,
         navigateToCallControlScreen: (action: String) -> Unit,
         navigateToMicrophoneSettings: () -> Unit,
-        navigateToViewer: () -> Unit = {},
         timeLeft: BatteryEstimate? = null,
 
         activateDemoMode: () -> Unit,
@@ -295,7 +292,6 @@ fun AirPodsSettingsScreen(
                 BatteryTimeLeft(
                     estimate = timeLeft,
                     connected = state.isLocallyConnected,
-                    onViewIn3d = navigateToViewer
                 )
             }
             item(key = "spacer_battery") {
@@ -635,7 +631,7 @@ fun AirPodsSettingsScreen(
                     exportedBackdrop = backdrop,
                     shape = { RoundedCornerShape(0.dp) },
                     highlight = {
-                        Highlight.Ambient.copy(alpha = 0f)
+                        GlintLight.rim(0f)
                     },
                     effects = {}
                 )

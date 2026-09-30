@@ -33,6 +33,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.highlight.HighlightStyle
 
 /**
  * How high a glass surface floats. Blur, refraction and shadow grow with it, except that
@@ -79,10 +80,21 @@ fun Modifier.glintGlass(
                 )
             }
         },
-        highlight = { if (solid) Highlight.Ambient.copy(alpha = 0f) else Highlight.Ambient.copy(alpha = if (dark) 0.6f else 1f) },
+        highlight = { GlintLight.rim(if (solid) 0f else if (dark) 0.6f else 0.9f) },
         onDrawSurface = { drawRect(tint) }
     )
     .then(if (solid) Modifier.border(1.dp, if (dark) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.45f), shape) else Modifier)
+
+/**
+ * The rim light for every Kyant glass surface. The library's built-in highlights light the
+ * edge from a 45-degree diagonal (bright top-left, dark bottom-right), which made buttons and
+ * sheets look tilted. Glint lights them from straight above instead: a bright top edge, a
+ * matching catch-light along the bottom, and quiet sides, the same on every shape.
+ */
+object GlintLight {
+    private val overhead = HighlightStyle.Default(angle = 90f, falloff = 2.2f)
+    fun rim(alpha: Float = 1f): Highlight = Highlight.Default.copy(alpha = alpha.coerceIn(0f, 1f), style = overhead)
+}
 
 fun glassTint(dark: Boolean, solid: Boolean): Color = when {
     solid -> if (dark) Color(0xFF1C1C1E) else Color(0xFFF7F7F9)
@@ -93,7 +105,7 @@ fun glassTint(dark: Boolean, solid: Boolean): Color = when {
 val CapsuleShape: Shape = RoundedCornerShape(percent = 50)
 
 /**
- * The studio backdrop shared by setup and the 3D viewer: a seamless sweep with one overhead
+ * The studio backdrop behind setup: a seamless sweep with one overhead
  * key light, and a faint trace of the status light's green low in the frame for glass edges
  * to pick up.
  */

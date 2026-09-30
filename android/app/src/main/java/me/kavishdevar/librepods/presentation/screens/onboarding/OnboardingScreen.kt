@@ -18,6 +18,7 @@
 
 package me.kavishdevar.librepods.presentation.screens.onboarding
 
+import me.kavishdevar.librepods.presentation.glint.GlintLight
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -87,7 +88,6 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.backdrop.highlight.Highlight
 import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.presentation.components.StyledButton
 import me.kavishdevar.librepods.presentation.glint.GlintComfort
@@ -308,7 +308,7 @@ private fun GlassSheet(
                         )
                     }
                 },
-                highlight = { if (reduceTransparency) Highlight.Ambient.copy(alpha = 0f) else Highlight.Ambient.copy(alpha = if (dark) 0.6f else 1f) },
+                highlight = { GlintLight.rim(if (reduceTransparency) 0f else if (dark) 0.6f else 0.9f) },
                 onDrawSurface = { drawRect(tint) }
             )
     ) {

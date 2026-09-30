@@ -1,5 +1,6 @@
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.glint.GlintLight
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -65,6 +66,7 @@ fun StyledBottomSheet(
                     backdrop = backdrop,
                     exportedBackdrop = innerBackdrop,
                     shape = { RoundedCornerShape(animatedCorner) },
+                    highlight = { GlintLight.rim(if (isDarkTheme) 0.6f else 0.8f) },
                     effects = {
                         vibrancy()
                         blur(4f.dp.toPx())

@@ -32,7 +32,6 @@ import me.kavishdevar.librepods.presentation.screens.LongPress
 import me.kavishdevar.librepods.presentation.screens.MicrophoneSettingsRoute
 import me.kavishdevar.librepods.presentation.screens.OpenSourceLicensesScreen
 import me.kavishdevar.librepods.presentation.screens.PurchaseScreen
-import me.kavishdevar.librepods.presentation.screens.PodsViewerScreen
 import me.kavishdevar.librepods.presentation.screens.RenameScreen
 import me.kavishdevar.librepods.presentation.screens.TransparencySettingsScreen
 import me.kavishdevar.librepods.presentation.screens.TroubleshootingScreen
@@ -112,7 +111,6 @@ fun AppNavGraph(
                                 navigateToTroubleshooting = { navigate(Screen.Troubleshooting) },
                                 navigateToCallControlScreen = { navigate(Screen.CallControl(it)) },
                                 navigateToMicrophoneSettings = { navigate(Screen.MicrophoneSettings) },
-                                navigateToViewer = { navigate(Screen.PodsViewer) },
                             )
                         }
 
@@ -266,8 +264,6 @@ fun AppNavGraph(
                             MicrophoneSettingsRoute(viewModel = airPodsViewModel)
                         }
 
-                    Screen.PodsViewer ->
-                        NavEntry(screen) { PodsViewerScreen() }
                 }
             },
             transitionSpec = {

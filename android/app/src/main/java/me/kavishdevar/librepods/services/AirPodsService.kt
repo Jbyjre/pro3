@@ -1229,14 +1229,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     false, false
                 ) && !GlintOverlays.isIslandShowing
             ) {
-                showIsland(
-                    this@AirPodsService,
-                    (batteryNotification.getBattery()
-                        .find { it.component == BatteryComponent.LEFT }?.level ?: 0).coerceAtMost(
-                        batteryNotification.getBattery()
-                            .find { it.component == BatteryComponent.RIGHT }?.level ?: 0
-                    )
-                )
+                showIslandEvent(IslandEvent.InEar)
             }
 
             if (newInEarData == listOf(false, false) && GlintOverlays.isIslandShowing) {
@@ -1684,6 +1677,16 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         GlintOverlays.updateSnapshot(
             PodsSnapshot.from(name, batteryNotification.getBattery(), earDetectionNotification.status, ancNotification.status, lidOpen)
         )
+    }
+
+    private var lastConnectedIsland = 0L
+
+    /** The island once per real connection (the control link just came up), not on every retry. */
+    private fun announceConnected() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastConnectedIsland < 30_000L) return
+        lastConnectedIsland = now
+        showIslandEvent(IslandEvent.Connected)
     }
 
     fun showIslandEvent(event: IslandEvent) {
@@ -3026,6 +3029,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             }
         }
         GlintStatus.set(LinkState.Connected(config.deviceName))
+        announceConnected()
         listeningModeReports = 0
         GlintOverlays.takeBackHandler = { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) takeOver("reverse") }
         CompanionLink.ensureObserving(this, device.address)
