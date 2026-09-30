@@ -108,7 +108,6 @@ fun AppSettingsScreen(
     navigateToPurchase: () -> Unit,
     navigateToTroubleshooting: () -> Unit,
     navigateToOpenSourceLicenses: () -> Unit,
-    navigateToReleaseNotesScreen: () -> Unit,
     navigateToStayConnected: () -> Unit = {},
     navigateToGlintLab: () -> Unit = {},
 ) {
@@ -118,11 +117,6 @@ fun AppSettingsScreen(
 
     val backdrop = rememberLayerBackdrop()
 
-    val contactBottomSheet = remember { mutableStateOf(false) }
-    val subjectState = remember { TextFieldState() }
-    val descriptionState = remember { TextFieldState() }
-    val subjectFocusRequester = remember { FocusRequester() }
-    val descriptionFocusRequester = remember { FocusRequester() }
 
     val m3eEnabled = LocalDesignSystem.current == DesignSystem.Material
     val topPadding = if (m3eEnabled) 16.dp else WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 84.dp
@@ -459,95 +453,4 @@ fun AppSettingsScreen(
         }
     }
 
-    StyledBottomSheet(
-        visible = contactBottomSheet.value,
-        onDismiss = { contactBottomSheet.value = false },
-        backdrop = backdrop
-    ) { innerBackdrop, progress ->
-        val animatedPadding = lerp(16.dp, 2.dp, progress)
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = animatedPadding)
-                .padding(bottom = 16.dp),
-        ) {
-           Row(
-               modifier = Modifier
-                   .fillMaxWidth()
-                   .padding(bottom = 16.dp),
-               horizontalArrangement = Arrangement.SpaceBetween,
-               verticalAlignment = Alignment.CenterVertically
-           ) {
-               StyledIconButton(
-                   icon = "\uDBC0\uDD84",
-                   backdrop = innerBackdrop,
-                   onClick = { contactBottomSheet.value = false }
-               )
-               Text (
-                   text = stringResource(R.string.describe_your_issue),
-                   style = TextStyle(
-                       fontSize = 18.sp,
-                       fontFamily = glintFontFamily,
-                       fontWeight = FontWeight.Bold,
-                       textAlign = TextAlign.Center,
-                       color = if (isSystemInDarkTheme()) Color.White else Color.Black
-                   )
-               )
-               StyledIconButton(
-                   icon = "\uDBC0\uDE1F",
-                   backdrop = innerBackdrop,
-                   surfaceColor = if (isSystemInDarkTheme()) Color(0xFF0091FF) else Color(0xFF0088FF),
-                   iconTint = if (subjectState.text.isNotEmpty() && descriptionState.text.isNotEmpty()) Color.White else Color.Gray,
-                   enabled = subjectState.text.isNotEmpty() && descriptionState.text.isNotEmpty(),
-                   onClick = {
-                       contactBottomSheet.value = false
-                       val intent = Intent(Intent.ACTION_SENDTO).apply {
-                           data = "mailto:".toUri()
-                           putExtra(Intent.EXTRA_EMAIL, arrayOf("contact@kavish.xyz"))
-                           putExtra(Intent.EXTRA_SUBJECT, "LibrePods: ${subjectState.text}")
-                           putExtra(
-                               Intent.EXTRA_TEXT,
-                               "${descriptionState.text}" +
-                                   "\n\n----------" +
-                                   "\nPhone details:" +
-                                   "\nMANUFACTURER: ${Build.MANUFACTURER}" +
-                                   "\nMODEL: ${Build.MODEL} (${Build.PRODUCT})" +
-                                   "\nDISPLAY_VERSION: ${Build.DISPLAY}" +
-                                   "\nID: ${Build.ID} (SDK ${Build.VERSION.SDK_INT_FULL})" +
-                                   "\nXposed enabled/active: ${XposedState.isAvailable}/${XposedState.bluetoothScopeEnabled}" +
-                                   "\n\nApp details:" +
-                                   "\nVERSION: ${BuildConfig.VERSION_NAME}" +
-                                   "\nVERSION_CODE: ${BuildConfig.VERSION_CODE}" +
-                                   "\nFLAVOR: ${BuildConfig.FLAVOR}" +
-                                   "\nBUILD_TYPE: ${BuildConfig.BUILD_TYPE}"
-                           )
-                       }
-                       context.startActivity(intent)
-                       subjectState.clearText()
-                       descriptionState.clearText()
-                   }
-               )
-           }
-
-           Spacer(modifier = Modifier.height(8.dp))
-
-           StyledInputField(
-               inputState = subjectState,
-               focusRequester = subjectFocusRequester,
-               placeholder = stringResource(R.string.subject),
-               forceApple = true
-           )
-
-           Spacer(modifier = Modifier.height(12.dp))
-
-           StyledInputField(
-               inputState = descriptionState,
-               focusRequester = descriptionFocusRequester,
-               placeholder = stringResource(R.string.describe_your_issue),
-               singleLine = false,
-               forceApple = true
-           )
-        }
-    }
 }

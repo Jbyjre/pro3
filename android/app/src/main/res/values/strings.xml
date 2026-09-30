@@ -228,7 +228,7 @@
     <string name="automatic_connection_description">Enable and customize automatic connection to AirPods.</string>
     <string name="customizations_description">Get access to app customizations, including phone battery in widget, conversational awareness volume, and many more upcoming customization features.</string>
     <string name="support_the_development">Support the development</string>
-    <string name="support_development_description">Glint is built on LibrePods, which is developed by a single developer (kavishdevar). Unlocking sponsors the LibrePods developer directly and helps keep the project alive.</string>
+    <string name="support_development_description">Unlock every feature in this build.</string>
     <string name="feature_availability_disclaimer">Feature availability depends on your AirPods model and firmware version.</string>
     <string name="contact">Contact</string>
     <string name="email">E-Mail</string>
@@ -276,7 +276,6 @@
     <string name="optimized_charging">Optimized Charge Limit</string>
     <string name="optimized_charging_description">AirPods can learn from your daily usage and determine when to charge to an optmized limit and when to allow or full charge. This limit adapts to your daily usage and preserves your battery lifespan over time.\nThis setting may not affect unsupported AirPods, or AirPods on an older firmware version.</string>
     <string name="enable_app_in_xposed_or_update_device">Update your device or enable Glint in Xposed and reopen the app to proceed.</string>
-    <string name="play_foss_premium_banner">Due to an error in billing, premium access will expire in %1$d days. If you already upgraded the app, please click on this message to email billing@kavish.xyz to restore or verify access. Apologies for the inconvenience.</string>
     <string name="custom">Custom</string>
     <string name="recommended">Recommended</string>
     <string name="appearance">Appearance</string>

@@ -13,7 +13,7 @@ A short checklist. Tick things off, and for anything that looks wrong, take a sc
 
 ## B. First-run setup (about 2 minutes)
 
-1. **Welcome** and **Privacy** pages: continue.
+1. **Welcome**: tap to start (there's no agreement page).
 2. **This phone**: read what it says about your phone.
    - "Should work" or "Ready": continue.
    - "Waiting for One UI 9": your phone doesn't have the Android 17 Bluetooth fix yet. You can still continue. Check **Settings > Software update**.
@@ -30,13 +30,15 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 
 | Check | How | Expected |
 |---|---|---|
-| Connect | Open the case near the phone | The glass card rises from the bottom as a pill and springs open; LibrePods' turning-AirPods clip plays smoothly in it (no white flash when it loops), with the battery below |
+| Connect | Open the case near the phone | The island (small orb) appears at the top once per connection. The bottom card no longer appears unless you turn on Settings > **Card when the case opens**; if you do, it shows once when you open the case, not again from Bluetooth hiccups |
 | Main screen | Open Glint while connected | LibrePods' buds and case pictures with battery rings; the L/R and case marks and the charging bolt show as symbols, not empty boxes |
-| Unlock | Settings > **Unlock advanced features**, tap **Sponsor LibrePods & unlock**, stay on the page 5+ seconds, come back | Locked items (conversation awareness, head gestures, etc.) are now switchable. Also try going back to the home screen in between: it should still unlock |
+| Everything included | Look through Settings and the main screen | No "Locked" labels, no unlock or sponsor buttons; every switch works |
+| Time left | Wear the buds and play music for 30+ minutes | Under the battery rings: "About … of listening left". Early on it says it's based on Apple's rating; after about half an hour it says "Measured from your recent listening". Put the buds in the case: it switches to "Full in about …" after a few minutes of charging |
+| 3D viewer | Main screen > **View in 3D** | Drag sideways to turn, flick to spin (Earbuds spins all the way round; Case and Together turn end to end). The switcher at the bottom is glass and changes views smoothly |
 | Battery | Look at the card, the main screen, the notification | Left, right and case percentages match |
 | Listening modes | Switch modes in the app, then press-and-hold a stem | The app follows; a small island shows the mode you picked on the AirPods |
 | Ear detection | Take one AirPod out while music plays, put it back | Music pauses, then resumes |
-| Conversation awareness | Turn it on (needs the unlock), start talking | Volume lowers while you talk |
+| Conversation awareness | Turn it on, start talking | Volume lowers while you talk |
 | Press and hold | Settings > press and hold: change the action | The new action happens |
 | Low battery | Use the buds until about 20% (or use Glint Lab) | A red/amber island appears once at 20% and once at 10% |
 | Auto-reconnect | Turn Bluetooth off and on; put the buds in the case and take them out | The main screen shows "Connecting..." then your AirPods; no manual tapping |
@@ -62,4 +64,3 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 - Features marked **Needs root** don't work on a standard Samsung.
 - Overlays don't appear on the lock screen (Android hides app overlays there).
 - Widgets, the notification and the quick-settings tile are drawn by Samsung, so they can't be true glass.
-- Some features need the **unlock** (sponsoring the LibrePods developer): conversation awareness, head gestures, and some advanced settings.

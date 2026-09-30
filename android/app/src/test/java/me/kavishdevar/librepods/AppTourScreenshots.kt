@@ -16,6 +16,12 @@ import me.kavishdevar.librepods.presentation.viewmodel.AirPodsViewModel
 import me.kavishdevar.librepods.services.GlintStatus
 import me.kavishdevar.librepods.services.LinkState
 import org.junit.Before
+import me.kavishdevar.librepods.presentation.glint.SpinView
+import me.kavishdevar.librepods.presentation.glint.PodsSpinnerConfig
+import me.kavishdevar.librepods.presentation.screens.PodsViewerScreen
+import me.kavishdevar.librepods.services.BatteryEstimate
+import me.kavishdevar.librepods.services.BatteryEstimator
+import me.kavishdevar.librepods.services.BatteryTimeLeft
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -43,9 +49,11 @@ class AppTourScreenshots {
     @Before
     fun setUp() {
         PodsVideoConfig.enabled = false
+        PodsSpinnerConfig.idleTurn = false
         context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().clear().commit()
         BillingManager.provider = FOSSBillingProvider(context)
         GlintStatus.set(LinkState.Idle)
+        BatteryTimeLeft.publish(null)
     }
 
     private fun tour(name: String, dark: Boolean, stack: List<Screen>, demo: Boolean = true, onboarding: Boolean = false) {
@@ -73,8 +81,14 @@ class AppTourScreenshots {
     @Test fun appSettings() = both("03_app_settings", listOf(Screen.AppSettings))
     @Test fun appSettingsDark() = tour("03_app_settings", dark = true, stack = listOf(Screen.AppSettings))
     @Test fun stayConnected() = both("04_stay_connected", listOf(Screen.StayConnected))
-    @Test fun purchase() = both("05_unlock", listOf(Screen.Purchase))
-    @Test fun purchaseDark() = tour("05_unlock", dark = true, stack = listOf(Screen.Purchase))
+    @Test fun homeTimeLeft() {
+        BatteryTimeLeft.publish(BatteryEstimate(197, BatteryEstimator.Confidence.MEASURED, worn = true, charging = false, caseCharges = 1.52))
+        both("01b_home_time_left", emptyList())
+    }
+    @Test fun homeCharging() {
+        BatteryTimeLeft.publish(BatteryEstimate(null, BatteryEstimator.Confidence.MEASURED, worn = false, charging = true, caseCharges = 1.5, minutesToFull = 38))
+        tour("01c_home_charging", dark = true, stack = emptyList())
+    }
     @Test fun accessibility() = both("06_accessibility", listOf(Screen.Accessibility))
     @Test fun adaptive() = both("07_adaptive_strength", listOf(Screen.AdaptiveStrength))
     @Test fun hearingProtection() = both("08_hearing_protection", listOf(Screen.HearingProtection))
@@ -87,13 +101,21 @@ class AppTourScreenshots {
     @Test fun callControl() = both("18_call_control", listOf(Screen.CallControl("Mute/Unmute")))
     @Test fun microphone() = both("19_microphone", listOf(Screen.MicrophoneSettings))
     @Test fun licenses() = both("20_licenses", listOf(Screen.OpenSourceLicenses))
-    @Test fun releaseNotes() = both("21_release_notes", listOf(Screen.ReleaseNotes))
 
-    private fun page(name: String, content: @androidx.compose.runtime.Composable () -> Unit) {
-        rule.setContent { LibrePodsTheme(m3eEnabled = false) { content() } }
-        rule.mainClock.advanceTimeBy(1_000)
+    private fun viewer(name: String, view: SpinView, dark: Boolean = false) {
+        RuntimeEnvironment.setQualifiers(if (dark) "w412dp-h915dp-night-xxhdpi" else "w412dp-h915dp-xxhdpi")
+        rule.setContent { LibrePodsTheme(m3eEnabled = false) { PodsViewerScreen(initial = view) } }
+        rule.mainClock.advanceTimeBy(500)
+        Thread.sleep(1_500) // frames decode in the background
+        rule.mainClock.advanceTimeBy(500)
         rule.onRoot().captureRoboImage("$out/$name.png")
     }
+
+    @Test fun viewerBuds() = viewer("27_viewer_earbuds", SpinView.Buds)
+    @Test fun viewerBudsDark() = viewer("27_viewer_earbuds_dark", SpinView.Buds, dark = true)
+    @Test fun viewerCase() = viewer("28_viewer_case", SpinView.Case)
+    @Test fun viewerTogetherDark() = viewer("29_viewer_together_dark", SpinView.Together, dark = true)
+    @Test fun viewerInApp() = both("30_viewer_in_app", listOf(Screen.PodsViewer))
 
     private fun setup(name: String, step: Int, dark: Boolean = false) {
         // Phone-sized window (Galaxy S25 FE is about 412 x 915 dp) to judge proportions.

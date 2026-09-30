@@ -121,6 +121,11 @@ class BatteryEstimatorTest {
         assertEquals("Full in about 1 h 50 min", BatteryWords.headline(e))
     }
 
+    @Test fun fullBudsInTheCaseSayFullyCharged() {
+        val e = BatteryEstimator().update(reading(0, 100, charging = true, worn = false))!!
+        assertEquals("Fully charged", BatteryWords.headline(e))
+    }
+
     @Test fun jumpingLevelsUpResetsTheDrainMeasurement() {
         val est = BatteryEstimator()
         var t = 0L
@@ -140,11 +145,12 @@ class BatteryWordsTest {
     }
 
     @Test fun caseCharges() {
-        fun detail(case: Int) = BatteryWords.detail(BatteryEstimate(100, Confidence.RATED, true, false, BatteryEstimator.caseCharges(case)))
-        assertTrue(detail(100).endsWith("Case: about 2 more full charges"))
-        assertTrue(detail(50).endsWith("Case: about 1 more full charge"))
-        assertTrue(detail(80).endsWith("Case: about 1.5 more full charges"))
-        assertTrue(detail(10).endsWith("less than half a charge left"))
+        fun case(case: Int) = BatteryWords.case(BatteryEstimate(100, Confidence.RATED, true, false, BatteryEstimator.caseCharges(case)))
+        assertEquals("Case: about 2 more full charges", case(100))
+        assertEquals("Case: about 1 more full charge", case(50))
+        assertEquals("Case: about 1.5 more full charges", case(80))
+        assertEquals("Case: less than half a charge left", case(10))
+        assertNull(BatteryWords.case(BatteryEstimate(100, Confidence.RATED, true, false, null)))
     }
 }
 

@@ -154,7 +154,8 @@ class BatteryEstimator(
     }
 
     private fun chargingEstimate(levels: Array<Int?>, now: Long, case: Int?): BatteryEstimate {
-        var worst: Int? = null
+        val charging = (0..1).filter { charge[it] != null && levels[it] != null }
+        var worst: Int? = if (charging.isNotEmpty() && charging.all { levels[it]!! >= 100 }) 0 else null
         for (i in 0..1) {
             val c = charge[i] ?: continue
             val level = levels[i] ?: continue
@@ -235,27 +236,28 @@ object BatteryWords {
     }
 
     fun headline(e: BatteryEstimate): String = when {
+        e.charging && e.minutesToFull == 0 -> "Fully charged"
         e.charging -> e.minutesToFull?.let { "Full in about ${duration(it)}" } ?: "Charging"
         e.minutesLeft == null -> "Estimating…"
         else -> "About ${duration(e.minutesLeft)} of listening left"
     }
 
-    fun detail(e: BatteryEstimate): String {
-        val basis = when {
-            e.charging -> if (e.minutesToFull == null) "Timing the charge, a few minutes more" else "From how fast they are charging now"
-            e.confidence == BatteryEstimator.Confidence.MEASURED -> "Measured from your last half hour of listening"
-            e.confidence == BatteryEstimator.Confidence.LEARNING -> "Measuring your use; getting more exact"
-            e.worn -> "Based on Apple's rating; measuring as you listen"
-            else -> "If you start listening now, based on Apple's rating"
+    /** What the estimate is based on. */
+    fun detail(e: BatteryEstimate): String = when {
+        e.charging -> if (e.minutesToFull == null) "Timing the charge, a few minutes more" else "From how fast they are charging now"
+        e.confidence == BatteryEstimator.Confidence.MEASURED -> "Measured from your recent listening"
+        e.confidence == BatteryEstimator.Confidence.LEARNING -> "Measuring your use; getting more exact"
+        e.worn -> "Based on Apple's rating; measuring as you listen"
+        else -> "If you start listening now, based on Apple's rating"
+    }
+
+    /** The case's spare charges, roughly (Apple: 24 h in total with the case, 8 h per charge). */
+    fun case(e: BatteryEstimate): String? = e.caseCharges?.let { c ->
+        val rounded = (c * 2).roundToInt() / 2.0
+        when {
+            rounded < 0.5 -> "Case: less than half a charge left"
+            else -> "Case: about ${if (rounded % 1.0 == 0.0) rounded.toInt().toString() else rounded.toString()} more full charge${if (rounded == 1.0) "" else "s"}"
         }
-        val case = e.caseCharges?.let { c ->
-            val rounded = (c * 2).roundToInt() / 2.0
-            when {
-                rounded < 0.5 -> " · Case: less than half a charge left"
-                else -> " · Case: about ${if (rounded % 1.0 == 0.0) rounded.toInt().toString() else rounded.toString()} more full charge${if (rounded == 1.0) "" else "s"}"
-            }
-        } ?: ""
-        return basis + case
     }
 }
 

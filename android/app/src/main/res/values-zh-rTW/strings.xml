@@ -225,7 +225,6 @@
     <string name="automatic_connection_description">啟用並自訂自動連接至 AirPods 的功能。</string>
     <string name="customizations_description">存取應用程式自訂功能，包括小工具中的手機電量、對話感知音量，以及更多即將推出的自訂功能。</string>
     <string name="support_the_development">支援開發</string>
-    <string name="support_development_description">LibrePods 由單一開發者開發。升級有助於維持應用程式的運作。</string>
     <string name="feature_availability_disclaimer">功能的可用性取決於你的 AirPods 型號與韌體版本。</string>
     <string name="contact">聯絡</string>
     <string name="email">電子郵件</string>

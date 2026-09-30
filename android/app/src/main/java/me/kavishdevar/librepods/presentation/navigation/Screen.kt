@@ -84,7 +84,5 @@ sealed interface Screen: NavKey {
     data object GlintLab: Screen
 
     @Serializable
-    data object ReleaseNotes: Screen {
-        override val showTopBar: Boolean = false
-    }
+    data object PodsViewer: Screen
 }

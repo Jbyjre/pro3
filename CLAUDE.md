@@ -32,4 +32,7 @@
   (island, card, overlay window), `services/GlintStatus.kt`, `bluetooth/AirPodsDetection.kt`,
   `bluetooth/ReconnectPolicy.kt`, `utils/CompanionLink.kt`. Hidden Glint Lab: Settings >
   About > tap "Version code" 7 times.
+- The foss build has no paywall: `FOSSBillingProvider` reports everything included; the purchase page is Play-only.
+- 3D viewer frames live in `assets/spin/{buds,case,both}` (48 keyed WebP frames each, made from the clips).
+  Battery time left: `services/BatteryEstimator.kt`; bottom-card rules: `services/CardGate.kt`.
 - See `DECISIONS.md` and `TESTING.md` at the repo root.

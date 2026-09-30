@@ -34,6 +34,9 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import me.kavishdevar.librepods.presentation.components.BatteryTimeLeft
+import me.kavishdevar.librepods.services.BatteryEstimate
+import me.kavishdevar.librepods.services.BatteryTimeLeft as BatteryTimeLeftFlow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -148,9 +151,11 @@ fun AirPodsSettingsRoute(
     navigateToVersion: () -> Unit,
     navigateToTroubleshooting: () -> Unit,
     navigateToCallControlScreen: (action: String) -> Unit,
-    navigateToMicrophoneSettings: () -> Unit
+    navigateToMicrophoneSettings: () -> Unit,
+    navigateToViewer: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
+    val timeLeft by BatteryTimeLeftFlow.estimate.collectAsState()
 
     val m3eEnabled = LocalDesignSystem.current == DesignSystem.Material
     val topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + if (m3eEnabled) 0.dp else 84.dp
@@ -194,6 +199,8 @@ fun AirPodsSettingsRoute(
             navigateToTroubleshooting = navigateToTroubleshooting,
             navigateToCallControlScreen = navigateToCallControlScreen,
             navigateToMicrophoneSettings = navigateToMicrophoneSettings,
+            navigateToViewer = navigateToViewer,
+            timeLeft = timeLeft,
 
             activateDemoMode = viewModel::activateDemoMode,
             reconnectFromSavedMac = viewModel::reconnectFromSavedMac
@@ -236,6 +243,8 @@ fun AirPodsSettingsScreen(
         navigateToTroubleshooting: () -> Unit,
         navigateToCallControlScreen: (action: String) -> Unit,
         navigateToMicrophoneSettings: () -> Unit,
+        navigateToViewer: () -> Unit = {},
+        timeLeft: BatteryEstimate? = null,
 
         activateDemoMode: () -> Unit,
         reconnectFromSavedMac: () -> Unit,
@@ -274,44 +283,6 @@ fun AirPodsSettingsScreen(
                 .padding(horizontal = 16.dp)
         ) {
             item(key = "top_padding") { Spacer(modifier = Modifier.height(topPadding)) }
-            item(key = "play_update_banner") {
-                if (state.timeUntilFOSSPremiumExpiry > 0L) {
-                    val context = LocalContext.current
-                    Box(
-                        modifier = Modifier
-                            .background(Color(0xFF32829B), RoundedCornerShape(28.dp))
-                            .clip(RoundedCornerShape(28.dp))
-                            .clickable {
-                                val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
-                                    data = "mailto:".toUri()
-                                    putExtra(Intent.EXTRA_EMAIL, arrayOf("billing@kavish.xyz"))
-                                    putExtra(Intent.EXTRA_SUBJECT, "LibrePods Play billing error")
-                                    putExtra(
-                                        Intent.EXTRA_TEXT,
-                                        "Please enter your GitHub username to restore your premium access:\n\nGitHub username: "
-                                    )
-                                }
-                                context.startActivity(emailIntent)
-                            }) {
-                        Text(
-                            text = stringResource(
-                                R.string.play_foss_premium_banner,
-                                maxOf(
-                                    1,
-                                    TimeUnit.MILLISECONDS.toDays(state.timeUntilFOSSPremiumExpiry)
-                                        .toInt()
-                                )
-                            ), modifier = Modifier.padding(16.dp), style = TextStyle(
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                fontFamily = glintFontFamily
-                            )
-                        )
-                    }
-                }
-            }
-
             item(key = "battery") {
                 BatteryView(
                     batteryList = state.battery,
@@ -319,8 +290,16 @@ fun AirPodsSettingsScreen(
                     caseRes = state.instance?.model?.caseRes ?: R.drawable.airpods_pro_2_case
                 )
             }
+            item(key = "time_left") {
+                Spacer(modifier = Modifier.height(18.dp))
+                BatteryTimeLeft(
+                    estimate = timeLeft,
+                    connected = state.isLocallyConnected,
+                    onViewIn3d = navigateToViewer
+                )
+            }
             item(key = "spacer_battery") {
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(28.dp))
             }
 
             item(key = "name") {
