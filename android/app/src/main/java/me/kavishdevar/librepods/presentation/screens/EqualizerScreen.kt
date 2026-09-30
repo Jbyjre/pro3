@@ -18,6 +18,7 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import me.kavishdevar.librepods.presentation.glint.GlintLight
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 
 import androidx.compose.animation.Crossfade
@@ -88,7 +89,6 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.highlight.Highlight
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import me.kavishdevar.librepods.R
@@ -630,7 +630,7 @@ fun EqualizerCard(
                                                         backdrop = backdrop,
                                                         shape = { CircleShape },
                                                         highlight = {
-                                                            Highlight.Ambient
+                                                            GlintLight.rim()
                                                         },
                                                         onDrawSurface = {
                                                             drawCircle(

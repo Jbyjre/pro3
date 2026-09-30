@@ -95,7 +95,7 @@ data class AirPodsUiState(
     val transparencyData: ByteArray = byteArrayOf(),
     val hearingAidData: ByteArray = byteArrayOf(),
 
-    val isPremium: Boolean = false,
+    val isPremium: Boolean = !BuildConfig.PLAY_BUILD, // Glint: everything included
     val vendorIdHook: Boolean = false,
 
     val dynamicEndOfCharge: Boolean = false,

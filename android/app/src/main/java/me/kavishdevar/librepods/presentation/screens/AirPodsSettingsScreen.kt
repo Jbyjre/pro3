@@ -20,6 +20,7 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import me.kavishdevar.librepods.presentation.glint.GlintLight
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 
 // import me.kavishdevar.librepods.utils.RadareOffsetFinder
@@ -34,6 +35,15 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import me.kavishdevar.librepods.presentation.components.CommandNotice
+import com.kyant.backdrop.backdrops.layerBackdrop
+import me.kavishdevar.librepods.presentation.components.BatteryTimeLeft
+import me.kavishdevar.librepods.services.BatteryEstimate
+import me.kavishdevar.librepods.services.HeartRate
+import me.kavishdevar.librepods.services.BatteryTimeLeft as BatteryTimeLeftFlow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -97,7 +107,6 @@ import androidx.core.net.toUri
 import androidx.graphics.shapes.Morph
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.highlight.Highlight
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import kotlinx.coroutines.delay
 import me.kavishdevar.librepods.BuildConfig
@@ -148,19 +157,24 @@ fun AirPodsSettingsRoute(
     navigateToVersion: () -> Unit,
     navigateToTroubleshooting: () -> Unit,
     navigateToCallControlScreen: (action: String) -> Unit,
-    navigateToMicrophoneSettings: () -> Unit
+    navigateToMicrophoneSettings: () -> Unit,
+    navigateToHeartRate: () -> Unit = {},
+    navigateToRecorder: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
+    val timeLeft by BatteryTimeLeftFlow.estimate.collectAsState()
 
     val m3eEnabled = LocalDesignSystem.current == DesignSystem.Material
     val topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + if (m3eEnabled) 0.dp else 84.dp
     val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 12.dp
 
+    val noticeBackdrop = rememberLayerBackdrop()
     Box (
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceContainer)
     ) {
+        Box(Modifier.fillMaxSize().layerBackdrop(noticeBackdrop)) {
         AirPodsSettingsScreen(
             state = state,
 
@@ -194,9 +208,18 @@ fun AirPodsSettingsRoute(
             navigateToTroubleshooting = navigateToTroubleshooting,
             navigateToCallControlScreen = navigateToCallControlScreen,
             navigateToMicrophoneSettings = navigateToMicrophoneSettings,
+            navigateToHeartRate = navigateToHeartRate,
+            navigateToRecorder = navigateToRecorder,
+            timeLeft = timeLeft,
 
             activateDemoMode = viewModel::activateDemoMode,
             reconnectFromSavedMac = viewModel::reconnectFromSavedMac
+        )
+        }
+        CommandNotice(
+            backdrop = noticeBackdrop,
+            onReconnect = viewModel::reconnectFromSavedMac,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomPadding + 16.dp)
         )
     }
 }
@@ -236,6 +259,9 @@ fun AirPodsSettingsScreen(
         navigateToTroubleshooting: () -> Unit,
         navigateToCallControlScreen: (action: String) -> Unit,
         navigateToMicrophoneSettings: () -> Unit,
+        navigateToHeartRate: () -> Unit = {},
+        navigateToRecorder: () -> Unit = {},
+        timeLeft: BatteryEstimate? = null,
 
         activateDemoMode: () -> Unit,
         reconnectFromSavedMac: () -> Unit,
@@ -274,44 +300,6 @@ fun AirPodsSettingsScreen(
                 .padding(horizontal = 16.dp)
         ) {
             item(key = "top_padding") { Spacer(modifier = Modifier.height(topPadding)) }
-            item(key = "play_update_banner") {
-                if (state.timeUntilFOSSPremiumExpiry > 0L) {
-                    val context = LocalContext.current
-                    Box(
-                        modifier = Modifier
-                            .background(Color(0xFF32829B), RoundedCornerShape(28.dp))
-                            .clip(RoundedCornerShape(28.dp))
-                            .clickable {
-                                val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
-                                    data = "mailto:".toUri()
-                                    putExtra(Intent.EXTRA_EMAIL, arrayOf("billing@kavish.xyz"))
-                                    putExtra(Intent.EXTRA_SUBJECT, "LibrePods Play billing error")
-                                    putExtra(
-                                        Intent.EXTRA_TEXT,
-                                        "Please enter your GitHub username to restore your premium access:\n\nGitHub username: "
-                                    )
-                                }
-                                context.startActivity(emailIntent)
-                            }) {
-                        Text(
-                            text = stringResource(
-                                R.string.play_foss_premium_banner,
-                                maxOf(
-                                    1,
-                                    TimeUnit.MILLISECONDS.toDays(state.timeUntilFOSSPremiumExpiry)
-                                        .toInt()
-                                )
-                            ), modifier = Modifier.padding(16.dp), style = TextStyle(
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                fontFamily = glintFontFamily
-                            )
-                        )
-                    }
-                }
-            }
-
             item(key = "battery") {
                 BatteryView(
                     batteryList = state.battery,
@@ -319,8 +307,33 @@ fun AirPodsSettingsScreen(
                     caseRes = state.instance?.model?.caseRes ?: R.drawable.airpods_pro_2_case
                 )
             }
+            item(key = "time_left") {
+                Spacer(modifier = Modifier.height(18.dp))
+                BatteryTimeLeft(
+                    estimate = timeLeft,
+                    connected = state.isLocallyConnected,
+                )
+            }
+            item(key = "link_status") {
+                val link by me.kavishdevar.librepods.services.GlintStatus.link.collectAsState()
+                val (dot, text) = when (link) {
+                    is me.kavishdevar.librepods.services.LinkState.Connected -> me.kavishdevar.librepods.presentation.glint.GlintColors.Green to "Controls connected: changes apply right away"
+                    is me.kavishdevar.librepods.services.LinkState.Connecting, is me.kavishdevar.librepods.services.LinkState.Retrying -> me.kavishdevar.librepods.presentation.glint.GlintColors.Amber to "Reconnecting controls… audio still works"
+                    is me.kavishdevar.librepods.services.LinkState.GaveUp -> me.kavishdevar.librepods.presentation.glint.GlintColors.Red to "Controls not connected: changes won't reach the AirPods"
+                    else -> me.kavishdevar.librepods.presentation.glint.GlintColors.Amber to "Waiting for your AirPods"
+                }
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 14.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(Modifier.size(8.dp).background(dot, CircleShape))
+                    Spacer(Modifier.width(8.dp))
+                    Text(text, style = TextStyle(fontSize = 13.sp, fontFamily = glintFontFamily, color = if (isSystemInDarkTheme()) Color.White.copy(alpha = 0.7f) else Color.Black.copy(alpha = 0.65f)))
+                }
+            }
             item(key = "spacer_battery") {
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(28.dp))
             }
 
             item(key = "name") {
@@ -539,13 +552,37 @@ fun AirPodsSettingsScreen(
                 item(key = "head_tracking") {
                     StyledListItem(
                         name = stringResource(R.string.head_gestures),
-                        description = if (sharedPreferences.getBoolean(
-                                "head_gestures", false
-                            )
-                        ) stringResource(R.string.on) else stringResource(R.string.off),
+                        description = if (state.headGesturesEnabled) "On: nod to answer calls, shake to decline" else stringResource(R.string.off),
                         onClick = navigateToHeadTracking
                     )
                 }
+            }
+
+            if (capabilities.contains(Capability.HRM)) {
+                item(key = "spacer_heart_rate") { Spacer(modifier = Modifier.height(16.dp)) }
+                item(key = "heart_rate") {
+                    val hr by HeartRate.state.collectAsState()
+                    StyledListItem(
+                        name = "Heart rate",
+                        description = when (hr.status) {
+                            HeartRate.Status.Live -> "${hr.bpm} BPM now"
+                            HeartRate.Status.Off -> "Measure with your AirPods"
+                            HeartRate.Status.Starting -> "Starting…"
+                            HeartRate.Status.NoSignal -> "No reading, check the fit"
+                            HeartRate.Status.NotConnected -> "Waiting for controls"
+                        },
+                        onClick = navigateToHeartRate
+                    )
+                }
+            }
+
+            item(key = "spacer_recorder") { Spacer(modifier = Modifier.height(16.dp)) }
+            item(key = "recorder") {
+                StyledListItem(
+                    name = "Recorder (experimental)",
+                    description = "Record with the AirPods' microphones",
+                    onClick = navigateToRecorder
+                )
             }
 
             item(key = "spacer_dynamic_end_of_charge") { Spacer(modifier = Modifier.height(16.dp)) }
@@ -656,7 +693,7 @@ fun AirPodsSettingsScreen(
                     exportedBackdrop = backdrop,
                     shape = { RoundedCornerShape(0.dp) },
                     highlight = {
-                        Highlight.Ambient.copy(alpha = 0f)
+                        GlintLight.rim(0f)
                     },
                     effects = {}
                 )

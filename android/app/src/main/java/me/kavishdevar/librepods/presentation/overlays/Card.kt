@@ -211,6 +211,7 @@ internal fun CardHost(
                 }
             }
             onGone()
+            GlintOverlays.releaseIfIdle()
         }
     }
 
@@ -241,9 +242,11 @@ internal fun CardHost(
                     press = 1f
                     lastTouch++
                     var total = 0f
+                    var handled = false
                     while (true) {
                         val ev = awaitPointerEvent()
                         val ch = ev.changes.firstOrNull() ?: break
+                        if (ch.isConsumed) handled = true
                         if (!ch.pressed) break
                         total += ch.positionChange().y
                         dragY = total
@@ -253,6 +256,10 @@ internal fun CardHost(
                     touch = null
                     if (total > 60f * density) {
                         haptics.dismiss()
+                        onLeave()
+                    } else if (!handled && kotlin.math.abs(total) < 8f * density) {
+                        // A plain tap on the card opens Glint.
+                        GlintOverlays.openApp(context)
                         onLeave()
                     }
                     dragY = 0f
@@ -342,31 +349,19 @@ private fun CardContent(
         Modifier.fillMaxSize().padding(bottom = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // The stage: LibrePods' 3D clip on its own studio backdrop (white, or near-black at
-        // night), inset concentrically in the glass (radius = card radius - inset) so the
-        // AirPods sit in a lit display window rather than a pasted-on rectangle.
-        val inset = 10.dp
-        val stageShape = RoundedCornerShape(CardGeometry.RADIUS_DP.dp - inset)
-        Box(
-            Modifier
-                .padding(start = inset, end = inset, top = inset)
+        // The 3D clip sits straight on the glass: its edges fade into the card (no inner
+        // panel), and the card's own tint matches the clip's backdrop, so the card reads as
+        // one continuous surface instead of a box inside a box.
+        PodsVideo(
+            video = R.raw.connected,
+            poster = R.drawable.connected_poster,
+            aspectRatio = PodsVideoConfig.CONNECTED_ASPECT,
+            loopFromMs = PodsVideoConfig.CONNECTED_LOOP_FROM_MS,
+            modifier = Modifier
+                .padding(top = 18.dp)
                 .fillMaxWidth()
-                .height(146.dp)
-                .clip(stageShape)
-                .background(if (look.dark) StageNight else StageDay)
-                .border(1.dp, if (look.dark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.05f), stageShape),
-            contentAlignment = Alignment.Center
-        ) {
-            PodsVideo(
-                video = R.raw.connected,
-                poster = R.drawable.connected_poster,
-                aspectRatio = PodsVideoConfig.CONNECTED_ASPECT,
-                loopFromMs = PodsVideoConfig.CONNECTED_LOOP_FROM_MS,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .featherEdges(),
-            )
-        }
+                .featherEdges(),
+        )
         Spacer(Modifier.height(14.dp))
         Text(
             title, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
@@ -388,9 +383,6 @@ private fun CardContent(
     }
 }
 
-/** The clips' own backdrop colours, measured from the frames, so the stage has no seam. */
-private val StageDay = Color(0xFFFFFFFF)
-private val StageNight = Color(0xFF1B1B1B)
 
 /**
  * Softly fades the clip's outer edges into the stage, hiding any one-level colour difference
@@ -400,8 +392,8 @@ private fun Modifier.featherEdges(): Modifier = this
     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
     .drawWithContent {
         drawContent()
-        val fx = size.width * 0.06f
-        val fy = size.height * 0.035f
+        val fx = size.width * 0.08f
+        val fy = size.height * 0.10f
         drawRect(
             Brush.horizontalGradient(0f to Color.Transparent, fx / size.width to Color.Black, 1f - fx / size.width to Color.Black, 1f to Color.Transparent),
             blendMode = BlendMode.DstIn
@@ -481,8 +473,9 @@ fun GlassPillButton(
                         val ch = ev.changes.firstOrNull() ?: break
                         val p = ch.position
                         inside = p.x in 0f..size.width.toFloat() && p.y in 0f..size.height.toFloat()
-                        if (!ch.pressed) break
+                        // Consume the release too, so the island/card behind doesn't also treat it as a tap.
                         ch.consume()
+                        if (!ch.pressed) break
                     }
                     pressed = false
                     if (inside) currentOnClick()

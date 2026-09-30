@@ -32,9 +32,9 @@ data class AppSettingsUiState(
     val cameraPackageValue: String = "",
     val cameraPackageError: String? = null,
     val vendorIdHook: Boolean = false,
-    val isPremium: Boolean = false,
+    val isPremium: Boolean = !BuildConfig.PLAY_BUILD, // Glint: everything included
     val connectionSuccessful: Boolean = false,
-    val showBottomSheetPopup: Boolean = true,
+    val showBottomSheetPopup: Boolean = false,
     val showIslandPopup: Boolean = true,
     val timeUntilFOSSPremiumExpiry: Long = 0L,
     val m3eEnabled: Boolean = false
@@ -150,7 +150,7 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
                 cameraPackageValue = sharedPreferences.getString("custom_camera_package", "") ?: "",
                 vendorIdHook = xposedRemotePref.getBoolean("vendor_id_hook", false),
                 connectionSuccessful = sharedPreferences.getBoolean("connection_successful", false),
-                showBottomSheetPopup = sharedPreferences.getBoolean("show_bottom_sheet_popup", true),
+                showBottomSheetPopup = sharedPreferences.getBoolean("show_bottom_sheet_popup", false),
                 showIslandPopup = sharedPreferences.getBoolean("show_island_popup", true),
                 m3eEnabled = sharedPreferences.getBoolean("m3e_enabled", false)
             )

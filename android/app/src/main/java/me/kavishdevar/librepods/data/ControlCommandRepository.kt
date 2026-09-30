@@ -36,7 +36,8 @@ class ControlCommandRepository(
         id: ControlCommandIdentifiers,
         value: ByteArray
     ) {
-        aacpManager.sendControlCommand(id.value, value)
+        val sent = aacpManager.sendControlCommand(id.value, value)
+        me.kavishdevar.librepods.services.CommandFeedback.sent(id.value, value, sent)
     }
 
 

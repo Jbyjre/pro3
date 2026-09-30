@@ -91,10 +91,11 @@ object GlassLooks {
 
     /** The connection card; follows the system light/dark theme. */
     fun card(dark: Boolean, density: Float) = if (dark) GlassLook(
-        fillTop = Color(0x9E2C2C32),
-        fillBottom = Color(0xB81A1A1E),
-        opaqueTop = Color(0xF72A2A2F),
-        opaqueBottom = Color(0xFA1B1B1F),
+        // Close to the connect clip's night backdrop (#1B1B1B) so the clip melts into the glass.
+        fillTop = Color(0xC21E1E20),
+        fillBottom = Color(0xD0161618),
+        opaqueTop = Color(0xFA1D1D1E),
+        opaqueBottom = Color(0xFC161617),
         blurTint = Color(0x40000000),
         blurRadiusPx = (56 * density).roundToInt(),
         sheen = 0.09f,
@@ -106,8 +107,9 @@ object GlassLooks {
         contentSecondary = Color(0x99EBEBF5),
         dark = true,
     ) else GlassLook(
-        fillTop = Color(0xB3FFFFFF),
-        fillBottom = Color(0xC7F4F4F8),
+        // Close to the connect clip's white backdrop so the clip melts into the glass.
+        fillTop = Color(0xC7FFFFFF),
+        fillBottom = Color(0xD2F6F6F9),
         opaqueTop = Color(0xFAFFFFFF),
         opaqueBottom = Color(0xFCF2F2F6),
         blurTint = Color(0x33FFFFFF),
@@ -175,7 +177,8 @@ fun DrawScope.drawGlass(
         )
         // Specular: a soft band hugging the top edge that slides with the light. Kept flat
         // and wide so on dark glass it reads as a reflection, not a smudge.
-        val cx = bounds.center.x - light.x * bounds.width * 0.3f
+        // Only a slight sideways glide with tilt: a big shift made the glass look lopsided.
+        val cx = bounds.center.x - light.x * bounds.width * 0.08f
         val bandH = (bounds.height * 0.42f).coerceAtMost(64f * density)
         val cy = bounds.top + bandH * (0.18f - light.y * 0.25f)
         val rx = max(bounds.width * 0.46f, 24f)
@@ -208,19 +211,19 @@ fun DrawScope.drawGlass(
         )
     }
 
-    // Rim: light-facing edge bright, far edge a softer caustic.
+    // Rim: lit from straight above (bright top edge, soft caustic along the bottom, quiet
+    // sides). It used to run corner to corner, which made the glass look tilted.
     val stroke = max(1.2f * density, 1f)
-    val lx = bounds.center.x - light.x * bounds.width * 0.5f - bounds.width * 0.25f
-    val ly = bounds.top - light.y * bounds.height * 0.3f
+    val shift = light.y.coerceIn(-1f, 1f) * 0.06f
     drawPath(
         outline,
-        Brush.linearGradient(
+        Brush.verticalGradient(
             0f to Color.White.copy(alpha = look.rim),
-            0.42f to Color.White.copy(alpha = look.rim * 0.12f),
-            0.62f to Color.White.copy(alpha = look.rim * 0.08f),
+            (0.30f + shift) to Color.White.copy(alpha = look.rim * 0.14f),
+            (0.70f + shift) to Color.White.copy(alpha = look.rim * 0.08f),
             1f to Color.White.copy(alpha = look.caustic),
-            start = Offset(lx, ly),
-            end = Offset(bounds.right - (lx - bounds.left) * 0.2f, bounds.bottom),
+            startY = bounds.top,
+            endY = bounds.bottom,
         ),
         style = Stroke(stroke),
         alpha = alpha

@@ -18,6 +18,7 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.glint.GlintLight
 import android.graphics.RuntimeShader
 import android.os.Build
 import androidx.compose.animation.core.Animatable
@@ -64,7 +65,6 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.backdrop.highlight.Highlight
 import kotlinx.coroutines.launch
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
 import me.kavishdevar.librepods.presentation.theme.LocalDesignSystem
@@ -199,12 +199,13 @@ half4 main(float2 coord) {
                                     }
                                 },
                                 onDrawFront = null,
-                                highlight = { Highlight.Ambient.copy(alpha = 0f) }
+                                highlight = { GlintLight.rim(0f) }
                             )
                         } else {
                             Modifier.drawBackdrop(
                                 backdrop = backdrop,
                                 shape = { RoundedCornerShape(28f.dp) },
+                                highlight = { GlintLight.rim(0.7f) },
                                 effects = {
                                     vibrancy()
                                     blur(2f.dp.toPx())

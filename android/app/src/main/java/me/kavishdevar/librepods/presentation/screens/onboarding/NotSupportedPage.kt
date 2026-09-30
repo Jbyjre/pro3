@@ -68,20 +68,15 @@ fun NotSupportedPage(
             blockedObserved = prefs.getBoolean("glint_blocked_observed", false),
         )
     }
-    Box(
-        modifier = Modifier.background(
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            shape = RoundedCornerShape(42.dp)
-        )
-    ) {
+    Box {
         Column(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(horizontal = 24.dp, vertical = 16.dp)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(verdict.title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
+            Text(verdict.title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             Text(verdict.message, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (!verdict.canConnect) {
                 Text(
@@ -90,8 +85,6 @@ fun NotSupportedPage(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            DeviceInfoCard()
-            AppInfoCard()
             Spacer(Modifier.height(8.dp))
             if (verdict.canConnect) {
                 Button(onClick = { onContinue(false) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {

@@ -181,7 +181,6 @@ fun Main() {
 
     val onboardingComplete = sharedPreferences.getBoolean("onboarding_complete", false)
 
-    val releaseNotesShownPrefKey = "release_notes_shown_${BuildConfig.VERSION_NAME.removeSuffix("-debug").removeSuffix("-play")}"
 
     fun bindService() {
         context.startForegroundService(Intent(context, AirPodsService::class.java))
@@ -232,10 +231,6 @@ fun Main() {
     }
 
     NavigationRoot(
-        // Glint: LibrePods' "What's new" describes LibrePods' own releases, so it no longer pops
-        // up after set-up; it's still in Settings.
-        showReleaseNotes = false,
-        updatesShown = { sharedPreferences.edit { putBoolean(releaseNotesShownPrefKey, true) } },
         showOnboarding = !onboardingComplete,
         onboardingComplete = {
             sharedPreferences.edit { putBoolean("onboarding_complete", true) }

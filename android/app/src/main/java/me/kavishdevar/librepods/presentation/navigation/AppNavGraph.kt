@@ -15,8 +15,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
+import me.kavishdevar.librepods.BuildConfig
 import me.kavishdevar.librepods.bluetooth.AACPManager
-import me.kavishdevar.librepods.data.updates.updates
 import me.kavishdevar.librepods.presentation.screens.AccessibilitySettingsScreen
 import me.kavishdevar.librepods.presentation.screens.AdaptiveStrengthScreen
 import me.kavishdevar.librepods.presentation.screens.AirPodsSettingsRoute
@@ -32,13 +32,14 @@ import me.kavishdevar.librepods.presentation.screens.LongPress
 import me.kavishdevar.librepods.presentation.screens.MicrophoneSettingsRoute
 import me.kavishdevar.librepods.presentation.screens.OpenSourceLicensesScreen
 import me.kavishdevar.librepods.presentation.screens.PurchaseScreen
-import me.kavishdevar.librepods.presentation.screens.ReleaseNotesScreen
 import me.kavishdevar.librepods.presentation.screens.RenameScreen
 import me.kavishdevar.librepods.presentation.screens.TransparencySettingsScreen
 import me.kavishdevar.librepods.presentation.screens.TroubleshootingScreen
 import me.kavishdevar.librepods.presentation.screens.UpdateHearingTestRoute
 import me.kavishdevar.librepods.presentation.screens.VersionScreen
 import me.kavishdevar.librepods.presentation.screens.GlintLabScreen
+import me.kavishdevar.librepods.presentation.screens.HeartRateScreen
+import me.kavishdevar.librepods.presentation.screens.RecorderScreen
 import me.kavishdevar.librepods.presentation.screens.StayConnectedScreen
 import me.kavishdevar.librepods.presentation.screens.onboarding.OnboardingScreen
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
@@ -50,8 +51,6 @@ import me.kavishdevar.librepods.presentation.viewmodel.PurchaseViewModel
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun AppNavGraph(
-    showReleaseNotes: Boolean = false,
-    updatesShown: () -> Unit = {},
     showOnboarding: Boolean = false,
     onboardingComplete: () -> Unit = {},
     backStack: SnapshotStateList<Screen>,
@@ -61,8 +60,9 @@ fun AppNavGraph(
         backStack.add(screen)
     }
 
+    // Glint: the foss build includes everything, so there is no purchase page to open.
     fun navigateToPurchase() {
-        navigate(Screen.Purchase)
+        if (BuildConfig.PLAY_BUILD) navigate(Screen.Purchase)
     }
 
     val m3eEnabled = LocalDesignSystem.current == DesignSystem.Material
@@ -82,7 +82,7 @@ fun AppNavGraph(
                         NavEntry(screen) {
                             OnboardingScreen {
                                 onboardingComplete()
-                                if (showReleaseNotes) navigate(Screen.ReleaseNotes) else navigate(Screen.AirPodsSettings)
+                                navigate(Screen.AirPodsSettings)
                                 backStack.remove(screen)
                             }
                         }
@@ -104,7 +104,7 @@ fun AppNavGraph(
                                         Screen.LongPress("Right")
                                     )
                                 },
-                                navigateToPurchase = { navigate(Screen.Purchase) },
+                                navigateToPurchase = ::navigateToPurchase,
                                 navigateToAdaptiveStrength = { navigate(Screen.AdaptiveStrength) },
                                 navigateToEqualizer = { navigate(Screen.Equalizer) },
                                 navigateToHeadTracking = { navigate(Screen.HeadTracking) },
@@ -113,6 +113,8 @@ fun AppNavGraph(
                                 navigateToTroubleshooting = { navigate(Screen.Troubleshooting) },
                                 navigateToCallControlScreen = { navigate(Screen.CallControl(it)) },
                                 navigateToMicrophoneSettings = { navigate(Screen.MicrophoneSettings) },
+                                navigateToHeartRate = { navigate(Screen.HeartRate) },
+                                navigateToRecorder = { navigate(Screen.Recorder) },
                             )
                         }
 
@@ -130,7 +132,6 @@ fun AppNavGraph(
                                 navigateToPurchase = ::navigateToPurchase,
                                 navigateToTroubleshooting = { navigate(Screen.Troubleshooting) },
                                 navigateToOpenSourceLicenses = { navigate(Screen.OpenSourceLicenses) },
-                                navigateToReleaseNotesScreen = { navigate(Screen.ReleaseNotes) },
                                 navigateToStayConnected = { navigate(Screen.StayConnected) },
                                 navigateToGlintLab = { navigate(Screen.GlintLab) },
                             )
@@ -141,6 +142,12 @@ fun AppNavGraph(
 
                     Screen.GlintLab ->
                         NavEntry(screen) { GlintLabScreen() }
+
+                    Screen.HeartRate ->
+                        NavEntry(screen) { HeartRateScreen() }
+
+                    Screen.Recorder ->
+                        NavEntry(screen) { RecorderScreen() }
 
                     Screen.Troubleshooting ->
                         NavEntry(screen) {
@@ -267,21 +274,6 @@ fun AppNavGraph(
                             MicrophoneSettingsRoute(viewModel = airPodsViewModel)
                         }
 
-                    is Screen.ReleaseNotes ->
-                        NavEntry(screen) {
-                            ReleaseNotesScreen(
-                                updates = updates,
-                                releaseNotesShown = {
-                                    if (showReleaseNotes) {
-                                        navigate(Screen.AirPodsSettings)
-                                        backStack.remove(screen)
-                                        updatesShown()
-                                    } else {
-                                        backStack.removeAt(backStack.lastIndex)
-                                    }
-                                }
-                            )
-                        }
                 }
             },
             transitionSpec = {

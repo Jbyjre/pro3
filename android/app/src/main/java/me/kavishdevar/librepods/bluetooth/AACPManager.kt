@@ -246,6 +246,10 @@ class AACPManager {
         fun onHeadphoneAccommodationReceived(eqData: FloatArray)
         fun onCustomEqReceived(customEq: CustomEq)
         fun onCapabilitiesReceived(capabilities: List<Capability>)
+        /** A heart-rate reading from the AirPods' sensor stream. */
+        fun onHeartRateReceived(bpm: Int) {}
+        /** A microphone-stream packet (experimental recorder). */
+        fun onMicrophonePacket(packet: ByteArray) {}
     }
 
     fun parseStemPressResponse(data: ByteArray): Pair<StemPressType, StemPressBudType> {
@@ -428,6 +432,7 @@ class AACPManager {
                     callback?.onUnknownPacketReceived(packet)
                     return
                 }
+                me.kavishdevar.librepods.services.CommandFeedback.received(controlCommand.identifier, controlCommand.value)
                 setControlCommandStatusValue(
                     ControlCommandIdentifiers.fromByte(controlCommand.identifier) ?: return,
                     controlCommand.value
@@ -483,7 +488,18 @@ class AACPManager {
                 callback?.onConversationAwarenessReceived(packet)
             }
 
+            me.kavishdevar.librepods.audio.AirPodsRecorder.OPCODE -> {
+                callback?.onMicrophonePacket(packet)
+            }
+
             Opcodes.HEADTRACKING -> {
+                // 0x17 carries the whole sensor stream: heart rate as well as head motion.
+                SensorProto.parseCommand(packet)?.let { cmd ->
+                    SensorProto.heartRate(cmd)?.let { bpm ->
+                        callback?.onHeartRateReceived(bpm)
+                        return
+                    }
+                }
                 if (packet.size < 70) {
                     Log.w(
                         TAG, "Received HEADTRACKING packet too short: ${
@@ -657,6 +673,12 @@ class AACPManager {
             0x00
         )
     }
+
+    private var sensorSeq = 0x200
+
+    /** Asks the AirPods to report [service] every [intervalMicros] microseconds; 0 stops it. */
+    fun sendSensorInterval(service: Int, intervalMicros: Long): Boolean =
+        sendDataPacket(SensorProto.reportInterval(service, intervalMicros, sensorSeq++ and 0x7FFFFFFF))
 
     fun sendStartHeadTracking(): Boolean {
         return sendDataPacket(createStartHeadTrackingPacket())

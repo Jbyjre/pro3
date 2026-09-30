@@ -75,6 +75,7 @@ import androidx.compose.ui.zIndex
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import dev.chrisbanes.haze.HazeProgressive
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -186,6 +187,8 @@ fun StyledScaffold(
                         .fillMaxSize()
                         .padding(start = startPadding, end = endPadding)
                 ) {
+                    // Glint: the floating back/action buttons are Liquid Glass over the page itself,
+                    // so they bend whatever scrolls beneath them.
                     val backdrop = rememberLayerBackdrop()
                     val bgColor = MaterialTheme.colorScheme.surfaceContainer
                     AnimatedVisibility(
@@ -222,10 +225,11 @@ fun StyledScaffold(
                         ),
                         modifier = Modifier
                             .zIndex(2f)
-                            .height(64.dp + topPadding)
+                            .height(84.dp + topPadding)
                             .fillMaxWidth()
-                            .layerBackdrop(backdrop)
                     ){
+                        // A scroll-edge glass: full blur behind the title, fading to nothing
+                        // below it, instead of a hard-edged bar.
                         Box(
                             modifier = Modifier.hazeEffect(
                                 state = hazeState,
@@ -233,12 +237,13 @@ fun StyledScaffold(
                                 backgroundColor = bgColor
                                 tints = listOf(
                                     HazeTint(
-                                        if (isDarkTheme) Color.Black.copy(0.55f) else Color(
+                                        if (isDarkTheme) Color.Black.copy(0.45f) else Color(
                                             0xFFF2F2F7
-                                        ).copy(alpha = 0.85f)
+                                        ).copy(alpha = 0.6f)
                                     )
                                 )
-                                blurRadius = 6.dp
+                                blurRadius = 20.dp
+                                progressive = HazeProgressive.verticalGradient(startIntensity = 1f, endIntensity = 0f, preferPerformance = true)
                             }
                         ) {
 
@@ -292,6 +297,7 @@ fun StyledScaffold(
                     Box(
                         modifier = modifier
                             .hazeSource(hazeState)
+                            .layerBackdrop(backdrop)
                             .fillMaxSize()
                     ) {
                         content()

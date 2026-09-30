@@ -18,6 +18,10 @@
 
 package me.kavishdevar.librepods.presentation.overlays
 
+import android.content.Intent
+import android.util.Log
+import me.kavishdevar.librepods.MainActivity
+import me.kavishdevar.librepods.presentation.glint.SpinFrames
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Handler
@@ -134,6 +138,19 @@ object GlintOverlays {
     fun dismissAll() = main.post {
         island?.dismiss(animated = true)
         card?.dismiss(animated = true)
+    }
+
+    /** Opens Glint from an overlay (allowed: the overlay is visible and was just tapped). */
+    @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+    fun openApp(context: Context) {
+        val intent = Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        try { context.startActivity(intent) } catch (e: Exception) { Log.w("GlintOverlays", "Couldn't open Glint", e) }
+    }
+
+    /** Frees the turning-earbuds frames once no overlay is on screen. */
+    internal fun releaseIfIdle() = main.post {
+        if (island?.isShowing != true && card?.isShowing != true) SpinFrames.release()
     }
 
     val isIslandShowing: Boolean get() = island?.isShowing == true

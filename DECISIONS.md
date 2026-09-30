@@ -14,9 +14,8 @@ Glint is a personal fork of [LibrePods](https://github.com/librepods-org/librepo
   - the island at the top plays LibrePods' island clip; its black background is removed on the graphics chip so the buds float on the glass.
   - Smoothness: a still frame of each clip sits underneath, so there's never an empty box while the video starts, and the video fades in on its first frame. The connect clip starts with a few blank frames, so when it loops Glint skips them instead of flashing white. With **Reduce motion** on, only the still frames show.
   - Honest caveat: these pictures and clips look like Apple's own product renders (not verified where they came from). LibrePods has shipped them publicly for a long time and this is your personal copy, so I kept them as you asked, but I can't call them licensed.
-- **Licence and credit.** Everything stays GPL-3.0 and public. The app credits LibrePods in Settings, and "Report a Glint problem" goes to *this* fork, so the original developer doesn't get bug reports meant for Glint.
-- **Unlock flow kept as it was, made reliable.** Tapping unlock still opens the LibrePods developer's GitHub Sponsors page and unlocks on trust 5 seconds later ("Restore" unlocks straight away), so every paid feature is available to you. I improved the wording so it's clear what happens and that the money goes to the original developer. Locked settings say "Locked" instead of just looking greyed out.
-  - Fixed: the old unlock timer only lived in memory. If Samsung closed the app while the sponsor page was open (it often does), the unlock never happened. Glint now notes when the page was opened and finishes the unlock when you come back. Covered by tests.
+- **Licence and credit.** Everything stays GPL-3.0 and public (this repository, with `LICENSE` and `THIRD_PARTY_NOTICES.md`). The in-app LibrePods row was removed at your request (section 10); the GPL licence headers in the source files stay, as the licence requires. "Report a Glint problem" goes to *this* fork.
+- **Everything included, no paywall (replaces the earlier sponsor unlock).** The Glint build (the "foss" build you install) treats every feature as included from the first launch: there is no unlock button, sponsor page, timer or "Locked" label, and nothing in the app can open the old purchase page. Covered by tests (`FossUnlockTest`).
   - This build (the "FOSS" version) has every feature the Google Play version has, plus a Troubleshooting page. Features marked "Needs root" need a rooted phone in both versions.
 - **Permission prompts.** The "Grant all" button on the setup screen had bugs: it could forget it was running, and it only opened the "Display over other apps" page if the phone permission was also missing. It now goes through each missing permission in order and ends on the "Display over other apps" page. If Android has stopped showing a permission's pop-up (after you refuse it twice), tapping it opens Glint's settings page instead of doing nothing.
 
@@ -83,7 +82,7 @@ I researched this against Android's SDK and Android's own source code:
 
 ## 7. How I checked my work
 
-- **Builds, tests and code checker** run locally and on GitHub for every push. Unit tests cover AirPods detection, the retry timing, the "can this phone connect" verdicts, listening-mode cycling and the sponsor unlock (including the app being closed mid-way).
+- **Builds, tests and code checker** run locally and on GitHub for every push. Unit tests cover AirPods detection, the retry timing, the "can this phone connect" verdicts, listening-mode cycling the battery time-left estimate and the case-open card rules.
 - **Screenshot tests** render the symbols, the island (compact, low battery, listening mode, expanded), the card (light and dark), the main screen with the "not connected" panel, and the icon to images, which I reviewed like a designer. From the latest round: the expanded island's buds overlapped its button and the button's text spilled past its edges; both fixed. The test machine can't play video, so these images show the clips' still frames. GitHub also uploads these images with each build ("ui-screenshots").
 - **Not verified (needs your phone):** everything that touches real Bluetooth, video playback smoothness and the island clip's background removal on the S25 FE, the system blur on Samsung, the companion wake-up, Samsung's battery page shortcut, haptic feel, and frame pacing. See TESTING.md.
 
@@ -99,14 +98,14 @@ I rendered every screen of the app with LibrePods' demo AirPods (light and dark)
 - Long page titles no longer run under the back button.
 - The transparency equalizer's "Band 1…8" labels no longer wrap onto two lines.
 - The light "Troubleshooting" button on the "not connected" panel was nearly invisible (white on white).
-- LibrePods' "What's new" page (about LibrePods' own release) no longer pops up after setup; it's still in Settings.
+- LibrePods' "What's new" page (about LibrePods' own releases) was removed entirely (section 10).
 
 **Behaviour**
 - Every time you came back to the app it attached another copy of its listeners to the background service without removing the old ones, so updates were processed several times and memory slowly leaked. Now it attaches once.
-- A settings listener in LibrePods' code was held so loosely that Android could throw it away, so the screen could stop reacting to changes like a rename or an unlock. Fixed.
+- A settings listener in LibrePods' code was held so loosely that Android could throw it away, so the screen could stop reacting to changes like a rename. Fixed.
 - The background service could crash when an "AirPods moved to another device" or "taking over" event arrived before any battery report. Fixed in all four places.
 - The "couldn't connect" notification now says Glint, not LibrePods, and no longer buzzes again on every retry.
-- The privacy page now says up front that it is LibrePods' policy (written by its developer) and that Glint adds no data collection. Note: the app does have internet permission (a bundled library adds it); Glint itself sends nothing.
+- The app has internet permission (a bundled library adds it); Glint itself sends nothing. (The old privacy page was removed with the agreement step, section 10.)
 
 **Checked, not a bug:** the call-control page title and the licences page (both fine in the real app).
 
@@ -123,3 +122,54 @@ A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every
 - **Checked and fine:** auto-pause/resume only resumes music Glint paused itself; the notification's "Listening mode" and "Try again" buttons reach working handlers; pop-ups check the "Display over other apps" permission and can't crash; restart after reboot/update is wired.
 - **Not added (couldn't verify):** the AirPods Pro 3's Bluetooth product ID for the advert reader's model-name list. Sources disagree, and the name is only used in logs.
 - **Open question (needs your call):** Glint also reads the AirPods' short radio "adverts" (battery, lid open). It only trusts adverts it can verify with a key the AirPods hand over the first time the full control connection works. If your phone blocks that connection, adverts are ignored too, so there is no lid-open pop-up and no battery from adverts. A fallback could use unverified adverts from very close AirPods while yours are playing audio, but it could occasionally show someone else's AirPods. Not built without your go-ahead.
+
+## 10. Your own app: no branding, no agreement, no paywall, glass throughout
+
+- **Branding.** Removed from what you can see: the LibrePods row, unlock button and billing banner in Settings; LibrePods' "What's new" screen and its changelog; a hidden contact form and a billing banner that emailed the original developer; the sponsor wording in the app's text. Kept, because the GPL requires it or it's invisible: licence headers in the code, `LICENSE`, `THIRD_PARTY_NOTICES.md`, and the internal package name `me.kavishdevar.librepods` (you never see it; renaming it would be a large, risky change).
+  - Open question for you: an optional one-line "Based on LibrePods (GPLv3)" in About. Whether the licence requires an in-app credit is **not verified** (and this isn't legal advice); the source and licence being public in this repository are required, and they are.
+- **No agreement step.** Setup is Welcome, This phone, Permissions, Stay connected. The privacy/agreement page is gone.
+- **Liquid Glass throughout.** One shared glass material (`presentation/glint/GlassSurface.kt`): backdrop blur, vibrancy, real edge refraction with a slight colour fringe (Kyant backdrop library, on the phone's graphics chip), a rim highlight and a two-layer shadow whose strength depends on how high the surface floats. It's used by setup and the floating notices. On every screen, the top edge is now a soft glass fade instead of a flat tinted bar, and the floating back/settings buttons bend the page scrolling under them. Following Apple's rule, glass is for controls; lists and text stay solid so they're easy to read.
+  - Accessibility: "Reduce transparency" (Glint's switch, or Android's high-contrast text) makes glass solid with a visible 1dp border; "Reduce motion" removes the spinning, springs and scaling.
+  - Robolectric screenshots can't draw the blur or refraction; they only show the tint and shape. The real glass needs the phone (Android 13+). **Not verified on the phone.**
+- **Overlays.** The island (top orb) is unchanged. The bottom "case opened" card is now **off by default** (Settings > "Card when the case opens"). Why it looked random: the lid state comes from Bluetooth adverts, Samsung batches those, and a 2.5-second gap counted as "lid closed", so the next advert re-showed the card. Now the card only re-arms after the lid has stayed closed for 10 seconds, is ignored while both buds are in your ears, and shows at most once a minute. The cause was found by reading the code; **not verified on your phone**.
+- **3D viewer (removed at your request).** The separate 3D screen is gone; the turning earbuds now live in the island instead (section 11).
+- **Battery time left.** Shown under the battery rings: "About 3 h 20 min of listening left", or "Full in about 40 min" while charging, plus a rough case figure ("Case: about 1.5 more full charges").
+  - Accuracy: it only uses the AirPods' own 1% battery reports (the radio adverts are 10% steps, too coarse). It starts from Apple's rating (AirPods Pro 3: up to 8 h with noise cancellation, 24 h with the case, from apple.com), then times each 1% drop while you're wearing them and moves to your real rate within about 30 minutes. Each bud is measured separately; the one that runs out first decides. Changing listening mode, taking the buds out or charging starts a fresh measurement, and finished sessions teach it your pair's own rate per listening mode, so it gets closer over days.
+  - It rounds honestly (10-minute steps above an hour, 5 below) and says what it's based on. With no connection it shows nothing rather than guess.
+  - Apple's figures for other modes (e.g. 10 h in Transparency with the Hearing Aid feature) aren't used as starting points: they apply to specific features, and the learned rate takes over anyway. **Real-world accuracy not verified**: it needs a few listening sessions on your AirPods.
+
+## 11. Straight glass, a better island, heart rate, recorder, clear feedback
+
+- **Slanted glass, found and fixed.** Two causes, both verified in the code:
+  1. The glass library (Kyant backdrop) lights every glass edge from a 45-degree diagonal by default: bright top-left, dark bottom-right. Buttons, sheets and switches used it, so they looked tilted. All of them now use one rim light from straight above (`GlintLight` in `GlassSurface.kt`).
+  2. The island's and card's own rim ran corner to corner and slid sideways with phone tilt. It's now vertical, and tilt only nudges it slightly.
+- **Island.**
+  - It now appears once each time the AirPods actually connect. Before, nothing showed it on connection, only when both buds went into your ears, on a mode change away from the app, or on low battery; that's why it felt random.
+  - Putting the buds in shows "In your ears".
+  - If an island ever gets stuck (for example the screen went off mid-animation), the next event clears it instead of being swallowed.
+  - The earbuds turn continuously from pre-cut frames of the island clip. That's smoother and more dependable in a pop-up than a video player. In the expanded island you can flick them with a finger.
+  - The expanded island shows the connection state with a coloured dot, left/right/case batteries, the listening mode, time left, and an **Open Glint** button (plus "Use here" / "Dismiss" when relevant).
+  - It morphs with width and height on separate springs, so it grows like a drop, not a box.
+  - Fixed: a button inside the expanded island also counted as a tap on the island itself.
+  - Tapping the optional bottom card opens Glint.
+- **Heart rate (AirPods Pro 3).**
+  - Ported from LibrePods' newer "rewrite" version, where it is marked experimental. The message format was checked byte for byte against the head-tracking message the app has always sent.
+  - The Heart rate screen shows a live BPM with a heart that beats at that rate, the session as a line (touch to read any point), lowest / average / highest, and an optional high heart-rate alert.
+  - Measuring continues in the background and resumes after a reconnect. If no reading arrives, it says so.
+  - Not saved to Health Connect: that needs a library the offline cloud build can't fetch. **Not verified on your AirPods.**
+- **Recorder (experimental).**
+  - Records from the AirPods' own microphones over their control link. Ported from the same LibrePods branch, where it is work in progress.
+  - Saves WAV files you can play, share or delete. If no audio arrives, it says so. **Not verified on your AirPods.**
+- **Head gestures.**
+  - The screen now shows where your head is pointing, live, with a Recenter button, plus a clear "tracking / waiting" line.
+  - The two motion lines are blue and orange; one used to be white on a white card.
+  - The main-screen row now shows the real on/off state (it used to say Off while on).
+  - Nod to answer and shake to decline calls, as before.
+- **Knowing whether a change worked.** The AirPods answer each listening-mode change with the mode they switched to (documented in `docs/AAP Definitions.md`). A small glass notice at the bottom of the main screen says "Switching to Adaptive…", then "Adaptive is on". If it can't be sent, isn't confirmed within 3 seconds, or the AirPods stay in another mode, the notice says so and offers Reconnect. A status line under the battery says whether the controls are connected.
+- **Notification.** Android requires a notification to keep a background connection alive. Glint now keeps it on a hidden channel at all times, so nothing stays in your notification shade. Android's documentation says the service keeps running and only shows in the Task Manager in that case. To bring back battery in the shade, turn on Settings > Stay connected & appearance > **Status in notifications**. **Not verified on your phone.**
+- **Everything from LibrePods' feature list is present.**
+  - Listening modes, ear detection, battery, rename, head gestures, conversation awareness, auto-connect, call controls, microphone side, sleep detection, the "Off" mode option, press speed and hold duration, noise cancellation with one bud, swipe for volume, heart rate and the recorder.
+  - Hearing aid, transparency customisation, loud sound reduction and multi-device need a changed Bluetooth "vendor ID", which needs a rooted phone. They're listed under "Needs root" instead of silently missing.
+  - Find My and head-tracked spatial audio aren't in LibrePods either.
+- **Remaining name traces** are internal only: the code package name, style names and the licence headers in source files. Translated text that mentioned LibrePods now says Glint.
+

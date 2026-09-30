@@ -82,9 +82,9 @@ sealed interface Screen: NavKey {
 
     @Serializable
     data object GlintLab: Screen
-
     @Serializable
-    data object ReleaseNotes: Screen {
-        override val showTopBar: Boolean = false
-    }
+    data object HeartRate: Screen
+    @Serializable
+    data object Recorder: Screen
+
 }

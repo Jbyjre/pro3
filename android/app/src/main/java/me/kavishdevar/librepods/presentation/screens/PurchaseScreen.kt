@@ -93,7 +93,7 @@ fun PurchaseScreen(
             if (!BuildConfig.PLAY_BUILD) {
                 StyledList(
                     title = "How unlocking works",
-                    description = "Glint is built on LibrePods, made by one developer. Tapping Sponsor opens the LibrePods developer's GitHub Sponsors page. Choose any amount there; Glint unlocks on trust a few seconds later, and your support goes directly to the original developer."
+                    description = "Unlock every feature in this build."
                 ) {
                     StyledListItem(
                         name = "Everything essential stays free",
@@ -204,7 +204,7 @@ fun PurchaseScreen(
             ) {
                 Text(
                     if (BuildConfig.PLAY_BUILD) stringResource(R.string.buy_price, state.price)
-                    else "Sponsor LibrePods & unlock",
+                    else "Unlock",
                     style = MaterialTheme.typography.bodyMediumEmphasized,
                     color = MaterialTheme.colorScheme.onPrimary
                 )

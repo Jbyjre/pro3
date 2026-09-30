@@ -11,14 +11,15 @@ import me.kavishdevar.librepods.billing.FOSSBillingProvider
 import me.kavishdevar.librepods.presentation.glint.PodsVideoConfig
 import me.kavishdevar.librepods.presentation.navigation.NavigationRoot
 import me.kavishdevar.librepods.presentation.navigation.Screen
-import me.kavishdevar.librepods.presentation.screens.onboarding.NotSupportedPage
-import me.kavishdevar.librepods.presentation.screens.onboarding.PermissionsPage
-import me.kavishdevar.librepods.presentation.screens.onboarding.StayConnectedPage
 import me.kavishdevar.librepods.presentation.theme.LibrePodsTheme
 import me.kavishdevar.librepods.presentation.viewmodel.AirPodsViewModel
 import me.kavishdevar.librepods.services.GlintStatus
 import me.kavishdevar.librepods.services.LinkState
 import org.junit.Before
+import me.kavishdevar.librepods.presentation.glint.PodsSpinnerConfig
+import me.kavishdevar.librepods.services.BatteryEstimate
+import me.kavishdevar.librepods.services.BatteryEstimator
+import me.kavishdevar.librepods.services.BatteryTimeLeft
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,9 +47,11 @@ class AppTourScreenshots {
     @Before
     fun setUp() {
         PodsVideoConfig.enabled = false
+        PodsSpinnerConfig.idleTurn = false
         context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().clear().commit()
         BillingManager.provider = FOSSBillingProvider(context)
         GlintStatus.set(LinkState.Idle)
+        BatteryTimeLeft.publish(null)
     }
 
     private fun tour(name: String, dark: Boolean, stack: List<Screen>, demo: Boolean = true, onboarding: Boolean = false) {
@@ -76,8 +79,14 @@ class AppTourScreenshots {
     @Test fun appSettings() = both("03_app_settings", listOf(Screen.AppSettings))
     @Test fun appSettingsDark() = tour("03_app_settings", dark = true, stack = listOf(Screen.AppSettings))
     @Test fun stayConnected() = both("04_stay_connected", listOf(Screen.StayConnected))
-    @Test fun purchase() = both("05_unlock", listOf(Screen.Purchase))
-    @Test fun purchaseDark() = tour("05_unlock", dark = true, stack = listOf(Screen.Purchase))
+    @Test fun homeTimeLeft() {
+        BatteryTimeLeft.publish(BatteryEstimate(197, BatteryEstimator.Confidence.MEASURED, worn = true, charging = false, caseCharges = 1.52))
+        both("01b_home_time_left", emptyList())
+    }
+    @Test fun homeCharging() {
+        BatteryTimeLeft.publish(BatteryEstimate(null, BatteryEstimator.Confidence.MEASURED, worn = false, charging = true, caseCharges = 1.5, minutesToFull = 38))
+        tour("01c_home_charging", dark = true, stack = emptyList())
+    }
     @Test fun accessibility() = both("06_accessibility", listOf(Screen.Accessibility))
     @Test fun adaptive() = both("07_adaptive_strength", listOf(Screen.AdaptiveStrength))
     @Test fun hearingProtection() = both("08_hearing_protection", listOf(Screen.HearingProtection))
@@ -89,17 +98,35 @@ class AppTourScreenshots {
     @Test fun transparency() = both("17_transparency", listOf(Screen.TransparencyCustomization))
     @Test fun callControl() = both("18_call_control", listOf(Screen.CallControl("Mute/Unmute")))
     @Test fun microphone() = both("19_microphone", listOf(Screen.MicrophoneSettings))
+    @Test fun heartRate() {
+        val t0 = System.currentTimeMillis() - 20 * 60_000L
+        me.kavishdevar.librepods.services.HeartRate.clear()
+        for (i in 0 until 1200) {
+            val bpm = (72 + 14 * kotlin.math.sin(i / 90.0) + (if (i in 600..760) 38 else 0) * kotlin.math.sin((i - 600) / 160.0 * Math.PI)).toInt()
+            me.kavishdevar.librepods.services.HeartRate.reading(bpm, t0 + i * 1000L)
+        }
+        both("31_heart_rate", listOf(Screen.HeartRate))
+        tour("31_heart_rate", dark = true, stack = listOf(Screen.HeartRate))
+        me.kavishdevar.librepods.services.HeartRate.status(me.kavishdevar.librepods.services.HeartRate.Status.Off)
+        me.kavishdevar.librepods.services.HeartRate.clear()
+    }
+    @Test fun recorder() = both("32_recorder", listOf(Screen.Recorder))
     @Test fun licenses() = both("20_licenses", listOf(Screen.OpenSourceLicenses))
-    @Test fun releaseNotes() = both("21_release_notes", listOf(Screen.ReleaseNotes))
-    @Test fun onboardingStart() = tour("22_onboarding", dark = false, stack = emptyList(), onboarding = true)
 
-    private fun page(name: String, content: @androidx.compose.runtime.Composable () -> Unit) {
-        rule.setContent { LibrePodsTheme(m3eEnabled = false) { content() } }
-        rule.mainClock.advanceTimeBy(1_000)
+
+    private fun setup(name: String, step: Int, dark: Boolean = false) {
+        // Phone-sized window (Galaxy S25 FE is about 412 x 915 dp) to judge proportions.
+        RuntimeEnvironment.setQualifiers(if (dark) "w412dp-h915dp-night-xxhdpi" else "w412dp-h915dp-xxhdpi")
+        rule.setContent { me.kavishdevar.librepods.presentation.screens.onboarding.OnboardingScreen(startStep = step) {} }
+        rule.mainClock.advanceTimeBy(1_500)
         rule.onRoot().captureRoboImage("$out/$name.png")
     }
 
-    @Test fun onboardingPermissions() = page("23_onboarding_permissions") { PermissionsPage({}, {}) }
-    @Test fun onboardingThisPhone() = page("24_onboarding_this_phone") { NotSupportedPage {} }
-    @Test fun onboardingStayConnected() = page("25_onboarding_stay_connected") { StayConnectedPage(onFinish = {}) }
+    @Test fun setupWelcome() = setup("23_setup_welcome", 0)
+    @Test fun setupWelcomeDark() = setup("23_setup_welcome_dark", 0, dark = true)
+    @Test fun setupPermissionsDark() = setup("25_setup_permissions_dark", 2, dark = true)
+    @Test fun setupThisPhone() = setup("24_setup_this_phone", 1)
+    @Test fun setupPermissions() = setup("25_setup_permissions", 2)
+    @Test fun setupStayConnected() = setup("26_setup_stay_connected", 3)
+    @Test fun setupStayConnectedDark() = setup("26_setup_stay_connected_dark", 3, dark = true)
 }

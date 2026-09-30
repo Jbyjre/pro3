@@ -55,6 +55,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.ParcelUuid
+import android.os.SystemClock
 import android.os.UserHandle
 import android.provider.Settings
 import android.telecom.TelecomManager
@@ -89,6 +90,8 @@ import me.kavishdevar.librepods.BuildConfig
 import me.kavishdevar.librepods.MainActivity
 import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.bluetooth.AACPManager
+import me.kavishdevar.librepods.bluetooth.SensorProto
+import me.kavishdevar.librepods.audio.AirPodsRecorder
 import me.kavishdevar.librepods.bluetooth.AACPManager.Companion.StemPressType
 import me.kavishdevar.librepods.bluetooth.ATTHandles
 import me.kavishdevar.librepods.bluetooth.ATTManagerv2
@@ -146,6 +149,12 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.time.Duration.Companion.milliseconds
 
 private const val TAG = "AirPodsService"
+
+/** Show battery and status in the notification shade (off: the notification stays hidden). */
+const val PREF_STATUS_NOTIFICATION = "glint_status_notification"
+const val PREF_HR_ACTIVE = "glint_hr_active"
+const val PREF_HR_ALERT = "glint_hr_alert"
+const val PREF_HR_ALERT_BPM = "glint_hr_alert_bpm"
 
 object ServiceManager {
     private var service: AirPodsService? = null
@@ -303,11 +312,10 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         ) {
             if (lidOpen) {
                 Log.d(TAG, "Lid opened")
-                showPopup(
-                    this@AirPodsService,
-                    getSharedPreferences("settings", MODE_PRIVATE).getString("name", "AirPods Pro")
-                        ?: "AirPods"
-                )
+                val status = bleManager.getMostRecentStatus()
+                if (cardGate.onLidOpened(System.currentTimeMillis(), status?.isLeftInEar == true && status.isRightInEar)) {
+                    showPopup(this@AirPodsService)
+                }
                 if (BluetoothConnectionManager.aacpSocket?.isConnected == true) return
                 val leftLevel = bleManager.getMostRecentStatus()?.leftBattery ?: 0
                 val rightLevel = bleManager.getMostRecentStatus()?.rightBattery ?: 0
@@ -328,7 +336,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             } else {
                 Log.d(TAG, "Lid closed")
                 pushOverlaySnapshot(lidOpen = false)
-                popupShown = false
+                cardGate.onLidClosed(System.currentTimeMillis())
             }
         }
 
@@ -695,7 +703,12 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     // only tear down if the channel is really gone.
                     if (BluetoothConnectionManager.aacpSocket?.isConnected == true) return
                     device = null
-                    popupShown = false
+                    if (HeartRate.state.value.status != HeartRate.Status.Off) HeartRate.status(HeartRate.Status.NotConnected)
+                    hrWatchdog?.cancel()
+                    if (AirPodsRecorder.state.value.recording) AirPodsRecorder.end()
+                    cardGate.reset()
+                    batteryEstimator.reset()
+                    BatteryTimeLeft.publish(null)
                     updateNotificationContent(false)
                     aacpManager.disconnected()
                     BluetoothConnectionManager.aacpSocket = null
@@ -822,6 +835,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             @SuppressLint("MissingPermission")
             override fun onBatteryInfoReceived(batteryInfo: ByteArray) {
                 batteryNotification.setBattery(batteryInfo)
+                updateTimeLeft()
                 sendBroadcast(Intent(AirPodsNotifications.BATTERY_DATA).apply {
                     putParcelableArrayListExtra("data", ArrayList(batteryNotification.getBattery()))
                     setPackage(packageName)
@@ -866,6 +880,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 )
                 processEarDetectionChange(earDetection)
                 pushOverlaySnapshot()
+                updateTimeLeft()
             }
 
             override fun onConversationAwarenessReceived(conversationAwareness: ByteArray) {
@@ -895,6 +910,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     ancNotification.setStatus(byteArrayOf(command.value.takeIf { it.isNotEmpty() }
                         ?.get(0) ?: 0x00.toByte()))
                     pushOverlaySnapshot()
+                    updateTimeLeft()
                     val mode = ancNotification.status
                     val firstReport = listeningModeReports++ == 0
                     if (!firstReport && previousMode in 1..4 && mode in 1..4 && mode != previousMode && !appInForeground() &&
@@ -1065,6 +1081,14 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 }
             }
 
+            override fun onHeartRateReceived(bpm: Int) {
+                onHeartRate(bpm)
+            }
+
+            override fun onMicrophonePacket(packet: ByteArray) {
+                AirPodsRecorder.onPacket(packet)
+            }
+
             override fun onStemPressReceived(stemPress: ByteArray) {
 
                 val (stemPressType, bud) = aacpManager.parseStemPressResponse(stemPress)
@@ -1224,14 +1248,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     false, false
                 ) && !GlintOverlays.isIslandShowing
             ) {
-                showIsland(
-                    this@AirPodsService,
-                    (batteryNotification.getBattery()
-                        .find { it.component == BatteryComponent.LEFT }?.level ?: 0).coerceAtMost(
-                        batteryNotification.getBattery()
-                            .find { it.component == BatteryComponent.RIGHT }?.level ?: 0
-                    )
-                )
+                showIslandEvent(IslandEvent.InEar)
             }
 
             if (newInEarData == listOf(false, false) && GlintOverlays.isIslandShowing) {
@@ -1629,20 +1646,42 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
 
-    var popupShown = false
+    private val cardGate = CardGate()
 
-    /** The connection card (bottom). Shown when the case opens nearby. */
-    @Suppress("UNUSED_PARAMETER")
-    fun showPopup(service: Service, name: String) {
-        if (!sharedPreferences.getBoolean("show_bottom_sheet_popup", true)) return
+    private val batteryEstimator by lazy {
+        BatteryEstimator(object : BatteryEstimator.RateStore {
+            override fun load(mode: Int): Float? =
+                sharedPreferences.getFloat("battery_rate_mode_$mode", -1f).takeIf { it > 0f }
+            override fun save(mode: Int, percentPerHour: Float) =
+                sharedPreferences.edit { putFloat("battery_rate_mode_$mode", percentPerHour) }
+        })
+    }
+
+    /** Feed the time-left estimator with the 1% battery levels from the AirPods' own link. */
+    private fun updateTimeLeft() {
+        val snap = PodsSnapshot.from("", batteryNotification.getBattery(), earDetectionNotification.status, ancNotification.status)
+        BatteryTimeLeft.publish(
+            batteryEstimator.update(
+                BatteryEstimator.Reading(
+                    timeMs = SystemClock.elapsedRealtime(),
+                    left = snap.left, right = snap.right, case = snap.case,
+                    leftCharging = snap.leftCharging, rightCharging = snap.rightCharging,
+                    leftInEar = snap.leftInEar, rightInEar = snap.rightInEar,
+                    mode = snap.listeningMode,
+                )
+            )
+        )
+    }
+
+    /** The optional bottom card, shown when the case opens nearby. Off unless turned on in Settings. */
+    fun showPopup(service: Service) {
+        if (!sharedPreferences.getBoolean("show_bottom_sheet_popup", false)) return
         if (!Settings.canDrawOverlays(service)) {
             Log.d(TAG, "No permission for SYSTEM_ALERT_WINDOW")
             return
         }
-        if (popupShown) return
         pushOverlaySnapshot(lidOpen = true)
         GlintOverlays.showCard(service)
-        popupShown = true
     }
 
     var islandOpen = false
@@ -1657,6 +1696,123 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         GlintOverlays.updateSnapshot(
             PodsSnapshot.from(name, batteryNotification.getBattery(), earDetectionNotification.status, ancNotification.status, lidOpen)
         )
+    }
+
+    private var lastConnectedIsland = 0L
+
+    // ---- Heart rate (AirPods Pro 3 sensor) ----
+    private var hrService = 0
+    private var hrWatchdog: Job? = null
+    private var hrStartedAt = 0L
+    private var lastHrAlertAt = 0L
+
+    /** Starts the heart-rate stream: one reading a second while the buds are worn. */
+    fun startHeartRate() {
+        sharedPreferences.edit { putBoolean(PREF_HR_ACTIVE, true) }
+        if (BluetoothConnectionManager.aacpSocket?.isConnected != true) {
+            HeartRate.status(HeartRate.Status.NotConnected)
+            return
+        }
+        // Newer firmware (version starting with 9 or higher) uses the "command" variant.
+        val newer = (config.airpodsVersion3.firstOrNull()?.digitToIntOrNull() ?: 0) >= 9
+        val first = if (newer) SensorProto.HEARTRATE_COMMAND else SensorProto.HEARTRATE
+        val second = if (newer) SensorProto.HEARTRATE else SensorProto.HEARTRATE_COMMAND
+        hrStartedAt = System.currentTimeMillis()
+        HeartRate.starting(hrStartedAt)
+        hrService = first
+        aacpManager.sendSensorInterval(first, 1_000_000L)
+        hrWatchdog?.cancel()
+        hrWatchdog = serviceScope.launch {
+            delay(8_000)
+            if (HeartRate.state.value.lastReadingMs < hrStartedAt) {
+                // No reading: the firmware may want the other variant.
+                aacpManager.sendSensorInterval(first, 0L)
+                hrService = second
+                aacpManager.sendSensorInterval(second, 1_000_000L)
+                delay(8_000)
+                if (HeartRate.state.value.lastReadingMs < hrStartedAt) HeartRate.status(HeartRate.Status.NoSignal)
+            }
+            // Readings stop when the buds come out; say so instead of showing an old number.
+            while (true) {
+                delay(3_000)
+                val st = HeartRate.state.value
+                val quiet = System.currentTimeMillis() - st.lastReadingMs > 10_000
+                if (st.status == HeartRate.Status.Live && quiet) HeartRate.status(HeartRate.Status.NoSignal)
+            }
+        }
+    }
+
+    /** Experimental: record from the AirPods' microphones over their own link. */
+    fun startRecording(): Boolean {
+        if (BluetoothConnectionManager.aacpSocket?.isConnected != true) return false
+        AirPodsRecorder.begin(this) ?: return false
+        if (!aacpManager.sendDataPacket(AirPodsRecorder.START)) { AirPodsRecorder.end(); return false }
+        return true
+    }
+
+    fun stopRecording() {
+        if (BluetoothConnectionManager.aacpSocket?.isConnected == true) aacpManager.sendDataPacket(AirPodsRecorder.STOP)
+        AirPodsRecorder.end()
+        // The stream can pause music playback; bring normal audio back.
+        device?.let { connectAudio(this, it) }
+    }
+
+    fun stopHeartRate() {
+        sharedPreferences.edit { putBoolean(PREF_HR_ACTIVE, false) }
+        hrWatchdog?.cancel()
+        hrWatchdog = null
+        if (hrService != 0 && BluetoothConnectionManager.aacpSocket?.isConnected == true) {
+            aacpManager.sendSensorInterval(hrService, 0L)
+        }
+        hrService = 0
+        HeartRate.status(HeartRate.Status.Off)
+    }
+
+    private fun onHeartRate(bpm: Int) {
+        if (!sharedPreferences.getBoolean(PREF_HR_ACTIVE, false)) return
+        val now = System.currentTimeMillis()
+        HeartRate.reading(bpm, now)
+        val limit = sharedPreferences.getInt(PREF_HR_ALERT_BPM, 140)
+        if (sharedPreferences.getBoolean(PREF_HR_ALERT, false) && bpm > limit && now - lastHrAlertAt > 10 * 60_000L) {
+            lastHrAlertAt = now
+            showHeartRateAlert(bpm, limit)
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    private fun showHeartRateAlert(bpm: Int, limit: Int) {
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.createNotificationChannel(
+            NotificationChannel("heart_rate_alerts", "High heart rate", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "When your heart rate goes above the limit you set in Glint."
+            }
+        )
+        val open = PendingIntent.getActivity(this, 5, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        try {
+            nm.notify(
+                6,
+                NotificationCompat.Builder(this, "heart_rate_alerts")
+                    .setSmallIcon(R.drawable.airpods)
+                    .setContentTitle("High heart rate: $bpm BPM")
+                    .setContentText("Above your limit of $limit BPM, measured by your AirPods.")
+                    .setContentIntent(open)
+                    .setAutoCancel(true)
+                    .setCategory(Notification.CATEGORY_STATUS)
+                    .build()
+            )
+        } catch (e: SecurityException) {
+            Log.w(TAG, "No notification permission for heart-rate alert")
+        }
+    }
+
+    /** The island once per real connection (the control link just came up), not on every retry. */
+    private fun announceConnected() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastConnectedIsland < 30_000L) return
+        lastConnectedIsland = now
+        showIslandEvent(IslandEvent.Connected)
+        // Keep measuring across reconnects if heart rate was on.
+        if (sharedPreferences.getBoolean(PREF_HR_ACTIVE, false)) serviceScope.launch { delay(1_500); startHeartRate() }
     }
 
     fun showIslandEvent(event: IslandEvent) {
@@ -1743,10 +1899,10 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         notificationManager.createNotificationChannel(
             NotificationChannel(
                 "background_service_status",
-                "Waiting for AirPods (can be hidden)",
+                "Background connection (hidden)",
                 NotificationManager.IMPORTANCE_NONE
             ).apply {
-                description = "Shown while Glint waits in the background. Android requires it; you can turn it off here without affecting Glint."
+                description = "Android requires a notification to keep the AirPods connection alive. Glint keeps it on this hidden channel so it never shows in the shade."
             }
         )
         notificationManager.createNotificationChannel(
@@ -1806,11 +1962,16 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val name = sharedPreferences.getString("name", null)?.takeIf { it.isNotBlank() } ?: config.deviceName
+        // Glint: the status notification is hidden unless "Status in notifications" is on.
+        // Android requires a notification for the always-on connection; posting it on the
+        // hidden channel keeps the connection alive without anything in the shade.
+        val shown = sharedPreferences.getBoolean(PREF_STATUS_NOTIFICATION, false)
+        val statusChannel = if (shown) "airpods_connection_status" else "background_service_status"
         val builder = when (val link = GlintStatus.link.value) {
             is LinkState.Connected -> {
                 val battery = batteryLine(batteryNotification.getBattery())
                 val mode = listeningModeName(ancNotification.status)
-                NotificationCompat.Builder(this, "airpods_connection_status")
+                NotificationCompat.Builder(this, statusChannel)
                     .setContentTitle(name)
                     .setContentText(battery.ifEmpty { "Connected" })
                     .setSubText(mode)
@@ -1829,13 +1990,13 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     }
             }
             is LinkState.Connecting, is LinkState.Retrying ->
-                NotificationCompat.Builder(this, "airpods_connection_status")
+                NotificationCompat.Builder(this, statusChannel)
                     .setContentTitle(name)
                     .setContentText("Connecting to AirPods controls\u2026")
                     .setCategory(Notification.CATEGORY_STATUS)
             is LinkState.GaveUp -> {
                 val verdict = currentSupportVerdict()
-                NotificationCompat.Builder(this, "airpods_connection_status")
+                NotificationCompat.Builder(this, statusChannel)
                     .setContentTitle(if (verdict.canConnect) "Couldn't reach AirPods controls" else verdict.title)
                     .setContentText(if (verdict.canConnect) "Audio works. Tap Try again, or open Glint for help." else "Audio works. Open Glint to see why.")
                     .setStyle(NotificationCompat.BigTextStyle().bigText(verdict.message))
@@ -1868,7 +2029,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     private fun notificationKey(): String =
-        "${GlintStatus.link.value}|${batteryLine(batteryNotification.getBattery())}|${ancNotification.status}|$disconnectedBecauseReversed|${sharedPreferences.getString("name", "")}"
+        "${GlintStatus.link.value}|${batteryLine(batteryNotification.getBattery())}|${ancNotification.status}|$disconnectedBecauseReversed|${sharedPreferences.getString("name", "")}|${sharedPreferences.getBoolean(PREF_STATUS_NOTIFICATION, false)}"
 
     fun refreshNotification(force: Boolean = false) {
         val key = notificationKey()
@@ -2999,6 +3160,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             }
         }
         GlintStatus.set(LinkState.Connected(config.deviceName))
+        announceConnected()
         listeningModeReports = 0
         GlintOverlays.takeBackHandler = { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) takeOver("reverse") }
         CompanionLink.ensureObserving(this, device.address)

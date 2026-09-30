@@ -108,7 +108,6 @@ fun AppSettingsScreen(
     navigateToPurchase: () -> Unit,
     navigateToTroubleshooting: () -> Unit,
     navigateToOpenSourceLicenses: () -> Unit,
-    navigateToReleaseNotesScreen: () -> Unit,
     navigateToStayConnected: () -> Unit = {},
     navigateToGlintLab: () -> Unit = {},
 ) {
@@ -118,11 +117,6 @@ fun AppSettingsScreen(
 
     val backdrop = rememberLayerBackdrop()
 
-    val contactBottomSheet = remember { mutableStateOf(false) }
-    val subjectState = remember { TextFieldState() }
-    val descriptionState = remember { TextFieldState() }
-    val subjectFocusRequester = remember { FocusRequester() }
-    val descriptionFocusRequester = remember { FocusRequester() }
 
     val m3eEnabled = LocalDesignSystem.current == DesignSystem.Material
     val topPadding = if (m3eEnabled) 16.dp else WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 84.dp
@@ -140,62 +134,11 @@ fun AppSettingsScreen(
 
         val isDarkTheme = isSystemInDarkTheme()
 
-        if (!state.isPremium && state.connectionSuccessful) {
-            StyledButton(
-                onClick = navigateToPurchase,
-                backdrop = rememberLayerBackdrop(),
-                modifier = Modifier.fillMaxWidth(),
-                maxScale = 0.05f,
-                surfaceColor = MaterialTheme.colorScheme.primary
-            ) {
-                Text(
-                    stringResource(R.string.unlock_advanced_features),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-        if (state.timeUntilFOSSPremiumExpiry > 0L) {
-            Box(
-                modifier = Modifier
-                    .background(Color(0xFF32829B), RoundedCornerShape(28.dp))
-                    .clip(RoundedCornerShape(28.dp))
-                    .clickable {
-                        val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
-                            data = "mailto:".toUri()
-                            putExtra(Intent.EXTRA_EMAIL, arrayOf("billing@kavish.xyz"))
-                            putExtra(Intent.EXTRA_SUBJECT, "LibrePods Play billing error")
-                            putExtra(
-                                Intent.EXTRA_TEXT,
-                                "Please enter your GitHub username to restore your premium access:\n\nGitHub username: "
-                            )
-                        }
-                        context.startActivity(emailIntent)
-                    }
-            ) {
-                Text(
-                    text = stringResource(
-                        R.string.play_foss_premium_banner, maxOf(1, TimeUnit.MILLISECONDS.toDays(state.timeUntilFOSSPremiumExpiry).toInt())
-                    ),
-                    modifier = Modifier
-                        .padding(16.dp),
-                    style = TextStyle(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        fontFamily = glintFontFamily
-                    )
-                )
-            }
-        }
-
         StyledToggle(
             title = stringResource(R.string.appearance),
             label = stringResource(R.string.use_material3e),
             checked = state.m3eEnabled,
             onCheckedChange = viewModel::setm3eEnabled,
-            enabled = state.isPremium
         )
 
         StyledList(title = "Glint") {
@@ -412,7 +355,7 @@ fun AppSettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         StyledList(title = stringResource(R.string.contact)) {
-            // Glint is a personal fork, so problems go to the fork, not to the LibrePods developer.
+            // Problems go to Jake's own repository.
             StyledListItem(
                 name = "Report a Glint problem",
                 description = "Opens this fork's GitHub page",
@@ -425,20 +368,12 @@ fun AppSettingsScreen(
                     context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/Jbyjre/pro3/issues/new?body=$body".toUri()))
                 },
             )
-            StyledListItem(
-                name = "LibrePods (original project)",
-                description = "Glint is built on LibrePods by kavishdevar, GPL-3.0",
-                orientation = ListItemOrientation.Vertical,
-                onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/librepods-org/librepods".toUri()))
-                },
-            )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
         DeviceInfoCard()
         Spacer(modifier = Modifier.height(16.dp))
-        AppInfoCard(navigateToReleaseNotesScreen, onSecretTap = navigateToGlintLab)
+        AppInfoCard(onSecretTap = navigateToGlintLab)
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -518,95 +453,4 @@ fun AppSettingsScreen(
         }
     }
 
-    StyledBottomSheet(
-        visible = contactBottomSheet.value,
-        onDismiss = { contactBottomSheet.value = false },
-        backdrop = backdrop
-    ) { innerBackdrop, progress ->
-        val animatedPadding = lerp(16.dp, 2.dp, progress)
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = animatedPadding)
-                .padding(bottom = 16.dp),
-        ) {
-           Row(
-               modifier = Modifier
-                   .fillMaxWidth()
-                   .padding(bottom = 16.dp),
-               horizontalArrangement = Arrangement.SpaceBetween,
-               verticalAlignment = Alignment.CenterVertically
-           ) {
-               StyledIconButton(
-                   icon = "\uDBC0\uDD84",
-                   backdrop = innerBackdrop,
-                   onClick = { contactBottomSheet.value = false }
-               )
-               Text (
-                   text = stringResource(R.string.describe_your_issue),
-                   style = TextStyle(
-                       fontSize = 18.sp,
-                       fontFamily = glintFontFamily,
-                       fontWeight = FontWeight.Bold,
-                       textAlign = TextAlign.Center,
-                       color = if (isSystemInDarkTheme()) Color.White else Color.Black
-                   )
-               )
-               StyledIconButton(
-                   icon = "\uDBC0\uDE1F",
-                   backdrop = innerBackdrop,
-                   surfaceColor = if (isSystemInDarkTheme()) Color(0xFF0091FF) else Color(0xFF0088FF),
-                   iconTint = if (subjectState.text.isNotEmpty() && descriptionState.text.isNotEmpty()) Color.White else Color.Gray,
-                   enabled = subjectState.text.isNotEmpty() && descriptionState.text.isNotEmpty(),
-                   onClick = {
-                       contactBottomSheet.value = false
-                       val intent = Intent(Intent.ACTION_SENDTO).apply {
-                           data = "mailto:".toUri()
-                           putExtra(Intent.EXTRA_EMAIL, arrayOf("contact@kavish.xyz"))
-                           putExtra(Intent.EXTRA_SUBJECT, "LibrePods: ${subjectState.text}")
-                           putExtra(
-                               Intent.EXTRA_TEXT,
-                               "${descriptionState.text}" +
-                                   "\n\n----------" +
-                                   "\nPhone details:" +
-                                   "\nMANUFACTURER: ${Build.MANUFACTURER}" +
-                                   "\nMODEL: ${Build.MODEL} (${Build.PRODUCT})" +
-                                   "\nDISPLAY_VERSION: ${Build.DISPLAY}" +
-                                   "\nID: ${Build.ID} (SDK ${Build.VERSION.SDK_INT_FULL})" +
-                                   "\nXposed enabled/active: ${XposedState.isAvailable}/${XposedState.bluetoothScopeEnabled}" +
-                                   "\n\nApp details:" +
-                                   "\nVERSION: ${BuildConfig.VERSION_NAME}" +
-                                   "\nVERSION_CODE: ${BuildConfig.VERSION_CODE}" +
-                                   "\nFLAVOR: ${BuildConfig.FLAVOR}" +
-                                   "\nBUILD_TYPE: ${BuildConfig.BUILD_TYPE}"
-                           )
-                       }
-                       context.startActivity(intent)
-                       subjectState.clearText()
-                       descriptionState.clearText()
-                   }
-               )
-           }
-
-           Spacer(modifier = Modifier.height(8.dp))
-
-           StyledInputField(
-               inputState = subjectState,
-               focusRequester = subjectFocusRequester,
-               placeholder = stringResource(R.string.subject),
-               forceApple = true
-           )
-
-           Spacer(modifier = Modifier.height(12.dp))
-
-           StyledInputField(
-               inputState = descriptionState,
-               focusRequester = descriptionFocusRequester,
-               placeholder = stringResource(R.string.describe_your_issue),
-               singleLine = false,
-               forceApple = true
-           )
-        }
-    }
 }

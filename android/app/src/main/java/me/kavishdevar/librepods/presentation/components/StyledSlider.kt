@@ -18,6 +18,7 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.glint.GlintLight
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 
 import android.annotation.SuppressLint
@@ -91,7 +92,6 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 import kotlinx.coroutines.CoroutineScope
@@ -646,7 +646,7 @@ fun StyledSlider(
                                             { RoundedCornerShape(28.dp) },
                                             highlight = {
                                                 val progress = momentumAnimation.progress
-                                                Highlight.Ambient.copy(alpha = progress)
+                                                GlintLight.rim(progress)
                                             },
                                             shadow = {
                                                 Shadow(

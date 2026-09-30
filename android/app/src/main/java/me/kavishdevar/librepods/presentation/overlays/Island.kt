@@ -18,6 +18,12 @@
 
 package me.kavishdevar.librepods.presentation.overlays
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import me.kavishdevar.librepods.services.GlintStatus
+import me.kavishdevar.librepods.services.LinkState
+import me.kavishdevar.librepods.services.BatteryTimeLeft
+import me.kavishdevar.librepods.services.BatteryWords
 import android.content.Context
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -94,8 +100,7 @@ import me.kavishdevar.librepods.presentation.glint.GlintColors
 import me.kavishdevar.librepods.presentation.glint.GlintComfort
 import me.kavishdevar.librepods.presentation.glint.GlintHaptics
 import me.kavishdevar.librepods.presentation.glint.ListeningModeGlyph
-import me.kavishdevar.librepods.presentation.glint.PodsVideo
-import me.kavishdevar.librepods.presentation.glint.PodsVideoConfig
+import me.kavishdevar.librepods.presentation.glint.PodsSpinner
 import me.kavishdevar.librepods.presentation.glint.SystemBlur
 import me.kavishdevar.librepods.presentation.glint.drawBolt
 import me.kavishdevar.librepods.presentation.glint.drawGlass
@@ -119,16 +124,23 @@ internal class IslandController(private val context: Context) {
     private val generation = mutableIntStateOf(0)
     val isShowing: Boolean get() = window.isShowing
 
+    private var shownAt = 0L
+
     fun show(e: IslandEvent) {
         event.value = e
         generation.intValue++
         val wantsExpanded = (e is IslandEvent.MovedToDevice && e.canTakeBack) || e is IslandEvent.Problem
+        // Safety net: an island can't legitimately stay up this long (it leaves after 10 s at
+        // most). If one is stuck, for example its animation froze while the screen was off,
+        // remove it so this event still appears instead of being swallowed.
+        if (window.isShowing && android.os.SystemClock.elapsedRealtime() - shownAt > 25_000L) window.dismiss()
         if (window.isShowing) {
             phase.value = if (wantsExpanded) IslandPhase.Expanded else
                 if (phase.value == IslandPhase.Leaving) IslandPhase.Compact else phase.value
             return
         }
         phase.value = if (wantsExpanded) IslandPhase.Expanded else IslandPhase.Compact
+        shownAt = android.os.SystemClock.elapsedRealtime()
         val geo = IslandGeometry(context)
         window.show(if (wantsExpanded) geo.expandedWindow else geo.compactWindow, geo.windowTop) {
             IslandHost(
@@ -159,11 +171,18 @@ internal class IslandGeometry(context: Context) {
     val shadowDrop = dp(16f)
     val tiny = dp(34f)
     val compactH = dp(40f)
-    val compactMainW = dp(214f)
+    // Wide enough for the buds, the text and the battery ring inside one pill.
+    val compactMainW = dp(252f)
     val satD = dp(40f)
     val satGap = dp(9f)
+    /**
+     * Where the battery ring rests: inside the pill's right cap, so the compact island is one
+     * continuous capsule (like the Dynamic Island) rather than a pill plus a separate bubble.
+     * 0 = tucked deep inside, 1 = fully budded off beside the pill.
+     */
+    val restSplit = satD / (satGap + 2f * satD)
     val expandedW = minOf(screen.width - dp(20f), dp(430f))
-    val expandedH = dp(214f)
+    val expandedH = dp(256f)
     val expandedRadius = dp(44f)
     val windowTop = GlintOverlays.statusBarHeight(context) + dp(6f).roundToInt() - margin.roundToInt()
     val compactWindow = IntSize(
@@ -203,7 +222,10 @@ internal fun IslandHost(
     DisposableEffect(mainBlur, satBlur) { onDispose { mainBlur?.hide(); satBlur?.hide() } }
 
     val appear = remember { Animatable(0f) }
-    val expand = remember { Animatable(if (phase == IslandPhase.Expanded) 0f else 0f) }
+    // Width and height morph on slightly different springs (width leads, height follows with
+    // a little more give), so growing and shrinking reads as one liquid drop, not a box scaling.
+    val expand = remember { Animatable(0f) }
+    val expandH = remember { Animatable(0f) }
     val split = remember { Animatable(0f) }
     var press by remember { mutableFloatStateOf(0f) }
     var touch by remember { mutableStateOf<Offset?>(null) }
@@ -211,6 +233,7 @@ internal fun IslandHost(
     val currentPhase by rememberUpdatedState(phase)
 
     val morph = if (reduceMotion) tween<Float>(160) else spring(dampingRatio = 0.72f, stiffness = 340f)
+    val morphH = if (reduceMotion) tween<Float>(160) else spring(dampingRatio = 0.66f, stiffness = 260f)
     val soft = if (reduceMotion) tween<Float>(160) else spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
 
     LaunchedEffect(phase, generation) {
@@ -219,8 +242,9 @@ internal fun IslandHost(
                 coroutineScope {
                     if (appear.value < 0.01f) haptics.appear()
                     launch { expand.animateTo(0f, morph) }
+                    launch { expandH.animateTo(0f, morphH) }
                     launch { appear.animateTo(1f, morph) }
-                    launch { delay(if (reduceMotion) 0 else 110); split.animateTo(1f, soft) }
+                    launch { delay(if (reduceMotion) 0 else 110); split.animateTo(geometry.restSplit, soft) }
                 }
                 onWindowSize(geometry.compactWindow)
                 val hold = if (event is IslandEvent.LowBattery) 5_000L else 3_600L
@@ -234,17 +258,20 @@ internal fun IslandHost(
                     launch { appear.animateTo(1f, morph) }
                     launch { split.animateTo(0f, soft) }
                     launch { expand.animateTo(1f, morph) }
+                    launch { delay(if (reduceMotion) 0 else 40); expandH.animateTo(1f, morphH) }
                 }
-                delay(8_000)
+                delay(10_000)
                 onPhase(IslandPhase.Leaving)
             }
             IslandPhase.Leaving -> {
                 coroutineScope {
                     launch { split.animateTo(0f, soft) }
                     launch { expand.animateTo(0f, morph) }
+                    launch { expandH.animateTo(0f, morphH) }
                     launch { delay(if (reduceMotion) 0 else 90); appear.animateTo(0f, if (reduceMotion) tween(160) else spring(1f, 500f)) }
                 }
                 onGone()
+                GlintOverlays.releaseIfIdle()
             }
         }
     }
@@ -266,11 +293,12 @@ internal fun IslandHost(
     fun frame(windowWidth: Float): IslandFrame {
         val a = appear.value
         val e = expand.value
+        val eh = expandH.value
         val s = split.value
         val mainW0 = lerp(geometry.tiny, geometry.compactMainW, a)
         val mainH0 = lerp(geometry.tiny, geometry.compactH, a)
         val w = lerp(mainW0, geometry.expandedW, e)
-        val h = lerp(mainH0, geometry.expandedH, e)
+        val h = lerp(mainH0, geometry.expandedH, eh).coerceAtLeast(1f)
         val radius = lerp(h / 2f, geometry.expandedRadius, e).coerceAtMost(h / 2f)
         val satR = geometry.satD / 2f * a * (1f - e)
         // Satellite travels from tucked inside the pill's right cap to a small gap beside it.
@@ -293,14 +321,18 @@ internal fun IslandHost(
                     touch = down.position
                     press = 1f
                     var totalY = 0f
+                    var totalX = 0f
                     var moved = false
                     while (true) {
                         val ev = awaitPointerEvent()
                         val ch = ev.changes.firstOrNull() ?: break
+                        // A button or the spinning earbuds inside handled this touch.
+                        if (ch.isConsumed) moved = true
                         if (!ch.pressed) break
                         val dy = ch.positionChange().y
                         totalY += dy
-                        if (kotlin.math.abs(totalY) > 8f * density) moved = true
+                        totalX += ch.positionChange().x
+                        if (kotlin.math.abs(totalY) > 8f * density || kotlin.math.abs(totalX) > 8f * density) moved = true
                         dragY = totalY
                         touch = ch.position
                     }
@@ -380,11 +412,20 @@ internal fun IslandHost(
             },
             satellite = satelliteContent,
             expanded = {
-                ExpandedIslandContent(event, snapshot, title, subtitle, look.content, look.contentSecondary, active = phase == IslandPhase.Expanded) {
-                    haptics.expand()
-                    if (event is IslandEvent.MovedToDevice && event.canTakeBack) GlintOverlays.takeBackHandler?.invoke()
-                    onPhase(IslandPhase.Leaving)
-                }
+                ExpandedIslandContent(
+                    event, snapshot, title, look.content, look.contentSecondary,
+                    active = phase == IslandPhase.Expanded,
+                    onAction = {
+                        haptics.expand()
+                        if (event is IslandEvent.MovedToDevice && event.canTakeBack) GlintOverlays.takeBackHandler?.invoke()
+                        onPhase(IslandPhase.Leaving)
+                    },
+                    onOpenApp = {
+                        haptics.expand()
+                        GlintOverlays.openApp(context)
+                        onPhase(IslandPhase.Leaving)
+                    },
+                )
             },
         )
     }
@@ -417,7 +458,7 @@ private fun IslandLayout(
         val h = constraints.maxHeight
         val f = frameProvider(w.toFloat())
         val loose = Constraints(maxWidth = w, maxHeight = h)
-        val c = compactM.map { it.measure(Constraints(maxWidth = (f.main.width - f.main.height * 0.9f).roundToInt().coerceAtLeast(0), maxHeight = h)) }
+        val c = compactM.map { it.measure(Constraints(maxWidth = (f.main.width - f.main.height * 0.9f - f.main.height).roundToInt().coerceAtLeast(0), maxHeight = h)) }
         val s = satM.map { it.measure(loose) }
         val e = expM.map { it.measure(Constraints.fixed(expandedSize.width, expandedSize.height)) }
         layout(w, h) {
@@ -433,8 +474,8 @@ private fun IslandLayout(
                     (f.satCenter.x - it.width / 2f).roundToInt(),
                     (f.satCenter.y - it.height / 2f).roundToInt()
                 ) {
-                    alpha = (f.split * 1.3f - 0.3f).coerceIn(0f, 1f) * (1f - f.expand * 3f).coerceAtLeast(0f)
-                    val sc = 0.6f + 0.4f * f.split
+                    alpha = ((f.appear - 0.55f) / 0.45f).coerceIn(0f, 1f) * (1f - f.expand * 3f).coerceAtLeast(0f)
+                    val sc = 0.7f + 0.3f * ((f.appear - 0.4f) / 0.6f).coerceIn(0f, 1f)
                     scaleX = sc; scaleY = sc
                 }
             }
@@ -450,21 +491,20 @@ private fun IslandLayout(
 }
 
 /**
- * LibrePods' turning-AirPods clip, keyed off its black background so the buds float on the
- * glass. The buds fill 88% x 53% of the clip's square frame, so the frame is sized from the
- * width the buds should take and allowed to overhang its slot (the overhang is transparent).
+ * The turning earbuds. The frames come from the island clip (one full, seamless turn) with the
+ * background already removed, so they float on the glass. The buds fill 88% x 53% of each
+ * square frame, so the frame is sized from the width the buds should take and allowed to
+ * overhang its slot (the overhang is transparent).
  */
 @Composable
-private fun IslandPods(budsWidth: Dp, play: Boolean) {
+private fun IslandPods(budsWidth: Dp, play: Boolean, interactive: Boolean = false, turnMillis: Int = 7000) {
     val frame = budsWidth / 0.88f
     Box(Modifier.size(budsWidth, frame * 0.56f), contentAlignment = Alignment.Center) {
-        PodsVideo(
-            video = R.raw.island,
-            poster = R.drawable.island_poster,
-            aspectRatio = PodsVideoConfig.ISLAND_ASPECT,
-            keyBlack = true,
-            play = play,
+        PodsSpinner(
             modifier = Modifier.requiredSize(frame),
+            turnMillis = turnMillis,
+            spinning = play,
+            interactive = interactive,
         )
     }
 }
@@ -474,55 +514,104 @@ private fun ExpandedIslandContent(
     event: IslandEvent,
     snapshot: PodsSnapshot,
     title: String,
-    subtitle: String,
     content: Color,
     secondary: Color,
     active: Boolean,
     onAction: () -> Unit,
+    onOpenApp: () -> Unit,
 ) {
-    val hasAction = (event is IslandEvent.MovedToDevice && event.canTakeBack) || event is IslandEvent.Problem
-    Column(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 16.dp)) {
+    val link by GlintStatus.link.collectAsState()
+    val timeLeft by BatteryTimeLeft.estimate.collectAsState()
+    val actionText = when {
+        event is IslandEvent.MovedToDevice && event.canTakeBack -> "Use here"
+        event is IslandEvent.Problem -> "Dismiss"
+        else -> null
+    }
+    Column(Modifier.fillMaxSize().padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = content))
-                Text(subtitle, maxLines = 2, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, color = secondary))
+                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = content))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val (dot, text) = linkSummary(link, snapshot, event)
+                    Box(Modifier.size(7.dp).background(dot, CircleShape))
+                    Spacer(Modifier.width(6.dp))
+                    Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, color = secondary))
+                }
             }
-            if (event is IslandEvent.ListeningMode) ListeningModeGlyph(event.mode, content, size = 26.dp)
+            if (snapshot.listeningMode in 1..4) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    ListeningModeGlyph(snapshot.listeningMode, content, size = 22.dp)
+                    Text(shortModeName(snapshot.listeningMode), style = TextStyle(fontFamily = glintFontFamily, fontSize = 10.sp, color = secondary))
+                }
+            }
         }
-        Spacer(Modifier.height(10.dp))
         Row(
             Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            IslandPods(budsWidth = if (hasAction) 106.dp else 124.dp, play = active)
+            // Drag sideways to spin them.
+            IslandPods(budsWidth = 132.dp, play = active, interactive = active, turnMillis = 9000)
             Spacer(Modifier.weight(1f))
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
-                RingRow("L", snapshot.left, snapshot.leftCharging, content, secondary)
-                RingRow("R", snapshot.right, snapshot.rightCharging, content, secondary)
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp), horizontalAlignment = Alignment.End) {
+                RingRow("Left", snapshot.left, snapshot.leftCharging, content, secondary)
+                RingRow("Right", snapshot.right, snapshot.rightCharging, content, secondary)
                 RingRow("Case", snapshot.case, snapshot.caseCharging, content, secondary)
             }
         }
-        if (hasAction) {
-            GlassPillButton(
-                text = if (event is IslandEvent.Problem) "Dismiss" else "Use on this phone",
-                textColor = content,
-                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                onClick = onAction,
+        timeLeft?.let { e ->
+            Text(
+                BatteryWords.headline(e),
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = secondary),
+                modifier = Modifier.padding(bottom = 8.dp)
             )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GlassPillButton(text = "Open Glint", textColor = content, modifier = Modifier.weight(1f), onClick = onOpenApp)
+            if (actionText != null) {
+                GlassPillButton(text = actionText, textColor = content, modifier = Modifier.weight(1f), onClick = onAction)
+            }
         }
     }
 }
 
+/** A coloured dot and a plain line saying what the connection can do right now. */
+private fun linkSummary(link: LinkState, s: PodsSnapshot, event: IslandEvent): Pair<Color, String> {
+    val where = when {
+        s.leftInEar && s.rightInEar -> "in your ears"
+        s.leftInEar || s.rightInEar -> "one in your ear"
+        s.lidOpen -> "case open"
+        else -> null
+    }
+    val base = when (link) {
+        is LinkState.Connected -> GlintColors.Green to "Connected, all controls available"
+        is LinkState.Connecting -> GlintColors.Amber to "Connecting controls…"
+        is LinkState.Retrying -> GlintColors.Amber to "Audio only, controls reconnecting"
+        is LinkState.GaveUp -> GlintColors.Red to "Audio only, controls unavailable"
+        LinkState.BluetoothOff -> GlintColors.Red to "Bluetooth is off"
+        LinkState.NoPermission -> GlintColors.Red to "Needs Nearby devices permission"
+        LinkState.Idle -> if (event is IslandEvent.MovedToDevice) GlintColors.Amber to "Playing on another device" else GlintColors.Amber to "Not connected"
+    }
+    return if (where != null && link is LinkState.Connected) base.first to "Connected, $where" else base
+}
+
+private fun shortModeName(mode: Int): String = when (mode) {
+    1 -> "Off"
+    2 -> "Noise Canc."
+    3 -> "Transparency"
+    4 -> "Adaptive"
+    else -> ""
+}
+
 @Composable
 private fun RingRow(label: String, level: Int?, charging: Boolean, content: Color, secondary: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, style = TextStyle(fontFamily = glintFontFamily, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = secondary))
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text(label, style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = secondary))
         Text(
             if (level != null) "$level%" else "–",
-            style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = content)
+            style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = content)
         )
-        BatteryRing(level, charging, size = 16.dp, stroke = 2.5.dp, track = Color(0x33FFFFFF), showLabel = false)
+        BatteryRing(level, charging, size = 20.dp, stroke = 3.dp, track = Color(0x33FFFFFF), showLabel = false)
     }
 }
 
