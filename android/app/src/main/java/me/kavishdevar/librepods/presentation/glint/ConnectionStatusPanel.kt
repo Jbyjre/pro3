@@ -37,7 +37,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.imageResource
+import me.kavishdevar.librepods.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -151,10 +160,16 @@ fun ConnectionStatusPanel(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy((-10).dp), verticalAlignment = Alignment.Bottom) {
-            val v = BudVisual(present = !panel.busy || pulse > 0.6f)
-            PodBud(Modifier.height(96.dp), mirrored = false, light = light, visual = v)
-            PodBud(Modifier.height(96.dp), mirrored = true, light = light, visual = v)
+        // LibrePods' AirPods picture; it breathes while a connection attempt is running.
+        Box(Modifier.size(width = 146.dp, height = 96.dp), contentAlignment = Alignment.Center) {
+            Image(
+                bitmap = ImageBitmap.imageResource(R.drawable.airpods_pro_2_buds),
+                contentDescription = null,
+                modifier = Modifier
+                    .requiredSize(150.dp)
+                    .offset(y = 6.dp)
+                    .graphicsLayer { alpha = if (panel.busy) 0.45f + 0.55f * pulse else 1f }
+            )
         }
         Text(
             panel.title, textAlign = TextAlign.Center,

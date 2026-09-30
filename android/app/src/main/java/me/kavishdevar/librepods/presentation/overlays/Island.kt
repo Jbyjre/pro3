@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -58,7 +59,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.graphics.Path
@@ -85,19 +85,19 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.ui.unit.Dp
+import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.presentation.glint.BatteryRing
-import me.kavishdevar.librepods.presentation.glint.BudVisual
-import me.kavishdevar.librepods.presentation.glint.CaseVisual
 import me.kavishdevar.librepods.presentation.glint.GlassLooks
 import me.kavishdevar.librepods.presentation.glint.GlintColors
 import me.kavishdevar.librepods.presentation.glint.GlintComfort
 import me.kavishdevar.librepods.presentation.glint.GlintHaptics
 import me.kavishdevar.librepods.presentation.glint.ListeningModeGlyph
-import me.kavishdevar.librepods.presentation.glint.PodBud
-import me.kavishdevar.librepods.presentation.glint.PodCase
+import me.kavishdevar.librepods.presentation.glint.PodsVideo
+import me.kavishdevar.librepods.presentation.glint.PodsVideoConfig
 import me.kavishdevar.librepods.presentation.glint.SystemBlur
 import me.kavishdevar.librepods.presentation.glint.drawBolt
-import me.kavishdevar.librepods.presentation.glint.drawBud
 import me.kavishdevar.librepods.presentation.glint.drawGlass
 import me.kavishdevar.librepods.presentation.glint.drawSystemBlur
 import me.kavishdevar.librepods.presentation.glint.glassShadow
@@ -159,11 +159,11 @@ internal class IslandGeometry(context: Context) {
     val shadowDrop = dp(16f)
     val tiny = dp(34f)
     val compactH = dp(40f)
-    val compactMainW = dp(200f)
+    val compactMainW = dp(214f)
     val satD = dp(40f)
     val satGap = dp(9f)
     val expandedW = minOf(screen.width - dp(20f), dp(430f))
-    val expandedH = dp(186f)
+    val expandedH = dp(214f)
     val expandedRadius = dp(44f)
     val windowTop = GlintOverlays.statusBarHeight(context) + dp(6f).roundToInt() - margin.roundToInt()
     val compactWindow = IntSize(
@@ -364,7 +364,7 @@ internal fun IslandHost(
             frameProvider = { frame(it) },
             compact = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    MiniBuds(Modifier.size(26.dp))
+                    IslandPods(budsWidth = 42.dp, play = phase != IslandPhase.Expanded)
                     Spacer(Modifier.width(8.dp))
                     Column {
                         Text(
@@ -380,7 +380,7 @@ internal fun IslandHost(
             },
             satellite = satelliteContent,
             expanded = {
-                ExpandedIslandContent(event, snapshot, title, subtitle, look.content, look.contentSecondary, light) {
+                ExpandedIslandContent(event, snapshot, title, subtitle, look.content, look.contentSecondary, active = phase == IslandPhase.Expanded) {
                     haptics.expand()
                     if (event is IslandEvent.MovedToDevice && event.canTakeBack) GlintOverlays.takeBackHandler?.invoke()
                     onPhase(IslandPhase.Leaving)
@@ -449,14 +449,23 @@ private fun IslandLayout(
     }
 }
 
+/**
+ * LibrePods' turning-AirPods clip, keyed off its black background so the buds float on the
+ * glass. The buds fill 88% x 53% of the clip's square frame, so the frame is sized from the
+ * width the buds should take and allowed to overhang its slot (the overhang is transparent).
+ */
 @Composable
-private fun MiniBuds(modifier: Modifier) {
-    androidx.compose.foundation.Canvas(modifier) {
-        val half = Size(size.width * 0.52f, size.height)
-        drawBud(half, mirrored = false, light = Offset(0f, -0.3f), visual = BudVisual())
-        translate(size.width * 0.48f, 0f) {
-            drawBud(half, mirrored = true, light = Offset(0f, -0.3f), visual = BudVisual())
-        }
+private fun IslandPods(budsWidth: Dp, play: Boolean) {
+    val frame = budsWidth / 0.88f
+    Box(Modifier.size(budsWidth, frame * 0.56f), contentAlignment = Alignment.Center) {
+        PodsVideo(
+            video = R.raw.island,
+            poster = R.drawable.island_poster,
+            aspectRatio = PodsVideoConfig.ISLAND_ASPECT,
+            keyBlack = true,
+            play = play,
+            modifier = Modifier.requiredSize(frame),
+        )
     }
 }
 
@@ -468,9 +477,10 @@ private fun ExpandedIslandContent(
     subtitle: String,
     content: Color,
     secondary: Color,
-    light: Offset,
+    active: Boolean,
     onAction: () -> Unit,
 ) {
+    val hasAction = (event is IslandEvent.MovedToDevice && event.canTakeBack) || event is IslandEvent.Problem
     Column(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -485,11 +495,7 @@ private fun ExpandedIslandContent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy((-6).dp), verticalAlignment = Alignment.Bottom) {
-                PodBud(Modifier.height(78.dp), mirrored = false, light = light, visual = BudVisual(snapshot.left != null, snapshot.leftCharging, snapshot.leftInEar))
-                PodBud(Modifier.height(78.dp), mirrored = true, light = light, visual = BudVisual(snapshot.right != null, snapshot.rightCharging, snapshot.rightInEar))
-            }
-            PodCase(Modifier.height(58.dp), light = light, visual = CaseVisual(snapshot.case != null, snapshot.caseCharging, snapshot.case, snapshot.lidOpen))
+            IslandPods(budsWidth = if (hasAction) 106.dp else 124.dp, play = active)
             Spacer(Modifier.weight(1f))
             Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
                 RingRow("L", snapshot.left, snapshot.leftCharging, content, secondary)
@@ -497,11 +503,11 @@ private fun ExpandedIslandContent(
                 RingRow("Case", snapshot.case, snapshot.caseCharging, content, secondary)
             }
         }
-        if ((event is IslandEvent.MovedToDevice && event.canTakeBack) || event is IslandEvent.Problem) {
+        if (hasAction) {
             GlassPillButton(
                 text = if (event is IslandEvent.Problem) "Dismiss" else "Use on this phone",
                 textColor = content,
-                modifier = Modifier.padding(top = 6.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                 onClick = onAction,
             )
         }
