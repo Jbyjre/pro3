@@ -22,6 +22,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.core.content.edit
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -200,14 +201,14 @@ fun HeartRateScreen() {
                 label = "Alert when it's high",
                 description = "A notification if your heart rate goes above $limit BPM while measuring (at most every 10 minutes).",
                 checked = alert,
-                onCheckedChange = { alert = it; prefs.edit().putBoolean(PREF_HR_ALERT, it).apply() }
+                onCheckedChange = { alert = it; prefs.edit { putBoolean(PREF_HR_ALERT, it) } }
             )
             if (alert) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Limit", style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, color = ink), modifier = Modifier.weight(1f))
-                    Stepper("−", ink, dark) { limit = (limit - 5).coerceAtLeast(90); prefs.edit().putInt(PREF_HR_ALERT_BPM, limit).apply() }
+                    Stepper("−", ink, dark) { limit = (limit - 5).coerceAtLeast(90); prefs.edit { putInt(PREF_HR_ALERT_BPM, limit) } }
                     Text("$limit BPM", style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = ink, textAlign = TextAlign.Center), modifier = Modifier.width(96.dp))
-                    Stepper("+", ink, dark) { limit = (limit + 5).coerceAtMost(200); prefs.edit().putInt(PREF_HR_ALERT_BPM, limit).apply() }
+                    Stepper("+", ink, dark) { limit = (limit + 5).coerceAtMost(200); prefs.edit { putInt(PREF_HR_ALERT_BPM, limit) } }
                 }
             }
         }

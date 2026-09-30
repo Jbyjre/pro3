@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import me.kavishdevar.librepods.services.PREF_STATUS_NOTIFICATION
+import me.kavishdevar.librepods.services.ServiceManager
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -88,7 +90,7 @@ fun StayConnectedScreen() {
             )
             StyledToggle(
                 label = "Reduce motion",
-                description = "Simple fades and still pictures instead of springy shapes and videos. Also on automatically when the phone's animations are off.",
+                description = "Simple fades and still pictures instead of springy shapes and turning AirPods. Also on automatically when the phone's animations are off.",
                 checked = motion,
                 onCheckedChange = { motion = it; prefs.edit { putBoolean(GlintComfort.PREF_REDUCE_MOTION, it) } },
             )
@@ -103,6 +105,20 @@ fun StayConnectedScreen() {
                 description = "A small island appears when you switch modes on the AirPods themselves.",
                 checked = modeIsland,
                 onCheckedChange = { modeIsland = it; prefs.edit { putBoolean(PREF_MODE_ISLAND, it) } },
+            )
+        }
+        var statusNotification by remember { mutableStateOf(prefs.getBoolean(PREF_STATUS_NOTIFICATION, false)) }
+        StyledList(title = "Notifications") {
+            StyledToggle(
+                label = "Status in notifications",
+                description = if (statusNotification) "Battery and listening mode stay in your notification shade while connected."
+                    else "Off: nothing stays in your notification shade. Android needs a notification to keep the AirPods connection alive, so Glint keeps it on a hidden channel.",
+                checked = statusNotification,
+                onCheckedChange = {
+                    statusNotification = it
+                    prefs.edit { putBoolean(PREF_STATUS_NOTIFICATION, it) }
+                    ServiceManager.getService()?.refreshNotification(force = true)
+                },
             )
         }
         Spacer(Modifier.height(bottomPadding))

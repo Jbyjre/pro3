@@ -33,6 +33,10 @@
   `bluetooth/ReconnectPolicy.kt`, `utils/CompanionLink.kt`. Hidden Glint Lab: Settings >
   About > tap "Version code" 7 times.
 - The foss build has no paywall: `FOSSBillingProvider` reports everything included; the purchase page is Play-only.
-- 3D viewer frames live in `assets/spin/{buds,case,both}` (48 keyed WebP frames each, made from the clips).
+- Island earbud frames live in `assets/spin/buds` (48 keyed WebP frames from island.mp4; `PodsSpinner`).
   Battery time left: `services/BatteryEstimator.kt`; bottom-card rules: `services/CardGate.kt`.
+- Glass rim light: always `GlintLight.rim()` (Kyant's default highlight is a 45-degree diagonal that looks tilted).
+- Heart rate: `bluetooth/SensorProto.kt` + `services/HeartRate.kt`; recorder: `audio/AirPodsRecorder.kt`;
+  change confirmation: `services/CommandFeedback.kt`. The status notification is hidden unless
+  `glint_status_notification` is on. Jake's app is personal: no visible LibrePods mentions.
 - See `DECISIONS.md` and `TESTING.md` at the repo root.

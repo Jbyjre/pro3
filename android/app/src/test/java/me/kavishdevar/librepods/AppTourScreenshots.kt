@@ -98,6 +98,19 @@ class AppTourScreenshots {
     @Test fun transparency() = both("17_transparency", listOf(Screen.TransparencyCustomization))
     @Test fun callControl() = both("18_call_control", listOf(Screen.CallControl("Mute/Unmute")))
     @Test fun microphone() = both("19_microphone", listOf(Screen.MicrophoneSettings))
+    @Test fun heartRate() {
+        val t0 = System.currentTimeMillis() - 20 * 60_000L
+        me.kavishdevar.librepods.services.HeartRate.clear()
+        for (i in 0 until 1200) {
+            val bpm = (72 + 14 * kotlin.math.sin(i / 90.0) + (if (i in 600..760) 38 else 0) * kotlin.math.sin((i - 600) / 160.0 * Math.PI)).toInt()
+            me.kavishdevar.librepods.services.HeartRate.reading(bpm, t0 + i * 1000L)
+        }
+        both("31_heart_rate", listOf(Screen.HeartRate))
+        tour("31_heart_rate", dark = true, stack = listOf(Screen.HeartRate))
+        me.kavishdevar.librepods.services.HeartRate.status(me.kavishdevar.librepods.services.HeartRate.Status.Off)
+        me.kavishdevar.librepods.services.HeartRate.clear()
+    }
+    @Test fun recorder() = both("32_recorder", listOf(Screen.Recorder))
     @Test fun licenses() = both("20_licenses", listOf(Screen.OpenSourceLicenses))
 
 

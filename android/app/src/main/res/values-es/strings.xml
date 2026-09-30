@@ -181,7 +181,7 @@
     <string name="custom_camera_package">Aplicación de cámara personalizada Appid</string>
     <string name="custom_camera_package_set_success">Appid de cámara establecido correctamente</string>
     <string name="app_listener_service_label">Escucha de cámara</string>
-    <string name="app_listener_service_description">Servicio de escucha para LibrePods que detecta cuándo la cámara está activa para activar el control de la cámara en los AirPods.</string>
+    <string name="app_listener_service_description">Servicio de escucha para Glint que detecta cuándo la cámara está activa para activar el control de la cámara en los AirPods.</string>
     <string name="open_source_licenses">Licencias de Código Abierto</string>
     <string name="hearing_test">Actualizar Prueba Auditiva</string>
     <string name="update_hearing_test">Actualizar el Resultado de la Prueba Auditiva</string>
