@@ -113,3 +113,13 @@ I rendered every screen of the app with LibrePods' demo AirPods (light and dark)
 **Still only checkable on your phone (not verified):** real Bluetooth, the head-gesture, rename and equalizer screens (they need live AirPods to open), video smoothness, the system blur, haptics.
 
 A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every build so regressions like these show up as images.
+
+## 9. Functionality audit for AirPods Pro 3
+
+- **Model recognised.** Apple lists AirPods Pro 3 as A3063 (left), A3064 (right), A3065 (case); Glint's model table matches (checked against a mirror of Apple's "Identify your AirPods" page and iFixit). A test now guards this.
+- **Battery bug fixed.** The AirPods can report 1, 2 or 3 battery entries (the protocol notes in `docs/` describe this). LibrePods only accepted exactly 3, so a report with just the buds (case out of range) or one bud was thrown away and the battery went stale. Glint now reads any number; a part that isn't reported keeps its last level and shows as disconnected, and an invalid level (0xFF) keeps the last good one.
+- **Tested with real message formats.** New `AirPodsProtocolTest` feeds the documented AirPods messages through the app's own decoders: battery (full, partial, single bud, invalid, truncated), listening mode, conversation awareness, ear detection, and device information (name, model, serial).
+- **Start-up crash guard.** If the phone restarts before set-up is finished (no Bluetooth permission yet), the background service now stops cleanly instead of making Android close the app with an error a few seconds later.
+- **Checked and fine:** auto-pause/resume only resumes music Glint paused itself; the notification's "Listening mode" and "Try again" buttons reach working handlers; pop-ups check the "Display over other apps" permission and can't crash; restart after reboot/update is wired.
+- **Not added (couldn't verify):** the AirPods Pro 3's Bluetooth product ID for the advert reader's model-name list. Sources disagree, and the name is only used in logs.
+- **Open question (needs your call):** Glint also reads the AirPods' short radio "adverts" (battery, lid open). It only trusts adverts it can verify with a key the AirPods hand over the first time the full control connection works. If your phone blocks that connection, adverts are ignored too, so there is no lid-open pop-up and no battery from adverts. A fallback could use unverified adverts from very close AirPods while yours are playing audio, but it could occasionally show someone else's AirPods. Not built without your go-ahead.

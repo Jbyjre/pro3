@@ -1897,7 +1897,11 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         try {
             startForeground(statusNotificationId, buildStatusNotification())
         } catch (e: Exception) {
-            Log.e(TAG, "startForeground failed: ${e.message}")
+            // Usually Bluetooth permission isn't granted yet (e.g. a reboot before set-up
+            // finished). Stop cleanly: staying started without a notification makes Android
+            // crash the app a few seconds later. The app starts the service again after set-up.
+            Log.e(TAG, "startForeground failed, stopping: ${e.message}")
+            stopSelf()
         }
     }
 
