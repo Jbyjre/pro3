@@ -26,7 +26,10 @@ import me.kavishdevar.librepods.R
 @Composable
 fun AppInfoCard(
     navigateToReleaseNotesScreen: (() -> Unit)? = null,
+    onSecretTap: (() -> Unit)? = null,
 ) {
+    // Tapping "Version code" seven times opens the hidden Glint Lab (overlay previews).
+    val taps = androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
     StyledList(title = stringResource(R.string.about)) {
         StyledListItem(
             name = stringResource(R.string.version),
@@ -37,6 +40,15 @@ fun AppInfoCard(
         StyledListItem(
             name = stringResource(R.string.version_code),
             description = BuildConfig.VERSION_CODE.toString(),
+            onClick = onSecretTap?.let { open ->
+                {
+                    taps.intValue++
+                    if (taps.intValue >= 7) {
+                        taps.intValue = 0
+                        open()
+                    }
+                }
+            }
         )
 
         StyledListItem(

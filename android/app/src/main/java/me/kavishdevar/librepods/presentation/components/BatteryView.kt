@@ -106,7 +106,7 @@ fun BatteryView(
                             BatteryIndicator(
                                 leftLevel,
                                 left?.status ?: BatteryStatus.NOT_CHARGING,
-                                "\uDBC6\uDCE5"
+                                "􁣥"
                             )
                         }
 
@@ -118,7 +118,7 @@ fun BatteryView(
                             BatteryIndicator(
                                 rightLevel,
                                 right?.status ?: BatteryStatus.NOT_CHARGING,
-                                "\uDBC6\uDCE8"
+                                "􁣨"
                             )
                         }
                     }
@@ -141,7 +141,7 @@ fun BatteryView(
                     BatteryIndicator(
                         caseLevel,
                         case?.status ?: BatteryStatus.NOT_CHARGING,
-                        prefix = if (!singleDisplayed.value) "\uDBC3\uDE6C" else ""
+                        prefix = if (!singleDisplayed.value) "􀹬" else ""
                     )
                 }
             }

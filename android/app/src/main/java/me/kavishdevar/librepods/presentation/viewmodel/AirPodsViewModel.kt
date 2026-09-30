@@ -55,6 +55,8 @@ import me.kavishdevar.librepods.data.CustomEq
 import me.kavishdevar.librepods.data.StemAction
 import me.kavishdevar.librepods.data.XposedRemotePrefProvider
 import me.kavishdevar.librepods.services.AirPodsService
+import me.kavishdevar.librepods.services.GlintStatus
+import me.kavishdevar.librepods.services.LinkState
 
 @Suppress("ArrayInDataClass")
 data class AirPodsUiState(
@@ -198,6 +200,11 @@ class AirPodsViewModel(
         private set
 
     fun init(service: AirPodsService, controlRepo: ControlCommandRepository, sharedPreferences: SharedPreferences, appContext: Context) {
+        // Glint: the screen re-binds every time it comes to the front. Wiring up again to the
+        // same service registered another receiver and listener set each time (never removed),
+        // so updates were handled several times over and the old ones leaked.
+        if (isReady && this::service.isInitialized && this.service === service) return
+        if (isReady) releaseBindings()
         this.service = service
         this.controlRepo = controlRepo
         this.sharedPreferences = sharedPreferences
@@ -214,6 +221,7 @@ class AirPodsViewModel(
         observeATT()
         observeSharedPreferences()
         observeBilling()
+        observeLink()
         if (isDemoMode) activateDemoMode()
         isReady = true
     }
@@ -268,11 +276,35 @@ class AirPodsViewModel(
     }
 
     override fun onCleared() {
+        if (isReady) releaseBindings()
+    }
+
+    /** Undoes what [init] registered on the previous service. */
+    private fun releaseBindings() {
         listeners.forEach { (id, listener) ->
             controlRepo.remove(id, listener)
         }
+        listeners.clear()
         service.aacpManager.customEqCallback = null
-        appContext.unregisterReceiver(broadcastReceiver)
+        try { appContext.unregisterReceiver(broadcastReceiver) } catch (_: IllegalArgumentException) {}
+        prefsListener?.let { sharedPreferences.unregisterOnSharedPreferenceChangeListener(it) }
+        prefsListener = null
+    }
+
+    /** Keeps "connected" in sync with the service even if a broadcast was missed. */
+    private fun observeLink() {
+        viewModelScope.launch {
+            GlintStatus.link.collect { link ->
+                if (isDemoMode) return@collect
+                val connected = link is LinkState.Connected
+                _uiState.update {
+                    it.copy(
+                        isLocallyConnected = connected,
+                        battery = if (connected) service.getBattery() else it.battery
+                    )
+                }
+            }
+        }
     }
 
     private fun loadName() {
@@ -304,6 +336,9 @@ class AirPodsViewModel(
         }
     }
 
+    // Held as a field: SharedPreferences keeps listeners weakly, and this lets it be removed.
+    private var prefsListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+
     private fun observeSharedPreferences() {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             when (key) {
@@ -314,6 +349,7 @@ class AirPodsViewModel(
             }
         }
         sharedPreferences.registerOnSharedPreferenceChangeListener(listener)
+        prefsListener = listener
     }
 
     private fun observeBroadcasts() {
@@ -321,6 +357,7 @@ class AirPodsViewModel(
             override fun onReceive(context: Context?, intent: Intent?) {
                 val action = intent?.action ?: return
                 if (!isDemoMode) when (action) {
+                    AirPodsNotifications.AIRPODS_CONNECTED,
                     AirPodsNotifications.AIRPODS_L2CAP_CONNECTED -> {
                         _uiState.update {
                             it.copy(isLocallyConnected = true)
@@ -356,6 +393,7 @@ class AirPodsViewModel(
 
         val filter = IntentFilter().apply {
             addAction(AirPodsNotifications.AIRPODS_CONNECTED)
+            addAction(AirPodsNotifications.AIRPODS_L2CAP_CONNECTED)
             addAction(AirPodsNotifications.AIRPODS_DISCONNECTED)
             addAction(AirPodsNotifications.BATTERY_DATA)
             addAction(AirPodsNotifications.EQ_DATA)

@@ -78,6 +78,12 @@ sealed interface Screen: NavKey {
     data object MicrophoneSettings: Screen
 
     @Serializable
+    data object StayConnected: Screen
+
+    @Serializable
+    data object GlintLab: Screen
+
+    @Serializable
     data object ReleaseNotes: Screen {
         override val showTopBar: Boolean = false
     }

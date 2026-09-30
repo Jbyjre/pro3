@@ -152,7 +152,7 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
                 connectionSuccessful = sharedPreferences.getBoolean("connection_successful", false),
                 showBottomSheetPopup = sharedPreferences.getBoolean("show_bottom_sheet_popup", true),
                 showIslandPopup = sharedPreferences.getBoolean("show_island_popup", true),
-                m3eEnabled = sharedPreferences.getBoolean("m3e_enabled", true)
+                m3eEnabled = sharedPreferences.getBoolean("m3e_enabled", false)
             )
         }
     }

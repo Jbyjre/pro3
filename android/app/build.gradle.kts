@@ -1,6 +1,9 @@
 import java.util.Properties
 
-val appVersionName = "1.0.0-rc2"
+val appVersionName = "1.0.0"
+
+// CI passes its run number so every cloud build installs cleanly over the previous one.
+val ciBuildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
 
 plugins {
     alias(libs.plugins.android.application)
@@ -32,8 +35,22 @@ kotlin {
     }
 }
 
+// Glint never uses the upstream developer's signing keys. The cloud build creates a private
+// key for this fork, keeps it in GitHub's build cache (never in the public source), and passes
+// it in through GLINT_KEYSTORE / GLINT_KEYSTORE_PASSWORD. Local builds without it fall back to
+// the standard Android debug key.
+val glintKeystore = System.getenv("GLINT_KEYSTORE")?.takeIf { it.isNotBlank() }?.let { file(it) }
+val glintKeystorePassword = System.getenv("GLINT_KEYSTORE_PASSWORD") ?: ""
+val glintSigning = glintKeystore?.exists() == true
+
 android {
     signingConfigs {
+        if (glintSigning) create("glint") {
+            storeFile = glintKeystore
+            storePassword = glintKeystorePassword
+            keyAlias = System.getenv("GLINT_KEY_ALIAS") ?: "glint"
+            keyPassword = System.getenv("GLINT_KEY_PASSWORD") ?: glintKeystorePassword
+        }
         if (releaseSigningAvailable) {
             create("release") {
                 storeFile = file(props["RELEASE_STORE_FILE"] as String)
@@ -47,9 +64,9 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "me.kavishdevar.librepods"
+        applicationId = "io.github.jbyjre.glint"
         targetSdk = 37
-        versionCode = 63
+        versionCode = 100 + ciBuildNumber
         versionName = appVersionName
     }
     buildTypes {
@@ -64,17 +81,25 @@ android {
                     arguments += "-DCMAKE_BUILD_TYPE=Release"
                 }
             }
-            if (releaseSigningAvailable) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            signingConfig = signingConfigs.getByName(
+                when {
+                    glintSigning -> "glint"
+                    releaseSigningAvailable -> "release"
+                    else -> "debug"
+                }
+            )
             defaultConfig {
                 minSdk = 33
             }
         }
         debug {
-            if (releaseSigningAvailable) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            signingConfig = signingConfigs.getByName(
+                when {
+                    glintSigning -> "glint"
+                    releaseSigningAvailable -> "release"
+                    else -> "debug"
+                }
+            )
             versionNameSuffix = "-debug"
             defaultConfig {
                 minSdk = 33
@@ -108,16 +133,36 @@ android {
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
-    }
-    sourceSets {
-        getByName("main") {
-            res.directories += "src/main/res-apple"
+            version = providers.gradleProperty("cmakeVersion").getOrElse("3.22.1")
         }
     }
 
-    ndkVersion = "30.0.14904198"
+    testOptions {
+        // Plain JVM unit tests: android.util.Log and friends become harmless no-ops.
+        unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            it.jvmArgs(
+                "--add-opens=java.base/java.io=ALL-UNNAMED",
+                "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
+                "--add-opens=java.base/java.lang=ALL-UNNAMED",
+                "--add-opens=java.base/java.util=ALL-UNNAMED",
+            )
+            it.maxHeapSize = "3g"
+            it.systemProperty("roborazzi.test.record", "true")
+            it.systemProperty("robolectric.pixelCopyRenderMode", "hardware")
+            // Optional pre-downloaded Robolectric Android images (offline or rate-limited hosts).
+            System.getenv("ROBOLECTRIC_DEPS_DIR")?.let { dir -> it.systemProperty("robolectric.dependency.dir", dir) }
+        }
+    }
+
+    lint {
+        // Home-screen widget layouts are RemoteViews, which the launcher inflates without
+        // AppCompat; app:tint would be ignored there, so android:tint is the correct choice.
+        disable += "UseAppTint"
+    }
+
+    ndkVersion = providers.gradleProperty("ndkVersion").getOrElse("30.0.14904198")
 
     flavorDimensions += "env"
 }
@@ -158,6 +203,14 @@ dependencies {
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(libs.androidx.navigationevent)
+    testImplementation(libs.junit)
+    // Screenshot tests: render the artwork and overlays to PNGs on the build machine.
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
 
 aboutLibraries {

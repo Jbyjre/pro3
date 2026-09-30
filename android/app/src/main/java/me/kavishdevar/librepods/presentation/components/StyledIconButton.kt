@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 import android.content.res.Configuration.UI_MODE_NIGHT_NO
 import android.content.res.Configuration.UI_MODE_NIGHT_YES
 import android.graphics.RuntimeShader
@@ -85,6 +87,7 @@ import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import kotlinx.coroutines.launch
 import me.kavishdevar.librepods.R
+import me.kavishdevar.librepods.presentation.glint.SymbolText
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
 import me.kavishdevar.librepods.presentation.theme.LocalDesignSystem
 import me.kavishdevar.librepods.utils.inspectDragGestures
@@ -114,11 +117,11 @@ fun StyledIconButton(
                         enabled = enabled,
                         modifier = Modifier.size(52.dp)
                     ) {
-                        Text(
+                        SymbolText(
                             text = icon,
                             style = TextStyle(
                                 fontSize = 20.sp,
-                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                                fontFamily = glintFontFamily
                             )
                         )
                     }
@@ -129,11 +132,11 @@ fun StyledIconButton(
                         enabled = enabled,
                         modifier = Modifier.size(52.dp)
                     ) {
-                        Text(
+                        SymbolText(
                             text = icon,
                             style = TextStyle(
                                 fontSize = 20.sp,
-                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                                fontFamily = glintFontFamily
                             )
                         )
                     }
@@ -144,11 +147,11 @@ fun StyledIconButton(
                         enabled = enabled,
                         modifier = Modifier.size(52.dp)
                     ) {
-                        Text(
+                        SymbolText(
                             text = icon,
                             style = TextStyle(
                                 fontSize = 20.sp,
-                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                                fontFamily = glintFontFamily
                             )
                         )
                     }
@@ -159,11 +162,11 @@ fun StyledIconButton(
                         enabled = enabled,
                         modifier = Modifier.size(52.dp)
                     ) {
-                        Text(
+                        SymbolText(
                             text = icon,
                             style = TextStyle(
                                 fontSize = 20.sp,
-                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                                fontFamily = glintFontFamily
                             )
                         )
                     }
@@ -404,13 +407,13 @@ half4 main(float2 coord) {
                     }
                     .size(with(density) { 48.sp.toDp() }),
             ) {
-                Text(
+                SymbolText(
                     text = icon,
                     style = TextStyle(
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Normal,
                         color = if (iconTint.isSpecified) iconTint else if (darkMode) Color.White else Color.Black,
-                        fontFamily = FontFamily(Font(R.font.sf_pro))
+                        fontFamily = glintFontFamily
                     )
                 )
             }

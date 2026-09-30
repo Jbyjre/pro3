@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import me.kavishdevar.librepods.BuildConfig
 import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.presentation.components.ListItemOrientation
 import me.kavishdevar.librepods.presentation.components.MaterialButtonStyle
@@ -89,6 +90,20 @@ fun PurchaseScreen(
             }
         }
         if (!state.isPremium) {
+            if (!BuildConfig.PLAY_BUILD) {
+                StyledList(
+                    title = "How unlocking works",
+                    description = "Glint is built on LibrePods, made by one developer. Tapping Sponsor opens the LibrePods developer's GitHub Sponsors page. Choose any amount there; Glint unlocks on trust a few seconds later, and your support goes directly to the original developer."
+                ) {
+                    StyledListItem(
+                        name = "Everything essential stays free",
+                        description = "Battery, ear detection, listening modes, the connection card and island are all free.",
+                        enabled = false,
+                        orientation = ListItemOrientation.Vertical
+                    )
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
             StyledList(title = stringResource(R.string.free_features)) {
                 StyledListItem(
                     name = stringResource(R.string.ear_detection),
@@ -188,7 +203,8 @@ fun PurchaseScreen(
                 materialButtonStyle = MaterialButtonStyle.Filled
             ) {
                 Text(
-                    stringResource(R.string.buy_price, state.price),
+                    if (BuildConfig.PLAY_BUILD) stringResource(R.string.buy_price, state.price)
+                    else "Sponsor LibrePods & unlock",
                     style = MaterialTheme.typography.bodyMediumEmphasized,
                     color = MaterialTheme.colorScheme.onPrimary
                 )

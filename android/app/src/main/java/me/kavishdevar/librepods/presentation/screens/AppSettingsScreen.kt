@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -87,6 +89,7 @@ import me.kavishdevar.librepods.presentation.components.StyledBottomSheet
 import me.kavishdevar.librepods.presentation.components.StyledButton
 import me.kavishdevar.librepods.presentation.components.StyledIconButton
 import me.kavishdevar.librepods.presentation.components.StyledInputField
+import me.kavishdevar.librepods.presentation.components.ListItemOrientation
 import me.kavishdevar.librepods.presentation.components.StyledList
 import me.kavishdevar.librepods.presentation.components.StyledListItem
 import me.kavishdevar.librepods.presentation.components.StyledSlider
@@ -105,7 +108,9 @@ fun AppSettingsScreen(
     navigateToPurchase: () -> Unit,
     navigateToTroubleshooting: () -> Unit,
     navigateToOpenSourceLicenses: () -> Unit,
-    navigateToReleaseNotesScreen: () -> Unit
+    navigateToReleaseNotesScreen: () -> Unit,
+    navigateToStayConnected: () -> Unit = {},
+    navigateToGlintLab: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -179,7 +184,7 @@ fun AppSettingsScreen(
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
-                        fontFamily = FontFamily(Font(R.font.sf_pro))
+                        fontFamily = glintFontFamily
                     )
                 )
             }
@@ -192,6 +197,17 @@ fun AppSettingsScreen(
             onCheckedChange = viewModel::setm3eEnabled,
             enabled = state.isPremium
         )
+
+        StyledList(title = "Glint") {
+            StyledListItem(
+                name = "Stay connected & appearance",
+                description = "Samsung background setup, glass and motion",
+                orientation = ListItemOrientation.Vertical,
+                onClick = navigateToStayConnected,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (state.connectionSuccessful) {
             StyledToggle(
@@ -396,42 +412,25 @@ fun AppSettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         StyledList(title = stringResource(R.string.contact)) {
+            // Glint is a personal fork, so problems go to the fork, not to the LibrePods developer.
             StyledListItem(
-                name = stringResource(R.string.email),
-                onClick = { contactBottomSheet.value = true },
-            )
-
-            StyledListItem(
-                name = stringResource(R.string.discord),
+                name = "Report a Glint problem",
+                description = "Opens this fork's GitHub page",
+                orientation = ListItemOrientation.Vertical,
                 onClick = {
-                    val intent =
-                        Intent(Intent.ACTION_VIEW, "https://discord.gg/Ts4wupXcmc".toUri())
-                    context.startActivity(intent)
+                    val body = Uri.encode(
+                        "Glint v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n" +
+                            "Device: ${Build.MANUFACTURER} ${Build.MODEL}\nAndroid: ${Build.ID} (${Build.DISPLAY})\n\nWhat happened:\n"
+                    )
+                    context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/Jbyjre/pro3/issues/new?body=$body".toUri()))
                 },
             )
-
             StyledListItem(
-                name = stringResource(R.string.github_issues),
+                name = "LibrePods (original project)",
+                description = "Glint is built on LibrePods by kavishdevar, GPL-3.0",
+                orientation = ListItemOrientation.Vertical,
                 onClick = {
-                    val appVersion =
-                        Uri.encode("v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-                    val device = Uri.encode("${Build.MANUFACTURER} ${Build.MODEL}")
-                    val androidVersion = Uri.encode("${Build.ID} (${Build.DISPLAY})")
-                    val appSource = Uri.encode(
-                        when {
-                            BuildConfig.PLAY_BUILD -> "Play"
-                            else -> "GitHub"
-                        }
-                    )
-                    val url = "https://github.com/kavishdevar/librepods/issues/new" +
-                        "?template=01-bug-report-android.yml" +
-                        "&app-source=$appSource" +
-                        "&app-version=$appVersion" +
-                        "&device=$device" +
-                        "&android-version=$androidVersion"
-
-                    val intent = Intent(Intent.ACTION_VIEW, url.toUri())
-                    context.startActivity(intent)
+                    context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/librepods-org/librepods".toUri()))
                 },
             )
         }
@@ -439,7 +438,7 @@ fun AppSettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
         DeviceInfoCard()
         Spacer(modifier = Modifier.height(16.dp))
-        AppInfoCard(navigateToReleaseNotesScreen)
+        AppInfoCard(navigateToReleaseNotesScreen, onSecretTap = navigateToGlintLab)
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -454,14 +453,14 @@ fun AppSettingsScreen(
             AlertDialog(onDismissRequest = { viewModel.setShowCameraDialog(false) }, title = {
                 Text(
                     stringResource(R.string.set_custom_camera_package),
-                    fontFamily = FontFamily(Font(R.font.sf_pro)),
+                    fontFamily = glintFontFamily,
                     fontWeight = FontWeight.Medium
                 )
             }, text = {
                 Column {
                     Text(
                         stringResource(R.string.enter_custom_camera_package),
-                        fontFamily = FontFamily(Font(R.font.sf_pro)),
+                        fontFamily = glintFontFamily,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
 
@@ -502,7 +501,7 @@ fun AppSettingsScreen(
                     }) {
                     Text(
                         "Save",
-                        fontFamily = FontFamily(Font(R.font.sf_pro)),
+                        fontFamily = glintFontFamily,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -511,7 +510,7 @@ fun AppSettingsScreen(
                     onClick = { viewModel.setShowCameraDialog(false) }) {
                     Text(
                         "Cancel",
-                        fontFamily = FontFamily(Font(R.font.sf_pro)),
+                        fontFamily = glintFontFamily,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -548,7 +547,7 @@ fun AppSettingsScreen(
                    text = stringResource(R.string.describe_your_issue),
                    style = TextStyle(
                        fontSize = 18.sp,
-                       fontFamily = FontFamily(Font(R.font.sf_pro)),
+                       fontFamily = glintFontFamily,
                        fontWeight = FontWeight.Bold,
                        textAlign = TextAlign.Center,
                        color = if (isSystemInDarkTheme()) Color.White else Color.Black

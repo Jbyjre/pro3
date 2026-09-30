@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -67,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import me.kavishdevar.librepods.R
+import me.kavishdevar.librepods.presentation.glint.SymbolText
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
 import me.kavishdevar.librepods.presentation.theme.LocalDesignSystem
 import me.kavishdevar.librepods.presentation.theme.sectionHeader
@@ -195,17 +198,17 @@ private fun StyledListItemContent(
                                 animationSpec = tween(durationMillis = 300)
                             )
 
-                            Text(
+                            SymbolText(
                                 text = "􀆅",
                                 style = TextStyle(
                                     fontSize = 20.sp,
-                                    fontFamily = FontFamily(Font(R.font.sf_pro)),
+                                    fontFamily = glintFontFamily,
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = floatAnimateState),
                                 ),
                                 modifier = Modifier.padding(end = 4.dp)
                             )
                         } else {
-                            Text(
+                            SymbolText(
                                 text = "􀯻",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface.copy(0.6f),

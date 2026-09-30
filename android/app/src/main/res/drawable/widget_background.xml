@@ -1,9 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Glint widget "smoked glass": launchers can't blur behind widgets, so this layers a
+     translucent tint, a top sheen and a bright rim to read as glass over the wallpaper. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
-            <padding android:bottom="0dp" android:left="0dp" android:right="0dp" android:top="0dp" />
-            <solid android:color="#222222" />
-            <corners android:radius="32dp" />
+            <gradient android:angle="270" android:startColor="#D92A2A30" android:endColor="#EB121216" />
+            <corners android:radius="@dimen/glint_widget_radius" />
+        </shape>
+    </item>
+    <item android:bottom="40dp">
+        <shape android:shape="rectangle">
+            <gradient android:angle="270" android:startColor="#1FFFFFFF" android:endColor="#00FFFFFF" />
+            <corners android:topLeftRadius="@dimen/glint_widget_radius" android:topRightRadius="@dimen/glint_widget_radius" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <stroke android:width="1dp" android:color="#38FFFFFF" />
+            <corners android:radius="@dimen/glint_widget_radius" />
         </shape>
     </item>
 </layer-list>

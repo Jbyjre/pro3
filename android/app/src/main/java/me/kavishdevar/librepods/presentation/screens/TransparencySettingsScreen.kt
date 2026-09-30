@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 // import me.kavishdevar.librepods.utils.RadareOffsetFinder
 import android.annotation.SuppressLint
 import android.util.Log
@@ -266,7 +268,7 @@ fun TransparencySettingsScreen(viewModel: AirPodsViewModel) {
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = textColor.copy(alpha = 0.6f),
-                    fontFamily = FontFamily(Font(R.font.sf_pro))
+                    fontFamily = glintFontFamily
                 ),
                 modifier = Modifier.padding(16.dp, bottom = 4.dp)
             )
@@ -304,8 +306,11 @@ fun TransparencySettingsScreen(viewModel: AirPodsViewModel) {
                                 eq.value = newEQ
                             },
                             valueRange = 0f..100f,
+                            // Glint: take the space between the labels (0.9 of the row squeezed
+                            // the "Band n" label onto two lines).
                             modifier = Modifier
-                                .fillMaxWidth(0.9f)
+                                .weight(1f)
+                                .padding(horizontal = 10.dp)
                                 .height(36.dp),
                             colors = SliderDefaults.colors(
                                 thumbColor = thumbColor,
@@ -351,6 +356,8 @@ fun TransparencySettingsScreen(viewModel: AirPodsViewModel) {
                             text = stringResource(R.string.band_label, i + 1),
                             fontSize = 12.sp,
                             color = textColor,
+                            maxLines = 1,
+                            softWrap = false,
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }

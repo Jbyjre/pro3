@@ -38,6 +38,8 @@ import me.kavishdevar.librepods.presentation.screens.TransparencySettingsScreen
 import me.kavishdevar.librepods.presentation.screens.TroubleshootingScreen
 import me.kavishdevar.librepods.presentation.screens.UpdateHearingTestRoute
 import me.kavishdevar.librepods.presentation.screens.VersionScreen
+import me.kavishdevar.librepods.presentation.screens.GlintLabScreen
+import me.kavishdevar.librepods.presentation.screens.StayConnectedScreen
 import me.kavishdevar.librepods.presentation.screens.onboarding.OnboardingScreen
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
 import me.kavishdevar.librepods.presentation.theme.LocalDesignSystem
@@ -128,9 +130,17 @@ fun AppNavGraph(
                                 navigateToPurchase = ::navigateToPurchase,
                                 navigateToTroubleshooting = { navigate(Screen.Troubleshooting) },
                                 navigateToOpenSourceLicenses = { navigate(Screen.OpenSourceLicenses) },
-                                navigateToReleaseNotesScreen = { navigate(Screen.ReleaseNotes) }
+                                navigateToReleaseNotesScreen = { navigate(Screen.ReleaseNotes) },
+                                navigateToStayConnected = { navigate(Screen.StayConnected) },
+                                navigateToGlintLab = { navigate(Screen.GlintLab) },
                             )
                         }
+
+                    Screen.StayConnected ->
+                        NavEntry(screen) { StayConnectedScreen() }
+
+                    Screen.GlintLab ->
+                        NavEntry(screen) { GlintLabScreen() }
 
                     Screen.Troubleshooting ->
                         NavEntry(screen) {

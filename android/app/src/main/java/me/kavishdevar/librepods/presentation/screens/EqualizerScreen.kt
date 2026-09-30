@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -283,7 +285,7 @@ fun EqualizerCard(
             //                            text = "Written into Changes",
             //                            style = TextStyle(
             //                                fontSize = 16.sp,
-            //                                fontFamily = FontFamily(Font(R.font.sf_pro)),
+            //                                fontFamily = glintFontFamily,
             //                                fontWeight = FontWeight.Bold,
             //                                color = if (isSystemInDarkTheme()) Color.White else Color.Black
             //                            )
@@ -293,7 +295,7 @@ fun EqualizerCard(
             //                            text = "Avalon Emerson",
             //                            style = TextStyle(
             //                                fontSize = 14.sp,
-            //                                fontFamily = FontFamily(Font(R.font.sf_pro)),
+            //                                fontFamily = glintFontFamily,
             //                                fontWeight = FontWeight.Normal,
             //                                color = if (isSystemInDarkTheme()) Color.White else Color.Black
             //                            )
@@ -320,7 +322,7 @@ fun EqualizerCard(
             //                                text = if (p) "􀊄" else "􀊆",
             //                                style = TextStyle(
             //                                    fontSize = 24.sp,
-            //                                    fontFamily = FontFamily(Font(R.font.sf_pro)),
+            //                                    fontFamily = glintFontFamily,
             //                                    fontWeight = FontWeight.Normal,
             //                                    color = Color(0xFF0091FF),
             //                                    textAlign = TextAlign.Center
@@ -544,7 +546,7 @@ fun EqualizerCard(
                                 text = "Low".uppercase(),
                                 style = TextStyle(
                                     fontSize = 14.sp,
-                                    fontFamily = FontFamily(Font(R.font.sf_pro)),
+                                    fontFamily = glintFontFamily,
                                     fontWeight = FontWeight.Bold,
                                     color = (if (isSystemInDarkTheme()) Color.White else Color.Black).copy(
                                         0.2f
@@ -561,7 +563,7 @@ fun EqualizerCard(
                                 text = "Mid".uppercase(),
                                 style = TextStyle(
                                     fontSize = 14.sp,
-                                    fontFamily = FontFamily(Font(R.font.sf_pro)),
+                                    fontFamily = glintFontFamily,
                                     fontWeight = FontWeight.Bold,
                                     color = (if (isSystemInDarkTheme()) Color.White else Color.Black).copy(
                                         0.2f
@@ -578,7 +580,7 @@ fun EqualizerCard(
                                 text = "High".uppercase(),
                                 style = TextStyle(
                                     fontSize = 14.sp,
-                                    fontFamily = FontFamily(Font(R.font.sf_pro)),
+                                    fontFamily = glintFontFamily,
                                     fontWeight = FontWeight.Bold,
                                     color = (if (isSystemInDarkTheme()) Color.White else Color.Black).copy(
                                         0.2f

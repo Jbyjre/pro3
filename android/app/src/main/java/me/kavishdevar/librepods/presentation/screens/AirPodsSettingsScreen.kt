@@ -20,6 +20,8 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 // import me.kavishdevar.librepods.utils.RadareOffsetFinder
 import android.annotation.SuppressLint
 import android.content.Context.MODE_PRIVATE
@@ -106,6 +108,7 @@ import me.kavishdevar.librepods.data.AirPodsPro3
 import me.kavishdevar.librepods.data.Capability
 import me.kavishdevar.librepods.presentation.MaterialIcons
 import me.kavishdevar.librepods.presentation.components.AboutCard
+import me.kavishdevar.librepods.presentation.glint.ConnectionStatusPanel
 import me.kavishdevar.librepods.presentation.components.AudioSettings
 import me.kavishdevar.librepods.presentation.components.BatteryView
 import me.kavishdevar.librepods.presentation.components.CallControlSettings
@@ -115,6 +118,7 @@ import me.kavishdevar.librepods.presentation.components.MaterialButtonStyle
 import me.kavishdevar.librepods.presentation.components.NoiseControlSettings
 import me.kavishdevar.librepods.presentation.components.PressAndHoldSettings
 import me.kavishdevar.librepods.presentation.components.StyledButton
+import me.kavishdevar.librepods.presentation.components.StyledList
 import me.kavishdevar.librepods.presentation.components.StyledListItem
 import me.kavishdevar.librepods.presentation.components.StyledToggle
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
@@ -301,7 +305,7 @@ fun AirPodsSettingsScreen(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
-                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                                fontFamily = glintFontFamily
                             )
                         )
                     }
@@ -585,6 +589,39 @@ fun AirPodsSettingsScreen(
                 )
             }
 
+            if (!state.vendorIdHook) {
+                item(key = "spacer_root_only") { Spacer(modifier = Modifier.height(28.dp)) }
+                item(key = "root_only") {
+                    // These exist in LibrePods but need a rooted phone with Xposed. Listing them
+                    // plainly beats hiding them and leaving people wondering where they went.
+                    StyledList(
+                        title = "Needs root",
+                        description = "These features need a rooted phone with the Xposed module, so they are off on a standard Samsung. Everything above works without root."
+                    ) {
+                        StyledListItem(
+                            name = stringResource(R.string.hearing_aid),
+                            description = "Hearing aid mode and hearing test",
+                            enabled = false
+                        )
+                        StyledListItem(
+                            name = stringResource(R.string.loud_sound_reduction),
+                            description = "Changing this setting needs root",
+                            enabled = false
+                        )
+                        StyledListItem(
+                            name = "Transparency customization",
+                            description = "Amplification, tone and balance",
+                            enabled = false
+                        )
+                        StyledListItem(
+                            name = "Battery in system Bluetooth settings",
+                            description = "Needs Glint installed as a system app (root module)",
+                            enabled = false
+                        )
+                    }
+                }
+            }
+
             item(key = "spacer_disconnect") { Spacer(modifier = Modifier.height(28.dp)) }
             item(key = "disconnect_button") {
                 StyledButton(
@@ -623,6 +660,9 @@ fun AirPodsSettingsScreen(
                     },
                     effects = {}
                 )
+                // Glint: paint the page colour here too (like the connected page does); without it
+                // the window behind showed through, black even in light mode.
+                .background(MaterialTheme.colorScheme.surfaceContainer)
                 .fillMaxSize()
                 .padding(start = 8.dp, end = 8.dp, bottom = bottomPadding),
             contentAlignment = Alignment.Center
@@ -868,79 +908,26 @@ fun AirPodsSettingsScreen(
 
                 DesignSystem.Apple -> {
                     Column(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onTap = {
+                                        // Five quick taps on the empty area open demo mode (kept from LibrePods).
+                                        val now = System.currentTimeMillis()
+                                        if (now - lastTapTime.longValue > 400) tapCount.intValue = 0
+                                        tapCount.intValue++
+                                        lastTapTime.longValue = now
+                                        if (tapCount.intValue >= 5) {
+                                            tapCount.intValue = 0
+                                            activateDemoMode()
+                                        }
+                                    })
+                            },
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .pointerInput(Unit) {
-                                    detectTapGestures(
-                                        onTap = {
-                                            val now = System.currentTimeMillis()
-
-                                            if (now - lastTapTime.longValue > 400) {
-                                                tapCount.intValue = 0
-                                            }
-
-                                            tapCount.intValue++
-                                            lastTapTime.longValue = now
-
-                                            if (tapCount.intValue >= 5) {
-                                                tapCount.intValue = 0
-                                                activateDemoMode()
-                                            }
-                                        })
-                                }) {
-                            Text(
-                                text = stringResource(R.string.airpods_not_connected),
-                                style = MaterialTheme.typography.displaySmall,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(Modifier.height(24.dp))
-                            Text(
-                                text = stringResource(R.string.airpods_not_connected_description),
-                                style = MaterialTheme.typography.bodyLarge,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-
-                        if (state.connectionSuccessful) {
-                            StyledButton(
-                                onClick = { reconnectFromSavedMac(); reconnecting = true },
-                                backdrop = backdrop,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp)
-                                    .widthIn(max = 200.dp),
-                                enabled = !reconnecting
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.reconnect_to_last_device),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        }
-                    }
-
-                    if (!BuildConfig.PLAY_BUILD) {
-                        StyledButton(
-                            onClick = navigateToTroubleshooting,
-                            backdrop = backdrop,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .align(Alignment.BottomCenter)
-                                .padding(16.dp)
-                                .widthIn(max = 200.dp),
-                            materialButtonStyle = MaterialButtonStyle.Outlined,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.troubleshooting),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
+                        ConnectionStatusPanel(onTroubleshoot = navigateToTroubleshooting)
                     }
                 }
             }

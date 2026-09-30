@@ -20,7 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -59,7 +59,7 @@ fun OnboardingScreen(
 
     val state = rememberCarouselState(
         initialItem = 0,
-        itemCount = { 4 }
+        itemCount = { 5 }
     )
 
     val topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -68,8 +68,9 @@ fun OnboardingScreen(
     val titles = listOf(
         null,
         stringResource(R.string.privacy_policy),
-        stringResource(R.string.not_supported),
+        "This phone",
         stringResource(R.string.permissions),
+        "Stay connected",
     )
 
     val animationScope = rememberCoroutineScope()
@@ -77,14 +78,17 @@ fun OnboardingScreen(
     BackHandler {
         animationScope.launch {
             if (state.canScrollBackward) {
-                val targetItem = if (isSupported && state.currentItem == 3) 1 else state.currentItem - 1
+                val targetItem = state.currentItem - 1
                 state.animateScrollToItem(targetItem)
             }
         }
     }
 
+    // Glint: set-up follows the app's chosen look (Apple style unless Material 3 Expressive is
+    // switched on in Settings) instead of always using wallpaper colours, so the first screens
+    // match the rest of the app.
     LibrePodsTheme(
-        m3eEnabled = true
+        m3eEnabled = sharedPreferences.getBoolean("m3e_enabled", false)
     ) {
         Column(
             modifier = Modifier
@@ -155,7 +159,7 @@ fun OnboardingScreen(
                                             textAlign = TextAlign.Center
                                         )
                                         Spacer(modifier = Modifier.height(64.dp))
-                                        FilledTonalIconButton(
+                                        FilledIconButton(
                                             onClick = {
                                                 animationScope.launch {
                                                     state.animateScrollToItem(1)
@@ -182,19 +186,15 @@ fun OnboardingScreen(
                             1 -> {
                                 PrivacyPolicyPage(
                                     onForward = {
-                                        animationScope.launch {
-                                            if (isSupported) state.animateScrollToItem(3) else state.animateScrollToItem(2)
-                                        }
+                                        animationScope.launch { state.animateScrollToItem(2) }
                                     }
                                 )
                             }
                             2 -> {
                                 NotSupportedPage(
-                                    bypassCompatibilityCheck = {
-                                        bypassDeviceCheck(sharedPreferences)
-                                        animationScope.launch {
-                                            state.animateScrollToItem(3)
-                                        }
+                                    onContinue = { bypass ->
+                                        if (bypass && !isSupported) bypassDeviceCheck(sharedPreferences)
+                                        animationScope.launch { state.animateScrollToItem(3) }
                                     }
                                 )
                             }
@@ -202,14 +202,17 @@ fun OnboardingScreen(
                                 PermissionsPage(
                                     onBackward = {
                                         animationScope.launch {
-                                            if (state.canScrollBackward) state.animateScrollToItem(if (isSupported) 1 else 2)
+                                            if (state.canScrollBackward) state.animateScrollToItem(2)
                                             if (!isSupported) {
                                                 removeDeviceCheckBypass(sharedPreferences)
                                             }
                                         }
                                     },
-                                    onForward = onOnboardingComplete
+                                    onForward = { animationScope.launch { state.animateScrollToItem(4) } }
                                 )
+                            }
+                            4 -> {
+                                StayConnectedPage(onFinish = onOnboardingComplete)
                             }
                         }
                     }

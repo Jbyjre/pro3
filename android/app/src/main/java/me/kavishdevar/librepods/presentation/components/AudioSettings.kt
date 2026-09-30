@@ -53,7 +53,7 @@ fun AudioSettings(
             if (adaptiveVolumeCapability) {
                 StyledToggle(
                     label = stringResource(R.string.personalized_volume),
-                    description = stringResource(R.string.personalized_volume_description),
+                    description = lockedPrefix(isPremium) + stringResource(R.string.personalized_volume_description),
                     checked = adaptiveVolumeChecked,
                     onCheckedChange = onAdaptiveVolumeCheckedChange,
                     enabled = isPremium,
@@ -63,7 +63,7 @@ fun AudioSettings(
             if (conversationalAwarenessCapability) {
                 StyledToggle(
                     label = stringResource(R.string.conversational_awareness),
-                    description = stringResource(R.string.conversational_awareness_description),
+                    description = lockedPrefix(isPremium) + stringResource(R.string.conversational_awareness_description),
                     checked = conversationalAwarenessChecked,
                     onCheckedChange = onConversationalAwarenessCheckedChange,
                     enabled = isPremium,
@@ -73,7 +73,7 @@ fun AudioSettings(
             if (loudSoundReductionCapability && vendorIdHook) {
                 StyledToggle(
                     label = stringResource(R.string.loud_sound_reduction),
-                    description = stringResource(R.string.loud_sound_reduction_description),
+                    description = lockedPrefix(isPremium) + stringResource(R.string.loud_sound_reduction_description),
                     checked = loudSoundReductionChecked,
                     onCheckedChange = onLoudSoundReductionCheckedChange,
                     enabled = isPremium,
@@ -96,3 +96,6 @@ fun AudioSettings(
         }
     }
 }
+
+/** Makes locked items say so, instead of only looking greyed out. */
+fun lockedPrefix(isPremium: Boolean): String = if (isPremium) "" else "Locked \u00B7 Unlock advanced features to use. "

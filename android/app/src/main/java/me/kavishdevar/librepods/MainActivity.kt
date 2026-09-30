@@ -81,11 +81,11 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val sharedPreferences = LocalContext.current.getSharedPreferences("settings", MODE_PRIVATE)
-            val m3eEnabled = remember { mutableStateOf(sharedPreferences.getBoolean("m3e_enabled", true)) }
+            val m3eEnabled = remember { mutableStateOf(sharedPreferences.getBoolean("m3e_enabled", false)) }
 
             val sharedPreferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
                 when (key) {
-                    "m3e_enabled" -> m3eEnabled.value = sharedPreferences.getBoolean(key, true)
+                    "m3e_enabled" -> m3eEnabled.value = sharedPreferences.getBoolean(key, false)
                 }
             }
 
@@ -121,7 +121,7 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             Log.e("MainActivity", "Error while unregistering receiver: $e")
         }
-        sendBroadcast(Intent(AirPodsNotifications.DISCONNECT_RECEIVERS))
+        sendBroadcast(Intent(AirPodsNotifications.DISCONNECT_RECEIVERS).setPackage(packageName))
         super.onDestroy()
     }
 
@@ -182,7 +182,6 @@ fun Main() {
     val onboardingComplete = sharedPreferences.getBoolean("onboarding_complete", false)
 
     val releaseNotesShownPrefKey = "release_notes_shown_${BuildConfig.VERSION_NAME.removeSuffix("-debug").removeSuffix("-play")}"
-    val releaseNotesShown = sharedPreferences.getBoolean(releaseNotesShownPrefKey, false)
 
     fun bindService() {
         context.startForegroundService(Intent(context, AirPodsService::class.java))
@@ -217,12 +216,25 @@ fun Main() {
         )
     }
 
-    if (onboardingComplete) {
-        bindService()
+    // Bind each time the screen starts (MainActivity unbinds in onStop), instead of on every
+    // recomposition as before, so the screen never holds a stale service after a restart.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, onboardingComplete) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            // Read the flag fresh: after first-run setup finishes, this screen instance must
+            // still re-bind when the app comes back to the front.
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_START &&
+                sharedPreferences.getBoolean("onboarding_complete", false)
+            ) bindService()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     NavigationRoot(
-        showReleaseNotes = !releaseNotesShown,
+        // Glint: LibrePods' "What's new" describes LibrePods' own releases, so it no longer pops
+        // up after set-up; it's still in Settings.
+        showReleaseNotes = false,
         updatesShown = { sharedPreferences.edit { putBoolean(releaseNotesShownPrefKey, true) } },
         showOnboarding = !onboardingComplete,
         onboardingComplete = {

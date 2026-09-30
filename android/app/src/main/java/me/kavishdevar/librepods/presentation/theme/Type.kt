@@ -42,46 +42,62 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.kavishdevar.librepods.R
 
-val sfProFamily = FontFamily(Font(R.font.sf_pro))
+/**
+ * Inter (SIL Open Font License 1.1, https://rsms.me/inter) replaces Apple's SF Pro, which may
+ * not be redistributed. One variable font file covers every weight.
+ */
+private fun inter(weight: FontWeight) = Font(
+    resId = R.font.inter_variable,
+    weight = weight,
+    variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight))
+)
+
+val glintFontFamily = FontFamily(
+    inter(FontWeight.Normal),
+    inter(FontWeight.Medium),
+    inter(FontWeight.SemiBold),
+    inter(FontWeight.Bold),
+    inter(FontWeight.ExtraBold),
+)
 
 val AppleTypography = Typography().run {
     copy(
-        displayLarge = displayLarge.copy(fontFamily = sfProFamily),
-        displayMedium = displayMedium.copy(fontFamily = sfProFamily),
-        displaySmall = displaySmall.copy(fontFamily = sfProFamily),
+        displayLarge = displayLarge.copy(fontFamily = glintFontFamily),
+        displayMedium = displayMedium.copy(fontFamily = glintFontFamily),
+        displaySmall = displaySmall.copy(fontFamily = glintFontFamily),
 
-        headlineLarge = headlineLarge.copy(fontFamily = sfProFamily),
-        headlineMedium = headlineMedium.copy(fontFamily = sfProFamily),
-        headlineSmall = headlineSmall.copy(fontFamily = sfProFamily),
+        headlineLarge = headlineLarge.copy(fontFamily = glintFontFamily),
+        headlineMedium = headlineMedium.copy(fontFamily = glintFontFamily),
+        headlineSmall = headlineSmall.copy(fontFamily = glintFontFamily),
 
-        titleLarge = titleLarge.copy(fontFamily = sfProFamily),
-        titleMedium = titleMedium.copy(fontFamily = sfProFamily),
-        titleSmall = titleSmall.copy(fontFamily = sfProFamily),
+        titleLarge = titleLarge.copy(fontFamily = glintFontFamily),
+        titleMedium = titleMedium.copy(fontFamily = glintFontFamily),
+        titleSmall = titleSmall.copy(fontFamily = glintFontFamily),
 
-        bodyLarge = bodyLarge.copy(fontFamily = sfProFamily),
+        bodyLarge = bodyLarge.copy(fontFamily = glintFontFamily),
         bodyMedium = bodyMedium.copy(
-            fontFamily = sfProFamily,
+            fontFamily = glintFontFamily,
             fontSize = 16.sp
         ),
         bodySmall = bodySmall.copy(
-            fontFamily = sfProFamily,
+            fontFamily = glintFontFamily,
             fontSize = 14.sp,
             lineHeight = 18.sp
         ),
 
-        labelLarge = labelLarge.copy(fontFamily = sfProFamily),
+        labelLarge = labelLarge.copy(fontFamily = glintFontFamily),
 
         labelMedium = labelMedium.copy(
-            fontFamily = sfProFamily,
+            fontFamily = glintFontFamily,
             fontSize = 16.sp,
         ),
         labelMediumEmphasized = labelMediumEmphasized.copy(
-            fontFamily = sfProFamily,
+            fontFamily = glintFontFamily,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold
         ),
         labelSmallEmphasized = labelSmallEmphasized.copy(
-            fontFamily = sfProFamily,
+            fontFamily = glintFontFamily,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold
         )
