@@ -142,6 +142,17 @@ android {
         }
     }
 
+    testOptions {
+        // Plain JVM unit tests: android.util.Log and friends become harmless no-ops.
+        unitTests.isReturnDefaultValues = true
+    }
+
+    lint {
+        // Home-screen widget layouts are RemoteViews, which the launcher inflates without
+        // AppCompat; app:tint would be ignored there, so android:tint is the correct choice.
+        disable += "UseAppTint"
+    }
+
     ndkVersion = providers.gradleProperty("ndkVersion").getOrElse("30.0.14904198")
 
     flavorDimensions += "env"

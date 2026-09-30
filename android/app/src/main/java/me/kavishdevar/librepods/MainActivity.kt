@@ -121,7 +121,7 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             Log.e("MainActivity", "Error while unregistering receiver: $e")
         }
-        sendBroadcast(Intent(AirPodsNotifications.DISCONNECT_RECEIVERS))
+        sendBroadcast(Intent(AirPodsNotifications.DISCONNECT_RECEIVERS).setPackage(packageName))
         super.onDestroy()
     }
 
