@@ -40,6 +40,88 @@ In his words, summarised:
 5. **Liquid Glass throughout the app, especially setup.**
 6. **Every button and feature works smoothly.** Be accurate and thorough, use the Liquid Glass skill, and be context-efficient.
 
+## 3b. Jake's NEWEST request (added after the pause; do this too)
+
+Jake's words, summarised:
+
+- The **top orb (island) "looks incredible"**. Keep it.
+- The **bottom card** ("your AirPods are connected") "appears kind of randomly" and isn't in sync. He is fine **without it**.
+- Instead:
+  - Let him **view the 3D AirPods inside the app**.
+  - Let him **switch between the 3D views**.
+  - Let him **drag to spin** and look around the AirPods.
+- **Estimate time left on battery**, and be very accurate about it.
+
+What the previous session found (read in the code, not tested on a phone):
+
+### A. Bottom card: turn it off and stop the random pop-ups
+
+- **Trigger:** `AirPodsService.showPopup()` (~line 1636) is called from `onLidStateChanged(true)` (~line 303), which the BLE advert reader (`bluetooth/BLEManager.kt`) fires.
+- **Likely cause of "random"** (not verified on the device):
+  1. `BLEManager.checkLidStateTimeout()` forces the lid to "closed" whenever no advert arrives for `LID_CLOSE_TIMEOUT_MS = 2500` ms.
+  2. Samsung throttles and batches BLE scans, especially with the screen off, so gaps longer than 2.5 s are normal.
+  3. After a gap, the lid goes "closed", which resets `popupShown = false` (~line 331). The next advert says "open" again, so the card pops up again.
+  4. The lid bit in adverts also isn't meaningful while the buds are out of the case.
+- **Do:**
+  - Make the card **off by default**: `show_bottom_sheet_popup` default `false` in `AirPodsService.showPopup`, `AppSettingsViewModel` (~line 153) and `GlintLabScreen`.
+  - Keep the Settings toggle, but rename it in plain words, e.g. "Pop-up card when case opens (experimental)".
+  - Also make it sane for anyone who turns it back on:
+    - Only show it when the lid goes closed → open **and** at least one bud is in the case.
+    - Debounce: ignore "closed" unless it stays closed for 10+ s. Don't reset `popupShown` on a mere advert gap.
+    - At most one card per 60 s.
+  - Keep the island (top orb) exactly as it looks now. Don't restyle it.
+  - Check that "Connected" still shows the island once per real connection, not on every advert.
+
+### B. In-app 3D viewer you can spin and switch
+
+- **No real 3D model exists in the repo.** The only "3D" are two LibrePods video clips. Jake chose these (see `CLAUDE.md`), so keep using them:
+  - `res/raw/island.mp4`: 418×418, 25 fps, 6 s, **black** background. The buds turn through several angles.
+  - `res/raw/connected.mp4` (and `res/raw-night/connected.mp4`): 1050×354, 30 fps, 6 s. The buds and case turn through front/side/back views; white background, dark in the night version.
+  - Contact sheets checked: both are rotation clips, but **not a clean continuous 360°**. They jump between poses. Check frame by frame.
+- **Recommended approach (no new library, works offline): "scrub to spin".**
+  1. Pre-extract frames from each clip into a small drawable sequence (e.g. 48–72 `.webp` frames per view, ~300–400 px) in `res/drawable-nodpi/`. The session had `imageio-ffmpeg` via pip for this. Keep the total small (< 3 MB).
+     - Alternative: decode at runtime with `MediaMetadataRetriever.getFrameAtIndex` (API 28+), downscaled, on a background thread, cached. Watch memory.
+  2. New composable `presentation/glint/PodsSpinner.kt`:
+     - Horizontal drag maps to the frame index, wrapping around.
+     - A fling keeps it spinning with decay (`Animatable` + `splineBasedDecay`), easing to a stop.
+     - A slow idle auto-rotate, off when reduce motion is on.
+     - Light haptic ticks while dragging.
+     - Content description "AirPods 3D view, drag to rotate".
+  3. **Switch views:** a Liquid Glass segmented control (Kyant `drawBackdrop`, same style as `GlassSheet` in `OnboardingScreen.kt`) with "Earbuds", "Earbuds + case" and "Case", backed by the matching frame ranges of the two clips.
+  4. Use the island clip's black-key shader (`PodsVideo` `keyBlack`) or pre-key the frames so the buds float on the glass without a black box. Use the night clip in dark mode.
+  5. **Placement:**
+     - On the AirPods screen (`AirPodsSettingsScreen.kt` ~line 315, the "battery" item), put the spinner above the battery, on a glass stage.
+     - Make it tappable to open a full-screen viewer with the switcher.
+  6. Optional, **ask Jake first:** a true 3D model (glTF + SceneView/Filament, Apache-2.0) would allow free rotation in every direction. It needs a new dependency, which must be added to the `ci-deps-snapshot` so offline builds keep working. It also needs a 3D AirPods model whose licence allows redistribution in a public GPL repo, which is **not found or verified**. It would also replace the LibrePods clips he chose.
+
+### C. Battery time-left estimate ("be very accurate")
+
+- **Data available:**
+  - **AACP battery packets** (`data/Packets.kt` `BatteryNotification.setBattery`) give **1% steps** for left, right and case, with a charging/discharging status.
+  - **BLE adverts** only give **10% steps**. Never base a rate on BLE levels.
+- **Apple's official AirPods Pro 3 figures** (from apple.com/airpods-pro/specs, fetched 2026-09-30):
+  - Up to **8 h** listening with ANC on one charge; **7.5 h** with Spatial Audio + head tracking.
+  - **6.5 h** with heart-rate sensing in workouts.
+  - Up to **10 h** in Transparency using the Hearing Aid feature.
+  - Up to **24 h** total with the case (ANC).
+  - 5 min in the case gives about 1 h.
+- **Estimator design** (new file `services/BatteryEstimator.kt`, pure Kotlin, unit-tested):
+  1. Record timestamped samples `(time, left%, right%, inEar L/R, listening mode, playing audio?)` only while discharging over AACP. Keep ~2 h in memory and persist a compact rolling history in prefs.
+  2. Take the **lower** of the two buds (the one that dies first).
+  3. Get the rate from a linear regression over the last 20–30 min of samples. Require at least 3 distinct 1% drops before trusting it. Reset on charging, removal, or a mode change larger than a threshold.
+  4. Until there is enough data, use a **prior**: level% × rated hours for the current mode (ANC 8 h, Adaptive and Transparency ~8 h, which is **not verified**, so treat it as ANC, Off ~8 h). Blend smoothly: `weight = min(1, observedMinutes/30)`.
+  5. **Remember each user's real rate:** keep a per-mode average of past sessions in prefs. After a few days it beats Apple's numbers.
+  6. **Case:**
+     - Estimate case charges from case% (the case holds roughly 2 extra full charges, since 24 h ÷ 8 h = 3 × 8 h total).
+     - Show "Case: about N more full charges" as a rough figure, marked approximate.
+  7. **Charging estimate:** show "Full in ~X min" from the observed charge rate. Early on, fall back to Apple's "5 min ≈ 1 h".
+  8. **Display:**
+     - Round honestly: "about 3 h 20 m left" (nearest 10 min above 1 h, 5 min below).
+     - Show "Estimating…" until the prior is used, and never a false precision.
+     - Show it under the battery on the AirPods screen, in the island's battery state (compact text), and in the notification if space allows.
+     - When BLE is the only source (no AACP), show "Connect to see time left" instead of guessing.
+  9. **Tests:** synthetic sample series cover a steady drain, the mode switch, charging reset, unequal buds, no data, and BLE-only.
+
 ## 4. What is done
 
 ### Earlier commits (already pushed; CI was green on `c442cbe`)
@@ -123,6 +205,7 @@ The working tree compiled. The setup-step screenshot tests and `GlintScreenshots
 ## 6. Remaining work, in order
 
 1. **Verify** (section 5). Fix anything red.
+1b. **Do section 3b** (card off plus debounce, 3D spinner with switcher, battery estimate). Include tests and tour screenshots of the new viewer and the time-left text.
 
 2. **Finish the branding sweep.** Several leftovers can't be reached in the foss build today, but remove or neutralise them so nothing shows up by accident:
    - `strings.xml`:
