@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -199,7 +201,7 @@ private fun StyledListItemContent(
                                 text = "􀆅",
                                 style = TextStyle(
                                     fontSize = 20.sp,
-                                    fontFamily = FontFamily(Font(R.font.sf_pro)),
+                                    fontFamily = glintFontFamily,
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = floatAnimateState),
                                 ),
                                 modifier = Modifier.padding(end = 4.dp)

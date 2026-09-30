@@ -147,8 +147,17 @@ android {
         unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true
         unitTests.all {
+            it.jvmArgs(
+                "--add-opens=java.base/java.io=ALL-UNNAMED",
+                "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
+                "--add-opens=java.base/java.lang=ALL-UNNAMED",
+                "--add-opens=java.base/java.util=ALL-UNNAMED",
+            )
+            it.maxHeapSize = "3g"
             it.systemProperty("roborazzi.test.record", "true")
             it.systemProperty("robolectric.pixelCopyRenderMode", "hardware")
+            // Optional pre-downloaded Robolectric Android images (offline or rate-limited hosts).
+            System.getenv("ROBOLECTRIC_DEPS_DIR")?.let { dir -> it.systemProperty("robolectric.dependency.dir", dir) }
         }
     }
 

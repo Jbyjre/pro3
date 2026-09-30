@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
@@ -249,7 +251,7 @@ fun StyledScaffold(
                                             fontSize = 20.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             color = if (isDarkTheme) Color.White else Color.Black,
-                                            fontFamily = FontFamily(Font(R.font.sf_pro))
+                                            fontFamily = glintFontFamily
                                         ),
                                         modifier = Modifier.fillMaxWidth(),
                                         textAlign = TextAlign.Center

@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.util.Log
@@ -318,7 +320,7 @@ fun StyledSlider(
                             ) {
 
                                 startIcon?.let {
-                                    Text(it, fontFamily = FontFamily(Font(R.font.sf_pro)))
+                                    Text(it, fontFamily = glintFontFamily)
                                     Spacer(Modifier.width(12.dp))
                                 }
 
@@ -345,7 +347,7 @@ fun StyledSlider(
 
                                 endIcon?.let {
                                     Spacer(Modifier.width(12.dp))
-                                    Text(it, fontFamily = FontFamily(Font(R.font.sf_pro)))
+                                    Text(it, fontFamily = glintFontFamily)
                                 }
                             }
                         }
@@ -422,7 +424,7 @@ fun StyledSlider(
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.Normal,
                                             color = labelTextColor,
-                                            fontFamily = FontFamily(Font(R.font.sf_pro))
+                                            fontFamily = glintFontFamily
                                         )
                                     )
                                     Text(
@@ -431,7 +433,7 @@ fun StyledSlider(
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.Normal,
                                             color = labelTextColor,
-                                            fontFamily = FontFamily(Font(R.font.sf_pro))
+                                            fontFamily = glintFontFamily
                                         )
                                     )
                                 }
@@ -458,7 +460,7 @@ fun StyledSlider(
                                                 fontSize = 18.sp,
                                                 fontWeight = FontWeight.Normal,
                                                 color = accentColor,
-                                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                                                fontFamily = glintFontFamily
                                             ),
                                             modifier = Modifier
                                                 .padding(horizontal = 12.dp)
@@ -510,7 +512,7 @@ fun StyledSlider(
                                                 fontSize = 18.sp,
                                                 fontWeight = FontWeight.Normal,
                                                 color = accentColor,
-                                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                                                fontFamily = glintFontFamily
                                             ),
                                             modifier = Modifier
                                                 .padding(horizontal = 12.dp)
@@ -708,7 +710,7 @@ fun StyledSlider(
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = labelTextColor.copy(alpha = 0.6f),
-                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                                fontFamily = glintFontFamily
                             ),
                             modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)
                         )
@@ -734,7 +736,7 @@ fun StyledSlider(
                                 color = (if (isSystemInDarkTheme()) Color.White else Color.Black).copy(
                                     alpha = 0.6f
                                 ),
-                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                                fontFamily = glintFontFamily
                             ),
                             modifier = Modifier
                                 .padding(horizontal = 18.dp, vertical = 4.dp)

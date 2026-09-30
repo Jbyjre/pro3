@@ -20,6 +20,8 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -131,7 +133,7 @@ fun StyledToggle(
                 text = description, style = TextStyle(
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onBackground.copy(0.6f),
-                    fontFamily = FontFamily(Font(R.font.sf_pro)),
+                    fontFamily = glintFontFamily,
                 ), modifier = Modifier.padding(horizontal = 16.dp)
             )
         }

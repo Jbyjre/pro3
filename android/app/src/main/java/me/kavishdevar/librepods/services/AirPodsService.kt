@@ -111,6 +111,8 @@ import me.kavishdevar.librepods.presentation.overlays.PopupWindow
 import me.kavishdevar.librepods.presentation.widgets.BatteryWidget
 import me.kavishdevar.librepods.presentation.widgets.NoiseControlWidget
 import me.kavishdevar.librepods.utils.CompanionLink
+import me.kavishdevar.librepods.utils.SupportVerdict
+import me.kavishdevar.librepods.utils.supportVerdict
 import me.kavishdevar.librepods.utils.GestureDetector
 import me.kavishdevar.librepods.utils.HeadTracking
 import me.kavishdevar.librepods.utils.MediaController
@@ -432,6 +434,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
         ServiceManager.setService(this)
         startForegroundNotification()
+        serviceScope.launch { GlintStatus.link.collect { refreshNotification() } }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             initGestureDetector()
         } else {
@@ -889,6 +892,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                         ?.get(0) ?: 0x00.toByte()))
                     sendANCBroadcast()
                     updateNoiseControlWidget()
+                    refreshNotification()
                 }
             }
 
@@ -1689,58 +1693,169 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
-    fun startForegroundNotification() {
-        val disconnectedNotificationChannel = NotificationChannel(
-            "background_service_status",
-            "Background Service Status",
-            NotificationManager.IMPORTANCE_NONE
-        )
+    private val statusNotificationId = 1
+    private var lastNotificationKey: String? = null
 
-        val connectedNotificationChannel = NotificationChannel(
-            "airpods_connection_status",
-            "AirPods Connection Status",
-            NotificationManager.IMPORTANCE_LOW,
-        )
-
-        val socketFailureChannel = NotificationChannel(
-            "socket_connection_failure",
-            "AirPods BluetoothConnectionManager.aacpSocket? Connection Issues",
-            NotificationManager.IMPORTANCE_HIGH
-        ).apply {
-            description = "Notifications about problems connecting to AirPods protocol"
-            enableLights(true)
-            lightColor = Color.RED
-            enableVibration(true)
-        }
-
+    private fun createNotificationChannels() {
         val notificationManager = getSystemService(NotificationManager::class.java)
-        notificationManager.createNotificationChannel(disconnectedNotificationChannel)
-        notificationManager.createNotificationChannel(connectedNotificationChannel)
-        notificationManager.createNotificationChannel(socketFailureChannel)
-
-        val notificationSettingsIntent =
-            Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
-                putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
-                putExtra(Settings.EXTRA_CHANNEL_ID, "background_service_status")
+        notificationManager.createNotificationChannel(
+            NotificationChannel(
+                "background_service_status",
+                "Waiting for AirPods (can be hidden)",
+                NotificationManager.IMPORTANCE_NONE
+            ).apply {
+                description = "Shown while Glint waits in the background. Android requires it; you can turn it off here without affecting Glint."
             }
-        val pendingIntentNotifDisable = PendingIntent.getActivity(
-            this,
-            0,
-            notificationSettingsIntent,
+        )
+        notificationManager.createNotificationChannel(
+            NotificationChannel(
+                "airpods_connection_status",
+                "AirPods status",
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = "Battery and listening mode while your AirPods are connected, plus connection problems."
+                setShowBadge(false)
+            }
+        )
+        notificationManager.createNotificationChannel(
+            NotificationChannel(
+                "socket_connection_failure",
+                "Connection problems (legacy)",
+                NotificationManager.IMPORTANCE_LOW
+            )
+        )
+    }
+
+    private fun batteryLine(batteryList: List<Battery>): String {
+        fun part(label: String, component: Int): String? {
+            val b = batteryList.find { it.component == component } ?: return null
+            if (b.status == BatteryStatus.DISCONNECTED || b.level <= 0) return null
+            val charging = b.status == BatteryStatus.CHARGING || b.status == BatteryStatus.OPTIMIZED_CHARGING
+            return "$label ${b.level}%" + if (charging) " \u26A1\uFE0E" else ""
+        }
+        return listOfNotNull(
+            part("L", BatteryComponent.LEFT),
+            part("R", BatteryComponent.RIGHT),
+            part("Case", BatteryComponent.CASE)
+        ).joinToString("  \u00B7  ")
+    }
+
+    private fun listeningModeName(mode: Int): String? = when (mode) {
+        1 -> "Off"
+        2 -> "Noise Cancellation"
+        3 -> "Transparency"
+        4 -> "Adaptive"
+        else -> null
+    }
+
+    /** One notification, updated in place, that always reflects GlintStatus. */
+    @OptIn(ExperimentalMaterial3Api::class)
+    private fun buildStatusNotification(): Notification {
+        val openApp = PendingIntent.getActivity(
+            this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val retry = PendingIntent.getService(
+            this, 11, Intent(this, AirPodsService::class.java).setAction(GlintActions.RETRY_CONNECT),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val cycleMode = PendingIntent.getBroadcast(
+            this, 12, Intent("me.kavishdevar.librepods.SET_ANC_MODE").setPackage(packageName),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val name = sharedPreferences.getString("name", null)?.takeIf { it.isNotBlank() } ?: config.deviceName
+        val builder = when (val link = GlintStatus.link.value) {
+            is LinkState.Connected -> {
+                val battery = batteryLine(batteryNotification.getBattery())
+                val mode = listeningModeName(ancNotification.status)
+                NotificationCompat.Builder(this, "airpods_connection_status")
+                    .setContentTitle(name)
+                    .setContentText(battery.ifEmpty { "Connected" })
+                    .setSubText(mode)
+                    .setCategory(Notification.CATEGORY_STATUS)
+                    .addAction(R.drawable.ic_layers, "Listening mode", cycleMode)
+                    .also {
+                        if (disconnectedBecauseReversed) {
+                            it.addAction(
+                                R.drawable.ic_bluetooth, "Reconnect", PendingIntent.getService(
+                                    this, 0, Intent(this, AirPodsService::class.java).apply {
+                                        action = "me.kavishdevar.librepods.RECONNECT_AFTER_REVERSE"
+                                    }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                                )
+                            )
+                        }
+                    }
+            }
+            is LinkState.Connecting, is LinkState.Retrying ->
+                NotificationCompat.Builder(this, "airpods_connection_status")
+                    .setContentTitle(name)
+                    .setContentText("Connecting to AirPods controls\u2026")
+                    .setCategory(Notification.CATEGORY_STATUS)
+            is LinkState.GaveUp -> {
+                val verdict = currentSupportVerdict()
+                NotificationCompat.Builder(this, "airpods_connection_status")
+                    .setContentTitle(if (verdict.canConnect) "Couldn't reach AirPods controls" else verdict.title)
+                    .setContentText(if (verdict.canConnect) "Audio works. Tap Try again, or open Glint for help." else "Audio works. Open Glint to see why.")
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(verdict.message))
+                    .setCategory(Notification.CATEGORY_STATUS)
+                    .addAction(R.drawable.ic_bluetooth, "Try again", retry)
+                    .also { if (link.lastError.isNotBlank()) it.setSubText("Details in app") }
+            }
+            LinkState.BluetoothOff, LinkState.Idle, LinkState.NoPermission ->
+                NotificationCompat.Builder(this, "background_service_status")
+                    .setContentTitle("Glint is ready")
+                    .setContentText(
+                        when (GlintStatus.link.value) {
+                            LinkState.BluetoothOff -> "Bluetooth is off"
+                            LinkState.NoPermission -> "Open Glint to allow Nearby devices"
+                            else -> "Waiting for your AirPods"
+                        }
+                    )
+                    .setCategory(Notification.CATEGORY_SERVICE)
+        }
+        return builder
+            .setSmallIcon(R.drawable.airpods)
+            .setContentIntent(openApp)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setShowWhen(false)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .build()
+    }
 
-        val notification = NotificationCompat.Builder(this, "background_service_status")
-            .setSmallIcon(R.drawable.airpods).setContentTitle("Background Service Running")
-            .setContentText("Useless notification, disable it by clicking on it.")
-            .setContentIntent(pendingIntentNotifDisable).setCategory(Notification.CATEGORY_SERVICE)
-            .setPriority(NotificationCompat.PRIORITY_LOW).setOngoing(true).build()
+    private fun notificationKey(): String =
+        "${GlintStatus.link.value}|${batteryLine(batteryNotification.getBattery())}|${ancNotification.status}|$disconnectedBecauseReversed|${sharedPreferences.getString("name", "")}"
 
+    fun refreshNotification(force: Boolean = false) {
+        val key = notificationKey()
+        if (!force && key == lastNotificationKey) return
+        lastNotificationKey = key
         try {
-            startForeground(1, notification)
+            getSystemService(NotificationManager::class.java).notify(statusNotificationId, buildStatusNotification())
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w(TAG, "Could not update notification: ${e.message}")
+        }
+    }
+
+    fun currentSupportVerdict(): SupportVerdict = supportVerdict(
+        sdkInt = Build.VERSION.SDK_INT,
+        manufacturer = Build.MANUFACTURER,
+        buildId = Build.ID,
+        bypassed = sharedPreferences.getBoolean("bypass_device_check.v2", false),
+        xposedHookActive = XposedRemotePrefProvider.create().getBoolean("vendor_id_hook", false),
+        everConnected = sharedPreferences.getBoolean("connection_successful", false),
+        blockedObserved = sharedPreferences.getBoolean("glint_blocked_observed", false),
+    )
+
+    fun startForegroundNotification() {
+        createNotificationChannels()
+        lastNotificationKey = notificationKey()
+        try {
+            startForeground(statusNotificationId, buildStatusNotification())
+        } catch (e: Exception) {
+            Log.e(TAG, "startForeground failed: ${e.message}")
         }
     }
 
@@ -1992,74 +2107,11 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         appWidgetManager.updateAppWidget(widgetIds, remoteViews)
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
+    @Suppress("UNUSED_PARAMETER")
     fun updateNotificationContent(
         connected: Boolean, airpodsName: String? = null, batteryList: List<Battery>? = null
     ) {
-        val notificationManager = getSystemService(NotificationManager::class.java)
-
-        val notificationIntent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            notificationIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        if (BluetoothConnectionManager.aacpSocket == null) {
-            return
-        }
-        if (BluetoothConnectionManager.aacpSocket?.isConnected == true) {
-            val updatedNotificationBuilder =
-                NotificationCompat.Builder(this, "airpods_connection_status")
-                    .setSmallIcon(R.drawable.airpods)
-                    .setContentTitle(airpodsName ?: config.deviceName).setContentText(
-                        """${
-                        batteryList?.find { it.component == BatteryComponent.LEFT }?.let {
-                            if (it.status != BatteryStatus.DISCONNECTED) {
-                                "L: ${if (it.status == BatteryStatus.CHARGING) "⚡" else ""} ${it.level}%"
-                            } else {
-                                ""
-                            }
-                        } ?: ""
-                    } ${
-                        batteryList?.find { it.component == BatteryComponent.RIGHT }?.let {
-                            if (it.status != BatteryStatus.DISCONNECTED) {
-                                "R: ${if (it.status == BatteryStatus.CHARGING) "⚡" else ""} ${it.level}%"
-                            } else {
-                                ""
-                            }
-                        } ?: ""
-                    } ${
-                        batteryList?.find { it.component == BatteryComponent.CASE }?.let {
-                            if (it.status != BatteryStatus.DISCONNECTED) {
-                                "Case: ${if (it.status == BatteryStatus.CHARGING) "⚡" else ""} ${it.level}%"
-                            } else {
-                                ""
-                            }
-                        } ?: ""
-                    }""").setContentIntent(pendingIntent).setCategory(Notification.CATEGORY_STATUS)
-                    .setPriority(NotificationCompat.PRIORITY_LOW).setOngoing(true)
-
-            if (disconnectedBecauseReversed) {
-                updatedNotificationBuilder.addAction(
-                    R.drawable.ic_bluetooth, "Reconnect", PendingIntent.getService(
-                        this, 0, Intent(this, AirPodsService::class.java).apply {
-                            action = "me.kavishdevar.librepods.RECONNECT_AFTER_REVERSE"
-                        }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
-                )
-            }
-
-            val updatedNotification = updatedNotificationBuilder.build()
-
-            notificationManager.notify(2, updatedNotification)
-            notificationManager.cancel(1)
-        } else if (!connected) {
-            notificationManager.cancel(2)
-        } else if (!config.bleOnlyMode && BluetoothConnectionManager.aacpSocket?.isConnected != true) {
-            showSocketConnectionFailureNotification("BluetoothConnectionManager.aacpSocket? created, but not connected. Check logs")
-        }
+        refreshNotification()
     }
 
     fun handleIncomingCall() {
@@ -2942,10 +2994,6 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     val bytesRead = socket.inputStream.read(buffer)
                     if (bytesRead > 0) {
                         val data = buffer.copyOfRange(0, bytesRead)
-                        sendBroadcast(Intent(AirPodsNotifications.AIRPODS_DATA).apply {
-                            putExtra("data", data)
-                            setPackage(packageName)
-                        })
                         aacpManager.receivePacket(data)
                         if (!isHeadTrackingData(data)) {
                             Log.d("AirPodsData", "Data received: ${data.joinToString(" ") { "%02X".format(it) }}")

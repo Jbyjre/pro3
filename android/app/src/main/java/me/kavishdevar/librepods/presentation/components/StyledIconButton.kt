@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 import android.content.res.Configuration.UI_MODE_NIGHT_NO
 import android.content.res.Configuration.UI_MODE_NIGHT_YES
 import android.graphics.RuntimeShader
@@ -118,7 +120,7 @@ fun StyledIconButton(
                             text = icon,
                             style = TextStyle(
                                 fontSize = 20.sp,
-                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                                fontFamily = glintFontFamily
                             )
                         )
                     }
@@ -133,7 +135,7 @@ fun StyledIconButton(
                             text = icon,
                             style = TextStyle(
                                 fontSize = 20.sp,
-                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                                fontFamily = glintFontFamily
                             )
                         )
                     }
@@ -148,7 +150,7 @@ fun StyledIconButton(
                             text = icon,
                             style = TextStyle(
                                 fontSize = 20.sp,
-                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                                fontFamily = glintFontFamily
                             )
                         )
                     }
@@ -163,7 +165,7 @@ fun StyledIconButton(
                             text = icon,
                             style = TextStyle(
                                 fontSize = 20.sp,
-                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                                fontFamily = glintFontFamily
                             )
                         )
                     }
@@ -410,7 +412,7 @@ half4 main(float2 coord) {
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Normal,
                         color = if (iconTint.isSpecified) iconTint else if (darkMode) Color.White else Color.Black,
-                        fontFamily = FontFamily(Font(R.font.sf_pro))
+                        fontFamily = glintFontFamily
                     )
                 )
             }

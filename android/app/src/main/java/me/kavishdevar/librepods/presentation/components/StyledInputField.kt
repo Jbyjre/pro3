@@ -1,5 +1,7 @@
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.updateTransition
@@ -115,7 +117,7 @@ fun StyledInputField(
                     textStyle = TextStyle(
                         fontSize = 16.sp,
                         color = textColor,
-                        fontFamily = FontFamily(Font(R.font.sf_pro))
+                        fontFamily = glintFontFamily
                     ),
                     cursorBrush = SolidColor(textColor),
                     decorator = { innerTextField ->
@@ -137,7 +139,7 @@ fun StyledInputField(
                                         style = TextStyle(
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.Light,
-                                            fontFamily = FontFamily(Font(R.font.sf_pro)),
+                                            fontFamily = glintFontFamily,
                                             color = textColor.copy(alpha = 0.8f)
                                         ),
                                         modifier = Modifier
@@ -157,7 +159,7 @@ fun StyledInputField(
                                         text = "􀁡",
                                         style = TextStyle(
                                             fontSize = 16.sp,
-                                            fontFamily = FontFamily(Font(R.font.sf_pro)),
+                                            fontFamily = glintFontFamily,
                                             color = if (isDarkTheme) Color.White.copy(alpha = 0.6f) else Color.Black.copy(
                                                 alpha = 0.6f
                                             )

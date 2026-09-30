@@ -217,8 +217,10 @@ fun Main() {
         )
     }
 
-    if (onboardingComplete) {
-        bindService()
+    // Bind once per composition lifetime, not on every recomposition (the old code started
+    // and bound the service again each time this function re-ran).
+    LaunchedEffect(onboardingComplete) {
+        if (onboardingComplete) bindService()
     }
 
     NavigationRoot(

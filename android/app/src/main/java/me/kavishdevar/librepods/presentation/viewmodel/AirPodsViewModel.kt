@@ -55,6 +55,8 @@ import me.kavishdevar.librepods.data.CustomEq
 import me.kavishdevar.librepods.data.StemAction
 import me.kavishdevar.librepods.data.XposedRemotePrefProvider
 import me.kavishdevar.librepods.services.AirPodsService
+import me.kavishdevar.librepods.services.GlintStatus
+import me.kavishdevar.librepods.services.LinkState
 
 @Suppress("ArrayInDataClass")
 data class AirPodsUiState(
@@ -214,6 +216,7 @@ class AirPodsViewModel(
         observeATT()
         observeSharedPreferences()
         observeBilling()
+        observeLink()
         if (isDemoMode) activateDemoMode()
         isReady = true
     }
@@ -275,6 +278,22 @@ class AirPodsViewModel(
         appContext.unregisterReceiver(broadcastReceiver)
     }
 
+    /** Keeps "connected" in sync with the service even if a broadcast was missed. */
+    private fun observeLink() {
+        viewModelScope.launch {
+            GlintStatus.link.collect { link ->
+                if (isDemoMode) return@collect
+                val connected = link is LinkState.Connected
+                _uiState.update {
+                    it.copy(
+                        isLocallyConnected = connected,
+                        battery = if (connected) service.getBattery() else it.battery
+                    )
+                }
+            }
+        }
+    }
+
     private fun loadName() {
         val name = sharedPreferences.getString("name", "AirPods Pro")!!
         _uiState.update { it.copy(deviceName = name) }
@@ -321,6 +340,7 @@ class AirPodsViewModel(
             override fun onReceive(context: Context?, intent: Intent?) {
                 val action = intent?.action ?: return
                 if (!isDemoMode) when (action) {
+                    AirPodsNotifications.AIRPODS_CONNECTED,
                     AirPodsNotifications.AIRPODS_L2CAP_CONNECTED -> {
                         _uiState.update {
                             it.copy(isLocallyConnected = true)
@@ -356,6 +376,7 @@ class AirPodsViewModel(
 
         val filter = IntentFilter().apply {
             addAction(AirPodsNotifications.AIRPODS_CONNECTED)
+            addAction(AirPodsNotifications.AIRPODS_L2CAP_CONNECTED)
             addAction(AirPodsNotifications.AIRPODS_DISCONNECTED)
             addAction(AirPodsNotifications.BATTERY_DATA)
             addAction(AirPodsNotifications.EQ_DATA)

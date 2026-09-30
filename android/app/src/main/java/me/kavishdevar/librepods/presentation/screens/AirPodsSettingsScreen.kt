@@ -20,6 +20,8 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 // import me.kavishdevar.librepods.utils.RadareOffsetFinder
 import android.annotation.SuppressLint
 import android.content.Context.MODE_PRIVATE
@@ -301,7 +303,7 @@ fun AirPodsSettingsScreen(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
-                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                                fontFamily = glintFontFamily
                             )
                         )
                     }

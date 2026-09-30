@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -261,10 +263,10 @@ fun UpdateHearingTestScreen(
                             Log.d(TAG, "Left EQ updated at index $index to $parsed")
                         }
                     },
-//                        label = { Text("Value", fontSize = 14.sp, fontFamily = FontFamily(Font(R.font.sf_pro))) },
+//                        label = { Text("Value", fontSize = 14.sp, fontFamily = glintFontFamily) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     textStyle = TextStyle(
-                        fontFamily = FontFamily(Font(R.font.sf_pro)),
+                        fontFamily = glintFontFamily,
                         fontSize = 14.sp
                     ),
                     modifier = Modifier.weight(1f)
@@ -280,10 +282,10 @@ fun UpdateHearingTestScreen(
                             Log.d(TAG, "Right EQ updated at index $index to $parsed")
                         }
                     },
-//                        label = { Text("Value", fontSize = 14.sp, fontFamily = FontFamily(Font(R.font.sf_pro))) },
+//                        label = { Text("Value", fontSize = 14.sp, fontFamily = glintFontFamily) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     textStyle = TextStyle(
-                        fontFamily = FontFamily(Font(R.font.sf_pro)),
+                        fontFamily = glintFontFamily,
                         fontSize = 14.sp
                     ),
                     modifier = Modifier.weight(1f)

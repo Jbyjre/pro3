@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 
 import android.content.res.Configuration
 import androidx.compose.animation.core.Animatable
@@ -177,7 +179,7 @@ fun BatteryIndicator(
             Text(
                 text = "\uDBC0\uDEE6", style = TextStyle(
                     fontSize = 14.sp,
-                    fontFamily = FontFamily(Font(R.font.sf_pro)),
+                    fontFamily = glintFontFamily,
                     color = batteryFillColor,
                     textAlign = TextAlign.Center
                 ), modifier = Modifier.scale(scaleAnim.value)
@@ -191,7 +193,7 @@ fun BatteryIndicator(
             color = batteryTextColor,
             style = TextStyle(
                 fontSize = 14.sp,
-                fontFamily = FontFamily(Font(R.font.sf_pro)),
+                fontFamily = glintFontFamily,
                 textAlign = TextAlign.Center
             ),
         )

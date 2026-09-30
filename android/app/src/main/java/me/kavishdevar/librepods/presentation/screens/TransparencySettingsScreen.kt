@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 // import me.kavishdevar.librepods.utils.RadareOffsetFinder
 import android.annotation.SuppressLint
 import android.util.Log
@@ -266,7 +268,7 @@ fun TransparencySettingsScreen(viewModel: AirPodsViewModel) {
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = textColor.copy(alpha = 0.6f),
-                    fontFamily = FontFamily(Font(R.font.sf_pro))
+                    fontFamily = glintFontFamily
                 ),
                 modifier = Modifier.padding(16.dp, bottom = 4.dp)
             )

@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -179,7 +181,7 @@ fun AppSettingsScreen(
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
-                        fontFamily = FontFamily(Font(R.font.sf_pro))
+                        fontFamily = glintFontFamily
                     )
                 )
             }
@@ -454,14 +456,14 @@ fun AppSettingsScreen(
             AlertDialog(onDismissRequest = { viewModel.setShowCameraDialog(false) }, title = {
                 Text(
                     stringResource(R.string.set_custom_camera_package),
-                    fontFamily = FontFamily(Font(R.font.sf_pro)),
+                    fontFamily = glintFontFamily,
                     fontWeight = FontWeight.Medium
                 )
             }, text = {
                 Column {
                     Text(
                         stringResource(R.string.enter_custom_camera_package),
-                        fontFamily = FontFamily(Font(R.font.sf_pro)),
+                        fontFamily = glintFontFamily,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
 
@@ -502,7 +504,7 @@ fun AppSettingsScreen(
                     }) {
                     Text(
                         "Save",
-                        fontFamily = FontFamily(Font(R.font.sf_pro)),
+                        fontFamily = glintFontFamily,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -511,7 +513,7 @@ fun AppSettingsScreen(
                     onClick = { viewModel.setShowCameraDialog(false) }) {
                     Text(
                         "Cancel",
-                        fontFamily = FontFamily(Font(R.font.sf_pro)),
+                        fontFamily = glintFontFamily,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -548,7 +550,7 @@ fun AppSettingsScreen(
                    text = stringResource(R.string.describe_your_issue),
                    style = TextStyle(
                        fontSize = 18.sp,
-                       fontFamily = FontFamily(Font(R.font.sf_pro)),
+                       fontFamily = glintFontFamily,
                        fontWeight = FontWeight.Bold,
                        textAlign = TextAlign.Center,
                        color = if (isSystemInDarkTheme()) Color.White else Color.Black
