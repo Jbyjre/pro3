@@ -159,9 +159,16 @@ internal class IslandGeometry(context: Context) {
     val shadowDrop = dp(16f)
     val tiny = dp(34f)
     val compactH = dp(40f)
-    val compactMainW = dp(214f)
+    // Wide enough for the buds, the text and the battery ring inside one pill.
+    val compactMainW = dp(252f)
     val satD = dp(40f)
     val satGap = dp(9f)
+    /**
+     * Where the battery ring rests: inside the pill's right cap, so the compact island is one
+     * continuous capsule (like the Dynamic Island) rather than a pill plus a separate bubble.
+     * 0 = tucked deep inside, 1 = fully budded off beside the pill.
+     */
+    val restSplit = satD / (satGap + 2f * satD)
     val expandedW = minOf(screen.width - dp(20f), dp(430f))
     val expandedH = dp(214f)
     val expandedRadius = dp(44f)
@@ -220,7 +227,7 @@ internal fun IslandHost(
                     if (appear.value < 0.01f) haptics.appear()
                     launch { expand.animateTo(0f, morph) }
                     launch { appear.animateTo(1f, morph) }
-                    launch { delay(if (reduceMotion) 0 else 110); split.animateTo(1f, soft) }
+                    launch { delay(if (reduceMotion) 0 else 110); split.animateTo(geometry.restSplit, soft) }
                 }
                 onWindowSize(geometry.compactWindow)
                 val hold = if (event is IslandEvent.LowBattery) 5_000L else 3_600L
@@ -417,7 +424,7 @@ private fun IslandLayout(
         val h = constraints.maxHeight
         val f = frameProvider(w.toFloat())
         val loose = Constraints(maxWidth = w, maxHeight = h)
-        val c = compactM.map { it.measure(Constraints(maxWidth = (f.main.width - f.main.height * 0.9f).roundToInt().coerceAtLeast(0), maxHeight = h)) }
+        val c = compactM.map { it.measure(Constraints(maxWidth = (f.main.width - f.main.height * 0.9f - f.main.height).roundToInt().coerceAtLeast(0), maxHeight = h)) }
         val s = satM.map { it.measure(loose) }
         val e = expM.map { it.measure(Constraints.fixed(expandedSize.width, expandedSize.height)) }
         layout(w, h) {
@@ -433,8 +440,8 @@ private fun IslandLayout(
                     (f.satCenter.x - it.width / 2f).roundToInt(),
                     (f.satCenter.y - it.height / 2f).roundToInt()
                 ) {
-                    alpha = (f.split * 1.3f - 0.3f).coerceIn(0f, 1f) * (1f - f.expand * 3f).coerceAtLeast(0f)
-                    val sc = 0.6f + 0.4f * f.split
+                    alpha = ((f.appear - 0.55f) / 0.45f).coerceIn(0f, 1f) * (1f - f.expand * 3f).coerceAtLeast(0f)
+                    val sc = 0.7f + 0.3f * ((f.appear - 0.4f) / 0.6f).coerceIn(0f, 1f)
                     scaleX = sc; scaleY = sc
                 }
             }

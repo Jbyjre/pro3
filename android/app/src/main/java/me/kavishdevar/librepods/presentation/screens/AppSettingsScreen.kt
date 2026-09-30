@@ -140,62 +140,11 @@ fun AppSettingsScreen(
 
         val isDarkTheme = isSystemInDarkTheme()
 
-        if (!state.isPremium && state.connectionSuccessful) {
-            StyledButton(
-                onClick = navigateToPurchase,
-                backdrop = rememberLayerBackdrop(),
-                modifier = Modifier.fillMaxWidth(),
-                maxScale = 0.05f,
-                surfaceColor = MaterialTheme.colorScheme.primary
-            ) {
-                Text(
-                    stringResource(R.string.unlock_advanced_features),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-        if (state.timeUntilFOSSPremiumExpiry > 0L) {
-            Box(
-                modifier = Modifier
-                    .background(Color(0xFF32829B), RoundedCornerShape(28.dp))
-                    .clip(RoundedCornerShape(28.dp))
-                    .clickable {
-                        val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
-                            data = "mailto:".toUri()
-                            putExtra(Intent.EXTRA_EMAIL, arrayOf("billing@kavish.xyz"))
-                            putExtra(Intent.EXTRA_SUBJECT, "LibrePods Play billing error")
-                            putExtra(
-                                Intent.EXTRA_TEXT,
-                                "Please enter your GitHub username to restore your premium access:\n\nGitHub username: "
-                            )
-                        }
-                        context.startActivity(emailIntent)
-                    }
-            ) {
-                Text(
-                    text = stringResource(
-                        R.string.play_foss_premium_banner, maxOf(1, TimeUnit.MILLISECONDS.toDays(state.timeUntilFOSSPremiumExpiry).toInt())
-                    ),
-                    modifier = Modifier
-                        .padding(16.dp),
-                    style = TextStyle(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        fontFamily = glintFontFamily
-                    )
-                )
-            }
-        }
-
         StyledToggle(
             title = stringResource(R.string.appearance),
             label = stringResource(R.string.use_material3e),
             checked = state.m3eEnabled,
             onCheckedChange = viewModel::setm3eEnabled,
-            enabled = state.isPremium
         )
 
         StyledList(title = "Glint") {
@@ -412,7 +361,7 @@ fun AppSettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         StyledList(title = stringResource(R.string.contact)) {
-            // Glint is a personal fork, so problems go to the fork, not to the LibrePods developer.
+            // Problems go to Jake's own repository.
             StyledListItem(
                 name = "Report a Glint problem",
                 description = "Opens this fork's GitHub page",
@@ -425,20 +374,12 @@ fun AppSettingsScreen(
                     context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/Jbyjre/pro3/issues/new?body=$body".toUri()))
                 },
             )
-            StyledListItem(
-                name = "LibrePods (original project)",
-                description = "Glint is built on LibrePods by kavishdevar, GPL-3.0",
-                orientation = ListItemOrientation.Vertical,
-                onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/librepods-org/librepods".toUri()))
-                },
-            )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
         DeviceInfoCard()
         Spacer(modifier = Modifier.height(16.dp))
-        AppInfoCard(navigateToReleaseNotesScreen, onSecretTap = navigateToGlintLab)
+        AppInfoCard(onSecretTap = navigateToGlintLab)
 
         Spacer(modifier = Modifier.height(16.dp))
 

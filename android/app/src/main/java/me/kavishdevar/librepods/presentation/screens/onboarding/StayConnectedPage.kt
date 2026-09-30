@@ -79,12 +79,7 @@ fun StayConnectedPage(
     onFinish: () -> Unit,
     finishLabel: String = "Finish",
 ) {
-    Box(
-        modifier = Modifier.background(
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            shape = RoundedCornerShape(42.dp)
-        )
-    ) {
+    Box {
         Column(
             modifier = Modifier
                 .padding(16.dp)

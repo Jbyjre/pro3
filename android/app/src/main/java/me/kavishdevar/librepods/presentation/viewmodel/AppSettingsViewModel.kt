@@ -32,7 +32,7 @@ data class AppSettingsUiState(
     val cameraPackageValue: String = "",
     val cameraPackageError: String? = null,
     val vendorIdHook: Boolean = false,
-    val isPremium: Boolean = false,
+    val isPremium: Boolean = !BuildConfig.PLAY_BUILD, // Glint: everything included
     val connectionSuccessful: Boolean = false,
     val showBottomSheetPopup: Boolean = true,
     val showIslandPopup: Boolean = true,
