@@ -145,6 +145,11 @@ android {
     testOptions {
         // Plain JVM unit tests: android.util.Log and friends become harmless no-ops.
         unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            it.systemProperty("roborazzi.test.record", "true")
+            it.systemProperty("robolectric.pixelCopyRenderMode", "hardware")
+        }
     }
 
     lint {
@@ -195,6 +200,13 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(libs.androidx.navigationevent)
     testImplementation(libs.junit)
+    // Screenshot tests: render the artwork and overlays to PNGs on the build machine.
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
 
 aboutLibraries {

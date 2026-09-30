@@ -29,6 +29,11 @@ uiTextGoogleFonts = "1.11.2"
 
 [libraries]
 junit = { group = "junit", name = "junit", version = "4.13.2" }
+robolectric = { group = "org.robolectric", name = "robolectric", version = "4.17" }
+roborazzi = { group = "io.github.takahirom.roborazzi", name = "roborazzi", version = "1.76.0" }
+roborazzi-compose = { group = "io.github.takahirom.roborazzi", name = "roborazzi-compose", version = "1.76.0" }
+androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 accompanist-permissions = { module = "com.google.accompanist:accompanist-permissions", version.ref = "accompanistPermissions" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
