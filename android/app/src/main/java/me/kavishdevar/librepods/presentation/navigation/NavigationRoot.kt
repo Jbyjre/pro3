@@ -73,6 +73,7 @@ fun NavigationRoot(
         Screen.MicrophoneSettings -> stringResource(R.string.microphone_mode)
         Screen.StayConnected -> "Stay connected"
         Screen.GlintLab -> "Glint Lab"
+        Screen.HeartRate -> "Heart rate"
     }
 
     // is this a bad idea? probably. I can't think of a better way without having to pass around a shouldShowBackButton to each screen to pass to each scaffold

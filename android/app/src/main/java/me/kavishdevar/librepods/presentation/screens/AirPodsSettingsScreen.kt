@@ -37,6 +37,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import me.kavishdevar.librepods.presentation.components.BatteryTimeLeft
 import me.kavishdevar.librepods.services.BatteryEstimate
+import me.kavishdevar.librepods.services.HeartRate
 import me.kavishdevar.librepods.services.BatteryTimeLeft as BatteryTimeLeftFlow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -152,6 +153,7 @@ fun AirPodsSettingsRoute(
     navigateToTroubleshooting: () -> Unit,
     navigateToCallControlScreen: (action: String) -> Unit,
     navigateToMicrophoneSettings: () -> Unit,
+    navigateToHeartRate: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val timeLeft by BatteryTimeLeftFlow.estimate.collectAsState()
@@ -198,6 +200,7 @@ fun AirPodsSettingsRoute(
             navigateToTroubleshooting = navigateToTroubleshooting,
             navigateToCallControlScreen = navigateToCallControlScreen,
             navigateToMicrophoneSettings = navigateToMicrophoneSettings,
+            navigateToHeartRate = navigateToHeartRate,
             timeLeft = timeLeft,
 
             activateDemoMode = viewModel::activateDemoMode,
@@ -241,6 +244,7 @@ fun AirPodsSettingsScreen(
         navigateToTroubleshooting: () -> Unit,
         navigateToCallControlScreen: (action: String) -> Unit,
         navigateToMicrophoneSettings: () -> Unit,
+        navigateToHeartRate: () -> Unit = {},
         timeLeft: BatteryEstimate? = null,
 
         activateDemoMode: () -> Unit,
@@ -514,11 +518,26 @@ fun AirPodsSettingsScreen(
                 item(key = "head_tracking") {
                     StyledListItem(
                         name = stringResource(R.string.head_gestures),
-                        description = if (sharedPreferences.getBoolean(
-                                "head_gestures", false
-                            )
-                        ) stringResource(R.string.on) else stringResource(R.string.off),
+                        description = if (state.headGesturesEnabled) "On: nod to answer calls, shake to decline" else stringResource(R.string.off),
                         onClick = navigateToHeadTracking
+                    )
+                }
+            }
+
+            if (capabilities.contains(Capability.HRM)) {
+                item(key = "spacer_heart_rate") { Spacer(modifier = Modifier.height(16.dp)) }
+                item(key = "heart_rate") {
+                    val hr by HeartRate.state.collectAsState()
+                    StyledListItem(
+                        name = "Heart rate",
+                        description = when (hr.status) {
+                            HeartRate.Status.Live -> "${hr.bpm} BPM now"
+                            HeartRate.Status.Off -> "Measure with your AirPods"
+                            HeartRate.Status.Starting -> "Starting…"
+                            HeartRate.Status.NoSignal -> "No reading, check the fit"
+                            HeartRate.Status.NotConnected -> "Waiting for controls"
+                        },
+                        onClick = navigateToHeartRate
                     )
                 }
             }
