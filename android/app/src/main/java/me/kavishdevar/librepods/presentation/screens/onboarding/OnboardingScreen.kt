@@ -20,7 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -84,8 +84,11 @@ fun OnboardingScreen(
         }
     }
 
+    // Glint: set-up follows the app's chosen look (Apple style unless Material 3 Expressive is
+    // switched on in Settings) instead of always using wallpaper colours, so the first screens
+    // match the rest of the app.
     LibrePodsTheme(
-        m3eEnabled = true
+        m3eEnabled = sharedPreferences.getBoolean("m3e_enabled", false)
     ) {
         Column(
             modifier = Modifier
@@ -156,7 +159,7 @@ fun OnboardingScreen(
                                             textAlign = TextAlign.Center
                                         )
                                         Spacer(modifier = Modifier.height(64.dp))
-                                        FilledTonalIconButton(
+                                        FilledIconButton(
                                             onClick = {
                                                 animationScope.launch {
                                                     state.animateScrollToItem(1)

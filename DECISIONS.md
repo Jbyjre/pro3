@@ -86,3 +86,30 @@ I researched this against Android's SDK and Android's own source code:
 - **Builds, tests and code checker** run locally and on GitHub for every push. Unit tests cover AirPods detection, the retry timing, the "can this phone connect" verdicts, listening-mode cycling and the sponsor unlock (including the app being closed mid-way).
 - **Screenshot tests** render the symbols, the island (compact, low battery, listening mode, expanded), the card (light and dark), the main screen with the "not connected" panel, and the icon to images, which I reviewed like a designer. From the latest round: the expanded island's buds overlapped its button and the button's text spilled past its edges; both fixed. The test machine can't play video, so these images show the clips' still frames. GitHub also uploads these images with each build ("ui-screenshots").
 - **Not verified (needs your phone):** everything that touches real Bluetooth, video playback smoothness and the island clip's background removal on the S25 FE, the system blur on Samsung, the companion wake-up, Samsung's battery page shortcut, haptic feel, and frame pacing. See TESTING.md.
+
+## 8. Full audit (second pass)
+
+I rendered every screen of the app with LibrePods' demo AirPods (light and dark) and read through the connection code again. What I found and fixed:
+
+**Looks**
+- The "not connected" home screen was black in light mode (LibrePods never painted its background there).
+- Several screens turned purple or lavender: LibrePods' Apple-style colour set only defines a few colours, so anything else fell back to Google's default purple. The missing colours are now iOS-style greys and blues. Setup (welcome, permissions, "this phone", stay connected) now uses the same Apple style as the rest of the app instead of wallpaper colours (unless you turn on Material 3 Expressive in Settings).
+- "Stay connected & appearance" and Glint Lab now use the app's own white cards and green switches; their pale-blue buttons with blue text were hard to read.
+- Settings rows with long descriptions no longer squeeze them into a narrow column.
+- Long page titles no longer run under the back button.
+- The transparency equalizer's "Band 1…8" labels no longer wrap onto two lines.
+- The light "Troubleshooting" button on the "not connected" panel was nearly invisible (white on white).
+- LibrePods' "What's new" page (about LibrePods' own release) no longer pops up after setup; it's still in Settings.
+
+**Behaviour**
+- Every time you came back to the app it attached another copy of its listeners to the background service without removing the old ones, so updates were processed several times and memory slowly leaked. Now it attaches once.
+- A settings listener in LibrePods' code was held so loosely that Android could throw it away, so the screen could stop reacting to changes like a rename or an unlock. Fixed.
+- The background service could crash when an "AirPods moved to another device" or "taking over" event arrived before any battery report. Fixed in all four places.
+- The "couldn't connect" notification now says Glint, not LibrePods, and no longer buzzes again on every retry.
+- The privacy page now says up front that it is LibrePods' policy (written by its developer) and that Glint adds no data collection. Note: the app does have internet permission (a bundled library adds it); Glint itself sends nothing.
+
+**Checked, not a bug:** the call-control page title and the licences page (both fine in the real app).
+
+**Still only checkable on your phone (not verified):** real Bluetooth, the head-gesture, rename and equalizer screens (they need live AirPods to open), video smoothness, the system blur, haptics.
+
+A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every build so regressions like these show up as images.

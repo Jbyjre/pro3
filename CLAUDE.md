@@ -23,7 +23,8 @@
   The Android SDK can be taken from the `cimg/android` Docker image layers (Docker Hub is
   reachable). NDK 30 isn't in that image: pass `-PndkVersion=29.0.14206865 -PcmakeVersion=4.1.2`.
 - Screenshot tests: `./gradlew testFossDebugUnitTest --tests '*GlintScreenshots*'` writes PNGs to
-  `android/app/build/screenshots`. Robolectric's Android image may need pre-downloading
+  `android/app/build/screenshots`; `*AppTourScreenshots*` renders every app screen (demo data)
+  to `build/screenshots/tour`. Robolectric's Android image may need pre-downloading
   (Maven Central rate-limits it); point `ROBOLECTRIC_DEPS_DIR` at a folder containing the jar.
 - Jake chose LibrePods' own AirPods pictures and 3D clips (res/drawable-nodpi/airpods_pro_2*,
   res/raw*/connected.mp4, res/raw/island.mp4) over drawn artwork. Don't replace them with drawn art.

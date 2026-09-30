@@ -48,7 +48,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
+import me.kavishdevar.librepods.presentation.components.StyledList
+import me.kavishdevar.librepods.presentation.components.StyledToggle
 import me.kavishdevar.librepods.presentation.glint.GlintComfort
+import me.kavishdevar.librepods.presentation.theme.sectionHeader
 import me.kavishdevar.librepods.presentation.screens.onboarding.StayConnectedSteps
 
 /** Settings > Stay connected & appearance: the Samsung setup steps plus glass/motion comfort. */
@@ -68,34 +71,53 @@ fun StayConnectedScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Spacer(Modifier.height(topPadding))
-        Text("Stay connected", style = MaterialTheme.typography.titleLarge)
+        SectionHeader("Keep Glint running")
         StayConnectedSteps()
         Spacer(Modifier.height(8.dp))
-        Text("Glass & motion", style = MaterialTheme.typography.titleLarge)
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(26.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            PrefToggle(prefs, GlintComfort.PREF_TILT_LIGHT, true, "Light follows tilt", "Highlights shift as you tilt the phone. Off saves a little battery while overlays show.")
-            PrefToggle(prefs, GlintComfort.PREF_REDUCE_MOTION, false, "Reduce motion", "Simple fades instead of springy shapes. Also on automatically when the phone's animations are turned off.")
-            PrefToggle(prefs, GlintComfort.PREF_REDUCE_TRANSPARENCY, false, "Reduce transparency", "Solid backgrounds behind overlay text instead of see-through glass.")
-            PrefToggle(prefs, "glint_island_mode_changes", true, "Show listening mode changes", "A small island appears when you switch modes on the AirPods themselves.")
+        var tilt by remember { mutableStateOf(prefs.getBoolean(GlintComfort.PREF_TILT_LIGHT, true)) }
+        var motion by remember { mutableStateOf(prefs.getBoolean(GlintComfort.PREF_REDUCE_MOTION, false)) }
+        var transparency by remember { mutableStateOf(prefs.getBoolean(GlintComfort.PREF_REDUCE_TRANSPARENCY, false)) }
+        var modeIsland by remember { mutableStateOf(prefs.getBoolean(PREF_MODE_ISLAND, true)) }
+        // The app's own list and green switches, so this page matches the rest of Settings.
+        StyledList(title = "Glass & motion") {
+            StyledToggle(
+                label = "Light follows tilt",
+                description = "Highlights shift as you tilt the phone. Off saves a little battery while pop-ups show.",
+                checked = tilt,
+                onCheckedChange = { tilt = it; prefs.edit { putBoolean(GlintComfort.PREF_TILT_LIGHT, it) } },
+            )
+            StyledToggle(
+                label = "Reduce motion",
+                description = "Simple fades and still pictures instead of springy shapes and videos. Also on automatically when the phone's animations are off.",
+                checked = motion,
+                onCheckedChange = { motion = it; prefs.edit { putBoolean(GlintComfort.PREF_REDUCE_MOTION, it) } },
+            )
+            StyledToggle(
+                label = "Reduce transparency",
+                description = "Solid backgrounds behind pop-up text instead of see-through glass.",
+                checked = transparency,
+                onCheckedChange = { transparency = it; prefs.edit { putBoolean(GlintComfort.PREF_REDUCE_TRANSPARENCY, it) } },
+            )
+            StyledToggle(
+                label = "Show listening mode changes",
+                description = "A small island appears when you switch modes on the AirPods themselves.",
+                checked = modeIsland,
+                onCheckedChange = { modeIsland = it; prefs.edit { putBoolean(PREF_MODE_ISLAND, it) } },
+            )
         }
         Spacer(Modifier.height(bottomPadding))
     }
 }
 
+private const val PREF_MODE_ISLAND = "glint_island_mode_changes"
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun PrefToggle(prefs: android.content.SharedPreferences, key: String, default: Boolean, title: String, body: String) {
-    var on by remember { mutableStateOf(prefs.getBoolean(key, default)) }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Switch(checked = on, onCheckedChange = { on = it; prefs.edit { putBoolean(key, it) } })
-    }
+private fun SectionHeader(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmallEmphasized,
+        color = MaterialTheme.colorScheme.sectionHeader,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+    )
 }

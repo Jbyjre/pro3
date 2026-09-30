@@ -40,10 +40,10 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
+import me.kavishdevar.librepods.presentation.components.StyledSwitch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -135,7 +135,7 @@ fun GlintLabScreen() {
                 style = MaterialTheme.typography.bodyMedium
             )
             if (!canOverlay) {
-                FilledTonalButton(onClick = {
+                OutlinedButton(onClick = {
                     context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")))
                 }) { Text("Allow display over other apps") }
             }
@@ -152,34 +152,34 @@ fun GlintLabScreen() {
             LabToggle("Case lid open", lidOpen) { lidOpen = it }
             Text("Listening mode: ${listeningModeName(mode)}", style = MaterialTheme.typography.bodyMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(1, 2, 3, 4).forEach { m -> FilledTonalButton(onClick = { mode = m }) { Text(listeningModeName(m)) } }
+                listOf(1, 2, 3, 4).forEach { m -> OutlinedButton(onClick = { mode = m }) { Text(listeningModeName(m)) } }
             }
-            FilledTonalButton(onClick = { GlintOverlays.updateSnapshot(snapshot()) }) { Text("Apply to open overlays") }
+            OutlinedButton(onClick = { GlintOverlays.updateSnapshot(snapshot()) }) { Text("Apply to open overlays") }
         }
         LabSection("Connection card") {
-            FilledTonalButton(onClick = {
+            OutlinedButton(onClick = {
                 GlintOverlays.updateSnapshot(snapshot().copy(lidOpen = true))
                 GlintOverlays.showCard(context)
             }) { Text("Show connect card (case opened)") }
         }
         LabSection("Island") {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                FilledTonalButton(onClick = { island(IslandEvent.Connected) }) { Text("Connected") }
-                FilledTonalButton(onClick = { island(IslandEvent.InEar) }) { Text("In ear") }
-                FilledTonalButton(onClick = {
+                OutlinedButton(onClick = { island(IslandEvent.Connected) }) { Text("Connected") }
+                OutlinedButton(onClick = { island(IslandEvent.InEar) }) { Text("In ear") }
+                OutlinedButton(onClick = {
                     left = 9f; right = 11f
                     island(IslandEvent.LowBattery(9))
                 }) { Text("Low battery") }
-                FilledTonalButton(onClick = { island(IslandEvent.ListeningMode(mode)) }) { Text("Listening mode") }
-                FilledTonalButton(onClick = { island(IslandEvent.MovedToDevice("iPad", canTakeBack = true)) }) { Text("Moved to iPad") }
-                FilledTonalButton(onClick = { island(IslandEvent.TakingOver) }) { Text("Taking over") }
-                FilledTonalButton(onClick = { island(IslandEvent.Charging) }) { Text("Case charging") }
-                FilledTonalButton(onClick = {
+                OutlinedButton(onClick = { island(IslandEvent.ListeningMode(mode)) }) { Text("Listening mode") }
+                OutlinedButton(onClick = { island(IslandEvent.MovedToDevice("iPad", canTakeBack = true)) }) { Text("Moved to iPad") }
+                OutlinedButton(onClick = { island(IslandEvent.TakingOver) }) { Text("Taking over") }
+                OutlinedButton(onClick = { island(IslandEvent.Charging) }) { Text("Case charging") }
+                OutlinedButton(onClick = {
                     island(IslandEvent.Problem("Couldn't reach the controls", "Audio works. Open Glint for details."))
                 }) { Text("Problem") }
             }
             Text("Tip: tap the island to expand it, swipe it up to dismiss. Swipe the card down to dismiss.", style = MaterialTheme.typography.bodySmall)
-            FilledTonalButton(onClick = { GlintOverlays.dismissAll() }) { Text("Dismiss all") }
+            OutlinedButton(onClick = { GlintOverlays.dismissAll() }) { Text("Dismiss all") }
         }
         LabSection("Main screen states (preview)") {
             Text(
@@ -187,11 +187,11 @@ fun GlintLabScreen() {
                 style = MaterialTheme.typography.bodySmall
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick = { GlintStatus.set(LinkState.BluetoothOff) }) { Text("Bluetooth off") }
-                FilledTonalButton(onClick = { GlintStatus.set(LinkState.Connecting("AirPods Pro", 0)) }) { Text("Connecting") }
-                FilledTonalButton(onClick = { GlintStatus.set(LinkState.Retrying("AirPods Pro", 3, "read failed")) }) { Text("Retrying") }
-                FilledTonalButton(onClick = { GlintStatus.set(LinkState.GaveUp("AirPods Pro", "read failed")) }) { Text("Couldn't connect") }
-                FilledTonalButton(onClick = { GlintStatus.set(LinkState.Idle) }) { Text("Waiting") }
+                OutlinedButton(onClick = { GlintStatus.set(LinkState.BluetoothOff) }) { Text("Bluetooth off") }
+                OutlinedButton(onClick = { GlintStatus.set(LinkState.Connecting("AirPods Pro", 0)) }) { Text("Connecting") }
+                OutlinedButton(onClick = { GlintStatus.set(LinkState.Retrying("AirPods Pro", 3, "read failed")) }) { Text("Retrying") }
+                OutlinedButton(onClick = { GlintStatus.set(LinkState.GaveUp("AirPods Pro", "read failed")) }) { Text("Couldn't connect") }
+                OutlinedButton(onClick = { GlintStatus.set(LinkState.Idle) }) { Text("Waiting") }
             }
         }
         Spacer(Modifier.height(bottomPadding))
@@ -228,6 +228,6 @@ private fun LabSlider(label: String, value: Float, onChange: (Float) -> Unit) {
 private fun LabToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
+        StyledSwitch(checked = checked, onCheckedChange = onChange)
     }
 }

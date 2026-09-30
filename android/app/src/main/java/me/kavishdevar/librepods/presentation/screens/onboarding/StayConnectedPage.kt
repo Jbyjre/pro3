@@ -40,7 +40,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.sp
+import me.kavishdevar.librepods.presentation.glint.GlintSymbols
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -187,34 +193,40 @@ private fun StepRow(
     action: Pair<String, () -> Unit>?,
     secondary: Pair<String, () -> Unit>? = null,
 ) {
+    // Same white/graphite card and 28dp corners as the app's settings lists.
     Column(
         Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(24.dp))
-            .padding(16.dp),
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(28.dp))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
-                    .size(28.dp)
-                    .background(if (done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+                    .size(26.dp)
+                    .background(if (done) Color(0xFF34C759) else MaterialTheme.colorScheme.primary, CircleShape)
+                    .semantics { contentDescription = if (done) "Step $number, done" else "Step $number" },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    if (done) "✓" else "$number",
-                    color = if (done) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
-                    fontWeight = FontWeight.Bold
-                )
+                if (done) {
+                    Icon(GlintSymbols.Checkmark, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                } else {
+                    Text("$number", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                }
             }
             Spacer(Modifier.size(12.dp))
             Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
         }
-        Text(if (done) "Done." else body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            if (done) "Done." else body,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         if (action != null || secondary != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                action?.let { (label, onClick) -> FilledTonalButton(onClick = onClick) { Text(label) } }
-                secondary?.let { (label, onClick) -> FilledTonalButton(onClick = onClick) { Text(label) } }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 2.dp)) {
+                action?.let { (label, onClick) -> Button(onClick = onClick) { Text(label) } }
+                secondary?.let { (label, onClick) -> OutlinedButton(onClick = onClick) { Text(label) } }
             }
         }
     }

@@ -451,7 +451,8 @@ fun GlassPillButton(
                     else Color.White.copy(alpha = if (pressed) 0.55f else 0.85f),
                     cornerRadius = CornerRadius(r)
                 )
-                if (!dark) drawRoundRect(Color.Black.copy(alpha = if (pressed) 0.06f else 0.035f), cornerRadius = CornerRadius(r))
+                // iOS-style grey fill so the button still reads on white glass.
+                if (!dark) drawRoundRect(Color(0xFF787880).copy(alpha = if (pressed) 0.24f else 0.14f), cornerRadius = CornerRadius(r))
                 drawRoundRect(
                     androidx.compose.ui.graphics.Brush.verticalGradient(
                         listOf(Color.White.copy(alpha = if (dark) 0.40f else 1f), Color.White.copy(alpha = if (dark) 0.06f else 0.4f))

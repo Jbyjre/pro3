@@ -660,6 +660,9 @@ fun AirPodsSettingsScreen(
                     },
                     effects = {}
                 )
+                // Glint: paint the page colour here too (like the connected page does); without it
+                // the window behind showed through, black even in light mode.
+                .background(MaterialTheme.colorScheme.surfaceContainer)
                 .fillMaxSize()
                 .padding(start = 8.dp, end = 8.dp, bottom = bottomPadding),
             contentAlignment = Alignment.Center

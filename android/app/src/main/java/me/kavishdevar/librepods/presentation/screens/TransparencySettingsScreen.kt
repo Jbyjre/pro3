@@ -306,8 +306,11 @@ fun TransparencySettingsScreen(viewModel: AirPodsViewModel) {
                                 eq.value = newEQ
                             },
                             valueRange = 0f..100f,
+                            // Glint: take the space between the labels (0.9 of the row squeezed
+                            // the "Band n" label onto two lines).
                             modifier = Modifier
-                                .fillMaxWidth(0.9f)
+                                .weight(1f)
+                                .padding(horizontal = 10.dp)
                                 .height(36.dp),
                             colors = SliderDefaults.colors(
                                 thumbColor = thumbColor,
@@ -353,6 +356,8 @@ fun TransparencySettingsScreen(viewModel: AirPodsViewModel) {
                             text = stringResource(R.string.band_label, i + 1),
                             fontSize = 12.sp,
                             color = textColor,
+                            maxLines = 1,
+                            softWrap = false,
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }

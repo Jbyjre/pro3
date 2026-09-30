@@ -89,6 +89,7 @@ import me.kavishdevar.librepods.presentation.components.StyledBottomSheet
 import me.kavishdevar.librepods.presentation.components.StyledButton
 import me.kavishdevar.librepods.presentation.components.StyledIconButton
 import me.kavishdevar.librepods.presentation.components.StyledInputField
+import me.kavishdevar.librepods.presentation.components.ListItemOrientation
 import me.kavishdevar.librepods.presentation.components.StyledList
 import me.kavishdevar.librepods.presentation.components.StyledListItem
 import me.kavishdevar.librepods.presentation.components.StyledSlider
@@ -201,6 +202,7 @@ fun AppSettingsScreen(
             StyledListItem(
                 name = "Stay connected & appearance",
                 description = "Samsung background setup, glass and motion",
+                orientation = ListItemOrientation.Vertical,
                 onClick = navigateToStayConnected,
             )
         }
@@ -414,6 +416,7 @@ fun AppSettingsScreen(
             StyledListItem(
                 name = "Report a Glint problem",
                 description = "Opens this fork's GitHub page",
+                orientation = ListItemOrientation.Vertical,
                 onClick = {
                     val body = Uri.encode(
                         "Glint v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n" +
@@ -425,6 +428,7 @@ fun AppSettingsScreen(
             StyledListItem(
                 name = "LibrePods (original project)",
                 description = "Glint is built on LibrePods by kavishdevar, GPL-3.0",
+                orientation = ListItemOrientation.Vertical,
                 onClick = {
                     context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/librepods-org/librepods".toUri()))
                 },

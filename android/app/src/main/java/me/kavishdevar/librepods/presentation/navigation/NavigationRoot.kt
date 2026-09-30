@@ -32,7 +32,9 @@ fun NavigationRoot(
     updatesShown: () -> Unit = {},
     showOnboarding: Boolean = false,
     onboardingComplete: () -> Unit = {},
-    airPodsViewModel: AirPodsViewModel
+    airPodsViewModel: AirPodsViewModel,
+    /** Screens to open on top of the first one; used by the screenshot tour in tests. */
+    initialStack: List<Screen> = emptyList(),
 ) {
     val backStack = remember {
         mutableStateListOf(
@@ -41,7 +43,7 @@ fun NavigationRoot(
                 showReleaseNotes -> Screen.ReleaseNotes
                 else -> Screen.AirPodsSettings
             }
-        )
+        ).apply { addAll(initialStack) }
     }
 
     val currentScreen = backStack.last()

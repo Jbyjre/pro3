@@ -245,15 +245,21 @@ fun StyledScaffold(
                             Column(modifier = Modifier.fillMaxSize()) {
                                 Spacer(modifier = Modifier.height(topPadding + 12.dp))
                                 Crossfade(targetState = title) {
+                                    // Glint: keep the title clear of the back/action buttons
+                                    // (long titles used to run under them) and step down in size.
                                     Text(
                                         text = it,
                                         style = TextStyle(
-                                            fontSize = 20.sp,
+                                            fontSize = if (it.length > 20) 17.sp else 20.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             color = if (isDarkTheme) Color.White else Color.Black,
                                             fontFamily = glintFontFamily
                                         ),
-                                        modifier = Modifier.fillMaxWidth(),
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 60.dp),
                                         textAlign = TextAlign.Center
                                     )
                                 }

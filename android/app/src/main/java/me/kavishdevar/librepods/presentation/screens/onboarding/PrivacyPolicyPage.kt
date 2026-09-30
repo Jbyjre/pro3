@@ -46,6 +46,14 @@ fun PrivacyPolicyPage(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            // Glint: the policy below is LibrePods' own, written by its developer ("me"). Glint adds
+            // no analytics, tracking or data collection of its own.
+            Text(
+                text = "Glint is a personal copy of LibrePods and adds nothing that collects data. LibrePods' privacy policy below applies unchanged; \"me\" in it means the LibrePods developer.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
             Text(
                 text = "Overview",
                 style = MaterialTheme.typography.titleLarge

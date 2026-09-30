@@ -182,7 +182,6 @@ fun Main() {
     val onboardingComplete = sharedPreferences.getBoolean("onboarding_complete", false)
 
     val releaseNotesShownPrefKey = "release_notes_shown_${BuildConfig.VERSION_NAME.removeSuffix("-debug").removeSuffix("-play")}"
-    val releaseNotesShown = sharedPreferences.getBoolean(releaseNotesShownPrefKey, false)
 
     fun bindService() {
         context.startForegroundService(Intent(context, AirPodsService::class.java))
@@ -222,14 +221,20 @@ fun Main() {
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, onboardingComplete) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_START && onboardingComplete) bindService()
+            // Read the flag fresh: after first-run setup finishes, this screen instance must
+            // still re-bind when the app comes back to the front.
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_START &&
+                sharedPreferences.getBoolean("onboarding_complete", false)
+            ) bindService()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     NavigationRoot(
-        showReleaseNotes = !releaseNotesShown,
+        // Glint: LibrePods' "What's new" describes LibrePods' own releases, so it no longer pops
+        // up after set-up; it's still in Settings.
+        showReleaseNotes = false,
         updatesShown = { sharedPreferences.edit { putBoolean(releaseNotesShownPrefKey, true) } },
         showOnboarding = !onboardingComplete,
         onboardingComplete = {

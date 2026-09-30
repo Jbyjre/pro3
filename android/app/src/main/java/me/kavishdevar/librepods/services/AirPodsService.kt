@@ -708,11 +708,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 if (intent?.action == "me.kavishdevar.librepods.cross_device_island") {
                     showIsland(
                         this@AirPodsService,
-                        batteryNotification.getBattery()
-                            .find { it.component == BatteryComponent.LEFT }?.level!!.coerceAtMost(
-                                batteryNotification.getBattery()
-                                    .find { it.component == BatteryComponent.RIGHT }?.level!!
-                            )
+                        budsLevelForIsland()
                     )
                 } else if (intent?.action == AirPodsNotifications.DISCONNECT_RECEIVERS) {
                     try {
@@ -1928,11 +1924,12 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
         val notification = NotificationCompat.Builder(this, "socket_connection_failure")
             .setSmallIcon(R.drawable.airpods).setContentTitle("AirPods Connection Issue")
-            .setContentText("Unable to connect to AirPods over L2CAP").setStyle(
+            .setContentText("Glint couldn't reach the AirPods controls").setStyle(
                 NotificationCompat.BigTextStyle().bigText(
-                    "Your AirPods are connected via Bluetooth, but LibrePods couldn't connect to AirPods using L2CAP. Error: $errorMessage"
+                    "Your AirPods play audio, but Glint couldn't open its control connection to them. Glint will keep trying. (Details: $errorMessage)"
                 )
             ).setContentIntent(pendingIntent).setCategory(Notification.CATEGORY_ERROR)
+            .setOnlyAlertOnce(true) // retries update it quietly instead of buzzing each time
             .setPriority(NotificationCompat.PRIORITY_HIGH).setAutoCancel(true).build()
 
         notificationManager.notify(3, notification)
@@ -2596,11 +2593,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 connectAudio(this, device)
                 showIsland(
                     this,
-                    batteryNotification.getBattery()
-                        .find { it.component == BatteryComponent.LEFT }?.level!!.coerceAtMost(
-                            batteryNotification.getBattery()
-                                .find { it.component == BatteryComponent.RIGHT }?.level!!
-                        ),
+                    budsLevelForIsland(),
                     IslandType.CONNECTED
                 )
 
@@ -2700,22 +2693,25 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 // Set a temporary connecting state
 //                isConnectedLocally = false // Keep as false since we're not actually connecting to L2CAP
             } else {
-                startReconnectLoop(device!!, likelyOnly = false, force = true)
-                connectAudio(this, device)
+                device?.let {
+                    startReconnectLoop(it, likelyOnly = false, force = true)
+                    connectAudio(this, it)
+                }
             }
         }
         showIsland(
             this,
-            batteryNotification.getBattery()
-                .find { it.component == BatteryComponent.LEFT }?.level!!.coerceAtMost(
-                    batteryNotification.getBattery()
-                        .find { it.component == BatteryComponent.RIGHT }?.level!!
-                ),
+            budsLevelForIsland(),
             IslandType.TAKING_OVER
         )
 
 //        CrossDevice.isAvailable = false
     }
+
+    /** Lower of the two bud levels, or 0 before any battery report (was a crashing `!!`). */
+    private fun budsLevelForIsland(): Int = batteryNotification.getBattery()
+        .filter { it.component == BatteryComponent.LEFT || it.component == BatteryComponent.RIGHT }
+        .minOfOrNull { it.level } ?: 0
 
     // ---- Glint connection supervisor -------------------------------------------------------
     // Connection attempts are serialized on one background lane, retried with backoff while the
@@ -3076,15 +3072,11 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         BluetoothConnectionManager.aacpSocket?.close()
         MediaController.pausedWhileTakingOver = false
         Log.d(TAG, "Disconnected from AirPods, showing island.")
-        showIsland(
-            this,
-            batteryNotification.getBattery()
-                .find { it.component == BatteryComponent.LEFT }?.level!!.coerceAtMost(
-                    batteryNotification.getBattery()
-                        .find { it.component == BatteryComponent.RIGHT }?.level!!
-                ),
-            IslandType.MOVED_TO_REMOTE
-        )
+        // Glint: battery levels may not have arrived yet; the old `!!` crashed the service here.
+        val levels = batteryNotification.getBattery()
+            .filter { it.component == BatteryComponent.LEFT || it.component == BatteryComponent.RIGHT }
+            .map { it.level }
+        showIsland(this, levels.minOrNull() ?: 0, IslandType.MOVED_TO_REMOTE)
         val bluetoothAdapter = getSystemService(BluetoothManager::class.java).adapter
         bluetoothAdapter.getProfileProxy(this, object : BluetoothProfile.ServiceListener {
             override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
