@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -173,6 +174,24 @@ class GlintScreenshots {
         }
         rule.onRoot().captureRoboImage("$out/hero_and_status.png")
     }
+
+    @Test
+    fun icon() {
+        rule.setContent {
+            Row(Modifier.background(Color(0xFF9FB4D8)).padding(24.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                Box(Modifier.size(160.dp).androidx_clip()) {
+                    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_launcher_background), null, Modifier.fillMaxSize())
+                    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_launcher_foreground), null, Modifier.fillMaxSize())
+                }
+                Box(Modifier.size(160.dp).androidx_clip().background(Color(0xFF2B3A55))) {
+                    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_launcher_monochrome), null, Modifier.fillMaxSize())
+                }
+            }
+        }
+        rule.onRoot().captureRoboImage("$out/icon.png")
+    }
+
+    private fun Modifier.androidx_clip() = this.clip(androidx.compose.foundation.shape.CircleShape)
 
     @Suppress("unused") private val keep = IntSize.Zero
 }

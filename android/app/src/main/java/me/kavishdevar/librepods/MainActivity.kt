@@ -217,10 +217,15 @@ fun Main() {
         )
     }
 
-    // Bind once per composition lifetime, not on every recomposition (the old code started
-    // and bound the service again each time this function re-ran).
-    LaunchedEffect(onboardingComplete) {
-        if (onboardingComplete) bindService()
+    // Bind each time the screen starts (MainActivity unbinds in onStop), instead of on every
+    // recomposition as before, so the screen never holds a stale service after a restart.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, onboardingComplete) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_START && onboardingComplete) bindService()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     NavigationRoot(

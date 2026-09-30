@@ -77,6 +77,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -3070,6 +3071,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     fun disconnectForCD() {
+        userRequestedDisconnect = true
+        reconnectJob?.cancel()
         BluetoothConnectionManager.aacpSocket?.close()
         MediaController.pausedWhileTakingOver = false
         Log.d(TAG, "Disconnected from AirPods, showing island.")
@@ -3101,6 +3104,9 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     fun disconnectAirPods() {
+        // The user asked for this: don't let the auto-reconnect undo it.
+        userRequestedDisconnect = true
+        reconnectJob?.cancel()
         if (BluetoothConnectionManager.aacpSocket == null) return
         try {
             BluetoothConnectionManager.aacpSocket?.close()
@@ -3371,6 +3377,16 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         if (checkSelfPermission("android.permission.READ_PHONE_STATE") == PackageManager.PERMISSION_GRANTED) {
             telephonyManager.unregisterTelephonyCallback(phoneStateListener)
         }
+        reconnectJob?.cancel()
+        serviceScope.cancel()
+        try {
+            bluetoothAdapterOrNull()?.let { adapter ->
+                a2dpProxy?.let { adapter.closeProfileProxy(BluetoothProfile.A2DP, it) }
+                headsetProxy?.let { adapter.closeProfileProxy(BluetoothProfile.HEADSET, it) }
+            }
+        } catch (_: Exception) {}
+        GlintOverlays.dismissAll()
+        ServiceManager.setService(null)
 //        isConnectedLocally = false
 //        CrossDevice.isAvailable = true
         super.onDestroy()
