@@ -108,6 +108,7 @@ import me.kavishdevar.librepods.data.AirPodsPro3
 import me.kavishdevar.librepods.data.Capability
 import me.kavishdevar.librepods.presentation.MaterialIcons
 import me.kavishdevar.librepods.presentation.components.AboutCard
+import me.kavishdevar.librepods.presentation.glint.ConnectionStatusPanel
 import me.kavishdevar.librepods.presentation.components.AudioSettings
 import me.kavishdevar.librepods.presentation.components.BatteryView
 import me.kavishdevar.librepods.presentation.components.CallControlSettings
@@ -313,8 +314,8 @@ fun AirPodsSettingsScreen(
             item(key = "battery") {
                 BatteryView(
                     batteryList = state.battery,
-                    budsRes = state.instance?.model?.budsRes ?: R.drawable.airpods_pro_2_buds,
-                    caseRes = state.instance?.model?.caseRes ?: R.drawable.airpods_pro_2_case
+                    budsRes = state.instance?.model?.budsRes ?: R.drawable.glint_pro3_buds,
+                    caseRes = state.instance?.model?.caseRes ?: R.drawable.glint_pro3_case
                 )
             }
             item(key = "spacer_battery") {
@@ -870,79 +871,26 @@ fun AirPodsSettingsScreen(
 
                 DesignSystem.Apple -> {
                     Column(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onTap = {
+                                        // Five quick taps on the empty area open demo mode (kept from LibrePods).
+                                        val now = System.currentTimeMillis()
+                                        if (now - lastTapTime.longValue > 400) tapCount.intValue = 0
+                                        tapCount.intValue++
+                                        lastTapTime.longValue = now
+                                        if (tapCount.intValue >= 5) {
+                                            tapCount.intValue = 0
+                                            activateDemoMode()
+                                        }
+                                    })
+                            },
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .pointerInput(Unit) {
-                                    detectTapGestures(
-                                        onTap = {
-                                            val now = System.currentTimeMillis()
-
-                                            if (now - lastTapTime.longValue > 400) {
-                                                tapCount.intValue = 0
-                                            }
-
-                                            tapCount.intValue++
-                                            lastTapTime.longValue = now
-
-                                            if (tapCount.intValue >= 5) {
-                                                tapCount.intValue = 0
-                                                activateDemoMode()
-                                            }
-                                        })
-                                }) {
-                            Text(
-                                text = stringResource(R.string.airpods_not_connected),
-                                style = MaterialTheme.typography.displaySmall,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(Modifier.height(24.dp))
-                            Text(
-                                text = stringResource(R.string.airpods_not_connected_description),
-                                style = MaterialTheme.typography.bodyLarge,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-
-                        if (state.connectionSuccessful) {
-                            StyledButton(
-                                onClick = { reconnectFromSavedMac(); reconnecting = true },
-                                backdrop = backdrop,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp)
-                                    .widthIn(max = 200.dp),
-                                enabled = !reconnecting
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.reconnect_to_last_device),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        }
-                    }
-
-                    if (!BuildConfig.PLAY_BUILD) {
-                        StyledButton(
-                            onClick = navigateToTroubleshooting,
-                            backdrop = backdrop,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .align(Alignment.BottomCenter)
-                                .padding(16.dp)
-                                .widthIn(max = 200.dp),
-                            materialButtonStyle = MaterialButtonStyle.Outlined,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.troubleshooting),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
+                        ConnectionStatusPanel(onTroubleshoot = navigateToTroubleshooting)
                     }
                 }
             }

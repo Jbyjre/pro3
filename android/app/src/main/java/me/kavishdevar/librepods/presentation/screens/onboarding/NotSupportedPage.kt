@@ -1,30 +1,55 @@
 package me.kavishdevar.librepods.presentation.screens.onboarding
 
+import android.content.Context
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.presentation.components.AppInfoCard
 import me.kavishdevar.librepods.presentation.components.DeviceInfoCard
-import me.kavishdevar.librepods.presentation.components.StyledListItem
+import me.kavishdevar.librepods.utils.XposedState
+import me.kavishdevar.librepods.utils.supportVerdict
 
+/**
+ * "Can this phone connect?" Shown to everyone: it explains, in plain words, what the phone's
+ * Android version means for Glint instead of silently blocking. Continuing never hurts: audio
+ * keeps working and Glint connects on its own once the phone's Bluetooth allows it.
+ */
 @Composable
 fun NotSupportedPage(
-    bypassCompatibilityCheck: () -> Unit
+    onContinue: (bypass: Boolean) -> Unit,
 ) {
-    val scrollState = rememberScrollState()
-
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+    val verdict = remember {
+        supportVerdict(
+            sdkInt = Build.VERSION.SDK_INT,
+            manufacturer = Build.MANUFACTURER,
+            buildId = Build.ID,
+            bypassed = false,
+            xposedHookActive = XposedState.bluetoothScopeEnabled,
+            everConnected = prefs.getBoolean("connection_successful", false),
+            blockedObserved = prefs.getBoolean("glint_blocked_observed", false),
+        )
+    }
     Box(
         modifier = Modifier.background(
             color = MaterialTheme.colorScheme.surfaceContainer,
@@ -33,25 +58,42 @@ fun NotSupportedPage(
     ) {
         Column(
             modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .verticalScroll(scrollState),
+                .padding(16.dp)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = stringResource(R.string.check_the_repository_for_more_info),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                text = stringResource(R.string.enable_app_in_xposed_or_update_device),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Text(verdict.title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
+            Text(verdict.message, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (!verdict.canConnect) {
+                Text(
+                    "You can still continue. Glint will keep checking in the background and connect automatically once your phone's Bluetooth allows it.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             DeviceInfoCard()
             AppInfoCard()
-
-            StyledListItem(
-                name = stringResource(R.string.bypass_compatibility_check),
-                onClick = bypassCompatibilityCheck
-            )
+            Spacer(Modifier.height(8.dp))
+            if (verdict.canConnect) {
+                Button(onClick = { onContinue(false) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                    Text("Continue")
+                }
+            } else {
+                Button(onClick = { onContinue(true) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                    Text("Continue anyway")
+                }
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            context.startActivity(android.content.Intent("android.settings.SYSTEM_UPDATE_SETTINGS"))
+                        } catch (_: Exception) {
+                            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_DEVICE_INFO_SETTINGS))
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) { Text("Check for a system update") }
+            }
         }
     }
 }

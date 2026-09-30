@@ -70,6 +70,8 @@ import androidx.annotation.RequiresPermission
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -105,9 +107,10 @@ import me.kavishdevar.librepods.data.CustomEq
 import me.kavishdevar.librepods.data.StemAction
 import me.kavishdevar.librepods.data.XposedRemotePrefProvider
 import me.kavishdevar.librepods.data.isHeadTrackingData
+import me.kavishdevar.librepods.presentation.overlays.GlintOverlays
+import me.kavishdevar.librepods.presentation.overlays.IslandEvent
 import me.kavishdevar.librepods.presentation.overlays.IslandType
-import me.kavishdevar.librepods.presentation.overlays.IslandWindow
-import me.kavishdevar.librepods.presentation.overlays.PopupWindow
+import me.kavishdevar.librepods.presentation.overlays.PodsSnapshot
 import me.kavishdevar.librepods.presentation.widgets.BatteryWidget
 import me.kavishdevar.librepods.presentation.widgets.NoiseControlWidget
 import me.kavishdevar.librepods.utils.CompanionLink
@@ -323,6 +326,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 sendBatteryBroadcast()
             } else {
                 Log.d(TAG, "Lid closed")
+                pushOverlaySnapshot(lidOpen = false)
+                popupShown = false
             }
         }
 
@@ -863,6 +868,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     "Ear Detection: ${earDetectionNotification.status[0]} ${earDetectionNotification.status[1]}"
                 )
                 processEarDetectionChange(earDetection)
+                pushOverlaySnapshot()
             }
 
             override fun onConversationAwarenessReceived(conversationAwareness: ByteArray) {
@@ -888,8 +894,17 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             override fun onControlCommandReceived(controlCommand: ByteArray) {
                 val command = AACPManager.ControlCommand.fromByteArray(controlCommand)
                 if (command.identifier == AACPManager.Companion.ControlCommandIdentifiers.LISTENING_MODE.value) {
+                    val previousMode = ancNotification.status
                     ancNotification.setStatus(byteArrayOf(command.value.takeIf { it.isNotEmpty() }
                         ?.get(0) ?: 0x00.toByte()))
+                    pushOverlaySnapshot()
+                    val mode = ancNotification.status
+                    val firstReport = listeningModeReports++ == 0
+                    if (!firstReport && previousMode in 1..4 && mode in 1..4 && mode != previousMode && !appInForeground() &&
+                        sharedPreferences.getBoolean("glint_island_mode_changes", true)
+                    ) {
+                        showIslandEvent(IslandEvent.ListeningMode(mode))
+                    }
                     sendANCBroadcast()
                     updateNoiseControlWidget()
                     refreshNotification()
@@ -1210,7 +1225,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
             if (inEarData.sorted() == listOf(false, false) && newInEarData.sorted() != listOf(
                     false, false
-                ) && islandWindow?.isVisible != true
+                ) && !GlintOverlays.isIslandShowing
             ) {
                 showIsland(
                     this@AirPodsService,
@@ -1222,8 +1237,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 )
             }
 
-            if (newInEarData == listOf(false, false) && islandWindow?.isVisible == true) {
-                islandWindow?.close()
+            if (newInEarData == listOf(false, false) && GlintOverlays.isIslandShowing) {
+                GlintOverlays.dismissAll()
             }
 
             if (newInEarData.contains(true) && inEarData == listOf(false, false)) {
@@ -1618,26 +1633,66 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
 
     var popupShown = false
+
+    /** The connection card (bottom). Shown when the case opens nearby. */
+    @Suppress("UNUSED_PARAMETER")
     fun showPopup(service: Service, name: String) {
-        if (!sharedPreferences.getBoolean("show_bottom_sheet_popup", true)) {
-            return
-        }
+        if (!sharedPreferences.getBoolean("show_bottom_sheet_popup", true)) return
         if (!Settings.canDrawOverlays(service)) {
             Log.d(TAG, "No permission for SYSTEM_ALERT_WINDOW")
             return
         }
-        if (popupShown) {
-            return
-        }
-        val popupWindow = PopupWindow(service.applicationContext)
-        popupWindow.open(name, batteryNotification)
+        if (popupShown) return
+        pushOverlaySnapshot(lidOpen = true)
+        GlintOverlays.showCard(service)
         popupShown = true
     }
 
     var islandOpen = false
-    var islandWindow: IslandWindow? = null
+    private var overlayLidOpen = false
+    private var lowBatteryAnnounced = 100
+    private var listeningModeReports = 0
 
-    @SuppressLint("MissingPermission")
+    /** Keep the overlays' live data in sync with what the service knows. */
+    fun pushOverlaySnapshot(lidOpen: Boolean = overlayLidOpen) {
+        overlayLidOpen = lidOpen
+        val name = sharedPreferences.getString("name", null)?.takeIf { it.isNotBlank() } ?: config.deviceName
+        GlintOverlays.updateSnapshot(
+            PodsSnapshot.from(name, batteryNotification.getBattery(), earDetectionNotification.status, ancNotification.status, lidOpen)
+        )
+    }
+
+    fun showIslandEvent(event: IslandEvent) {
+        if (!sharedPreferences.getBoolean("show_island_popup", true)) return
+        if (!Settings.canDrawOverlays(this)) return
+        pushOverlaySnapshot()
+        GlintOverlays.showIsland(this, event)
+    }
+
+    /** Announce 20% and 10% once each while worn; re-arm after charging above 25%. */
+    private fun checkLowBattery() {
+        val snap = GlintOverlays.snapshot.value
+        val level = snap.budsLevel ?: return
+        if (level > 25) { lowBatteryAnnounced = 100; return }
+        if (snap.budsCharging) return
+        val threshold = when {
+            level <= 10 -> 10
+            level <= 20 -> 20
+            else -> return
+        }
+        if (threshold < lowBatteryAnnounced && BluetoothConnectionManager.aacpSocket?.isConnected == true &&
+            (snap.leftInEar || snap.rightInEar)
+        ) {
+            lowBatteryAnnounced = threshold
+            showIslandEvent(IslandEvent.LowBattery(level))
+        }
+    }
+
+    private fun appInForeground(): Boolean = try {
+        ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+    } catch (_: Exception) { false }
+
+    @Suppress("UNUSED_PARAMETER")
     fun showIsland(
         service: Service,
         batteryPercentage: Int,
@@ -1645,25 +1700,15 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         reversed: Boolean = false,
         otherDeviceName: String? = null
     ) {
-        Log.d(TAG, "Showing island window")
-        if (!sharedPreferences.getBoolean("show_island_popup", true)) {
-            return
-        }
-        if (!Settings.canDrawOverlays(service)) {
-            Log.d(TAG, "No permission for SYSTEM_ALERT_WINDOW")
-            return
-        }
-        CoroutineScope(Dispatchers.Main).launch {
-            islandWindow = IslandWindow(service.applicationContext)
-            islandWindow!!.show(
-                sharedPreferences.getString("name", "AirPods Pro").toString(),
-                batteryPercentage,
-                this@AirPodsService,
-                type,
-                reversed,
-                otherDeviceName
-            )
-        }
+        Log.d(TAG, "Showing island: $type")
+        showIslandEvent(
+            when (type) {
+                IslandType.CONNECTED -> IslandEvent.Connected
+                IslandType.TAKING_OVER -> IslandEvent.TakingOver
+                IslandType.MOVED_TO_REMOTE -> IslandEvent.MovedToDevice("another device", canTakeBack = false)
+                IslandType.MOVED_TO_OTHER_DEVICE -> IslandEvent.MovedToDevice(otherDeviceName ?: "another device", canTakeBack = !reversed)
+            }
+        )
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -2047,6 +2092,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     @SuppressLint("MissingPermission")
     @OptIn(ExperimentalMaterial3Api::class)
     fun updateBattery() {
+        pushOverlaySnapshot()
+        checkLowBattery()
         setBatteryMetadata()
         updateBatteryWidget()
         sendBatteryBroadcast()
@@ -2168,7 +2215,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             e.printStackTrace()
             sendToast("Failed to answer call: ${e.message}")
         } finally {
-            islandWindow?.close()
+            GlintOverlays.dismissAll()
         }
     }
 
@@ -2194,7 +2241,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             e.printStackTrace()
             sendToast("Failed to reject call: ${e.message}")
         } finally {
-            islandWindow?.close()
+            GlintOverlays.dismissAll()
         }
     }
 
@@ -2951,6 +2998,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             }
         }
         GlintStatus.set(LinkState.Connected(config.deviceName))
+        listeningModeReports = 0
+        GlintOverlays.takeBackHandler = { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) takeOver("reverse") }
         CompanionLink.ensureObserving(this, device.address)
         updateNotificationContent(true, config.deviceName, batteryNotification.getBattery())
         Log.d(TAG, "<LogCollector:Complete:Success> Socket connected")

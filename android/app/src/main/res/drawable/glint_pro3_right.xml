@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original Glint artwork (AirPods Pro 3), generated from PodsGeometry in PodsArt.kt. GPL-3.0. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="50dp" android:height="80dp"
+    android:viewportWidth="100" android:viewportHeight="160">
+    <group android:scaleX="-1" android:pivotX="50">
+        <path android:pathData="M66,24 C82,21 97,30 98,44 C99,58 85,66 67,64 C74,52 73,36 66,24 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="radial" android:centerX="80" android:centerY="36" android:gradientRadius="34"
+                    android:startColor="#FFF0F1F3" android:endColor="#FFCDD0D6" />
+            </aapt:attr>
+        </path>
+        <path android:fillColor="#8C2E2F33" android:pathData="M86,44 C86,39.5 87.6,37.5 89.6,37.5 C91.6,37.5 93.2,39.5 93.2,44 C93.2,48.5 91.6,50.5 89.6,50.5 C87.6,50.5 86,48.5 86,44 Z" />
+        <path android:pathData="M40,4 C60,4 74,20 74,44 C74,62 66,76 54,84 C51,86 49,90 49,96 L47,150 C47,154 43,157 39.5,157 C36,157 32,154 32,150 L33,98 C33,90 29,86 22,81 C11,73 6,60 6,44 C6,21 20,4 40,4 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear" android:startX="40" android:startY="4" android:endX="40" android:endY="157"
+                    android:startColor="#FFFFFFFF" android:centerColor="#FFF2F2F5" android:endColor="#FFD9DAE0" />
+            </aapt:attr>
+        </path>
+        <path android:pathData="M40,4 C60,4 74,20 74,44 C74,62 66,76 54,84 C51,86 49,90 49,96 L47,150 C47,154 43,157 39.5,157 C36,157 32,154 32,150 L33,98 C33,90 29,86 22,81 C11,73 6,60 6,44 C6,21 20,4 40,4 Z" android:strokeWidth="1.2" android:strokeColor="#14000000" />
+        <path android:fillColor="#6B2E2F33" android:pathData="M13,30.5 C13,28.4 17,25.6 19.6,26 C21.4,26.4 21,28 19.4,29.3 C17.4,30.9 13.5,32.2 13,30.5 Z" />
+        <path android:fillColor="#8C2E2F33" android:pathData="M58.4,66 C58.4,64.8 59.3,63.9 60.4,63.9 C61.5,63.9 62.4,64.8 62.4,66 C62.4,67.2 61.5,68.1 60.4,68.1 C59.3,68.1 58.4,67.2 58.4,66 Z" />
+        <path android:fillColor="#992E2F33" android:pathData="M35,153.6 C35,152.5 37,151.9 39.5,151.9 C42,151.9 44,152.5 44,153.6 C44,154.7 42,155.3 39.5,155.3 C37,155.3 35,154.7 35,153.6 Z" />
+    </group>
+</vector>

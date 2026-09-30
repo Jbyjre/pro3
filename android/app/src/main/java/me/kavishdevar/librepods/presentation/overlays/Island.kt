@@ -382,6 +382,7 @@ internal fun IslandHost(
             expanded = {
                 ExpandedIslandContent(event, snapshot, title, subtitle, look.content, look.contentSecondary, light) {
                     haptics.expand()
+                    if (event is IslandEvent.MovedToDevice && event.canTakeBack) GlintOverlays.takeBackHandler?.invoke()
                     onPhase(IslandPhase.Leaving)
                 }
             },

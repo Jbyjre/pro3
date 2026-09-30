@@ -136,11 +136,6 @@ android {
             version = providers.gradleProperty("cmakeVersion").getOrElse("3.22.1")
         }
     }
-    sourceSets {
-        getByName("main") {
-            res.directories += "src/main/res-apple"
-        }
-    }
 
     testOptions {
         // Plain JVM unit tests: android.util.Log and friends become harmless no-ops.

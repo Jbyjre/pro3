@@ -107,7 +107,9 @@ fun AppSettingsScreen(
     navigateToPurchase: () -> Unit,
     navigateToTroubleshooting: () -> Unit,
     navigateToOpenSourceLicenses: () -> Unit,
-    navigateToReleaseNotesScreen: () -> Unit
+    navigateToReleaseNotesScreen: () -> Unit,
+    navigateToStayConnected: () -> Unit = {},
+    navigateToGlintLab: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -194,6 +196,16 @@ fun AppSettingsScreen(
             onCheckedChange = viewModel::setm3eEnabled,
             enabled = state.isPremium
         )
+
+        StyledList(title = "Glint") {
+            StyledListItem(
+                name = "Stay connected & appearance",
+                description = "Samsung background setup, glass and motion",
+                onClick = navigateToStayConnected,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (state.connectionSuccessful) {
             StyledToggle(
@@ -398,42 +410,23 @@ fun AppSettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         StyledList(title = stringResource(R.string.contact)) {
+            // Glint is a personal fork, so problems go to the fork, not to the LibrePods developer.
             StyledListItem(
-                name = stringResource(R.string.email),
-                onClick = { contactBottomSheet.value = true },
-            )
-
-            StyledListItem(
-                name = stringResource(R.string.discord),
+                name = "Report a Glint problem",
+                description = "Opens this fork's GitHub page",
                 onClick = {
-                    val intent =
-                        Intent(Intent.ACTION_VIEW, "https://discord.gg/Ts4wupXcmc".toUri())
-                    context.startActivity(intent)
+                    val body = Uri.encode(
+                        "Glint v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n" +
+                            "Device: ${Build.MANUFACTURER} ${Build.MODEL}\nAndroid: ${Build.ID} (${Build.DISPLAY})\n\nWhat happened:\n"
+                    )
+                    context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/Jbyjre/pro3/issues/new?body=$body".toUri()))
                 },
             )
-
             StyledListItem(
-                name = stringResource(R.string.github_issues),
+                name = "LibrePods (original project)",
+                description = "Glint is built on LibrePods by kavishdevar, GPL-3.0",
                 onClick = {
-                    val appVersion =
-                        Uri.encode("v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-                    val device = Uri.encode("${Build.MANUFACTURER} ${Build.MODEL}")
-                    val androidVersion = Uri.encode("${Build.ID} (${Build.DISPLAY})")
-                    val appSource = Uri.encode(
-                        when {
-                            BuildConfig.PLAY_BUILD -> "Play"
-                            else -> "GitHub"
-                        }
-                    )
-                    val url = "https://github.com/kavishdevar/librepods/issues/new" +
-                        "?template=01-bug-report-android.yml" +
-                        "&app-source=$appSource" +
-                        "&app-version=$appVersion" +
-                        "&device=$device" +
-                        "&android-version=$androidVersion"
-
-                    val intent = Intent(Intent.ACTION_VIEW, url.toUri())
-                    context.startActivity(intent)
+                    context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/librepods-org/librepods".toUri()))
                 },
             )
         }
@@ -441,7 +434,7 @@ fun AppSettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
         DeviceInfoCard()
         Spacer(modifier = Modifier.height(16.dp))
-        AppInfoCard(navigateToReleaseNotesScreen)
+        AppInfoCard(navigateToReleaseNotesScreen, onSecretTap = navigateToGlintLab)
 
         Spacer(modifier = Modifier.height(16.dp))
 

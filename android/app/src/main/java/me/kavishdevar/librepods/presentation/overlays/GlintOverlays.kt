@@ -78,6 +78,14 @@ data class PodsSnapshot(
     }
 }
 
+/** Legacy island reasons still used by the takeover logic in AirPodsService. */
+enum class IslandType {
+    CONNECTED,
+    TAKING_OVER,
+    MOVED_TO_REMOTE,
+    MOVED_TO_OTHER_DEVICE,
+}
+
 /** What the island is announcing. */
 sealed interface IslandEvent {
     data object Connected : IslandEvent
@@ -98,6 +106,9 @@ object GlintOverlays {
     private val main = Handler(Looper.getMainLooper())
     private val _snapshot = MutableStateFlow(PodsSnapshot())
     val snapshot: StateFlow<PodsSnapshot> = _snapshot.asStateFlow()
+
+    /** Called when the user taps "Use on this phone" on the island. Set by AirPodsService. */
+    @Volatile var takeBackHandler: (() -> Unit)? = null
 
     private var island: IslandController? = null
     private var card: CardController? = null

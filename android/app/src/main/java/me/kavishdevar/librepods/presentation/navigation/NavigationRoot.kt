@@ -72,6 +72,8 @@ fun NavigationRoot(
         Screen.VersionInfo -> stringResource(R.string.version)
         is Screen.CallControl -> currentScreen.action
         Screen.MicrophoneSettings -> stringResource(R.string.microphone_mode)
+        Screen.StayConnected -> "Stay connected"
+        Screen.GlintLab -> "Glint Lab"
         Screen.ReleaseNotes -> ""
     }
 

@@ -20,6 +20,12 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import me.kavishdevar.librepods.presentation.glint.GlintHero
+import me.kavishdevar.librepods.presentation.overlays.GlintOverlays
+import me.kavishdevar.librepods.presentation.overlays.PodsSnapshot
+
 import android.content.res.Configuration
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -53,100 +59,14 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 @Composable
 fun BatteryView(
     batteryList: List<Battery>,
-    budsRes: Int,
-    caseRes: Int
+    @Suppress("UNUSED_PARAMETER") budsRes: Int,
+    @Suppress("UNUSED_PARAMETER") caseRes: Int
 ) {
-    val left = batteryList.find { it.component == BatteryComponent.LEFT }
-    val right = batteryList.find { it.component == BatteryComponent.RIGHT }
-    val case = batteryList.find { it.component == BatteryComponent.CASE }
-
-    val leftLevel = left?.level ?: 0
-    val rightLevel = right?.level ?: 0
-    val caseLevel = case?.level ?: 0
-
-    val singleDisplayed = remember { mutableStateOf(false) }
-
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(
-            modifier = Modifier.widthIn(max = 500.dp),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Image(
-                    bitmap = ImageBitmap.imageResource(budsRes),
-                    contentDescription = stringResource(R.string.buds),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp)
-                )
-
-                if (
-                    left?.status == right?.status &&
-                    (leftLevel - rightLevel) in -3..3
-                ) {
-                    BatteryIndicator(
-                        leftLevel.coerceAtMost(rightLevel),
-                        left?.status ?: BatteryStatus.NOT_CHARGING
-                    )
-                    singleDisplayed.value = true
-                } else {
-                    singleDisplayed.value = false
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        if (leftLevel > 0 || left?.status != BatteryStatus.DISCONNECTED) {
-                            BatteryIndicator(
-                                leftLevel,
-                                left?.status ?: BatteryStatus.NOT_CHARGING,
-                                "\uDBC6\uDCE5"
-                            )
-                        }
-
-                        if (leftLevel > 0 && rightLevel > 0) {
-                            Spacer(modifier = Modifier.width(16.dp))
-                        }
-
-                        if (rightLevel > 0 || right?.status != BatteryStatus.DISCONNECTED) {
-                            BatteryIndicator(
-                                rightLevel,
-                                right?.status ?: BatteryStatus.NOT_CHARGING,
-                                "\uDBC6\uDCE8"
-                            )
-                        }
-                    }
-                }
-            }
-
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Image(
-                    bitmap = ImageBitmap.imageResource(caseRes),
-                    contentDescription = stringResource(R.string.case_alt),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp)
-                )
-
-                if (caseLevel > 0 || case?.status != BatteryStatus.DISCONNECTED) {
-                    BatteryIndicator(
-                        caseLevel,
-                        case?.status ?: BatteryStatus.NOT_CHARGING,
-                        prefix = if (!singleDisplayed.value) "\uDBC3\uDE6C" else ""
-                    )
-                }
-            }
-        }
-    }
+    // Live ear/lid state comes from the service; batteries from the caller (demo mode too).
+    val live by GlintOverlays.snapshot.collectAsState()
+    val snapshot = PodsSnapshot.from(live.name, batteryList, null, live.listeningMode, live.lidOpen)
+        .copy(leftInEar = live.leftInEar, rightInEar = live.rightInEar)
+    GlintHero(snapshot)
 }
 
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_YES)
@@ -167,8 +87,8 @@ fun BatteryViewPreview() {
     ) {
         BatteryView(
             batteryList = fakeBattery,
-            budsRes = R.drawable.airpods_pro_2_buds,
-            caseRes = R.drawable.airpods_pro_2_case
+            budsRes = R.drawable.glint_pro3_buds,
+            caseRes = R.drawable.glint_pro3_case
         )
     }
 }

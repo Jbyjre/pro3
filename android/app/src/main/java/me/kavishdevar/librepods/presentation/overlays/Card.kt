@@ -386,7 +386,7 @@ private fun RingLabel(label: String, level: Int?, charging: Boolean, look: Glass
 
 /** A glass capsule button with a springy press and a touch glint. */
 @Composable
-internal fun GlassPillButton(
+fun GlassPillButton(
     text: String,
     textColor: Color,
     modifier: Modifier = Modifier,

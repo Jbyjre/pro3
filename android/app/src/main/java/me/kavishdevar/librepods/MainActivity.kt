@@ -81,11 +81,11 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val sharedPreferences = LocalContext.current.getSharedPreferences("settings", MODE_PRIVATE)
-            val m3eEnabled = remember { mutableStateOf(sharedPreferences.getBoolean("m3e_enabled", true)) }
+            val m3eEnabled = remember { mutableStateOf(sharedPreferences.getBoolean("m3e_enabled", false)) }
 
             val sharedPreferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
                 when (key) {
-                    "m3e_enabled" -> m3eEnabled.value = sharedPreferences.getBoolean(key, true)
+                    "m3e_enabled" -> m3eEnabled.value = sharedPreferences.getBoolean(key, false)
                 }
             }
 
