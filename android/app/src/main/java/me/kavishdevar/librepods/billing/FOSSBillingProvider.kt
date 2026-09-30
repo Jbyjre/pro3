@@ -50,6 +50,10 @@ class FOSSBillingProvider(context: Context): BillingProvider {
     }
 
     override fun purchase(activity: Activity) {
+        // Glint: remember when the sponsor page was opened, so the unlock still happens if
+        // the phone closes the app in the background while the browser is open (Samsung
+        // often does). queryPurchases() finishes it when the app comes back.
+        sharedPreferences.edit { putLong(UNLOCK_STARTED_AT, System.currentTimeMillis()) }
         activity.startActivity(
             Intent(Intent.ACTION_VIEW, "https://github.com/sponsors/kavishdevar".toUri())
         )
@@ -57,21 +61,39 @@ class FOSSBillingProvider(context: Context): BillingProvider {
         purchaseJob?.cancel()
 
         purchaseJob = scope.launch {
-            delay(5_000)
-            _isPremium.value = true
-            sharedPreferences.edit { putBoolean("foss_upgraded", true) }
+            delay(UNLOCK_DELAY_MS)
+            unlock()
         }
     }
 
     override fun queryPurchases() {
+        val startedAt = sharedPreferences.getLong(UNLOCK_STARTED_AT, 0L)
+        if (!sharedPreferences.getBoolean("foss_upgraded", false) && startedAt > 0L &&
+            System.currentTimeMillis() - startedAt >= UNLOCK_DELAY_MS
+        ) {
+            unlock()
+            return
+        }
         val stored = sharedPreferences.getBoolean("foss_upgraded", false)
         if (stored != _isPremium.value) {
             _isPremium.value = stored
         }
     }
 
-    override fun restorePurchases() {
+    private fun unlock() {
+        sharedPreferences.edit {
+            putBoolean("foss_upgraded", true)
+            remove(UNLOCK_STARTED_AT)
+        }
         _isPremium.value = true
-        sharedPreferences.edit { putBoolean("foss_upgraded", true) }
+    }
+
+    private companion object {
+        const val UNLOCK_STARTED_AT = "glint_foss_unlock_started_at"
+        const val UNLOCK_DELAY_MS = 5_000L
+    }
+
+    override fun restorePurchases() {
+        unlock()
     }
 }

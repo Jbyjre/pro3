@@ -50,6 +50,26 @@ import me.kavishdevar.librepods.presentation.MaterialIcons
 import me.kavishdevar.librepods.presentation.components.ListItemOrientation
 import me.kavishdevar.librepods.presentation.components.StyledList
 import me.kavishdevar.librepods.presentation.components.StyledListItem
+import android.content.Context
+import androidx.core.content.edit
+import com.google.accompanist.permissions.shouldShowRationale
+
+/** One pass of "Grant all": each missing permission is asked for at most once per pass. */
+private class GrantAllRun {
+    var active = false
+    val tried = mutableSetOf<String>()
+    var next: () -> Unit = {}
+
+    fun start() {
+        tried.clear()
+        active = true
+        next()
+    }
+
+    fun continueRun() {
+        if (active) next()
+    }
+}
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -58,36 +78,25 @@ fun PermissionsPage(
     onForward: () -> Unit
 ) {
 
-    var grantingAll = false
-
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
     val canDrawOverlays = remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+
+    // "Grant all" walks the missing permissions one at a time: each system dialog's answer
+    // starts the next one, ending on the "Display over other apps" page. It lives in a
+    // remembered object so a recomposition mid-run can't forget it.
+    val grantAll = remember { GrantAllRun() }
 
     val phonePermissionState = rememberMultiplePermissionsState(
         listOf(
             "android.permission.READ_PHONE_STATE",
             "android.permission.ANSWER_PHONE_CALLS"
         )
-    ) {
-        if (grantingAll) {
-            if (!canDrawOverlays.value) {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    "package:${context.packageName}".toUri()
-                )
-                context.startActivity(intent)
-            }
-        }
-    }
-
+    ) { grantAll.continueRun() }
 
     val notificationPermissionState = rememberPermissionState("android.permission.POST_NOTIFICATIONS") {
-        if (grantingAll) {
-            if (!phonePermissionState.allPermissionsGranted) phonePermissionState.launchMultiplePermissionRequest()
-            else if (!canDrawOverlays.value) canDrawOverlays.value = Settings.canDrawOverlays(context)
-        }
+        grantAll.continueRun()
     }
-
 
     val bluetoothPermissionsState = rememberMultiplePermissionsState(
         listOf(
@@ -97,12 +106,42 @@ fun PermissionsPage(
             "android.permission.BLUETOOTH_ADMIN",
             "android.permission.BLUETOOTH_ADVERTISE"
         )
-    ) {
-        if (grantingAll) {
-            if (!notificationPermissionState.status.isGranted) notificationPermissionState.launchPermissionRequest()
-            else if (!phonePermissionState.allPermissionsGranted) phonePermissionState.launchMultiplePermissionRequest()
-            else if (!canDrawOverlays.value) canDrawOverlays.value = Settings.canDrawOverlays(context)
+    ) { grantAll.continueRun() }
+
+    fun openOverlaySettings() {
+        context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "package:${context.packageName}".toUri()))
+    }
+
+    /**
+     * Shows the system dialog, or, when Android has stopped showing it (a permission refused
+     * twice), opens this app's settings page so the button never silently does nothing.
+     * Returns false when it had to leave for settings.
+     */
+    fun request(key: String, shouldShowRationale: Boolean, launch: () -> Unit): Boolean {
+        val askedBefore = prefs.getBoolean("glint_asked_permission_$key", false)
+        return if (askedBefore && !shouldShowRationale) {
+            context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:${context.packageName}".toUri()))
+            false
+        } else {
+            prefs.edit { putBoolean("glint_asked_permission_$key", true) }
+            launch()
+            true
         }
+    }
+
+    fun requestBluetooth() = request("bluetooth", bluetoothPermissionsState.shouldShowRationale) { bluetoothPermissionsState.launchMultiplePermissionRequest() }
+    fun requestNotifications() = request("notifications", notificationPermissionState.status.shouldShowRationale) { notificationPermissionState.launchPermissionRequest() }
+    fun requestPhone() = request("phone", phonePermissionState.shouldShowRationale) { phonePermissionState.launchMultiplePermissionRequest() }
+
+    grantAll.next = {
+        val launched = when {
+            !bluetoothPermissionsState.allPermissionsGranted && grantAll.tried.add("bluetooth") -> requestBluetooth()
+            !notificationPermissionState.status.isGranted && grantAll.tried.add("notifications") -> requestNotifications()
+            !phonePermissionState.allPermissionsGranted && grantAll.tried.add("phone") -> requestPhone()
+            !canDrawOverlays.value && grantAll.tried.add("overlay") -> { openOverlaySettings(); false }
+            else -> false
+        }
+        if (!launched) grantAll.active = false
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -146,8 +185,8 @@ fun PermissionsPage(
                     name = "Bluetooth",
                     onClick = if (!bluetoothPermissionsState.allPermissionsGranted) {
                         {
-                            grantingAll = false
-                            bluetoothPermissionsState.launchMultiplePermissionRequest()
+                            grantAll.active = false
+                            requestBluetooth()
                         }
                     } else null,
                     description = "Required to communicate with AirPods",
@@ -189,8 +228,8 @@ fun PermissionsPage(
                     name = "Notifications",
                     onClick = if (!notificationPermissionState.status.isGranted) {
                         {
-                            grantingAll = false
-                            notificationPermissionState.launchPermissionRequest()
+                            grantAll.active = false
+                            requestNotifications()
                         }
                     } else null,
                     description = "Show battery status",
@@ -219,8 +258,8 @@ fun PermissionsPage(
                     name = "Phone",
                     onClick = if (!phonePermissionState.allPermissionsGranted) {
                         {
-                            grantingAll = false
-                            phonePermissionState.launchMultiplePermissionRequest()
+                            grantAll.active = false
+                            requestPhone()
                         }
                     } else null,
                     description = "Respond to phone calls with head gestures",
@@ -254,12 +293,8 @@ fun PermissionsPage(
                 name = "Display over other apps",
                 onClick = if (!canDrawOverlays.value) {
                     {
-                        grantingAll = false
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            "package:${context.packageName}".toUri()
-                        )
-                        context.startActivity(intent)
+                        grantAll.active = false
+                        openOverlaySettings()
                     }
                 } else null,
                 description = "Show popups when AirPods are nearby or audio switches to them.",
@@ -305,14 +340,7 @@ fun PermissionsPage(
                     )
                 }
                 Button(
-                    onClick = {
-                        grantingAll = true
-                        if (!bluetoothPermissionsState.allPermissionsGranted) bluetoothPermissionsState.launchMultiplePermissionRequest()
-                        else if (!notificationPermissionState.status.isGranted) notificationPermissionState.launchPermissionRequest()
-                        else if (!phonePermissionState.allPermissionsGranted) phonePermissionState.launchMultiplePermissionRequest()
-                        else if (!canDrawOverlays.value) canDrawOverlays.value =
-                            Settings.canDrawOverlays(context)
-                    },
+                    onClick = { grantAll.start() },
                     modifier = Modifier
                         .height(IconButtonDefaults.mediumContainerSize(IconButtonDefaults.IconButtonWidthOption.Narrow).height)
                         .weight(1f),

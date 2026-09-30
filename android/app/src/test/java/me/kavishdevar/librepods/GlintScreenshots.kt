@@ -24,11 +24,17 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.sp
+import me.kavishdevar.librepods.data.Battery
+import me.kavishdevar.librepods.data.BatteryComponent
+import me.kavishdevar.librepods.data.BatteryStatus
+import me.kavishdevar.librepods.presentation.components.BatteryView
 import me.kavishdevar.librepods.presentation.glint.BatteryRing
-import me.kavishdevar.librepods.presentation.glint.BudVisual
-import me.kavishdevar.librepods.presentation.glint.CaseVisual
-import me.kavishdevar.librepods.presentation.glint.PodBud
-import me.kavishdevar.librepods.presentation.glint.PodCase
+import me.kavishdevar.librepods.presentation.glint.PodsVideoConfig
+import me.kavishdevar.librepods.presentation.glint.SymbolText
+import org.junit.Before
 import me.kavishdevar.librepods.presentation.overlays.CardGeometry
 import me.kavishdevar.librepods.presentation.overlays.CardHost
 import me.kavishdevar.librepods.presentation.overlays.GlintOverlays
@@ -89,19 +95,36 @@ class GlintScreenshots {
         ) { content() }
     }
 
+    @Before
+    fun stillFramesOnly() {
+        // No video decoder under Robolectric: overlays show the clips' still frames.
+        PodsVideoConfig.enabled = false
+    }
+
+    /** Every replacement for the old SF Symbols, large and at text size, plus battery rings. */
     @Test
-    fun art() {
+    fun symbols() {
+        val all = listOf(
+            "􀁡", "􀆄", "􀆅", "􀈟", "􀊃", "􀊄",
+            "􀊅", "􀊆", "􀊡", "􀊥", "􀊩", "􀋦",
+            "􀍟", "􀯶", "􀯻", "􀹬", "􁣥", "􁣨",
+        )
         rule.setContent {
             Column(
                 Modifier.fillMaxSize().background(Color(0xFFF2F2F7)).padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy((-14).dp), verticalAlignment = Alignment.Bottom) {
-                    PodBud(Modifier.height(260.dp), mirrored = false, light = Offset(0f, -0.2f), visual = BudVisual())
-                    PodBud(Modifier.height(260.dp), mirrored = true, light = Offset(0f, -0.2f), visual = BudVisual(charging = true))
+                all.chunked(6).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                        row.forEach { SymbolText(it, TextStyle(fontSize = 34.sp, color = Color.Black)) }
+                    }
                 }
-                PodCase(Modifier.width(300.dp), light = Offset(-0.4f, -0.2f), visual = CaseVisual(charging = true, level = 60, lidOpen = true))
+                all.chunked(9).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Aa", style = TextStyle(fontSize = 17.sp))
+                        row.forEach { SymbolText(it, TextStyle(fontSize = 17.sp, color = Color(0xFF0A84FF))) }
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     BatteryRing(82, false, size = 48.dp, label = Color.Black, track = Color(0x1F000000))
                     BatteryRing(18, false, size = 48.dp, label = Color.Black, track = Color(0x1F000000))
@@ -110,7 +133,7 @@ class GlintScreenshots {
                 }
             }
         }
-        rule.onRoot().captureRoboImage("$out/art.png")
+        rule.onRoot().captureRoboImage("$out/symbols.png")
     }
 
     private fun island(name: String, event: IslandEvent, phase: IslandPhase, dark: Boolean = true) {
@@ -164,15 +187,23 @@ class GlintScreenshots {
         rule.setContent {
             me.kavishdevar.librepods.presentation.theme.LibrePodsTheme(m3eEnabled = false) {
                 Column(
-                    Modifier.fillMaxSize().background(Color(0xFFF2F2F7)).padding(16.dp),
+                    Modifier.fillMaxSize().background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    me.kavishdevar.librepods.presentation.glint.GlintHero(demo)
+                    BatteryView(
+                        batteryList = listOf(
+                            Battery(BatteryComponent.LEFT, 82, BatteryStatus.NOT_CHARGING),
+                            Battery(BatteryComponent.RIGHT, 64, BatteryStatus.CHARGING),
+                            Battery(BatteryComponent.CASE, 54, BatteryStatus.NOT_CHARGING),
+                        ),
+                        budsRes = R.drawable.airpods_pro_2_buds,
+                        caseRes = R.drawable.airpods_pro_2_case,
+                    )
                     me.kavishdevar.librepods.presentation.glint.ConnectionStatusPanel(onTroubleshoot = {})
                 }
             }
         }
-        rule.onRoot().captureRoboImage("$out/hero_and_status.png")
+        rule.onRoot().captureRoboImage("$out/main_and_status.png")
     }
 
     @Test
