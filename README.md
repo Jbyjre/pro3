@@ -1,3 +1,8 @@
+> [!NOTE]
+> **This is Glint, a personal fork of LibrePods** for a Galaxy S25 FE and AirPods Pro 3, with a liquid-glass redesign, original Pro 3 artwork and stronger connection handling.
+> Download: [latest Glint.apk](https://github.com/Jbyjre/pro3/releases/latest). What changed and why: [DECISIONS.md](DECISIONS.md). How to test: [TESTING.md](TESTING.md).
+> All credit for the underlying protocol work goes to [LibrePods](https://github.com/librepods-org/librepods) and its developer. Glint is GPL-3.0 like LibrePods, and "LibrePods" is their name, not ours.
+
 > [!WARNING]
 > librepods.org is not an official website of the LibrePods project. It inaccurately claims to be the official website of the project by claiming copyrights and using the LibrePods logo in the footer. And at the same time, they say that the project is not affiliated with the LibrePods project or its developers.
 > 
