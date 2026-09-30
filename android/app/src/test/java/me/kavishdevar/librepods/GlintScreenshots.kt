@@ -156,5 +156,23 @@ class GlintScreenshots {
     @Test fun cardLight() = card("card_light", dark = false)
     @Test fun cardDark() = card("card_dark", dark = true)
 
+    @Test
+    fun heroAndStatus() {
+        GlintOverlays.updateSnapshot(demo)
+        me.kavishdevar.librepods.services.GlintStatus.set(me.kavishdevar.librepods.services.LinkState.Idle)
+        rule.setContent {
+            me.kavishdevar.librepods.presentation.theme.LibrePodsTheme(m3eEnabled = false) {
+                Column(
+                    Modifier.fillMaxSize().background(Color(0xFFF2F2F7)).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    me.kavishdevar.librepods.presentation.glint.GlintHero(demo)
+                    me.kavishdevar.librepods.presentation.glint.ConnectionStatusPanel(onTroubleshoot = {})
+                }
+            }
+        }
+        rule.onRoot().captureRoboImage("$out/hero_and_status.png")
+    }
+
     @Suppress("unused") private val keep = IntSize.Zero
 }

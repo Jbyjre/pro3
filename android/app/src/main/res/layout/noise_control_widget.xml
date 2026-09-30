@@ -5,6 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:theme="@style/Theme.LibrePods.AppWidgetContainer"
+    android:background="@drawable/widget_background"
     tools:ignore="ContentDescription,NestedWeights">
 
     <LinearLayout

@@ -18,6 +18,7 @@
 
 package me.kavishdevar.librepods.presentation.overlays
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -110,7 +111,10 @@ object GlintOverlays {
     /** Called when the user taps "Use on this phone" on the island. Set by AirPodsService. */
     @Volatile var takeBackHandler: (() -> Unit)? = null
 
+    // Both controllers only ever hold the application context, so this is not a leak.
+    @SuppressLint("StaticFieldLeak")
     private var island: IslandController? = null
+    @SuppressLint("StaticFieldLeak")
     private var card: CardController? = null
 
     fun updateSnapshot(value: PodsSnapshot) {

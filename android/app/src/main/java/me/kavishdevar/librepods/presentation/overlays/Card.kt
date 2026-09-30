@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -159,7 +160,7 @@ internal fun CardHost(
     val density = LocalDensity.current.density
     val haptics = remember(view) { GlintHaptics(view) }
     val snapshot by GlintOverlays.snapshot.collectAsState()
-    val dark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+    val dark = (LocalConfiguration.current.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
     val look = remember(dark) { GlassLooks.card(dark, density) }
     val reduceMotion = remember { GlintComfort.reduceMotion(context) }
     val reduceTransparency = remember { GlintComfort.reduceTransparency(context) }

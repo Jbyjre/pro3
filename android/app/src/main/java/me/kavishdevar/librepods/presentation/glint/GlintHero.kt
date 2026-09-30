@@ -90,7 +90,7 @@ fun GlintHero(snapshot: PodsSnapshot, modifier: Modifier = Modifier) {
     Box(
         modifier
             .fillMaxWidth()
-            .height(300.dp)
+            .height(276.dp)
             .semantics { contentDescription = description }
             .pointerInput(Unit) {
                 awaitEachGesture {
@@ -114,7 +114,7 @@ fun GlintHero(snapshot: PodsSnapshot, modifier: Modifier = Modifier) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(300.dp)
+                .height(276.dp)
                 .layerBackdrop(backdrop)
                 .drawBehind {
                     val r = 34.dp.toPx()
@@ -125,7 +125,7 @@ fun GlintHero(snapshot: PodsSnapshot, modifier: Modifier = Modifier) {
             Row(
                 Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 20.dp)
+                    .padding(top = 26.dp)
                     .graphicsLayer {
                         rotationY = light.x * 6f
                         rotationX = -light.y * 4f
@@ -144,7 +144,7 @@ fun GlintHero(snapshot: PodsSnapshot, modifier: Modifier = Modifier) {
         Row(
             Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp),
+                .padding(bottom = 18.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             BatteryChip("L", snapshot.left, snapshot.leftCharging, backdrop, dark)

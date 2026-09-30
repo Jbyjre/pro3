@@ -118,6 +118,7 @@ import me.kavishdevar.librepods.presentation.components.MaterialButtonStyle
 import me.kavishdevar.librepods.presentation.components.NoiseControlSettings
 import me.kavishdevar.librepods.presentation.components.PressAndHoldSettings
 import me.kavishdevar.librepods.presentation.components.StyledButton
+import me.kavishdevar.librepods.presentation.components.StyledList
 import me.kavishdevar.librepods.presentation.components.StyledListItem
 import me.kavishdevar.librepods.presentation.components.StyledToggle
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
@@ -586,6 +587,39 @@ fun AirPodsSettingsScreen(
                     version = state.version3,
                     navigateToVersion = navigateToVersion
                 )
+            }
+
+            if (!state.vendorIdHook) {
+                item(key = "spacer_root_only") { Spacer(modifier = Modifier.height(28.dp)) }
+                item(key = "root_only") {
+                    // These exist in LibrePods but need a rooted phone with Xposed. Listing them
+                    // plainly beats hiding them and leaving people wondering where they went.
+                    StyledList(
+                        title = "Needs root",
+                        description = "These features need a rooted phone with the Xposed module, so they are off on a standard Samsung. Everything above works without root."
+                    ) {
+                        StyledListItem(
+                            name = stringResource(R.string.hearing_aid),
+                            description = "Hearing aid mode and hearing test",
+                            enabled = false
+                        )
+                        StyledListItem(
+                            name = stringResource(R.string.loud_sound_reduction),
+                            description = "Changing this setting needs root",
+                            enabled = false
+                        )
+                        StyledListItem(
+                            name = "Transparency customization",
+                            description = "Amplification, tone and balance",
+                            enabled = false
+                        )
+                        StyledListItem(
+                            name = "Battery in system Bluetooth settings",
+                            description = "Needs Glint installed as a system app (root module)",
+                            enabled = false
+                        )
+                    }
+                }
             }
 
             item(key = "spacer_disconnect") { Spacer(modifier = Modifier.height(28.dp)) }
