@@ -55,6 +55,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.ParcelUuid
+import android.os.SystemClock
 import android.os.UserHandle
 import android.provider.Settings
 import android.telecom.TelecomManager
@@ -303,11 +304,10 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         ) {
             if (lidOpen) {
                 Log.d(TAG, "Lid opened")
-                showPopup(
-                    this@AirPodsService,
-                    getSharedPreferences("settings", MODE_PRIVATE).getString("name", "AirPods Pro")
-                        ?: "AirPods"
-                )
+                val status = bleManager.getMostRecentStatus()
+                if (cardGate.onLidOpened(System.currentTimeMillis(), status?.isLeftInEar == true && status.isRightInEar)) {
+                    showPopup(this@AirPodsService)
+                }
                 if (BluetoothConnectionManager.aacpSocket?.isConnected == true) return
                 val leftLevel = bleManager.getMostRecentStatus()?.leftBattery ?: 0
                 val rightLevel = bleManager.getMostRecentStatus()?.rightBattery ?: 0
@@ -328,7 +328,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             } else {
                 Log.d(TAG, "Lid closed")
                 pushOverlaySnapshot(lidOpen = false)
-                popupShown = false
+                cardGate.onLidClosed(System.currentTimeMillis())
             }
         }
 
@@ -695,7 +695,9 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     // only tear down if the channel is really gone.
                     if (BluetoothConnectionManager.aacpSocket?.isConnected == true) return
                     device = null
-                    popupShown = false
+                    cardGate.reset()
+                    batteryEstimator.reset()
+                    BatteryTimeLeft.publish(null)
                     updateNotificationContent(false)
                     aacpManager.disconnected()
                     BluetoothConnectionManager.aacpSocket = null
@@ -822,6 +824,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             @SuppressLint("MissingPermission")
             override fun onBatteryInfoReceived(batteryInfo: ByteArray) {
                 batteryNotification.setBattery(batteryInfo)
+                updateTimeLeft()
                 sendBroadcast(Intent(AirPodsNotifications.BATTERY_DATA).apply {
                     putParcelableArrayListExtra("data", ArrayList(batteryNotification.getBattery()))
                     setPackage(packageName)
@@ -866,6 +869,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 )
                 processEarDetectionChange(earDetection)
                 pushOverlaySnapshot()
+                updateTimeLeft()
             }
 
             override fun onConversationAwarenessReceived(conversationAwareness: ByteArray) {
@@ -895,6 +899,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     ancNotification.setStatus(byteArrayOf(command.value.takeIf { it.isNotEmpty() }
                         ?.get(0) ?: 0x00.toByte()))
                     pushOverlaySnapshot()
+                    updateTimeLeft()
                     val mode = ancNotification.status
                     val firstReport = listeningModeReports++ == 0
                     if (!firstReport && previousMode in 1..4 && mode in 1..4 && mode != previousMode && !appInForeground() &&
@@ -1629,20 +1634,42 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
 
-    var popupShown = false
+    private val cardGate = CardGate()
 
-    /** The connection card (bottom). Shown when the case opens nearby. */
-    @Suppress("UNUSED_PARAMETER")
-    fun showPopup(service: Service, name: String) {
-        if (!sharedPreferences.getBoolean("show_bottom_sheet_popup", true)) return
+    private val batteryEstimator by lazy {
+        BatteryEstimator(object : BatteryEstimator.RateStore {
+            override fun load(mode: Int): Float? =
+                sharedPreferences.getFloat("battery_rate_mode_$mode", -1f).takeIf { it > 0f }
+            override fun save(mode: Int, percentPerHour: Float) =
+                sharedPreferences.edit { putFloat("battery_rate_mode_$mode", percentPerHour) }
+        })
+    }
+
+    /** Feed the time-left estimator with the 1% battery levels from the AirPods' own link. */
+    private fun updateTimeLeft() {
+        val snap = PodsSnapshot.from("", batteryNotification.getBattery(), earDetectionNotification.status, ancNotification.status)
+        BatteryTimeLeft.publish(
+            batteryEstimator.update(
+                BatteryEstimator.Reading(
+                    timeMs = SystemClock.elapsedRealtime(),
+                    left = snap.left, right = snap.right, case = snap.case,
+                    leftCharging = snap.leftCharging, rightCharging = snap.rightCharging,
+                    leftInEar = snap.leftInEar, rightInEar = snap.rightInEar,
+                    mode = snap.listeningMode,
+                )
+            )
+        )
+    }
+
+    /** The optional bottom card, shown when the case opens nearby. Off unless turned on in Settings. */
+    fun showPopup(service: Service) {
+        if (!sharedPreferences.getBoolean("show_bottom_sheet_popup", false)) return
         if (!Settings.canDrawOverlays(service)) {
             Log.d(TAG, "No permission for SYSTEM_ALERT_WINDOW")
             return
         }
-        if (popupShown) return
         pushOverlaySnapshot(lidOpen = true)
         GlintOverlays.showCard(service)
-        popupShown = true
     }
 
     var islandOpen = false

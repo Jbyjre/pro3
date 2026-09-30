@@ -141,8 +141,8 @@
     <string name="show_phone_battery_in_widget">Show phone battery in widget</string>
     <string name="show_phone_battery_in_widget_description">Display your phone\'s battery level in the widget alongside AirPods battery</string>
     <string name="popup_animations">Popup Animations</string>
-    <string name="show_bottom_sheet_popup">Bottom sheet popup</string>
-    <string name="show_bottom_sheet_popup_description">Show the iOS-style modal popup at the bottom when AirPods connect.</string>
+    <string name="show_bottom_sheet_popup">Card when the case opens</string>
+    <string name="show_bottom_sheet_popup_description">Off by default. Shows a card at the bottom of the screen when you open the AirPods case nearby. The top island works either way.</string>
     <string name="show_island_popup">Dynamic Island popup</string>
     <string name="show_island_popup_description">Show the Dynamic Island-style popup at the top for connection and takeover events.</string>
     <string name="conversational_awareness_volume">Conversational Awareness Volume</string>
