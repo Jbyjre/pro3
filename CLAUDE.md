@@ -25,7 +25,9 @@
 - Screenshot tests: `./gradlew testFossDebugUnitTest --tests '*GlintScreenshots*'` writes PNGs to
   `android/app/build/screenshots`. Robolectric's Android image may need pre-downloading
   (Maven Central rate-limits it); point `ROBOLECTRIC_DEPS_DIR` at a folder containing the jar.
-- New Glint code lives in `presentation/glint` (art, glass, parts), `presentation/overlays`
+- Jake chose LibrePods' own AirPods pictures and 3D clips (res/drawable-nodpi/airpods_pro_2*,
+  res/raw*/connected.mp4, res/raw/island.mp4) over drawn artwork. Don't replace them with drawn art.
+- New Glint code lives in `presentation/glint` (glass, symbols, video, parts), `presentation/overlays`
   (island, card, overlay window), `services/GlintStatus.kt`, `bluetooth/AirPodsDetection.kt`,
   `bluetooth/ReconnectPolicy.kt`, `utils/CompanionLink.kt`. Hidden Glint Lab: Settings >
   About > tap "Version code" 7 times.

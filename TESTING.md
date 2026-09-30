@@ -17,7 +17,7 @@ A short checklist. Tick things off, and for anything that looks wrong, take a sc
 2. **This phone**: read what it says about your phone.
    - "Should work" or "Ready": continue.
    - "Waiting for One UI 9": your phone doesn't have the Android 17 Bluetooth fix yet. You can still continue. Check **Settings > Software update**.
-3. **Permissions**: tap **Grant all** and allow each. "Display over other apps" opens a settings page: find **Glint**, turn it on, then press back.
+3. **Permissions**: tap **Grant all** and allow each pop-up as it appears (Nearby devices, notifications, phone). It finishes on the "Display over other apps" page: turn **Glint** on, then press back. Each row should turn highlighted once allowed. If you refused something earlier, tapping its row opens Glint's settings page so you can allow it there.
 4. **Stay connected** (important on Samsung):
    1. **Link your AirPods**: tap **Link**, pick your AirPods in the pop-up, tap **Allow**. (Your AirPods must already be paired in Bluetooth settings.)
    2. **Allow unrestricted battery**: tap **Allow**, then **Allow** in the system pop-up.
@@ -30,7 +30,9 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 
 | Check | How | Expected |
 |---|---|---|
-| Connect | Open the case near the phone | The glass card rises from the bottom as a pill and springs open, showing the buds, case and battery |
+| Connect | Open the case near the phone | The glass card rises from the bottom as a pill and springs open; LibrePods' turning-AirPods clip plays smoothly in it (no white flash when it loops), with the battery below |
+| Main screen | Open Glint while connected | LibrePods' buds and case pictures with battery rings; the L/R and case marks and the charging bolt show as symbols, not empty boxes |
+| Unlock | Settings > **Unlock advanced features**, tap **Sponsor LibrePods & unlock**, stay on the page 5+ seconds, come back | Locked items (conversation awareness, head gestures, etc.) are now switchable. Also try going back to the home screen in between: it should still unlock |
 | Battery | Look at the card, the main screen, the notification | Left, right and case percentages match |
 | Listening modes | Switch modes in the app, then press-and-hold a stem | The app follows; a small island shows the mode you picked on the AirPods |
 | Ear detection | Take one AirPod out while music plays, put it back | Music pauses, then resumes |
@@ -51,9 +53,9 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 1. Open **Settings**, scroll to **About**, and tap **Version code** seven times. **Glint Lab** opens.
 2. The **Status** box says whether real window blur is available. Try it with **battery saver on and off**: the glass should switch between see-through blur and a clean frosted fill without looking broken.
 3. Use the sliders and switches to make fake AirPods data, then tap each button: **Show connect card**, and the island's **Connected, In ear, Low battery, Listening mode, Moved to iPad, Taking over, Case charging, Problem**.
-4. Try: tilt the phone while an overlay shows (the highlights should glide), tap the island (it grows into a card and the bubble melts back in), swipe the island up and the card down (both dismiss with a spring).
+4. Try: tilt the phone while an overlay shows (the highlights should glide), tap the island (it grows into a card and the bubble melts back in), swipe the island up and the card down (both dismiss with a spring). The island's small turning AirPods should float on the dark glass with no black square around them.
 5. **Main screen states**: preview "Bluetooth off", "Connecting", "Couldn't connect" and "Waiting".
-6. Also try **dark mode**, and **Settings > Accessibility > Visibility enhancements** options such as reduce animations and high-contrast text.
+6. Also try **dark mode** (the card's clip switches to its dark version), and **Settings > Accessibility > Visibility enhancements** options such as reduce animations (the clips become still pictures) and high-contrast text.
 
 ## F. Known limits (not bugs)
 

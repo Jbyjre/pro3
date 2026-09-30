@@ -1,32 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Glint icon: a glass orb catching a glint of light. Original artwork, GPL-3.0. -->
+<!-- Glint icon: a glossy earbuds case seen from the front, lid seam and status light on.
+     Original artwork, GPL-3.0. Kept inside the adaptive-icon safe zone (circle of 66dp). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <group android:scaleX="1.14" android:scaleY="1.14" android:pivotX="54" android:pivotY="54">
-    <!-- orb body -->
-    <path android:pathData="M54,30 A24,24 0 1,1 53.99,30 Z">
+    <!-- contact shadow -->
+    <path android:pathData="M31,76.5 C31,73.5 77,73.5 77,76.5 C77,79.5 31,79.5 31,76.5 Z">
         <aapt:attr name="android:fillColor">
-            <gradient android:type="linear" android:startX="54" android:startY="30" android:endX="54" android:endY="78"
-                android:startColor="#66FFFFFF" android:endColor="#14FFFFFF" />
+            <gradient android:type="radial" android:centerX="54" android:centerY="76.5" android:gradientRadius="24"
+                android:startColor="#73000000" android:endColor="#00000000" />
         </aapt:attr>
     </path>
-    <!-- top sheen -->
-    <path android:pathData="M38,44 C40,35 48,31 54,31 C60,31 68,35 70,44 C62,40 46,40 38,44 Z">
+    <!-- case body -->
+    <path android:pathData="M42,35 L66,35 Q79,35 79,48 L79,62 Q79,75 66,75 L42,75 Q29,75 29,62 L29,48 Q29,35 42,35 Z">
         <aapt:attr name="android:fillColor">
-            <gradient android:type="linear" android:startX="54" android:startY="31" android:endX="54" android:endY="44"
-                android:startColor="#B3FFFFFF" android:endColor="#00FFFFFF" />
+            <gradient android:type="linear" android:startX="54" android:startY="35" android:endX="54" android:endY="75"
+                android:startColor="#FFFFFFFF" android:centerColor="#FFF1F2F4" android:endColor="#FFD5D7DC" />
         </aapt:attr>
     </path>
-    <!-- rim -->
-    <path android:pathData="M54,30.6 A23.4,23.4 0 1,1 53.99,30.6 Z" android:strokeWidth="1.2">
-        <aapt:attr name="android:strokeColor">
-            <gradient android:type="linear" android:startX="40" android:startY="30" android:endX="68" android:endY="80"
-                android:startColor="#E6FFFFFF" android:centerColor="#26FFFFFF" android:endColor="#80FFFFFF" />
+    <!-- side shading so the case reads as rounded plastic -->
+    <path android:pathData="M42,35 L66,35 Q79,35 79,48 L79,62 Q79,75 66,75 L42,75 Q29,75 29,62 L29,48 Q29,35 42,35 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="29" android:startY="55" android:endX="79" android:endY="55"
+                android:startColor="#1F000000" android:centerColor="#00000000" android:endColor="#26000000" />
         </aapt:attr>
     </path>
-    <!-- the glint -->
-    <path android:fillColor="#FFFFFFFF" android:pathData="M72,24 C73,33 75,35 84,36 C75,37 73,39 72,48 C71,39 69,37 60,36 C69,35 71,33 72,24 Z" />
-    </group>
+    <!-- lid seam -->
+    <path android:pathData="M29.4,45.2 L78.6,45.2" android:strokeWidth="0.7" android:strokeColor="#40000000" />
+    <path android:pathData="M29.6,46.1 L78.4,46.1" android:strokeWidth="0.6" android:strokeColor="#B3FFFFFF" />
+    <!-- top highlight -->
+    <path android:pathData="M40,37.2 L68,37.2 Q74,37.2 76,41 Q66,39.6 54,39.6 Q42,39.6 32,41 Q34,37.2 40,37.2 Z"
+        android:fillColor="#E6FFFFFF" />
+    <!-- status light -->
+    <path android:pathData="M54,56.2 m-2.6,0 a2.6,2.6 0 1,0 5.2,0 a2.6,2.6 0 1,0 -5.2,0">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="54" android:centerY="56.2" android:gradientRadius="2.6"
+                android:startColor="#6630D158" android:endColor="#0030D158" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M54,56.2 m-1.05,0 a1.05,1.05 0 1,0 2.1,0 a1.05,1.05 0 1,0 -2.1,0" android:fillColor="#FF30D158" />
 </vector>
