@@ -93,7 +93,19 @@ fun Modifier.glintGlass(
  */
 object GlintLight {
     private val overhead = HighlightStyle.Default(angle = 90f, falloff = 2.2f)
-    fun rim(alpha: Float = 1f): Highlight = Highlight.Default.copy(alpha = alpha.coerceIn(0f, 1f), style = overhead)
+
+    /**
+     * How far the light has swung from straight overhead, in degrees (at most ±[GlassTilt.MAX]).
+     * [GlassTilt] moves it as you tilt the phone, like Apple's glass catching the light; it
+     * stays 0 (straight overhead) with Reduce motion or when the phone is still and level.
+     */
+    internal val swing = androidx.compose.runtime.mutableFloatStateOf(0f)
+
+    fun rim(alpha: Float = 1f): Highlight {
+        val s = swing.floatValue
+        val style = if (s == 0f) overhead else HighlightStyle.Default(angle = 90f + s, falloff = 2.2f)
+        return Highlight.Default.copy(alpha = alpha.coerceIn(0f, 1f), style = style)
+    }
 }
 
 fun glassTint(dark: Boolean, solid: Boolean): Color = when {

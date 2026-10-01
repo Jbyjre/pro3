@@ -364,7 +364,7 @@ fun AppSettingsScreen(
             // Problems go to Jake's own repository.
             StyledListItem(
                 name = "Report a Glint problem",
-                description = "Opens this fork's GitHub page",
+                description = "Opens Glint's GitHub page",
                 orientation = ListItemOrientation.Vertical,
                 onClick = {
                     val body = Uri.encode(

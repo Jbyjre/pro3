@@ -208,3 +208,20 @@ A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every
 - **More useful heart info:** a resting estimate (lowest 3-minute average), 1-minute recovery after the session's peak (shown when the peak is 100 BPM or more; the 12 BPM reference is from Cole et al., NEJM 1999), and "Export readings" (CSV through the share sheet). The expanded island shows the live BPM while you measure.
 - Code: `services/HeartLink.kt` (outlets, wired from the service), `presentation/screens/HeartShareScreen.kt`, `HeartInsights.restingEstimate/recovery/csv`.
 - **Not verified on the phone:** pairing a watch or app to the Bluetooth sensor, a real web address receiving posts, Tasker receiving the broadcast.
+
+## 15. Background heart rate, glass that catches the light, sweep fixes
+
+- **Measure whenever worn** (Heart rate screen, off by default). When a bud goes in, Glint starts measuring by itself; a minute after both come out it stops and saves the stretch under Earlier. It runs in Glint's existing hidden background service, so there's no notification and it works with the app closed.
+  - **Lower cost:** it asks the AirPods for a reading about every 5 seconds instead of every second. If they don't send at that rate, it falls back to every second. The request type that worked is remembered, so later starts are quicker.
+  - Pressing Stop pauses it until the buds next go in.
+  - Sessions are also saved every 10 minutes, and a break of over 30 minutes starts a new session.
+  - **Not verified on the phone:** whether the AirPods honour the 5-second rate, and the actual battery cost.
+- **Glass catches the light.** Apple's own description says Liquid Glass "dynamically reacts to movement with specular highlights". Glint's rim light now swings gently as you tilt the phone sideways, at most 14 degrees, using the gravity sensor only while the app is on screen. Held level, it's exactly the straight-overhead light from before. It's off with Reduce motion. **Not verified on the phone.**
+- **Heart glow:** a soft red glow behind the heart swells with each beat.
+- **Sweep fixes:**
+  - Heart rate didn't resume after a quick reconnect (within 30 s), because the resume sat behind the island's once-per-30-seconds check. It now resumes every time.
+  - After a disconnect, a running measurement could block restarting.
+  - Heart-rate requests now wait until the connection's set-up burst is over.
+  - A busy island (several events in a row) could be mistaken for a stuck one and flicker.
+  - "Report a problem" no longer says "fork".
+  - Lint shows no errors. Its remaining warnings are harmless: unused upstream resources, and false "typos" inside certificate data.

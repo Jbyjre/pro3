@@ -96,6 +96,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.mutableLongStateOf
 import me.kavishdevar.librepods.services.LinkState
 import me.kavishdevar.librepods.services.PREF_HR_ALERT
+import me.kavishdevar.librepods.services.PREF_HR_ALWAYS
 import me.kavishdevar.librepods.services.PREF_HR_ALERT_BPM
 import me.kavishdevar.librepods.services.ServiceManager
 import java.text.DateFormat
@@ -281,6 +282,34 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}) {
             }
         }
 
+        // Always-on.
+        var always by remember { mutableStateOf(prefs.getBoolean(PREF_HR_ALWAYS, false)) }
+        Column(Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(horizontal = 4.dp)) {
+            StyledToggle(
+                label = "Measure whenever worn",
+                description = when {
+                    !always -> "Even with Glint closed, no notification"
+                    state.background && live -> "On now, about every 5 seconds"
+                    else -> "Starts when you put your AirPods in"
+                },
+                checked = always,
+                onCheckedChange = {
+                    always = it
+                    prefs.edit { putBoolean(PREF_HR_ALWAYS, it) }
+                    ServiceManager.getService()?.autoHeartRate()
+                }
+            )
+            Row(Modifier.padding(start = 14.dp, end = 6.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("How it saves battery", modifier = Modifier.weight(1f), style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted))
+                InfoTip(
+                    "Measure whenever worn",
+                    "Glint starts measuring when a bud goes in and stops a minute after both come out; each stretch is saved under Earlier. " +
+                        "It asks your AirPods for a reading about every 5 seconds instead of every second, to save battery (if they don't accept that, it uses every second). " +
+                        "Pressing Stop pauses it until you next put your AirPods in. The extra battery use on the AirPods hasn't been measured."
+                )
+            }
+        }
+
         // Alert.
         var alert by remember { mutableStateOf(prefs.getBoolean(PREF_HR_ALERT, false)) }
         var limit by remember { mutableIntStateOf(prefs.getInt(PREF_HR_ALERT_BPM, 140)) }
@@ -430,6 +459,18 @@ private fun BeatingHeart(bpm: Int?, color: Color) {
             delay((period - 330).coerceAtLeast(0))
         }
     }
+    // A soft glow that swells with each beat, so the reading feels alive behind the glass.
+    Box(Modifier.size(width = 120.dp, height = 56.dp), contentAlignment = Alignment.Center) {
+    if (bpm != null) Canvas(Modifier.size(120.dp, 56.dp)) {
+        val beat = ((scale.value - 1f) / 0.14f).coerceIn(0f, 1f)
+        drawCircle(
+            androidx.compose.ui.graphics.Brush.radialGradient(
+                listOf(color.copy(alpha = 0.16f + 0.18f * beat), Color.Transparent),
+                center = center, radius = size.height * (0.85f + 0.25f * beat)
+            ),
+            radius = size.height * (0.85f + 0.25f * beat)
+        )
+    }
     Canvas(Modifier.size(44.dp).graphicsLayer { scaleX = scale.value; scaleY = scale.value }) {
         val w = size.width
         val h = size.height
@@ -442,6 +483,7 @@ private fun BeatingHeart(bpm: Int?, color: Color) {
             close()
         }
         drawPath(p, if (bpm == null) color.copy(alpha = 0.35f) else color)
+    }
     }
 }
 
