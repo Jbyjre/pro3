@@ -154,7 +154,7 @@ fun HeadTrackingScreen(viewModel: AirPodsViewModel, navigateToPurchase: () -> Un
                 label = "Head Gestures",
                 checked = state.headGesturesEnabled,
                 onCheckedChange = { viewModel.setHeadGesturesEnabled(it) },
-                description = "Nod to answer a call, shake your head to decline. Works while a call rings and your AirPods are in.",
+                description = stringResource(R.string.head_gestures_details),
                 header = true
             )
 
@@ -424,7 +424,7 @@ private fun HeadPosition() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            if (live) "Tracking your head: $words" else "Waiting for motion from your AirPods… Put both buds in.",
+            if (live) "Facing $words" else "Waiting for motion… put both buds in",
             style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = glintFontFamily, color = ink, textAlign = TextAlign.Center),
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
         )

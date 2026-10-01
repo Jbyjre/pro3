@@ -85,6 +85,11 @@ import me.kavishdevar.librepods.presentation.glint.GlintComfort
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.services.GlintStatus
 import me.kavishdevar.librepods.services.HeartRate
+import me.kavishdevar.librepods.services.HeartInsights
+import me.kavishdevar.librepods.presentation.components.InfoTip
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.mutableLongStateOf
 import me.kavishdevar.librepods.services.LinkState
 import me.kavishdevar.librepods.services.PREF_HR_ALERT
 import me.kavishdevar.librepods.services.PREF_HR_ALERT_BPM
@@ -95,13 +100,16 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
+private const val PREF_HR_AGE = "glint_hr_age"
+
 /** Heart-rate line colours, checked for contrast and lightness on the light and dark cards. */
 private val HeartLight = Color(0xFFE0303A)
 private val HeartDark = Color(0xFFF04A50)
 
 /**
- * Heart rate from the AirPods Pro 3's sensor: the live number with a heart that beats at
- * that rate, this session's line, lowest / average / highest, and an optional alert.
+ * Heart rate from the AirPods Pro 3's sensor: the live number with a heart that beats at that
+ * rate, what it means (effort zone), this session's line and trend, time in each zone, earlier
+ * sessions, and an optional alert. Longer explanations sit behind small "i" buttons.
  */
 @Composable
 fun HeartRateScreen() {
@@ -118,6 +126,11 @@ fun HeartRateScreen() {
     val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp
     val connected = link is LinkState.Connected
     val measuring = state.status != HeartRate.Status.Off
+    val live = state.status == HeartRate.Status.Live
+    var age by remember { mutableIntStateOf(prefs.getInt(PREF_HR_AGE, 0)) }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { delay(5_000); now = System.currentTimeMillis() } }
+    val history = remember(state.status) { HeartRate.history(context) }
 
     Column(
         Modifier
@@ -131,25 +144,29 @@ fun HeartRateScreen() {
 
         // Live reading.
         Column(
-            Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(vertical = 26.dp, horizontal = 20.dp),
+            Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(vertical = 24.dp, horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            BeatingHeart(bpm = state.bpm.takeIf { state.status == HeartRate.Status.Live }, color = accent)
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
+            BeatingHeart(bpm = state.bpm.takeIf { live }, color = accent)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
                 Text(
-                    state.bpm?.takeIf { state.status == HeartRate.Status.Live }?.toString() ?: "--",
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 64.sp, fontWeight = FontWeight.SemiBold, color = ink)
+                    state.bpm?.takeIf { live }?.toString() ?: "--",
+                    modifier = Modifier.alignByBaseline(),
+                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 60.sp, fontWeight = FontWeight.SemiBold, color = ink)
                 )
                 Spacer(Modifier.width(6.dp))
-                Text("BPM", style = TextStyle(fontFamily = glintFontFamily, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = muted), modifier = Modifier.padding(bottom = 14.dp))
+                Text("BPM", modifier = Modifier.alignByBaseline(), style = TextStyle(fontFamily = glintFontFamily, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = muted))
             }
-            Text(
-                statusLine(state.status, connected),
-                style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, color = muted, textAlign = TextAlign.Center)
-            )
-            Spacer(Modifier.height(18.dp))
+            val bpm = state.bpm
+            if (live && bpm != null && age > 0) {
+                val z = HeartInsights.zone(bpm, age)
+                Text("${z.label} effort", style = TextStyle(fontFamily = glintFontFamily, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = accent))
+                Text(z.meaning, style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted, textAlign = TextAlign.Center))
+            } else {
+                Text(statusLine(state.status, connected), style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, color = muted, textAlign = TextAlign.Center))
+            }
+            Spacer(Modifier.height(16.dp))
             StyledButton(
                 onClick = {
                     val service = ServiceManager.getService()
@@ -160,7 +177,7 @@ fun HeartRateScreen() {
                 enabled = connected || measuring,
             ) {
                 Text(
-                    if (measuring) "Stop measuring" else "Start measuring",
+                    if (measuring) "Stop" else "Start measuring",
                     style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = ink),
                     modifier = Modifier.padding(horizontal = 10.dp)
                 )
@@ -168,15 +185,20 @@ fun HeartRateScreen() {
         }
 
         // This session.
-        Column(Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(18.dp)) {
-            Text("This session", style = TextStyle(fontFamily = glintFontFamily, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = ink))
-            Spacer(Modifier.height(12.dp))
-            if (state.samples.size < 2) {
-                Text(
-                    "Your heart rate over time appears here once readings arrive.",
-                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, color = muted)
-                )
-            } else {
+        if (state.samples.size >= 2) {
+            Column(Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(18.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("This session", modifier = Modifier.weight(1f), style = TextStyle(fontFamily = glintFontFamily, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = ink))
+                    HeartInsights.trend(state.samples, now)?.takeIf { live }?.let {
+                        Text(it.words, style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted), modifier = Modifier.padding(end = 12.dp))
+                    }
+                    Text(
+                        "Reset",
+                        style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = accent),
+                        modifier = Modifier.clickable { HeartRate.clear() }.padding(6.dp)
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
                 HeartChart(state.samples, accent, ink, card, dark)
                 Spacer(Modifier.height(14.dp))
                 Row(Modifier.fillMaxWidth()) {
@@ -184,12 +206,31 @@ fun HeartRateScreen() {
                     Stat("Average", state.average, ink, muted, Modifier.weight(1f))
                     Stat("Highest", state.max, ink, muted, Modifier.weight(1f))
                 }
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Reset",
-                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = accent),
-                    modifier = Modifier.pointerInput(Unit) { detectTapGestures { HeartRate.clear() } }.padding(vertical = 6.dp)
+                if (age > 0) {
+                    Spacer(Modifier.height(16.dp))
+                    ZoneBar(HeartInsights.timeInZones(state.samples, age), accent, ink, muted)
+                }
+            }
+        }
+
+        // Effort zones need an age.
+        Column(Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(horizontal = 18.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Effort zones", style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, color = ink))
+                    Text(
+                        if (age > 0) "Age $age · max about ${HeartInsights.maxHeartRate(age)} BPM" else "Add your age to see them",
+                        style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted)
+                    )
+                }
+                InfoTip(
+                    "Effort zones",
+                    "Based on the American Heart Association's guidance: your maximum heart rate is about 220 minus your age. " +
+                        "Moderate effort is 50–70% of it, vigorous 70–85%. A normal resting rate for most adults is 60–100 BPM."
                 )
+                Stepper("−", ink, dark) { age = if (age == 0) 30 else (age - 1).coerceAtLeast(13); prefs.edit { putInt(PREF_HR_AGE, age) } }
+                Spacer(Modifier.width(8.dp))
+                Stepper("+", ink, dark) { age = if (age == 0) 30 else (age + 1).coerceAtMost(90); prefs.edit { putInt(PREF_HR_AGE, age) } }
             }
         }
 
@@ -198,13 +239,13 @@ fun HeartRateScreen() {
         var limit by remember { mutableIntStateOf(prefs.getInt(PREF_HR_ALERT_BPM, 140)) }
         Column(Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(horizontal = 4.dp)) {
             StyledToggle(
-                label = "Alert when it's high",
-                description = "A notification if your heart rate goes above $limit BPM while measuring (at most every 10 minutes).",
+                label = "High heart rate alert",
+                description = if (alert) "Above $limit BPM, at most every 10 minutes" else null,
                 checked = alert,
                 onCheckedChange = { alert = it; prefs.edit { putBoolean(PREF_HR_ALERT, it) } }
             )
             if (alert) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Limit", style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, color = ink), modifier = Modifier.weight(1f))
                     Stepper("−", ink, dark) { limit = (limit - 5).coerceAtLeast(90); prefs.edit { putInt(PREF_HR_ALERT_BPM, limit) } }
                     Text("$limit BPM", style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = ink, textAlign = TextAlign.Center), modifier = Modifier.width(96.dp))
@@ -213,22 +254,69 @@ fun HeartRateScreen() {
             }
         }
 
-        Text(
-            "Measured by the heart-rate sensor in AirPods Pro 3 while you wear them; wear both buds snugly. " +
-                "Readings stay on this phone and are for general fitness, not medical use. Measuring keeps running in the background until you stop it.",
-            style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted),
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
+        // Earlier sessions.
+        if (history.isNotEmpty()) {
+            Column(Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(vertical = 8.dp)) {
+                Text("Earlier", modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp), style = TextStyle(fontFamily = glintFontFamily, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = ink))
+                val dateFmt = remember { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT) }
+                history.take(5).forEach { h ->
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(dateFmt.format(Date(h.startMs)), style = TextStyle(fontFamily = glintFontFamily, fontSize = 15.sp, color = ink))
+                            Text("${(h.endMs - h.startMs) / 60_000} min · ${h.min}–${h.max} BPM", style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted))
+                        }
+                        Text("${h.average}", style = TextStyle(fontFamily = glintFontFamily, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = ink))
+                        Text(" avg", style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted))
+                    }
+                }
+            }
+        }
+
+        Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("For fitness, not medical use", style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted))
+            InfoTip(
+                "About these readings",
+                "Measured by the sensor in AirPods Pro 3 while you wear them; a snug fit in both ears gives the steadiest readings. " +
+                    "Readings stay on this phone. Measuring continues in the background until you stop it."
+            )
+        }
         Spacer(Modifier.height(bottomPadding))
     }
 }
 
+/** Time in each effort zone this session, as one bar from light to peak with labels. */
+@Composable
+private fun ZoneBar(times: Map<HeartInsights.Zone, Long>, accent: Color, ink: Color, muted: Color) {
+    val total = times.values.sum().coerceAtLeast(1)
+    val shades = listOf(0.25f, 0.5f, 0.75f, 1f)
+    Text("Time in zones", style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = muted))
+    Spacer(Modifier.height(6.dp))
+    Row(Modifier.fillMaxWidth().height(10.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        HeartInsights.Zone.entries.forEachIndexed { i, z ->
+            val secs = times[z] ?: 0
+            if (secs > 0) Box(Modifier.weight(secs.toFloat() / total).fillMaxSize().background(accent.copy(alpha = shades[i]), RoundedCornerShape(4.dp)))
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    // Only the zones you were in, so the legend stays short.
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        HeartInsights.Zone.entries.forEachIndexed { i, z ->
+            val secs = times[z] ?: 0
+            if (secs >= 30) Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(8.dp).background(accent.copy(alpha = shades[i]), CircleShape))
+                Spacer(Modifier.width(5.dp))
+                Text("${z.label} ${(secs + 30) / 60} min", maxLines = 1, style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, color = ink.copy(alpha = 0.75f)))
+            }
+        }
+    }
+}
+
 private fun statusLine(status: HeartRate.Status, connected: Boolean): String = when (status) {
-    HeartRate.Status.Off -> if (connected) "Not measuring" else "Connect your AirPods to measure"
-    HeartRate.Status.Starting -> "Starting the sensor…"
-    HeartRate.Status.Live -> "Live from your AirPods"
-    HeartRate.Status.NoSignal -> "No reading. Make sure both buds are in and fit snugly."
-    HeartRate.Status.NotConnected -> "Waiting for the AirPods' controls to connect"
+    HeartRate.Status.Off -> if (connected) "Not measuring" else "Connect your AirPods first"
+    HeartRate.Status.Starting -> "Starting…"
+    HeartRate.Status.Live -> "Live"
+    HeartRate.Status.NoSignal -> "No reading. Check both buds fit snugly"
+    HeartRate.Status.NotConnected -> "Waiting for the AirPods"
 }
 
 @Composable

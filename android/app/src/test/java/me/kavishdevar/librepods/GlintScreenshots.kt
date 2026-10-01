@@ -99,7 +99,6 @@ class GlintScreenshots {
     fun stillFramesOnly() {
         // No video decoder under Robolectric: overlays show the clips' still frames.
         PodsVideoConfig.enabled = false
-        me.kavishdevar.librepods.presentation.glint.PodsSpinnerConfig.idleTurn = false
     }
 
     /** Every replacement for the old SF Symbols, large and at text size, plus battery rings. */

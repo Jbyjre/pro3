@@ -25,7 +25,7 @@ class CommandFeedbackTest {
         CommandFeedback.received(mode, byteArrayOf(2))
         val n = CommandFeedback.notice.value!!
         assertEquals(Kind.Failed, n.kind)
-        assertTrue(n.text.startsWith("Your AirPods stayed in Noise Cancellation"))
+        assertEquals("AirPods stayed in Noise Cancellation", n.text)
     }
 
     @Test fun saysWhenNothingCouldBeSent() {
@@ -38,7 +38,7 @@ class CommandFeedbackTest {
         CommandFeedback.timedOut(3)
         val n = CommandFeedback.notice.value!!
         assertEquals(Kind.Failed, n.kind)
-        assertTrue(n.text.contains("didn't confirm Transparency"))
+        assertEquals("AirPods didn't switch to Transparency", n.text)
     }
 
     @Test fun stemChangesWithoutARequestStayQuiet() {

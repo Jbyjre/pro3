@@ -37,6 +37,9 @@ import android.os.IBinder
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import me.kavishdevar.librepods.presentation.theme.ProvideAppearance
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
@@ -95,6 +98,17 @@ class MainActivity : ComponentActivity() {
                     sharedPreferences.unregisterOnSharedPreferenceChangeListener(sharedPreferenceChangeListener)
                 }
             }
+            ProvideAppearance(this) {
+            val dark = isSystemInDarkTheme()
+            LaunchedEffect(dark) {
+                // Status and navigation bar icons follow the chosen appearance, not just the phone's.
+                enableEdgeToEdge(
+                    statusBarStyle = if (dark) SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                        else SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+                    navigationBarStyle = if (dark) SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                        else SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+                )
+            }
             LibrePodsTheme(
                 m3eEnabled = m3eEnabled.value
             ) {
@@ -104,6 +118,7 @@ class MainActivity : ComponentActivity() {
 //                windowInsetsController.hide(WindowInsetsCompat.Type.statusBars())
 
                 Main()
+            }
             }
         }
     }

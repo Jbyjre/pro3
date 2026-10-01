@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.delay
 import me.kavishdevar.librepods.audio.AirPodsRecorder
+import me.kavishdevar.librepods.presentation.components.InfoTip
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.services.GlintStatus
 import me.kavishdevar.librepods.services.LinkState
@@ -122,11 +123,11 @@ fun RecorderScreen() {
             Text(
                 when {
                     error != null -> error!!
-                    !connected && !rec.recording -> "Connect your AirPods' controls to record"
-                    rec.recording && rec.frames == 0 && elapsed >= 4 -> "No audio is arriving. This firmware may not support it."
-                    rec.recording && rec.frames == 0 -> "Starting the AirPods' microphones…"
-                    rec.recording -> "Recording from your AirPods"
-                    else -> "Records with the AirPods' microphones"
+                    !connected && !rec.recording -> "Connect your AirPods to record"
+                    rec.recording && rec.frames == 0 && elapsed >= 4 -> "No audio yet. Your firmware may not support this"
+                    rec.recording && rec.frames == 0 -> "Starting…"
+                    rec.recording -> "Recording"
+                    else -> "Uses your AirPods' microphones"
                 },
                 style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, color = muted, textAlign = TextAlign.Center)
             )
@@ -188,12 +189,14 @@ fun RecorderScreen() {
             }
         }
 
-        Text(
-            "Experimental. This uses the same microphone stream Apple devices use, so music can keep playing in high quality while you record. " +
-                "It may not work with every AirPods firmware; if no audio arrives, the screen says so. Recordings stay on this phone.",
-            style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted),
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
+        Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Experimental", style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted))
+            InfoTip(
+                "About the recorder",
+                "Uses the same microphone stream Apple devices use, so music can stay in high quality while you record. " +
+                    "It may not work with every AirPods firmware; if no audio arrives, the screen says so. Recordings stay on this phone."
+            )
+        }
         Spacer(Modifier.height(bottomPadding))
     }
 }

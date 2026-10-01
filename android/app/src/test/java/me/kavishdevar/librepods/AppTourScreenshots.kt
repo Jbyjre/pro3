@@ -16,7 +16,6 @@ import me.kavishdevar.librepods.presentation.viewmodel.AirPodsViewModel
 import me.kavishdevar.librepods.services.GlintStatus
 import me.kavishdevar.librepods.services.LinkState
 import org.junit.Before
-import me.kavishdevar.librepods.presentation.glint.PodsSpinnerConfig
 import me.kavishdevar.librepods.services.BatteryEstimate
 import me.kavishdevar.librepods.services.BatteryEstimator
 import me.kavishdevar.librepods.services.BatteryTimeLeft
@@ -47,7 +46,6 @@ class AppTourScreenshots {
     @Before
     fun setUp() {
         PodsVideoConfig.enabled = false
-        PodsSpinnerConfig.idleTurn = false
         context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().clear().commit()
         BillingManager.provider = FOSSBillingProvider(context)
         GlintStatus.set(LinkState.Idle)
@@ -105,6 +103,11 @@ class AppTourScreenshots {
             val bpm = (72 + 14 * kotlin.math.sin(i / 90.0) + (if (i in 600..760) 38 else 0) * kotlin.math.sin((i - 600) / 160.0 * Math.PI)).toInt()
             me.kavishdevar.librepods.services.HeartRate.reading(bpm, t0 + i * 1000L)
         }
+        val day = 24 * 3600_000L
+        context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit()
+            .putInt("glint_hr_age", 30)
+            .putString("glint_hr_sessions", "${t0 - day},${t0 - day + 41 * 60_000},96,62,151\n${t0 - 2 * day},${t0 - 2 * day + 18 * 60_000},74,58,92")
+            .commit()
         both("31_heart_rate", listOf(Screen.HeartRate))
         tour("31_heart_rate", dark = true, stack = listOf(Screen.HeartRate))
         me.kavishdevar.librepods.services.HeartRate.status(me.kavishdevar.librepods.services.HeartRate.Status.Off)

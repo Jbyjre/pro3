@@ -1765,6 +1765,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             aacpManager.sendSensorInterval(hrService, 0L)
         }
         hrService = 0
+        HeartRate.saveSession(this)
         HeartRate.status(HeartRate.Status.Off)
     }
 

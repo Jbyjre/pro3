@@ -79,7 +79,8 @@ internal class OverlayWindow(
             Log.d(tag, "No overlay permission")
             return false
         }
-        val composeView = ComposeView(context).apply {
+        // The pop-ups follow Glint's light/dark choice, pictures and clips included.
+        val composeView = ComposeView(me.kavishdevar.librepods.presentation.theme.GlintAppearance.context(context)).apply {
             setViewTreeLifecycleOwner(this@OverlayWindow)
             setViewTreeSavedStateRegistryOwner(this@OverlayWindow)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)

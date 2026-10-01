@@ -173,3 +173,15 @@ A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every
   - Find My and head-tracked spatial audio aren't in LibrePods either.
 - **Remaining name traces** are internal only: the code package name, style names and the licence headers in source files. Translated text that mentioned LibrePods now says Glint.
 
+## 12. Hold to open, smooth spin again, light/dark, heart-rate insights, less text
+
+- **Island.** The big "Open Glint" button is gone. **Hold the island** (half a second) to open Glint; a tap still expands or collapses it. A small "Use here" / "Dismiss" pill shows only when it's needed.
+- **Spinning AirPods glitch.** The previous round drew 48 still frames and blended each into the next. That spaced the poses unevenly and briefly showed two poses at once, which looked like glitching. The island is back to playing the original clip as a video (the smooth version you liked). The still frames were removed.
+- **Light and dark mode.** Settings > Appearance: Automatic, Light or Dark, for the whole app and the island/card. The island now has a light version (frosted white with dark text) as well as the dark one. The status-bar icons follow the choice.
+- **Heart rate.**
+  - The number and "BPM" now line up, and Reset sits in the session header.
+  - With your age set, the screen shows your **effort zone** (Light / Moderate / Vigorous / Peak) and time spent in each zone. The zones follow American Heart Association guidance as reported by secondary sources: maximum about 220 minus age; moderate 50–70%, vigorous 70–85%; resting 60–100 BPM for most adults. AHA's own page was blocked from the cloud session.
+  - It also shows a **trend** (rising / steady / coming down, over the last 2 minutes compared with the 3 before) and your **earlier sessions** (the last 20 sessions that lasted a minute or more are kept).
+- **Less text.** Descriptions were trimmed across the app. Longer explanations moved behind small "i" buttons that open a bubble (time left, effort zones, the recorder, reading notes).
+- **Idea for later (not started):** share heart-rate readings with Jake's other personal Claude apps. A simple route is a local export (a file, or Android's share sheet) or Health Connect, which needs a library the offline cloud build can't fetch yet. Decide the target apps first.
+
