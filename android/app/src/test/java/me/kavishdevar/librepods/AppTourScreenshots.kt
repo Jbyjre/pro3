@@ -16,6 +16,11 @@ import me.kavishdevar.librepods.presentation.viewmodel.AirPodsViewModel
 import me.kavishdevar.librepods.services.GlintStatus
 import me.kavishdevar.librepods.services.LinkState
 import org.junit.Before
+import me.kavishdevar.librepods.presentation.components.StyledListItem
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import me.kavishdevar.librepods.services.BatteryEstimate
 import me.kavishdevar.librepods.services.BatteryEstimator
 import me.kavishdevar.librepods.services.BatteryTimeLeft
@@ -71,6 +76,36 @@ class AppTourScreenshots {
     }
 
     @Test fun home() = both("01_home", emptyList())
+    /** The whole main screen, top to bottom (it's longer than the standard tour window). */
+    @Test fun homeFull() {
+        RuntimeEnvironment.setQualifiers("w412dp-h3400dp-xxhdpi")
+        val vm = AirPodsViewModel().apply { activateDemoMode() }
+        rule.setContent { LibrePodsTheme(m3eEnabled = false) { NavigationRoot(airPodsViewModel = vm) } }
+        rule.mainClock.advanceTimeBy(2_000)
+        rule.onRoot().captureRoboImage("$out/01d_home_full.png")
+    }
+    /** The rows from the "Needs a rooted phone" list, which used to wrap into each other. */
+    @Test fun longListRows() {
+        RuntimeEnvironment.setQualifiers("w412dp-h915dp-night-xxhdpi")
+        rule.setContent {
+            LibrePodsTheme(m3eEnabled = false) {
+                androidx.compose.foundation.layout.Column(
+                    androidx.compose.ui.Modifier.fillMaxSize()
+                        .background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer)
+                        .padding(16.dp)
+                ) {
+                    me.kavishdevar.librepods.presentation.components.StyledList(title = "Needs a rooted phone") {
+                        StyledListItem(name = "Hearing Aid", description = "Hearing aid mode and hearing test", enabled = false, onClick = null)
+                        StyledListItem(name = "Loud Sound Reduction", description = "Softens loud noise", enabled = false, onClick = null)
+                        StyledListItem(name = "Transparency customization", description = "Amplification, tone and balance", enabled = false, onClick = null)
+                        StyledListItem(name = "System battery display", description = "Battery in Android's Bluetooth settings", enabled = false, onClick = null)
+                    }
+                }
+            }
+        }
+        rule.mainClock.advanceTimeBy(800)
+        rule.onRoot().captureRoboImage("$out/33_long_rows_dark.png")
+    }
     @Test fun homeDark() = tour("01_home", dark = true, stack = emptyList())
     @Test fun homeDisconnected() = both("02_home_disconnected", emptyList(), demo = false)
     @Test fun homeDisconnectedDark() = tour("02_home_disconnected", dark = true, stack = emptyList(), demo = false)

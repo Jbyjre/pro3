@@ -52,6 +52,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -238,6 +239,11 @@ internal fun IslandHost(
     var press by remember { mutableFloatStateOf(0f) }
     var touch by remember { mutableStateOf<Offset?>(null) }
     var dragY by remember { mutableFloatStateOf(0f) }
+    // Touch response, like Apple's interactive glass: squish on press, bounce on release,
+    // and a rubbery stretch that follows the finger and springs back.
+    val squish = remember { Animatable(1f) }
+    val pull = remember { Animatable(0f) }
+    val touchScope = rememberCoroutineScope()
     val currentPhase by rememberUpdatedState(phase)
 
     val morph = if (reduceMotion) tween<Float>(160) else spring(dampingRatio = 0.72f, stiffness = 340f)
@@ -304,8 +310,12 @@ internal fun IslandHost(
         val s = split.value
         val mainW0 = lerp(geometry.tiny, geometry.compactMainW, a)
         val mainH0 = lerp(geometry.tiny, geometry.compactH, a)
-        val w = lerp(mainW0, geometry.expandedW, e)
-        val h = lerp(mainH0, geometry.expandedH, eh).coerceAtLeast(1f)
+        val sq = squish.value
+        val p = pull.value
+        // Pulling down stretches the glass (with resistance), keeping its volume roughly constant.
+        val stretch = (p.coerceAtLeast(0f) * 0.22f).coerceAtMost(26f * density)
+        val w = lerp(mainW0, geometry.expandedW, e) * sq - stretch * 0.35f
+        val h = (lerp(mainH0, geometry.expandedH, eh) * sq + stretch).coerceAtLeast(1f)
         val radius = lerp(h / 2f, geometry.expandedRadius, e).coerceAtMost(h / 2f)
         val satR = geometry.satD / 2f * a * (1f - e)
         // Satellite travels from tucked inside the pill's right cap to a small gap beside it.
@@ -313,7 +323,7 @@ internal fun IslandHost(
         val protrude = lerp(tucked, geometry.satGap + geometry.satD, s) * (1f - e)
         val groupW = w + max(0f, protrude)
         val left = (windowWidth - groupW) / 2f
-        val top = geometry.margin + dragY.coerceAtMost(0f) * 0.35f
+        val top = geometry.margin + p.coerceAtMost(0f) * 0.35f + (1f - sq) * lerp(geometry.compactH, geometry.expandedH, eh) / 2f
         val main = Rect(left, top, left + w, top + h)
         val satCenter = Offset(main.right - geometry.satD / 2f + protrude, main.top + minOf(h, geometry.compactH) / 2f)
         return IslandFrame(main, radius, satCenter, satR, a, e, s)
@@ -327,6 +337,7 @@ internal fun IslandHost(
                     val down = awaitFirstDown()
                     touch = down.position
                     press = 1f
+                    if (!reduceMotion) touchScope.launch { squish.animateTo(0.965f, spring(0.8f, 900f)) }
                     var totalY = 0f
                     var totalX = 0f
                     var moved = false
@@ -342,6 +353,7 @@ internal fun IslandHost(
                             totalX += ch.positionChange().x
                             if (kotlin.math.abs(totalY) > 8f * density || kotlin.math.abs(totalX) > 8f * density) moved = true
                             dragY = totalY
+                            if (!reduceMotion) touchScope.launch { pull.snapTo(totalY) }
                             touch = ch.position
                         }
                     }
@@ -362,10 +374,15 @@ internal fun IslandHost(
                     } else if (dragY < -28f * density) {
                         haptics.dismiss()
                         onPhase(IslandPhase.Leaving)
+                    } else if (dragY > 36f * density && currentPhase == IslandPhase.Compact) {
+                        // Pulling the island down opens it, like pulling a drop of glass.
+                        onPhase(IslandPhase.Expanded)
                     } else if (!moved && currentPhase != IslandPhase.Leaving) {
                         onPhase(if (currentPhase == IslandPhase.Expanded) IslandPhase.Compact else IslandPhase.Expanded)
                     }
                     dragY = 0f
+                    touchScope.launch { squish.animateTo(1f, if (reduceMotion) tween(120) else spring(0.42f, 420f)) }
+                    touchScope.launch { pull.animateTo(0f, if (reduceMotion) tween(120) else spring(0.5f, 380f)) }
                 }
             }
             .semantics {

@@ -51,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -74,6 +75,7 @@ import me.kavishdevar.librepods.presentation.theme.glintFontFamily
  */
 @Composable
 fun InfoTip(title: String, text: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     val dark = isSystemInDarkTheme()
     val ink = if (dark) Color.White else Color.Black
     var open by remember { mutableStateOf(false) }
@@ -95,6 +97,17 @@ fun InfoTip(title: String, text: String, modifier: Modifier = Modifier) {
                 onDismissRequest = { open = false },
                 properties = PopupProperties(focusable = true),
             ) {
+                // The bubble grows out of the "i", like a glass control expanding into a sheet.
+                val shown = remember { androidx.compose.animation.core.MutableTransitionState(false) }.apply { targetState = true }
+                val reduceMotion = remember { GlintComfort.reduceMotion(context) }
+                androidx.compose.animation.AnimatedVisibility(
+                    visibleState = shown,
+                    enter = if (reduceMotion) androidx.compose.animation.fadeIn(tween(120)) else
+                        androidx.compose.animation.fadeIn(tween(140)) + androidx.compose.animation.scaleIn(
+                            spring(0.72f, 420f), initialScale = 0.6f,
+                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
+                        ),
+                ) {
                 Column(
                     Modifier
                         .padding(horizontal = 24.dp)
@@ -106,6 +119,7 @@ fun InfoTip(title: String, text: String, modifier: Modifier = Modifier) {
                 ) {
                     Text(title, style = TextStyle(fontFamily = glintFontFamily, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = ink))
                     Text(text, modifier = Modifier.padding(top = 4.dp), style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, lineHeight = 19.sp, color = ink.copy(alpha = 0.75f)))
+                }
                 }
             }
         }
@@ -136,6 +150,12 @@ fun AppearancePicker(modifier: Modifier = Modifier) {
                 .offset { IntOffset(x.roundToPx(), 0) }
                 .width(segment)
                 .fillMaxHeight()
+                .graphicsLayer {
+                    // Liquid thumb: stretches along its travel, settles with a little give.
+                    val travel = (kotlin.math.abs((segment * selected - x).toPx()) / segment.toPx()).coerceIn(0f, 1f)
+                    scaleX = 1f + 0.25f * travel
+                    scaleY = 1f - 0.06f * travel
+                }
                 .background(if (dark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.07f), RoundedCornerShape(18.dp))
         )
         Row(Modifier.fillMaxSize().selectableGroup()) {

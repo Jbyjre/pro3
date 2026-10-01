@@ -119,13 +119,13 @@ fun supportVerdict(
         return SupportVerdict(
             SupportLevel.NEEDS_ONE_UI_9,
             "Needs One UI 9",
-            "Samsung phones need One UI 9 (Android 17) before Glint can talk to AirPods without root. You're on Android $sdkInt. Check Settings, Software update. Until then your AirPods still work as normal Bluetooth headphones.",
+            "Glint needs One UI 9 (Android 17) to talk to AirPods without root; you're on Android $sdkInt. Your AirPods still work as normal headphones.",
         )
     }
     return SupportVerdict(
         SupportLevel.NEEDS_UPDATE_OR_ROOT,
         "Needs an update or root",
-        "This phone's Bluetooth doesn't include the fix Glint needs yet (it arrives with Android 17). Until then your AirPods still work as normal Bluetooth headphones.",
+        "This phone's Bluetooth needs Android 17 for Glint's features. Your AirPods still work as normal headphones.",
     )
 }
 

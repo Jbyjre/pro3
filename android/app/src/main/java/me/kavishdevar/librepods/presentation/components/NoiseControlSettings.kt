@@ -20,6 +20,8 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import android.annotation.SuppressLint
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Spring
@@ -365,11 +367,23 @@ fun NoiseControlSettings(
                             )
                         }
 
+                        // Glint: a liquid thumb. It stretches along the direction it travels (more
+                        // the further it still has to go), squashes a touch vertically like a drop,
+                        // and lifts slightly while you drag it.
+                        val lift by animateFloatAsState(if (isDragging.value) 1f else 0f, SpringSpec(0.6f, 500f), label = "lift")
                         Box(
                             modifier = Modifier
                                 .width(buttonWidth)
                                 .fillMaxHeight()
                                 .offset { IntOffset(animatedOffset.roundToInt(), 0) }
+                                .graphicsLayer {
+                                    val travel = with(density) {
+                                        if (isDragging.value) 0f
+                                        else (kotlin.math.abs(targetOffset.toPx() - animatedOffset) / buttonWidth.toPx()).coerceIn(0f, 1f)
+                                    }
+                                    scaleX = 1f + 0.28f * travel + 0.05f * lift
+                                    scaleY = 1f - 0.07f * travel + 0.05f * lift
+                                }
                                 .zIndex(0f)
                                 .draggable(
                                     orientation = Orientation.Horizontal,
@@ -401,6 +415,27 @@ fun NoiseControlSettings(
                                     .fillMaxSize()
                                     .padding(3.dp)
                                     .background(selectedBackground, RoundedCornerShape(26.dp))
+                                    .drawBehind {
+                                        // Glass edge lit from above and a soft top sheen.
+                                        val r = androidx.compose.ui.geometry.CornerRadius(26.dp.toPx())
+                                        drawRoundRect(
+                                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                                listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0f)),
+                                                0f, size.height * 0.55f
+                                            ),
+                                            cornerRadius = r
+                                        )
+                                        drawRoundRect(
+                                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                                0f to Color.White.copy(alpha = 0.7f),
+                                                0.35f to Color.White.copy(alpha = 0.08f),
+                                                0.7f to Color.White.copy(alpha = 0.05f),
+                                                1f to Color.White.copy(alpha = 0.3f),
+                                            ),
+                                            cornerRadius = r,
+                                            style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx())
+                                        )
+                                    }
                             )
                         }
 

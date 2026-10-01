@@ -80,7 +80,7 @@ fun NotSupportedPage(
             Text(verdict.message, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (!verdict.canConnect) {
                 Text(
-                    "You can still continue. Glint will keep checking in the background and connect automatically once your phone's Bluetooth allows it.",
+                    "You can still continue. Glint connects on its own once your phone allows it.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 
 import androidx.compose.animation.animateColorAsState
@@ -179,6 +181,11 @@ private fun StyledListItemContent(
     leadingContent: (@Composable () -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null
 ) {
+    // Glint: a name and description side by side only fit when they're short; longer pairs
+    // used to wrap into each other. Those now stack, with the description under the name.
+    val orientation = if (orientation == ListItemOrientation.Horizontal && description != null &&
+        name.length + description.length > 32
+    ) ListItemOrientation.Vertical else orientation
     val isDarkTheme = isSystemInDarkTheme()
     val surfaceColor = MaterialTheme.colorScheme.surface
     val surfaceDimColor = MaterialTheme.colorScheme.surfaceDim
@@ -287,7 +294,7 @@ private fun StyledListItemContent(
                         leadingContent()
                         Spacer(modifier = Modifier.width(12.dp))
                     }
-                    Column (verticalArrangement = Arrangement.Center) {
+                    Column (verticalArrangement = Arrangement.Center, modifier = Modifier.weight(1f)) {
                         Text(
                             text = name,
                             style = MaterialTheme.typography.bodyMedium,
@@ -303,13 +310,16 @@ private fun StyledListItemContent(
                         }
                     }
 
-                    Spacer(modifier = Modifier.weight(1f))
+                    if (orientation == ListItemOrientation.Horizontal) Spacer(modifier = Modifier.width(12.dp))
 
                     if (orientation == ListItemOrientation.Horizontal && description != null) {
                         Text(
                             text = description,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(if (isDarkTheme) 0.6f else 0.8f) // TODO: move to color scheme
+                            color = MaterialTheme.colorScheme.onSurface.copy(if (isDarkTheme) 0.6f else 0.8f), // TODO: move to color scheme
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.End,
                         )
                     }
 

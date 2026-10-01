@@ -185,3 +185,15 @@ A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every
 - **Less text.** Descriptions were trimmed across the app. Longer explanations moved behind small "i" buttons that open a bubble (time left, effort zones, the recorder, reading notes).
 - **Idea for later (not started):** share heart-rate readings with Jake's other personal Claude apps. A simple route is a local export (a file, or Android's share sheet) or Health Connect, which needs a library the offline cloud build can't fetch yet. Decide the target apps first.
 
+## 13. Touch-responsive glass, crowded rows fixed, shorter setup text
+
+- **Crowded rows (your screenshot).** List rows showed the name and description side by side with nothing limiting either, so long pairs wrapped into each other ("Transparency customization" + "Amplification, tone and balance"). The shared row component now stacks the description under the name whenever the pair is long, and keeps short ones on one line, so this can't recur anywhere in the app.
+- **Glass that reacts like Apple's.** Apple's interactive Liquid Glass shrinks slightly when pressed, bounces back on release, lights up under your finger and follows drags. Glint now does the same:
+  - **Island:** squishes when pressed and bounces back when you let go. Pulling it down stretches it like rubber and opens it; swiping up still dismisses it.
+  - **Listening-mode selector:** the thumb stretches like a drop while it travels between modes and settles with a little give. It lifts slightly while you drag it, and has a glass edge and top shine.
+  - **Light/Dark selector:** the same liquid thumb.
+  - **"i" bubbles:** they grow out of the button you tapped.
+  - All of this is off with Reduce motion.
+- **Shorter text:** setup (This phone, Permissions, Stay connected), the Accessibility screen descriptions, and the "connect once" note in Settings.
+- **Audit:** every screen was rendered in the test tour and checked by eye, including the whole main screen top to bottom. Real touch feel (springs, haptics) **needs the phone; not verified**.
+

@@ -184,7 +184,7 @@ fun PermissionsPage(
                             requestBluetooth()
                         }
                     } else null,
-                    description = "Required to communicate with AirPods",
+                    description = "To talk to your AirPods",
                     orientation = ListItemOrientation.Vertical,
                     leadingContent = {
                         Box(
@@ -227,7 +227,7 @@ fun PermissionsPage(
                             requestNotifications()
                         }
                     } else null,
-                    description = "Show battery status",
+                    description = "For heart-rate alerts",
                     orientation = ListItemOrientation.Vertical,
                     leadingContent = {
                         Box(
@@ -257,7 +257,7 @@ fun PermissionsPage(
                             requestPhone()
                         }
                     } else null,
-                    description = "Respond to phone calls with head gestures",
+                    description = "Answer calls with head gestures",
                     orientation = ListItemOrientation.Vertical,
                     leadingContent = {
                         Box(
@@ -292,7 +292,7 @@ fun PermissionsPage(
                         openOverlaySettings()
                     }
                 } else null,
-                description = "Show popups when AirPods are nearby or audio switches to them.",
+                description = "For the island and card",
                 orientation = ListItemOrientation.Vertical,
                 leadingContent = {
                     Box(
