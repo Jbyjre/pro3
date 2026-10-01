@@ -309,3 +309,12 @@ A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every
   - The opened island's contents fade in on a smooth S-curve while settling slightly into place, instead of appearing at the end.
   - Buttons squish more gently (10% instead of 16%), and their press highlight fades in and out instead of flashing.
 - **Not verified on your phone:** how smooth it feels at your screen's refresh rate. The pictures were checked in the screenshot tests.
+
+## 21. Even smaller island: no time-left line, L/R/case rings, a quiet heart chip
+
+- **Time left removed from the island (your request).** The "About 3 h 20 min of listening left" line is gone from the opened island. The main screen still shows it under the battery pictures; say if you want that gone too.
+- **Batteries without words.** "Left / Right / Case" rows are now three rings side by side, marked **L**, **R** and a small **case** symbol inside, with the % under each. Charging turns a ring green with light running round it, and puts a small green bolt before its %.
+- **Heart: smaller, and not red (your request).** In the opened island it's now a small glass chip at the bottom left: a little heart beating at your rate and the number (e.g. "72 BPM"), in the island's own colour (white on the dark island, graphite on the light one, like the app icon). Tapping it still grows the island into the explanation page, where the big heart uses the same white/graphite. The only colour left there is a small dot by the headline (green for normal resting, and so on, matching the scale), so the meaning is still clear at a glance. The high-heart-rate pop-up's heart uses the island's colour too.
+- **Smaller still:** without the time-left line the opened island is 196 points tall (it was 300 two rounds ago).
+- **Smoother:** when the island changes its message while it's showing (for example "One AirPod out" turning into "Both AirPods in"), the words now glide into each other instead of jumping. The heart chip fades and grows in when a reading starts, and its number rolls to each new reading. The play button and heart chip share one glass style.
+- **Not verified on your phone:** the feel of the motion.
