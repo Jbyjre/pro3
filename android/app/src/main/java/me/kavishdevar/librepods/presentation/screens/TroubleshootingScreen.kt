@@ -56,7 +56,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -920,3 +919,31 @@ fun TroubleshootingScreen() {
         }
     }
 }
+
+/**
+ * Glint's glass button in place of Material's flat one, so this screen matches the rest of
+ * the app. Takes the same arguments the screen already passes (shape and colours are the
+ * glass's own now).
+ */
+@Composable
+private fun Button(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    @Suppress("UNUSED_PARAMETER") shape: androidx.compose.ui.graphics.Shape? = null,
+    @Suppress("UNUSED_PARAMETER") colors: androidx.compose.material3.ButtonColors? = null,
+    enabled: Boolean = true,
+    content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
+) {
+    me.kavishdevar.librepods.presentation.components.StyledButton(
+        onClick = onClick,
+        backdrop = rememberLayerBackdrop(),
+        modifier = modifier,
+        maxScale = 0.05f,
+        enabled = enabled,
+    ) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.material3.LocalContentColor provides MaterialTheme.colorScheme.onSurface
+        ) { content() }
+    }
+}
+

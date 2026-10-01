@@ -191,8 +191,11 @@ private fun StyledListItemContent(
     val isDarkTheme = isSystemInDarkTheme()
     val surfaceColor = MaterialTheme.colorScheme.surface
     val surfaceDimColor = MaterialTheme.colorScheme.surfaceDim
-    var backgroundColor by remember { mutableStateOf(surfaceColor) }
-    val animatedBackgroundColor by animateColorAsState(targetValue = backgroundColor, animationSpec = tween(durationMillis = 500))
+    // Pressed state, not a remembered colour: a remembered colour kept the old theme's
+    // surface after switching light/dark in the app (white rows with white text). Following
+    // the theme here also makes the switch a smooth colour fade.
+    var pressed by remember { mutableStateOf(false) }
+    val animatedBackgroundColor by animateColorAsState(targetValue = if (pressed) surfaceDimColor else surfaceColor, animationSpec = tween(durationMillis = 500))
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
 
@@ -267,9 +270,9 @@ private fun StyledListItemContent(
                         detectTapGestures(
                             onPress = {
                                 if (enabled) {
-                                    backgroundColor = surfaceDimColor
+                                    pressed = true
                                     tryAwaitRelease()
-                                    backgroundColor = surfaceColor
+                                    pressed = false
                                 }
                             },
                             onTap = {

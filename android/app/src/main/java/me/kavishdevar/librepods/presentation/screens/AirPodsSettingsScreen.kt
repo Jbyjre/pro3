@@ -344,26 +344,21 @@ fun AirPodsSettingsScreen(
                 )
             }
 
-            val hasHearingAidCapability =
-                state.instance?.model?.capabilities?.contains(Capability.HEARING_AID) == true
-            val hasPPECapability =
-                state.instance?.model?.capabilities?.contains(Capability.PPE) == true
-
-            if (hasHearingAidCapability || hasPPECapability) {
-                if (hasPPECapability || state.vendorIdHook) {
-                    item(key = "spacer_hearing_health") {
-                        Spacer(modifier = Modifier.height(24.dp))
-                    }
-                }
-                item(key = "hearing_health") {
-                    HearingHealthSettings(
-                        hasPPECapability = hasPPECapability,
-                        hasHearingAidCapability = hasHearingAidCapability,
-                        vendorIdHook = state.vendorIdHook,
-                        navigateToHearingProtection = navigateToHearingProtection,
-                        navigateToHearingAid = navigateToHearingAid
-                    )
-                }
+            // Read from the same capability list as the rest of this screen (the model alone
+            // could be missing, which hid the row). Hearing Protection always shows now: its
+            // volume limit works with any AirPods.
+            val hasHearingAidCapability = capabilities.contains(Capability.HEARING_AID)
+            item(key = "spacer_hearing_health") {
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+            item(key = "hearing_health") {
+                HearingHealthSettings(
+                    hasPPECapability = true,
+                    hasHearingAidCapability = hasHearingAidCapability,
+                    vendorIdHook = state.vendorIdHook,
+                    navigateToHearingProtection = navigateToHearingProtection,
+                    navigateToHearingAid = navigateToHearingAid
+                )
             }
 
             if (capabilities.contains(Capability.LISTENING_MODE)) {

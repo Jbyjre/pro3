@@ -282,7 +282,18 @@ internal fun HeartScale(bpm: Int, usual: Int, age: Int, dark: Boolean, ink: Colo
  * Touch and drag to read any point: a thin crosshair and the value and time appear above.
  */
 @Composable
-internal fun HeartChart(samples: List<HeartRate.Sample>, line: Color, ink: Color, surface: Color, dark: Boolean, height: Dp = 170.dp) {
+internal fun HeartChart(
+    samples: List<HeartRate.Sample>,
+    line: Color,
+    ink: Color,
+    surface: Color,
+    dark: Boolean,
+    height: Dp = 170.dp,
+    /** With an age, the line takes each effort zone's colour (green light, amber moderate, orange vigorous, red peak). */
+    zoneAge: Int = 0,
+    /** Draws a dashed line at the session's average. */
+    average: Int? = null,
+) {
     val context = LocalContext.current
     val reduce = remember { GlintComfort.reduceMotion(context) }
     val reveal = remember { Animatable(if (reduce) 1f else 0f) }
@@ -345,9 +356,31 @@ internal fun HeartChart(samples: List<HeartRate.Sample>, line: Color, ink: Color
             prevT = s.timeMs; lastX = px
         }
         fill.lineTo(lastX, bottom); fill.lineTo(segStartX, bottom); fill.close()
+        average?.takeIf { it in lo..hi }?.let { avg ->
+            val ay = y(avg)
+            drawLine(ink.copy(alpha = 0.35f), Offset(left, ay), Offset(right, ay), 1.dp.toPx(),
+                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx())))
+            val t = measurer.measure("avg $avg", label)
+            drawText(t, topLeft = Offset(left + 4.dp.toPx(), ay - t.size.height - 1.dp.toPx()))
+        }
+        val lineBrush: Brush = if (zoneAge > 0) {
+            // Hard colour bands at the zone edges (50%, 70%, 85% of the estimated maximum),
+            // from the top of the chart (fast) to the bottom (slow).
+            val max = HeartInsights.maxHeartRate(zoneAge)
+            fun f(pct: Float) = ((bottom - (bottom - top) * ((max * pct - lo) / (hi - lo))) - top) / (bottom - top)
+            val f3 = f(0.85f).coerceIn(0f, 1f); val f2 = f(0.70f).coerceIn(0f, 1f); val f1 = f(0.50f).coerceIn(0f, 1f)
+            val peak = HeartColors.band(HeartInsights.Band.High, dark)
+            val vig = HeartColors.band(HeartInsights.Band.Exercise, dark)
+            val mod = HeartColors.band(HeartInsights.Band.Raised, dark)
+            val light = HeartColors.band(HeartInsights.Band.Resting, dark)
+            Brush.verticalGradient(
+                0f to peak, f3 to peak, f3 to vig, f2 to vig, f2 to mod, f1 to mod, f1 to light, 1f to light,
+                startY = top, endY = bottom
+            )
+        } else androidx.compose.ui.graphics.SolidColor(line)
         clipRect(right = left + (right - left) * reveal.value + 8.dp.toPx()) {
             drawPath(fill, Brush.verticalGradient(listOf(line.copy(alpha = if (dark) 0.28f else 0.18f), line.copy(alpha = 0f)), top, bottom))
-            drawPath(path, line, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(path, lineBrush, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
         if (reveal.value >= 1f) {
             val lastP = Offset(x(samples.last().timeMs), y(samples.last().bpm))
@@ -544,3 +577,51 @@ internal fun exportCsv(context: Context, samples: List<HeartRate.Sample>) {
         .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
     context.startActivity(android.content.Intent.createChooser(send, "Export heart rate"))
 }
+
+/**
+ * Resting heart rate over the last 30 days: one dot per day joined by a soft line that draws
+ * itself in, with a dashed line at your usual rate. A falling line usually goes with better
+ * fitness and rest; a rising one with stress, short sleep, heat or illness.
+ */
+@Composable
+internal fun RestingTrendChart(points: List<Pair<Long, Int>>, usual: Int?, line: Color, ink: Color, dark: Boolean, now: Long) {
+    val context = LocalContext.current
+    val reduce = remember { GlintComfort.reduceMotion(context) }
+    val reveal = remember { Animatable(if (reduce) 1f else 0f) }
+    LaunchedEffect(Unit) { reveal.animateTo(1f, tween(1000, easing = FastOutSlowInEasing)) }
+    val measurer = rememberTextMeasurer()
+    val label = heartText(11, ink.copy(alpha = 0.55f))
+    val grid = ink.copy(alpha = if (dark) 0.12f else 0.08f)
+    val values = points.map { it.second } + listOfNotNull(usual)
+    val lo = ((values.minOrNull() ?: 50) - 4).let { (floor(it / 5.0) * 5).toInt() }
+    val hi = ((values.maxOrNull() ?: 80) + 4).let { (ceil(it / 5.0) * 5).toInt() }.coerceAtLeast(lo + 10)
+    val t0 = now - 30L * 86_400_000
+    Canvas(Modifier.fillMaxWidth().height(130.dp).semantics { contentDescription = "Resting heart rate over the last 30 days" }) {
+        val left = 30.dp.toPx(); val right = size.width - 6.dp.toPx()
+        val top = 8.dp.toPx(); val bottom = size.height - 6.dp.toPx()
+        fun x(t: Long) = left + (right - left) * ((t - t0).toFloat() / (now - t0)).coerceIn(0f, 1f)
+        fun y(v: Int) = bottom - (bottom - top) * ((v - lo).toFloat() / (hi - lo))
+        for (v in listOf(lo, hi)) {
+            drawLine(grid, Offset(left, y(v)), Offset(right, y(v)), 1.dp.toPx())
+            val t = measurer.measure(v.toString(), label)
+            drawText(t, topLeft = Offset(0f, y(v) - t.size.height / 2f))
+        }
+        usual?.let { u ->
+            drawLine(ink.copy(alpha = 0.35f), Offset(left, y(u)), Offset(right, y(u)), 1.dp.toPx(),
+                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx())))
+            val t = measurer.measure("usual $u", label)
+            drawText(t, topLeft = Offset(left + 4.dp.toPx(), y(u) - t.size.height - 1.dp.toPx()))
+        }
+        if (points.isEmpty()) return@Canvas
+        val path = Path()
+        points.forEachIndexed { i, (t, v) -> if (i == 0) path.moveTo(x(t), y(v)) else path.lineTo(x(t), y(v)) }
+        clipRect(right = left + (right - left) * reveal.value + 6.dp.toPx()) {
+            drawPath(path, line.copy(alpha = 0.55f), style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            points.forEach { (t, v) ->
+                drawCircle(if (dark) Color(0xFF1C1C1E) else Color.White, 4.5.dp.toPx(), Offset(x(t), y(v)))
+                drawCircle(line, 3.dp.toPx(), Offset(x(t), y(v)))
+            }
+        }
+    }
+}
+

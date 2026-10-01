@@ -437,6 +437,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
         HeartLink.attach(this, serviceScope)
+        VolumeGuard.attach(this)
 
         localMac = config.selfMacAddress
         if (localMac.isEmpty()) {
@@ -1993,6 +1994,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             // priming), so the heart-rate request isn't mixed into it.
             delay(6_500)
             if (sharedPreferences.getBoolean(PREF_HR_ACTIVE, false)) startHeartRate() else autoHeartRate()
+            VolumeGuard.check() // the volume limit applies from the moment they connect
         }
         val now = SystemClock.elapsedRealtime()
         if (now - lastConnectedIsland < 30_000L) return
@@ -3692,6 +3694,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
         HeartLink.detach()
+        VolumeGuard.detach(this)
 
         try {
             unregisterReceiver(bluetoothReceiver)

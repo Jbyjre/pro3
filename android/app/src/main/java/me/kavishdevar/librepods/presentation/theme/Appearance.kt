@@ -83,3 +83,4 @@ fun ProvideAppearance(context: Context, content: @Composable () -> Unit) {
     val config = remember(base, chosen) { GlintAppearance.apply(context, base) }
     CompositionLocalProvider(LocalConfiguration provides config) { content() }
 }
+

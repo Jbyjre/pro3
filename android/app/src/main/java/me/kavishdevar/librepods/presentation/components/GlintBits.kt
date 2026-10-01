@@ -21,6 +21,11 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.animation.core.animateFloatAsState
+import me.kavishdevar.librepods.presentation.theme.ThemeReveal
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -133,7 +138,58 @@ fun AppearancePicker(modifier: Modifier = Modifier) {
     val mode by GlintAppearance.mode(context)
     val options = listOf(GlintAppearance.SYSTEM to "Automatic", GlintAppearance.LIGHT to "Light", GlintAppearance.DARK to "Dark")
     val selected = options.indexOfFirst { it.first == (mode ?: GlintAppearance.SYSTEM) }.coerceAtLeast(0)
-    LiquidSegments(options.map { it.second }, selected, { GlintAppearance.set(context, options[it].first) }, modifier)
+    LiquidSegments(
+        options.map { it.second }, selected, { GlintAppearance.set(context, options[it].first) }, modifier,
+        icons = listOf(
+            { on, c -> AppearanceGlyph(0, on, c) },
+            { on, c -> AppearanceGlyph(1, on, c) },
+            { on, c -> AppearanceGlyph(2, on, c) },
+        ),
+        onSelectFrom = { i, at -> ThemeReveal.change(context, options[i].first, at) },
+    )
+}
+
+/**
+ * Small animated symbols for the appearance picker: [kind] 0 = Automatic (a half-lit disc
+ * that turns over), 1 = Light (a sun whose rays stretch out and turn), 2 = Dark (a crescent
+ * that rocks into place with a twinkling star). They animate when picked.
+ */
+@Composable
+fun AppearanceGlyph(kind: Int, selected: Boolean, color: Color) {
+    val context = LocalContext.current
+    val reduce = remember { GlintComfort.reduceMotion(context) }
+    val p by animateFloatAsState(if (selected) 1f else 0f, if (reduce) tween(0) else spring(0.55f, 260f), label = "glyph")
+    androidx.compose.foundation.Canvas(Modifier.padding(end = 6.dp).size(16.dp)) {
+        val c = center
+        val r = size.minDimension / 2f
+        when (kind) {
+            0 -> rotate(180f * p, c) {
+                drawCircle(color, r * 0.78f, c, style = androidx.compose.ui.graphics.drawscope.Stroke(r * 0.2f))
+                drawArc(color, 90f, 180f, true, androidx.compose.ui.geometry.Offset(c.x - r * 0.78f, c.y - r * 0.78f), androidx.compose.ui.geometry.Size(r * 1.56f, r * 1.56f))
+            }
+            1 -> rotate(45f * p, c) {
+                drawCircle(color, r * (0.36f + 0.06f * p), c)
+                val len = r * (0.18f + 0.14f * p)
+                for (k in 0 until 8) {
+                    val a = Math.toRadians(k * 45.0)
+                    val d = r * 0.62f
+                    val s0 = androidx.compose.ui.geometry.Offset(c.x + (d * kotlin.math.cos(a)).toFloat(), c.y + (d * kotlin.math.sin(a)).toFloat())
+                    val s1 = androidx.compose.ui.geometry.Offset(c.x + ((d + len) * kotlin.math.cos(a)).toFloat(), c.y + ((d + len) * kotlin.math.sin(a)).toFloat())
+                    drawLine(color, s0, s1, r * 0.16f, androidx.compose.ui.graphics.StrokeCap.Round)
+                }
+            }
+            else -> {
+                rotate(-30f + 30f * p, c) {
+                    val moon = androidx.compose.ui.graphics.Path().apply {
+                        addOval(androidx.compose.ui.geometry.Rect(c, r * 0.8f))
+                        op(this, androidx.compose.ui.graphics.Path().apply { addOval(androidx.compose.ui.geometry.Rect(androidx.compose.ui.geometry.Offset(c.x + r * 0.42f, c.y - r * 0.3f), r * 0.7f)) }, androidx.compose.ui.graphics.PathOperation.Difference)
+                    }
+                    drawPath(moon, color)
+                }
+                if (p > 0.05f) drawCircle(color.copy(alpha = p), r * 0.14f * p, androidx.compose.ui.geometry.Offset(c.x + r * 0.62f, c.y - r * 0.62f))
+            }
+        }
+    }
 }
 
 /**
@@ -148,7 +204,13 @@ fun LiquidSegments(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     track: Color? = null,
+    /** Optional symbol before each label, given (selected, colour). */
+    icons: List<@Composable (Boolean, Color) -> Unit>? = null,
+    /** Like [onSelect], with the tapped segment's centre in window coordinates. */
+    onSelectFrom: ((Int, androidx.compose.ui.geometry.Offset) -> Unit)? = null,
 ) {
+    var origin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var boxSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
     val context = LocalContext.current
     val dark = isSystemInDarkTheme()
     val ink = if (dark) Color.White else Color.Black
@@ -158,6 +220,7 @@ fun LiquidSegments(
             .fillMaxWidth()
             .height(44.dp)
             .background(track ?: if (dark) Color(0xFF1C1C1E) else Color.White, RoundedCornerShape(22.dp))
+            .onGloballyPositioned { origin = it.positionInWindow(); boxSize = it.size }
             .padding(4.dp)
     ) {
         val segment = maxWidth / options.size
@@ -195,9 +258,14 @@ fun LiquidSegments(
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(18.dp))
-                        .selectable(selected = i == selected, role = Role.RadioButton) { onSelect(i) },
+                        .selectable(selected = i == selected, role = Role.RadioButton) {
+                            val at = origin + androidx.compose.ui.geometry.Offset(boxSize.width * (i + 0.5f) / options.size, boxSize.height / 2f)
+                            onSelectFrom?.invoke(i, at) ?: onSelect(i)
+                        },
                     contentAlignment = Alignment.Center
                 ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    icons?.getOrNull(i)?.invoke(i == selected, ink.copy(alpha = if (i == selected) 1f else 0.65f))
                     Text(
                         label,
                         maxLines = 1,
@@ -207,6 +275,7 @@ fun LiquidSegments(
                             color = ink.copy(alpha = if (i == selected) 1f else 0.65f)
                         )
                     )
+                    }
                 }
             }
         }

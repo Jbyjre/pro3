@@ -348,4 +348,47 @@ object HeartInsights {
                 )
             }
             .sortedByDescending { it.dayStartMs }
+
+    /**
+     * Highest average over any [windowMs] stretch (default 5 minutes): your hardest sustained
+     * effort in the session, less jumpy than the single highest reading. Null if too short.
+     */
+    fun peakAverage(samples: List<HeartRate.Sample>, windowMs: Long = 300_000L): Int? {
+        if (samples.size < 2 || samples.last().timeMs - samples.first().timeMs < windowMs) return null
+        var best: Double? = null
+        var start = 0
+        var sum = 0L
+        samples.forEachIndexed { end, s ->
+            sum += s.bpm
+            while (s.timeMs - samples[start].timeMs > windowMs) { sum -= samples[start].bpm; start++ }
+            if (s.timeMs - samples[start].timeMs >= windowMs - 15_000) {
+                val avg = sum.toDouble() / (end - start + 1)
+                if (best == null || avg > best!!) best = avg
+            }
+        }
+        return best?.let { kotlin.math.round(it).toInt() }
+    }
+
+    /** Seconds spent at or above [bpm] (each reading counts until the next, at most 5 s). */
+    fun secondsAbove(samples: List<HeartRate.Sample>, bpm: Int): Long =
+        samples.indices.sumOf { i ->
+            val s = samples[i]
+            if (s.bpm < bpm) 0L else (((samples.getOrNull(i + 1)?.timeMs ?: (s.timeMs + 1000)) - s.timeMs) / 1000).coerceIn(0, 5)
+        }
+
+    /** Personal bests across your history (null parts when there isn't one yet). */
+    data class Records(val lowestResting: Session?, val highestPeak: Session?, val longest: Session?)
+
+    fun records(sessions: List<Session>): Records = Records(
+        lowestResting = sessions.filter { it.resting > 0 }.minByOrNull { it.resting },
+        highestPeak = sessions.maxByOrNull { it.max },
+        longest = sessions.maxByOrNull { it.endMs - it.startMs },
+    )
+
+    /** One point per day with a resting estimate, oldest first, for the last [span] days. */
+    fun restingSeries(sessions: List<Session>, now: Long, span: Int = 30, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): List<Pair<Long, Int>> =
+        days(sessions.filter { now - it.startMs <= span * 86_400_000L }, zone)
+            .filter { it.resting > 0 }
+            .map { it.dayStartMs to it.resting }
+            .sortedBy { it.first }
 }

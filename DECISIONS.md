@@ -244,3 +244,22 @@ A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every
 - **More motion and glass.** The live heart card is now a field of colour that drifts and swells with each beat, with the heart in a glass orb and a glass Start/Stop button that both bend the colour behind them; the number rolls like an odometer; an ECG-style sweep runs at your rate; graphs draw themselves in; History bars grow in. Across the app: cards rise in when a screen opens, list rows light up under your finger, buttons squish when pressed, battery rings fill when they appear and a soft light runs round them while charging, and the segmented controls have a glass sheen. All of it stops with Reduce motion.
 - Code: `services/HeartHistory.kt`, `services/HeartBackup.kt`, `presentation/screens/HeartHistoryScreen.kt` (and the session screen), `HeartParts.kt`, `glint/GlintMotion.kt`, `glint/HeartGlyph.kt`.
 
+## 17. A happier icon, smooth light/dark, deeper heart rate, Hearing Protection that works everywhere
+
+- **New icon (your request: no AirPods, no case, something that makes you happy).** A glossy drop of liquid glass with a bright smile inside, floating on a warm sunset sweep (violet to pink to peach), with a soft shadow, a top sheen and light gathered at its bottom edge like real glass. The themed (one-colour) version is the drop's outline and the smile. Drawn from scratch as vector art, so it's sharp at every size. I tried a wavy "sound wave" smile first; it read as a squiggle, so the final one is a clean round smile.
+- **Light and dark.**
+  - **Bug fixed:** switching light/dark inside the app left most list rows in the old colours (white rows with white text in dark mode). Each row remembered its colour from when it first appeared. Rows now follow the theme and fade smoothly to the new colours.
+  - **Reveal:** picking Light or Dark spreads the new look out in a circle from the button you tapped, with a soft glowing edge. With Reduce motion it switches instantly. The test renderer can't take the screen picture this needs, so the circle is **not verified on your phone**; if it can't run, the app just switches (that part is tested).
+  - **Picker:** Automatic, Light and Dark now have small animated symbols: the half-lit disc turns over, the sun's rays stretch and turn, the moon rocks into place with a twinkling star.
+- **More depth in heart rate.**
+  - **Today** card: time measured today, lowest to highest on a bar, the day's average, and today's resting rate against your usual.
+  - Session graphs take each **effort zone's colour** when your age is set (green light, amber moderate, orange vigorous, red peak), with a dashed line at the session's average.
+  - Session details add **hardest 5 minutes** (highest 5-minute average, a steadier effort measure than the single peak) and **time above 100 BPM**.
+  - History adds a **resting heart rate over 30 days** chart (one dot per day, with your usual rate dashed) and **personal bests** (lowest resting, highest reading, longest session; tap one to open it).
+- **Hearing Protection.**
+  - The Hearing Protection row could disappear from the main screen: it checked the AirPods model separately from the rest of the screen, and the model can be missing while everything else is known. It now uses the same check, and it always shows.
+  - **New: Volume limit** (works without root, any AirPods). While music plays through your AirPods, Glint turns the volume back down whenever it goes above the level you pick (50, 60, 70 or 85% of the phone's volume). The screen says when it last did. The level is a share of the phone's volume steps, not decibels: Glint can't measure how loud it is in your ears. It listens for Android's volume-changed signal, which Android sends but doesn't officially document, and also checks when the AirPods connect. **Not verified on your phone.**
+  - Workspace Use only shows for AirPods that support it.
+- **Glass everywhere.** I rendered every screen and checked them side by side. The Troubleshooting screen still used flat Material buttons; they're Glint's glass buttons now. Chart labels ("avg", "usual") were moved so they don't sit on the line.
+- Code: `res/drawable-v24/ic_launcher_*.xml`, `presentation/theme/ThemeReveal.kt`, `services/VolumeGuard.kt`, `HeartParts.kt` (`RestingTrendChart`, zone-coloured `HeartChart`), `HeartInsights.peakAverage/secondsAbove/records/restingSeries`.
+
