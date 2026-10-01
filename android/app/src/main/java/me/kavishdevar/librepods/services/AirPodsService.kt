@@ -639,6 +639,15 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 "settings", MODE_PRIVATE
             )
         )
+        // What's playing, for the island's music controls and its "something started" moment.
+        NowPlaying.attach(this)
+        serviceScope.launch(Dispatchers.Main) {
+            var previous = NowPlaying.state.value
+            NowPlaying.state.collect { now ->
+                onTrackChanged(previous, now)
+                previous = now
+            }
+        }
 //        Log.d(TAG, "Initializing CrossDevice")
 //        CoroutineScope(Dispatchers.IO).launch {
 //            CrossDevice.init(this@AirPodsService)
@@ -729,6 +738,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     // only tear down if the channel is really gone.
                     if (BluetoothConnectionManager.aacpSocket?.isConnected == true) return
                     device = null
+                    chargingKnown = null
                     onHeartRateLinkLost()
                     if (AirPodsRecorder.state.value.recording) AirPodsRecorder.end()
                     cardGate.reset()
@@ -939,10 +949,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     updateTimeLeft()
                     val mode = ancNotification.status
                     val firstReport = listeningModeReports++ == 0
-                    if (!firstReport && previousMode in 1..4 && mode in 1..4 && mode != previousMode && !appInForeground() &&
-                        sharedPreferences.getBoolean("glint_island_mode_changes", true)
-                    ) {
-                        showIslandEvent(IslandEvent.ListeningMode(mode))
+                    if (!firstReport && previousMode in 1..4 && mode in 1..4 && mode != previousMode && !appInForeground()) {
+                        showIslandEvent(IslandEvent.ListeningMode(mode), IslandPrefs.Trigger.ListeningMode)
                     }
                     sendANCBroadcast()
                     updateNoiseControlWidget()
@@ -1262,7 +1270,13 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             earDetectionNotification.status[1] == 0x00.toByte()
         )
         var justEnabledA2dp = false
+        // Read before the auto-pause below changes it.
+        val wasPlaying = MediaController.getMusicActive()
         earDetectionNotification.setStatus(earDetection)
+        if (earDetection.size >= 2) {
+            val tail = earDetection.copyOfRange(earDetection.size - 2, earDetection.size)
+            islandForEarChange(inEarData, listOf(tail[0] == 0x00.toByte(), tail[1] == 0x00.toByte()), wasPlaying)
+        }
         if (config.earDetectionEnabled) {
             val data = earDetection.copyOfRange(earDetection.size - 2, earDetection.size)
             inEar = data[0] == 0x00.toByte() && data[1] == 0x00.toByte()
@@ -1270,17 +1284,6 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             val newInEarData = listOf(
                 data[0] == 0x00.toByte(), data[1] == 0x00.toByte()
             )
-
-            if (inEarData.sorted() == listOf(false, false) && newInEarData.sorted() != listOf(
-                    false, false
-                ) && !GlintOverlays.isIslandShowing
-            ) {
-                showIslandEvent(IslandEvent.InEar)
-            }
-
-            if (newInEarData == listOf(false, false) && GlintOverlays.isIslandShowing) {
-                GlintOverlays.dismissAll()
-            }
 
             if (newInEarData.contains(true) && inEarData == listOf(false, false)) {
                 connectAudio(this@AirPodsService, device)
@@ -1782,8 +1785,6 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 if (background) { pauseHeartRate(); return@launch }
                 aacpManager.sendSensorInterval(hrService, interval)
                 HeartRate.status(HeartRate.Status.NoSignal)
-            } else if (background) {
-                announceHeartOnIsland()
             }
             // Battery-saving pace (background only): one minute of readings, then the sensor
             // rests for a few minutes. Continuous keeps the stream on.
@@ -1818,16 +1819,6 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
-    /** The island says measuring started (background only, once per session, if allowed). */
-    private fun announceHeartOnIsland() {
-        if (!sharedPreferences.getBoolean(PREF_HR_ISLAND, true) || appInForeground()) return
-        val session = HeartRate.state.value.sessionStartMs
-        if (session == lastHeartIsland) return
-        lastHeartIsland = session
-        showIslandEvent(IslandEvent.Heart(alert = false))
-    }
-
-    private var lastHeartIsland = 0L
     /** When the current stream's first reading arrived, and the latest one (kept or not). */
     private var hrFirstRawAt = 0L
     private var hrLastRawAt = 0L
@@ -1955,7 +1946,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         if (sharedPreferences.getBoolean(PREF_HR_ALERT, false) && bpm > limit && now - lastHrAlertAt > 10 * 60_000L) {
             lastHrAlertAt = now
             showHeartRateAlert(bpm, limit)
-            if (sharedPreferences.getBoolean(PREF_HR_ISLAND, true)) showIslandEvent(IslandEvent.Heart(alert = true))
+            showIslandEvent(IslandEvent.Heart(alert = true), IslandPrefs.Trigger.HeartAlert)
         }
     }
 
@@ -1999,14 +1990,82 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         val now = SystemClock.elapsedRealtime()
         if (now - lastConnectedIsland < 30_000L) return
         lastConnectedIsland = now
-        showIslandEvent(IslandEvent.Connected)
+        showIslandEvent(IslandEvent.Connected, IslandPrefs.Trigger.Connected)
     }
 
-    fun showIslandEvent(event: IslandEvent) {
-        if (!sharedPreferences.getBoolean("show_island_popup", true)) return
+    /** Shows [event] if the island is on and its moment ([trigger]) is switched on in Settings > Island. */
+    fun showIslandEvent(event: IslandEvent, trigger: IslandPrefs.Trigger? = null) {
+        if (!sharedPreferences.getBoolean(IslandPrefs.PREF_MASTER, true)) return
+        if (trigger != null && !IslandPrefs.enabled(sharedPreferences, trigger)) return
         if (!Settings.canDrawOverlays(this)) return
         pushOverlaySnapshot()
         GlintOverlays.showIsland(this, event)
+    }
+
+    // ---- More moments for the island: buds in and out, music, charging ----
+
+    private var lastEarChangeAt = 0L
+    private var lastMusicIslandAt = 0L
+    private var chargingKnown: Boolean? = null
+    private var lastChargingIslandAt = 0L
+
+    /** The island when a bud comes out or goes in (counted, since the AirPods report primary/secondary, not left/right). */
+    private fun islandForEarChange(before: List<Boolean>, after: List<Boolean>, wasPlaying: Boolean) {
+        val was = before.count { it }
+        val now = after.count { it }
+        if (was == now) return
+        val t = SystemClock.elapsedRealtime()
+        lastEarChangeAt = t
+        when {
+            now > was -> {
+                // Right after the connection island, "in your ears" would only repeat it.
+                if (t - lastConnectedIsland < 4_000L) return
+                showIslandEvent(if (was == 0) IslandEvent.InEar else IslandEvent.BothIn, IslandPrefs.Trigger.InEar)
+            }
+            IslandPrefs.enabled(sharedPreferences, IslandPrefs.Trigger.BudOut) ->
+                showIslandEvent(IslandEvent.BudOut(remaining = now, paused = wasPlaying && config.earDetectionEnabled))
+            // Both out and no "comes out" island: tuck away whatever is showing, as before.
+            now == 0 && GlintOverlays.isIslandShowing -> GlintOverlays.dismissAll()
+        }
+    }
+
+    /** Something started playing on the AirPods (not from Glint, not from a bud going in), or a new song. */
+    private fun onTrackChanged(old: NowPlaying.Track, new: NowPlaying.Track) {
+        val t = SystemClock.elapsedRealtime()
+        if (t - NowPlaying.lastOwnActionAt < 3_000L || t - lastEarChangeAt < 4_000L) return
+        val airPodsUp = BluetoothConnectionManager.aacpSocket?.isConnected == true || GlintStatus.link.value is LinkState.GaveUp
+        if (!airPodsUp || appInForeground()) return
+        val started = new.playing && !old.playing
+        val newSong = new.playing && old.playing && new.fromSession && new.title != null && old.title != null &&
+            (new.title != old.title || new.artist != old.artist)
+        when {
+            started && t - lastMusicIslandAt > 20_000L && IslandPrefs.enabled(sharedPreferences, IslandPrefs.Trigger.MusicStarts) -> {
+                lastMusicIslandAt = t
+                // Only audio that keeps playing: a feed's autoplay preview stops within a moment.
+                serviceScope.launch(Dispatchers.Main) {
+                    delay(1_500)
+                    if (NowPlaying.state.value.playing && !appInForeground()) showIslandEvent(IslandEvent.Music)
+                }
+            }
+            newSong && IslandPrefs.enabled(sharedPreferences, IslandPrefs.Trigger.SongChanges) -> {
+                lastMusicIslandAt = t
+                showIslandEvent(IslandEvent.Music)
+            }
+        }
+    }
+
+    /** The island when the case or the buds start charging (not on the first report after connecting). */
+    private fun checkChargingIsland() {
+        val snap = GlintOverlays.snapshot.value
+        if (snap.budsLevel == null && snap.case == null) return
+        val charging = snap.budsCharging || snap.caseCharging
+        val before = chargingKnown
+        chargingKnown = charging
+        val t = SystemClock.elapsedRealtime()
+        if (before == false && charging && t - lastChargingIslandAt > 60_000L && BluetoothConnectionManager.aacpSocket?.isConnected == true) {
+            lastChargingIslandAt = t
+            showIslandEvent(IslandEvent.Charging, IslandPrefs.Trigger.Charging)
+        }
     }
 
     /** Announce 20% and 10% once each while worn; re-arm after charging above 25%. */
@@ -2024,7 +2083,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             (snap.leftInEar || snap.rightInEar)
         ) {
             lowBatteryAnnounced = threshold
-            showIslandEvent(IslandEvent.LowBattery(level))
+            showIslandEvent(IslandEvent.LowBattery(level), IslandPrefs.Trigger.LowBattery)
         }
     }
 
@@ -2047,7 +2106,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 IslandType.TAKING_OVER -> IslandEvent.TakingOver
                 IslandType.MOVED_TO_REMOTE -> IslandEvent.MovedToDevice("another device", canTakeBack = false)
                 IslandType.MOVED_TO_OTHER_DEVICE -> IslandEvent.MovedToDevice(otherDeviceName ?: "another device", canTakeBack = !reversed)
-            }
+            },
+            if (type == IslandType.CONNECTED) IslandPrefs.Trigger.Connected else IslandPrefs.Trigger.OtherDevice,
         )
     }
 
@@ -2444,6 +2504,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     fun updateBattery() {
         pushOverlaySnapshot()
         checkLowBattery()
+        checkChargingIsland()
         setBatteryMetadata()
         updateBatteryWidget()
         sendBatteryBroadcast()

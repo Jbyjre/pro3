@@ -334,8 +334,8 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
                 }
             }
             StyledToggle(
-                label = "Show on the island",
-                description = if (island) "When measuring starts in the background, and for alerts" else "Measuring stays silent",
+                label = "High heart rate on the island",
+                description = if (island) "Pops up for alerts. Otherwise the heart shows when you open the island" else "Only when you open the island",
                 checked = island,
                 onCheckedChange = { island = it; prefs.edit { putBoolean(PREF_HR_ISLAND, it) } }
             )

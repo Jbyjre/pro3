@@ -100,8 +100,18 @@ sealed interface IslandEvent {
     data object TakingOver : IslandEvent
     data object Charging : IslandEvent
     data class Problem(val title: String, val message: String) : IslandEvent
-    /** Heart rate: background measuring just started, or [alert] for a high reading. */
+    /** Heart rate: [alert] for a reading above the limit (the only time heart pops the island). */
     data class Heart(val alert: Boolean) : IslandEvent
+    /**
+     * An AirPod came out. [remaining] buds are still in (0 or 1); [paused] when music was
+     * playing and Glint paused it. (The AirPods report the primary and secondary bud, not
+     * left and right, so the island doesn't say which side.)
+     */
+    data class BudOut(val remaining: Int, val paused: Boolean) : IslandEvent
+    /** The second AirPod went back in. */
+    data object BothIn : IslandEvent
+    /** Something started playing on the AirPods, or a new song started. Words come live from NowPlaying. */
+    data object Music : IslandEvent
 }
 
 /**

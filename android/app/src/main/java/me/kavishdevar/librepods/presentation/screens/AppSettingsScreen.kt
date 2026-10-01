@@ -19,6 +19,7 @@
 package me.kavishdevar.librepods.presentation.screens
 
 import me.kavishdevar.librepods.presentation.components.AppearancePicker
+import me.kavishdevar.librepods.presentation.components.AppIconPicker
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 
 import android.content.Intent
@@ -110,6 +111,7 @@ fun AppSettingsScreen(
     navigateToTroubleshooting: () -> Unit,
     navigateToOpenSourceLicenses: () -> Unit,
     navigateToStayConnected: () -> Unit = {},
+    navigateToIsland: () -> Unit = {},
     navigateToGlintLab: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -141,6 +143,7 @@ fun AppSettingsScreen(
             modifier = Modifier.padding(start = 16.dp, bottom = 8.dp, top = 8.dp)
         )
         AppearancePicker()
+        AppIconPicker()
         StyledToggle(
             label = stringResource(R.string.use_material3e),
             checked = state.m3eEnabled,
@@ -148,6 +151,12 @@ fun AppSettingsScreen(
         )
 
         StyledList(title = "Glint") {
+            StyledListItem(
+                name = "Island",
+                description = "When it appears, music controls, how long it stays",
+                orientation = ListItemOrientation.Vertical,
+                onClick = navigateToIsland,
+            )
             StyledListItem(
                 name = "Stay connected & appearance",
                 description = "Samsung background setup, glass and motion",
@@ -174,13 +183,6 @@ fun AppSettingsScreen(
                     description = stringResource(R.string.show_bottom_sheet_popup_description),
                     checked = state.showBottomSheetPopup,
                     onCheckedChange = viewModel::setShowBottomSheetPopup,
-                )
-
-                StyledToggle(
-                    label = stringResource(R.string.show_island_popup),
-                    description = stringResource(R.string.show_island_popup_description),
-                    checked = state.showIslandPopup,
-                    onCheckedChange = viewModel::setShowIslandPopup,
                 )
             }
 

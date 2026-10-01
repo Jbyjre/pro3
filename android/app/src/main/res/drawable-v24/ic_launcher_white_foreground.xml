@@ -10,31 +10,22 @@
             <path android:pathData="M30.00,80.00a24,24 0 1,0 48.00,0a24,24 0 1,0 -48.00,0z">
             <aapt:attr name="android:fillColor">
                 <gradient android:type="radial" android:centerX="54.00" android:centerY="80.00" android:gradientRadius="24.00">
-                    <item android:offset="0" android:color="#8C000000" />
-                    <item android:offset="1" android:color="#00000000" />
+                    <item android:offset="0" android:color="#594A5060" />
+                    <item android:offset="1" android:color="#004A5060" />
                 </gradient>
             </aapt:attr>
             </path>
         </group>
         <!-- ring track -->
         <path android:pathData="M33.00,54.00a21,21 0 1,0 42.00,0a21,21 0 1,0 -42.00,0z" android:fillColor="#00000000"
-            android:strokeWidth="6.5" android:strokeColor="#21FFFFFF" />
+            android:strokeWidth="6.5" android:strokeColor="#1A1C1D21" />
         <!-- the filled part of the ring -->
         <path android:pathData="M54.00,33.00A21,21 0 1,1 33.00,54.00" android:fillColor="#00000000"
             android:strokeWidth="6.5" android:strokeLineCap="round">
             <aapt:attr name="android:strokeColor">
                 <gradient android:type="linear" android:startX="75" android:startY="33" android:endX="33" android:endY="75">
-                    <item android:offset="0" android:color="#FFFFFFFF" />
-                    <item android:offset="1" android:color="#FFB9BEC6" />
-                </gradient>
-            </aapt:attr>
-        </path>
-        <!-- glow where the ring ends -->
-        <path android:pathData="M26.00,54.00a7,7 0 1,0 14.00,0a7,7 0 1,0 -14.00,0z">
-            <aapt:attr name="android:fillColor">
-                <gradient android:type="radial" android:centerX="33.00" android:centerY="54.00" android:gradientRadius="7.00">
-                    <item android:offset="0" android:color="#66FFFFFF" />
-                    <item android:offset="1" android:color="#00FFFFFF" />
+                    <item android:offset="0" android:color="#FF1C1D21" />
+                    <item android:offset="1" android:color="#FF5A5E66" />
                 </gradient>
             </aapt:attr>
         </path>
@@ -43,8 +34,8 @@
             <path android:pathData="M41.80,65.96a12.2,12.2 0 1,0 24.40,0a12.2,12.2 0 1,0 -24.40,0z">
             <aapt:attr name="android:fillColor">
                 <gradient android:type="radial" android:centerX="54.00" android:centerY="65.96" android:gradientRadius="12.20">
-                    <item android:offset="0" android:color="#8C000000" />
-                    <item android:offset="1" android:color="#00000000" />
+                    <item android:offset="0" android:color="#594A5060" />
+                    <item android:offset="1" android:color="#004A5060" />
                 </gradient>
             </aapt:attr>
             </path>
@@ -53,16 +44,16 @@
         <path android:pathData="M41.80,54.00a12.2,12.2 0 1,0 24.40,0a12.2,12.2 0 1,0 -24.40,0z">
             <aapt:attr name="android:fillColor">
                 <gradient android:type="radial" android:centerX="51.56" android:centerY="49.61" android:gradientRadius="18.30">
-                    <item android:offset="0" android:color="#FFFFFFFF" />
-                    <item android:offset="0.5" android:color="#FFCDD1D7" />
-                    <item android:offset="1" android:color="#FF5B5F67" />
+                    <item android:offset="0" android:color="#FF7A7F88" />
+                    <item android:offset="0.5" android:color="#FF2C2E33" />
+                    <item android:offset="1" android:color="#FF0B0C0E" />
                 </gradient>
             </aapt:attr>
         </path>
         <path android:pathData="M42.20,54.00a11.799999999999999,11.799999999999999 0 1,0 23.60,0a11.799999999999999,11.799999999999999 0 1,0 -23.60,0z" android:fillColor="#00000000"
-            android:strokeWidth="0.8" android:strokeColor="#BFFFFFFF" />
+            android:strokeWidth="0.8" android:strokeColor="#59FFFFFF" />
         <!-- top sheen -->
-        <path android:pathData="M45.70,50.34C47.90,44.24 52.17,43.39 54.00,43.39C55.83,43.39 60.10,44.24 62.30,50.34C58.88,47.90 56.44,47.29 54.00,47.29C51.56,47.29 49.12,47.90 45.70,50.34z" android:fillColor="#EBFFFFFF" />
+        <path android:pathData="M45.70,50.34C47.90,44.24 52.17,43.39 54.00,43.39C55.83,43.39 60.10,44.24 62.30,50.34C58.88,47.90 56.44,47.29 54.00,47.29C51.56,47.29 49.12,47.90 45.70,50.34z" android:fillColor="#6BFFFFFF" />
         <!-- light gathered at the bottom edge -->
         <path android:pathData="M46.92,61.08Q54.00,66.20 61.08,61.08" android:fillColor="#00000000"
             android:strokeWidth="1.2" android:strokeLineCap="round" android:strokeColor="#99FFFFFF" />

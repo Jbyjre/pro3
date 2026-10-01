@@ -174,6 +174,10 @@ fun GlintLabScreen() {
                 OutlinedButton(onClick = { island(IslandEvent.MovedToDevice("iPad", canTakeBack = true)) }) { Text("Moved to iPad") }
                 OutlinedButton(onClick = { island(IslandEvent.TakingOver) }) { Text("Taking over") }
                 OutlinedButton(onClick = { island(IslandEvent.Charging) }) { Text("Case charging") }
+                OutlinedButton(onClick = { island(IslandEvent.BudOut(remaining = 1, paused = true)) }) { Text("One AirPod out") }
+                OutlinedButton(onClick = { island(IslandEvent.BudOut(remaining = 0, paused = false)) }) { Text("Both out") }
+                OutlinedButton(onClick = { island(IslandEvent.BothIn) }) { Text("Both in") }
+                OutlinedButton(onClick = { island(IslandEvent.Music) }) { Text("Music") }
                 OutlinedButton(onClick = {
                     island(IslandEvent.Problem("Couldn't reach the controls", "Audio works. Open Glint for details."))
                 }) { Text("Problem") }

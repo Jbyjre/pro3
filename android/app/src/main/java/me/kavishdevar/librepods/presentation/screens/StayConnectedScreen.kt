@@ -79,7 +79,6 @@ fun StayConnectedScreen() {
         var tilt by remember { mutableStateOf(prefs.getBoolean(GlintComfort.PREF_TILT_LIGHT, true)) }
         var motion by remember { mutableStateOf(prefs.getBoolean(GlintComfort.PREF_REDUCE_MOTION, false)) }
         var transparency by remember { mutableStateOf(prefs.getBoolean(GlintComfort.PREF_REDUCE_TRANSPARENCY, false)) }
-        var modeIsland by remember { mutableStateOf(prefs.getBoolean(PREF_MODE_ISLAND, true)) }
         // The app's own list and green switches, so this page matches the rest of Settings.
         StyledList(title = "Glass & motion") {
             StyledToggle(
@@ -100,12 +99,6 @@ fun StayConnectedScreen() {
                 checked = transparency,
                 onCheckedChange = { transparency = it; prefs.edit { putBoolean(GlintComfort.PREF_REDUCE_TRANSPARENCY, it) } },
             )
-            StyledToggle(
-                label = "Show listening mode changes",
-                description = "When you switch modes on the AirPods.",
-                checked = modeIsland,
-                onCheckedChange = { modeIsland = it; prefs.edit { putBoolean(PREF_MODE_ISLAND, it) } },
-            )
         }
         var statusNotification by remember { mutableStateOf(prefs.getBoolean(PREF_STATUS_NOTIFICATION, false)) }
         StyledList(title = "Notifications") {
@@ -124,7 +117,6 @@ fun StayConnectedScreen() {
     }
 }
 
-private const val PREF_MODE_ISLAND = "glint_island_mode_changes"
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
