@@ -100,7 +100,10 @@ fun IslandSettingsScreen() {
         while (true) {
             val now = NowPlaying.hasAccess(context)
             if (now != access) { access = now; NowPlaying.attach(context) }
-            canDraw = Settings.canDrawOverlays(context)
+            val draw = Settings.canDrawOverlays(context)
+            // Just allowed "Display over other apps": the mini island can appear now.
+            if (draw && !canDraw) GlintOverlays.refreshMiniIsland(context)
+            canDraw = draw
             delay(1_000)
         }
     }

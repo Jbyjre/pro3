@@ -169,6 +169,16 @@ internal fun CardHost(
     blurAllowed: Boolean,
     onLeave: () -> Unit,
     onGone: () -> Unit,
+) = CappedFontScale { CardHostContent(geometry, leaving, generation, blurAllowed, onLeave, onGone) }
+
+@Composable
+private fun CardHostContent(
+    geometry: CardGeometry,
+    leaving: Boolean,
+    generation: Int,
+    blurAllowed: Boolean,
+    onLeave: () -> Unit,
+    onGone: () -> Unit,
 ) {
     val context = LocalContext.current
     val view = LocalView.current

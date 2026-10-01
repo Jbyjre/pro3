@@ -95,7 +95,7 @@ internal class OverlayWindow(
             setViewTreeLifecycleOwner(this@OverlayWindow)
             setViewTreeSavedStateRegistryOwner(this@OverlayWindow)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-            setContent(content)
+            setContent { CappedFontScale(content) }
             setOnApplyWindowInsetsListener { v, insets ->
                 statusBarVisible.value = insets.isVisible(android.view.WindowInsets.Type.statusBars())
                 v.onApplyWindowInsets(insets)
@@ -163,4 +163,17 @@ internal class OverlayWindow(
         lifecycleRegistry.currentState = Lifecycle.State.CREATED
         try { windowManager.removeViewImmediate(v) } catch (e: Exception) { Log.w(tag, "remove: ${e.message}") }
     }
+}
+
+/**
+ * The pop-ups have fixed heights, so very large system font sizes would overflow them on
+ * some phones: text follows the setting up to 115%, then stops growing.
+ */
+@androidx.compose.runtime.Composable
+internal fun CappedFontScale(content: @androidx.compose.runtime.Composable () -> Unit) {
+    val d = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density, d.fontScale.coerceAtMost(1.15f)),
+        content = content,
+    )
 }

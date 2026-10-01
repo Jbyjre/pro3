@@ -366,3 +366,18 @@ A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every
 - I read "don't show the music" as the opened island staying free of a song bar, which it still is: only the play/pause button. If you meant the mini island's song-name moments, they can be turned off in Settings > Island > Mini island > Show each new song's name.
 - **Checked:** rendered the opened island frame by frame (1.0, 1.1, 1.22, 1.33, 1.45, 1.6 and 3 seconds) and reviewed the motion; all tests, lint and the release build pass. **Not verified on your phone:** how it feels at full speed.
 - Code: `presentation/overlays/Island.kt` (`HeartChip`, `CHIP_DELAY_MS`).
+
+## 25. The islands on every kind of phone
+
+- **Your request:** make the mini island and the island work smoothly and correctly on all phones, in harmony with the app.
+- **Camera shapes.** The mini island now picks where to sit from all the camera cutouts the phone reports:
+  - a punch-hole or notch near the middle of the top: it wraps it (checked on pictures of both);
+  - a camera in a corner or off to one side: it sits in the middle of the status bar instead of running off the screen;
+  - no cutout, or one on the side/bottom (tablets, landscape-first devices): same, middle of the status bar;
+  - a cutout touching the very top edge: the pill moves down just enough not to be cut off.
+- **Screen changes.** Rotating, folding/unfolding, or changing Display size makes it measure again, so it stays centred on the camera.
+- **Small screens and big text.** Both islands and the bottom card never get wider than the screen. Text follows Android's font size up to 115% and then stops growing, because the pills have fixed heights (at the largest font size the song name used to overflow). On narrow phones the battery rings sit a little closer and the percentages can't wrap onto two lines (found while checking: "54" over "%").
+- **Smoother.** When the mini island widens for a song name, it now waits one screen frame after resizing before growing, which avoids a flicker some phones show when a pop-up window changes size. A song's name is shown once: the mini island no longer repeats it every time it comes back (for example after you close the big island).
+- **In harmony with the app.** Allowing "Display over other apps" (in setup, Android's settings or Settings > Island) makes the mini island appear straight away if music is playing, instead of waiting for the next song. The mini island still steps aside for the big island and never shows both. The big island's look and the heart chip are unchanged.
+- **Checked:** new tests for camera picking (centred hole, notch, two cutouts, corner, side, too wide, none) and for never being cut off; pictures of the mini island on a notch phone, a corner-camera phone, a phone with no cutout, and a 320-wide phone at the largest font; the opened island on that small phone; all 171 tests, lint and the release build pass. **Not verified on real devices other than these simulated shapes:** I can't run it on physical phones from here.
+- Code: `services/MiniIslandRules.kt` (`pickCamera`, `centerY`, size limits), `overlays/MiniIsland.kt`, `overlays/OverlayWindow.kt` (`CappedFontScale`), `overlays/Island.kt`, `overlays/Card.kt`, `MainActivity.kt`.

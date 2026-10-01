@@ -73,4 +73,35 @@ class MiniIslandTest {
         assertEquals(1f, t.progress(10_000_000)!!, 0.001f)
         assertEquals(null, t.copy(durationMs = 0).progress(5_000))
     }
+
+    private val w = 1080; private val h = 2340
+    private fun box(l: Int, t: Int, r: Int, b: Int) = MiniIslandRules.Box(l, t, r, b)
+
+    @Test fun wrapsACentredPunchHoleOrNotch() {
+        val hole = box(510, 30, 570, 90)
+        assertEquals(hole, MiniIslandRules.pickCamera(listOf(hole), w, h))
+        val notch = box(300, 0, 780, 90)
+        assertEquals(notch, MiniIslandRules.pickCamera(listOf(notch), w, h))
+        // Two cutouts: the one nearest the middle.
+        assertEquals(hole, MiniIslandRules.pickCamera(listOf(box(40, 30, 100, 90), hole), w, h))
+    }
+
+    @Test fun cornerSideOrMissingCameraFallsBackToStatusBarMiddle() {
+        assertEquals(null, MiniIslandRules.pickCamera(listOf(box(40, 30, 100, 90)), w, h)) // top-left hole
+        assertEquals(null, MiniIslandRules.pickCamera(listOf(box(0, 1100, 90, 1200)), w, h)) // on a side
+        assertEquals(null, MiniIslandRules.pickCamera(listOf(box(0, 0, 1000, 90)), w, h)) // too wide
+        assertEquals(null, MiniIslandRules.pickCamera(emptyList(), w, h))
+        assertEquals(40f, MiniIslandRules.centerY(null, 80, 60f, 3f), 0.01f)
+    }
+
+    @Test fun pillIsNeverCutOffAtTheTopOrSides() {
+        val d = 3f
+        // A notch touching the top edge: the pill's middle moves down enough to show it whole.
+        val y = MiniIslandRules.centerY(box(300, 0, 780, 20), 90, 40 * d, d)
+        assertTrue(y - 20 * d >= 0f)
+        // A very narrow phone with a wide notch: still fits.
+        val s = MiniIslandRules.size(holeW = 240 * d, holeH = 30 * d, density = d, screenW = 280 * d)
+        assertTrue(s.compactWidth <= 280 * d - 16 * d)
+        assertTrue(s.wideWidth <= 280 * d - 16 * d)
+    }
 }
