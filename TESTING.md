@@ -77,7 +77,8 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 4. **History:** Heart rate > History. Every session of a minute or more is listed by day; tap one to see its graph.
 5. **GitHub backup:** History > Back up to GitHub > Set up > Open GitHub, create the token, paste it, Connect. On github.com you should see a new **private** repository `glint-heart-backup` with a `heart` folder. End a session: a new file should appear there within a minute.
 6. **Restore:** (optional) delete a session on the phone, then tap Restore. It comes back.
-7. **Only in Adaptive:** main screen > Audio > Only in Adaptive on. Switch to Transparency: Conversational Awareness turns off; switch to Adaptive: it turns on.
+7. **Hearing Protection:** main screen > Hearing Protection. Turn Workspace Use on and off; the switch should stay where you put it. With the AirPods disconnected the switches should be greyed out with "Connect your AirPods to change this".
+8. **Only in Adaptive:** main screen > Audio > Only in Adaptive on. Switch to Transparency: Conversational Awareness turns off; switch to Adaptive: it turns on.
 
 ## G. Known limits (not bugs)
 

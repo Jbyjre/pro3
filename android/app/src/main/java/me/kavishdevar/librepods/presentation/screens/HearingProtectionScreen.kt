@@ -19,7 +19,9 @@
 package me.kavishdevar.librepods.presentation.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -34,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -42,7 +45,11 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.bluetooth.AACPManager
 import me.kavishdevar.librepods.bluetooth.ATTHandles
+import me.kavishdevar.librepods.presentation.components.CommandNotice
+import me.kavishdevar.librepods.presentation.components.InfoTip
 import me.kavishdevar.librepods.presentation.components.StyledButton
+import me.kavishdevar.librepods.services.GlintStatus
+import me.kavishdevar.librepods.services.LinkState
 import me.kavishdevar.librepods.presentation.components.StyledToggle
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
 import me.kavishdevar.librepods.presentation.theme.LocalDesignSystem
@@ -52,11 +59,16 @@ import me.kavishdevar.librepods.presentation.viewmodel.AirPodsViewModel
 fun HearingProtectionScreen(viewModel: AirPodsViewModel, navigateToPurchase: () -> Unit) {
     val backdrop = rememberLayerBackdrop()
     val state by viewModel.uiState.collectAsState()
-
+    val link by GlintStatus.link.collectAsState()
+    // Changes only reach the AirPods over the control connection; say so instead of
+    // letting a switch flip with nothing happening.
+    val connected = link is LinkState.Connected || viewModel.isDemoMode
     val m3eEnabled = LocalDesignSystem.current == DesignSystem.Material
     val topPadding = if (m3eEnabled) 0.dp else WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 84.dp
     val bottomPadding = if (m3eEnabled) 0.dp else WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 12.dp
+    val offline = "Connect your AirPods to change this"
 
+    Box(Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -86,7 +98,7 @@ fun HearingProtectionScreen(viewModel: AirPodsViewModel, navigateToPurchase: () 
             StyledToggle(
                 title = stringResource(R.string.environmental_noise),
                 label = stringResource(R.string.loud_sound_reduction),
-                description = stringResource(R.string.loud_sound_reduction_description),
+                description = if (connected) stringResource(R.string.loud_sound_reduction_description) else offline,
                 checked = state.loudSoundReductionEnabled,
                 onCheckedChange = {
                     viewModel.setATTCharacteristicValue(
@@ -94,7 +106,7 @@ fun HearingProtectionScreen(viewModel: AirPodsViewModel, navigateToPurchase: () 
                         byteArrayOf(if (it) 1.toByte() else 0.toByte())
                     )
                 },
-                enabled = state.isPremium
+                enabled = state.isPremium && connected
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -102,7 +114,7 @@ fun HearingProtectionScreen(viewModel: AirPodsViewModel, navigateToPurchase: () 
         StyledToggle(
             title = stringResource(R.string.workspace_use),
             label = stringResource(R.string.ppe),
-            description = stringResource(R.string.workspace_use_description),
+            description = if (connected) stringResource(R.string.workspace_use_description) else offline,
             checked = state.controlStates[AACPManager.Companion.ControlCommandIdentifiers.PPE_TOGGLE_CONFIG]?.getOrNull(
                 0
             )?.toInt() == 1,
@@ -111,8 +123,29 @@ fun HearingProtectionScreen(viewModel: AirPodsViewModel, navigateToPurchase: () 
                     AACPManager.Companion.ControlCommandIdentifiers.PPE_TOGGLE_CONFIG, it
                 )
             },
-            enabled = state.isPremium
+            enabled = state.isPremium && connected
         )
+        Row(Modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (state.vendorIdHook) "What these do" else "Loud Sound Reduction needs a rooted phone to change",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+            InfoTip(
+                "Hearing protection",
+                "Loud Sound Reduction softens sudden loud sounds around you while you're in Transparency or Adaptive. " +
+                    "Changing it on Android needs a rooted phone, so it only appears here when Glint can change it. " +
+                    "Workspace Use (EN 352) is for loud workplaces: it limits your media to 82 dBA, in line with the European hearing-protector standard. " +
+                    "Each switch is sent to your AirPods straight away; if it can't be sent, a notice at the bottom says so."
+            )
+        }
         Spacer(modifier = Modifier.height(bottomPadding))
+    }
+    CommandNotice(
+        backdrop = backdrop,
+        onReconnect = viewModel::reconnectFromSavedMac,
+        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomPadding + 16.dp)
+    )
     }
 }
