@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Glint themed icon: the drop's outline and its smile. GPL-3.0. -->
+<!-- Glint icon, one-colour version for themed icons: the ring (full arc) around the orb. GPL-3.0. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:pathData="M29,52a25,25 0 1,0 50,0a25,25 0 1,0 -50,0z" android:strokeWidth="3" android:strokeColor="#FFFFFFFF" android:fillColor="#00000000" />
-    <path android:pathData="M38.44,47.40L38.70,47.77L38.98,48.13L39.26,48.49L39.55,48.84L39.85,49.18L40.16,49.52L40.48,49.85L40.80,50.17L41.13,50.48L41.47,50.78L41.82,51.08L42.17,51.37L42.53,51.65L42.90,51.92L43.27,52.18L43.65,52.43L44.04,52.68L44.43,52.91L44.82,53.14L45.23,53.35L45.63,53.56L46.05,53.75L46.46,53.94L46.88,54.12L47.31,54.28L47.74,54.44L48.17,54.58L48.60,54.72L49.04,54.84L49.48,54.96L49.93,55.06L50.37,55.15L50.82,55.23L51.27,55.30L51.73,55.36L52.18,55.41L52.63,55.45L53.09,55.48L53.54,55.49L54.00,55.50L54.46,55.49L54.91,55.48L55.37,55.45L55.82,55.41L56.27,55.36L56.73,55.30L57.18,55.23L57.63,55.15L58.07,55.06L58.52,54.96L58.96,54.84L59.40,54.72L59.83,54.58L60.26,54.44L60.69,54.28L61.12,54.12L61.54,53.94L61.95,53.75L62.37,53.56L62.77,53.35L63.18,53.14L63.57,52.91L63.96,52.68L64.35,52.43L64.73,52.18L65.10,51.92L65.47,51.65L65.83,51.37L66.18,51.08L66.53,50.78L66.87,50.48L67.20,50.17L67.52,49.85L67.84,49.52L68.15,49.18L68.45,48.84L68.74,48.49L69.02,48.13L69.30,47.77L69.56,47.40" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:strokeColor="#FFFFFFFF" android:fillColor="#00000000" />
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="1.2" android:scaleY="1.2">
+        <path android:pathData="M34,54a20,20 0 1,0 40,0a20,20 0 1,0 -40,0z"
+            android:strokeWidth="7.5" android:strokeColor="#66FFFFFF" android:fillColor="#00000000" />
+        <path android:pathData="M54,34A20,20 0 1,1 34,54" android:strokeWidth="7.5" android:strokeLineCap="round"
+            android:strokeColor="#FFFFFFFF" android:fillColor="#00000000" />
+        <path android:pathData="M40.5,54a13.5,13.5 0 1,0 27,0a13.5,13.5 0 1,0 -27,0z" android:fillColor="#FFFFFFFF" />
+    </group>
 </vector>

@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Glint icon background: a smooth sweep (violet, blue, aqua) with a soft light from the top left. GPL-3.0. -->
+<!-- Glint icon background: a smooth blue-to-aqua sweep with a soft light from the top left. GPL-3.0. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
     <path android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
-            <gradient android:type="linear" android:startX="10" android:startY="0" android:endX="98" android:endY="108"
-                android:startColor="#FF4A3FD6" android:centerColor="#FF3A7BF0" android:endColor="#FF3FD0D4" />
+            <gradient android:type="linear" android:startX="14" android:startY="0" android:endX="94" android:endY="108"
+                android:startColor="#FF2A3FD0" android:centerColor="#FF1F86EA" android:endColor="#FF24D6C4" />
         </aapt:attr>
     </path>
     <path android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
-            <gradient android:type="radial" android:centerX="34" android:centerY="24" android:gradientRadius="62"
-                android:startColor="#26FFFFFF" android:endColor="#00FFFFFF" />
+            <gradient android:type="radial" android:centerX="32" android:centerY="22" android:gradientRadius="64"
+                android:startColor="#4DFFFFFF" android:endColor="#00FFFFFF" />
         </aapt:attr>
     </path>
 </vector>
