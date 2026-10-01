@@ -120,3 +120,8 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 5. **Pause:** the cover greys and the bars become dots; about 30 seconds later it shrinks into the camera.
 6. **Hides:** turn the phone sideways, play a full-screen video, lock the phone. It should get out of the way each time and come back after.
 7. **Settings > Island > Mini island:** each switch works; Try it > Mini island shows a 7-second sample.
+
+## I. Round 24: heart chip from the play button
+
+1. Open the island (tap it). About a second later, a bubble should come out from under the play/pause button and glide left into the heart chip.
+2. Not measuring: it reads **-- BPM**; tapping it opens pro. Measuring: it shows your number and beats; tapping it opens the explanation.

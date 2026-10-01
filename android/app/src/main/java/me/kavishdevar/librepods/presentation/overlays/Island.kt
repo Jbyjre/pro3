@@ -18,6 +18,9 @@
 
 package me.kavishdevar.librepods.presentation.overlays
 
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import me.kavishdevar.librepods.services.GlintStatus
@@ -132,6 +135,8 @@ import kotlin.math.roundToInt
 internal enum class IslandPhase { Compact, Expanded, Leaving }
 
 private const val LONG_PRESS_MS = 450L
+/** How long after the island opens before the heart chip morphs out of the play/pause button. */
+internal const val CHIP_DELAY_MS = 1_000L
 
 internal class IslandController(private val context: Context) {
     private val window = OverlayWindow(context, "GlintIsland", anchorTop = true)
@@ -690,6 +695,23 @@ private fun ExpandedIslandContent(
         else -> null
     }
     val track2 = if (dark) Color(0x33FFFFFF) else Color(0x1F000000)
+    // The heart chip's entrance: a second after the island opens it grows out from under the
+    // play/pause button and glides over to its place on the left. Kept out here so returning
+    // from the heart page doesn't replay it.
+    val chipBud = remember { androidx.compose.animation.core.Animatable(0f) }
+    val chipIn = remember { androidx.compose.animation.core.Animatable(0f) }
+    val view = androidx.compose.ui.platform.LocalView.current
+    val hapticsOn = remember { IslandPrefs.haptics(IslandPrefs.prefs(context)) }
+    LaunchedEffect(active) {
+        if (!active) { chipBud.snapTo(0f); chipIn.snapTo(0f); return@LaunchedEffect }
+        if (reduceMotion) { chipBud.snapTo(1f); chipIn.snapTo(1f); return@LaunchedEffect }
+        if (chipIn.value >= 1f) return@LaunchedEffect
+        delay(CHIP_DELAY_MS)
+        // First a bubble buds out from under the button, then it stretches and glides over.
+        chipBud.animateTo(1f, tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+        chipIn.animateTo(1f, spring(dampingRatio = 0.78f, stiffness = 230f))
+        if (hapticsOn) view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+    }
     androidx.compose.animation.AnimatedContent(
         targetState = heartOpen && heartBpm != null,
         transitionSpec = {
@@ -738,18 +760,26 @@ private fun ExpandedIslandContent(
                 }
             }
             Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
-                // While measuring: a small heart chip in the island's own colours; tap for the explanation.
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = heartBpm != null,
-                    enter = androidx.compose.animation.fadeIn(tween(220)) + androidx.compose.animation.scaleIn(if (reduceMotion) tween(0) else spring(0.7f, 420f), initialScale = 0.85f),
-                    exit = androidx.compose.animation.fadeOut(tween(160)) + androidx.compose.animation.scaleOut(tween(160), targetScale = 0.9f),
+                // The heart chip, in the island's own colours: the live reading (tap for what it
+                // means), or "--" when nothing is measuring (tap to open pro). It morphs out of
+                // the play/pause button on the right, so it starts at this slot's right edge.
+                var slotW by remember { mutableIntStateOf(0) }
+                Box(
+                    Modifier.weight(1f).fillMaxHeight().onSizeChanged { slotW = it.width },
+                    contentAlignment = Alignment.CenterStart,
                 ) {
                     HeartChip(
-                        bpm = heartBpm ?: 0, content = content, secondary = secondary, dark = dark, reduceMotion = reduceMotion, enabled = active,
-                        onClick = { onTouch(); onHeartOpen(true) },
+                        bpm = heartBpm, content = content, secondary = secondary, dark = dark, reduceMotion = reduceMotion,
+                        enabled = active && chipIn.value > 0.9f,
+                        morph = chipIn.value,
+                        bud = chipBud.value,
+                        fromX = slotW.toFloat(),
+                        onClick = {
+                            onTouch()
+                            if (heartBpm != null) onHeartOpen(true) else GlintOverlays.openApp(context)
+                        },
                     )
                 }
-                Spacer(Modifier.weight(1f))
                 if (actionText != null) {
                     GlassPillButton(text = actionText, textColor = content, dark = dark, height = 32.dp, fontSize = 14.sp, onClick = onAction)
                     Spacer(Modifier.width(8.dp))
@@ -1114,18 +1144,60 @@ private fun PartRing(mark: PartMark, level: Int?, charging: Boolean, content: Co
  * number. Sits beside the play button; tap it for the explanation.
  */
 @Composable
-private fun HeartChip(bpm: Int, content: Color, secondary: Color, dark: Boolean, reduceMotion: Boolean, enabled: Boolean, onClick: () -> Unit) {
+private fun HeartChip(
+    bpm: Int?,
+    content: Color,
+    secondary: Color,
+    dark: Boolean,
+    reduceMotion: Boolean,
+    enabled: Boolean,
+    /** 0 = a round bubble hidden under the play/pause button, 1 = the chip in its place. */
+    morph: Float = 1f,
+    /** How far right the play/pause button is from the chip's place, in pixels. */
+    fromX: Float = 0f,
+    /** 0..1 before [morph]: the bubble peeking out from under the play/pause button. */
+    bud: Float = 1f,
+    onClick: () -> Unit,
+) {
     val beat = rememberHeartBeat(bpm, reduceMotion, peak = 1.16f)
     val currentOnClick by rememberUpdatedState(onClick)
     var pressed by remember { mutableStateOf(false) }
     val press by androidx.compose.animation.core.animateFloatAsState(if (pressed) 1f else 0f, spring(0.62f, 620f), label = "chipPress")
+    val m = morph.coerceAtLeast(0f)
+    // Words show once the bubble has mostly become a chip.
+    val inside = ((m - 0.45f) / 0.55f).coerceIn(0f, 1f)
     Row(
         Modifier
-            .height(34.dp)
-            .graphicsLayer { val sc = 1f - 0.05f * press; scaleX = sc; scaleY = sc }
+            .graphicsLayer {
+                // Glides from the button (its left edge at fromX) to the start of the row; the
+                // spring's small overshoot is kept, so it settles like it has weight.
+                val far = 1f - m
+                translationX = far * (fromX - bud * 14.dp.toPx())
+                val sc = (1f - 0.05f * press) * (0.55f + 0.45f * bud)
+                scaleX = sc; scaleY = sc
+                alpha = bud
+                clip = true
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(percent = 50)
+            }
+            // Drawn and touched at the growing size, not the full one.
             .drawBehind { drawGlassCapsule(dark) }
-            .islandPress(enabled, "Heart rate $bpm beats per minute. Tap for what it means", { currentOnClick() }, { pressed = it })
-            .padding(start = 11.dp, end = 13.dp),
+            .islandPress(
+                enabled,
+                if (bpm != null) "Heart rate $bpm beats per minute. Tap for what it means" else "No heart reading. Tap to open pro",
+                { currentOnClick() }, { pressed = it },
+            )
+            .layout { measurable, constraints ->
+                // Measured at its full size, shown at a width growing from a circle the size of
+                // the play/pause button (40) to the full chip, and a height easing from 40 to 34.
+                val full = measurable.measure(constraints.copy(minWidth = 0))
+                val ball = 40.dp.roundToPx()
+                val w = lerp(ball.toFloat(), full.width.toFloat(), m.coerceIn(0f, 1f)).roundToInt()
+                val h = lerp(ball.toFloat(), 34.dp.toPx(), m.coerceIn(0f, 1f)).roundToInt()
+                layout(w, h) { full.placeRelative(0, (h - full.height) / 2) }
+            }
+            .height(34.dp)
+            .padding(start = 11.dp, end = 13.dp)
+            .graphicsLayer { alpha = inside },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(
@@ -1134,12 +1206,12 @@ private fun HeartChip(bpm: Int, content: Color, secondary: Color, dark: Boolean,
                 .graphicsLayer { scaleX = beat.value; scaleY = beat.value }
                 .drawWithCache {
                     val heart = heartPath(size)
-                    onDrawBehind { drawPath(heart, content.copy(alpha = 0.92f)) }
+                    onDrawBehind { drawPath(heart, content.copy(alpha = if (bpm != null) 0.92f else 0.4f)) }
                 }
         )
         Spacer(Modifier.width(7.dp))
         androidx.compose.animation.AnimatedContent(
-            targetState = bpm,
+            targetState = bpm ?: 0,
             transitionSpec = {
                 val up = targetState > initialState
                 val spec = if (reduceMotion) tween<androidx.compose.ui.unit.IntOffset>(0) else spring(0.86f, 500f)
@@ -1148,7 +1220,11 @@ private fun HeartChip(bpm: Int, content: Color, secondary: Color, dark: Boolean,
             },
             label = "chipBpm",
         ) { value ->
-            Text("$value", style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = content, fontFeatureSettings = "tnum"))
+            // No reading: two dashes, quieter, so it's clear nothing is measuring.
+            Text(
+                if (value > 0) "$value" else "--",
+                style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = if (value > 0) content else secondary, fontFeatureSettings = "tnum")
+            )
         }
         Spacer(Modifier.width(4.dp))
         Text("BPM", style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.4.sp, color = secondary))

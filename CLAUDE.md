@@ -56,7 +56,8 @@
   Island moments and options: `services/IslandPrefs.kt` (Settings > Island, `IslandSettingsScreen.kt`). Music on the island: `services/NowPlaying.kt`
   (media keys always; song names via optional Notification access, `MediaAccessService`). Jake wants the opened island small: no song bar,
   no time-left line, batteries as L/R/case rings, just a play/pause button. Heart shows only inside the opened island as a small
-  chip in the island's own white/graphite (never red); tapping it grows the island to the explanation page. It pops the island only for high-rate alerts. Heart beat: one steady loop (`rememberHeartBeat`), never restarted per reading. Ear packets are primary/secondary, not left/right.
+  chip in the island's own white/graphite (never red); it is always there ("-- BPM" with no reading, tap opens the app),
+  morphing out of the play/pause button 1 s after opening (`CHIP_DELAY_MS`); with a reading, tapping it grows the island to the explanation page. It pops the island only for high-rate alerts. Heart beat: one steady loop (`rememberHeartBeat`), never restarted per reading. Ear packets are primary/secondary, not left/right.
   Mini island (black pill around the front camera while music plays; cover + progress ring left, bars in cover colour right,
   widens with the song name; tap = big island, swipe = skip, hold = open app; hides in landscape/full-screen/lock screen/30 s
   after pause): `overlays/MiniIsland.kt`, rules `services/MiniIslandRules.kt`, prefs in `IslandPrefs` (`PREF_MINI*`). While it's

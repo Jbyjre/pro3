@@ -355,3 +355,14 @@ A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every
 - **Checked:** new unit tests (`MiniIslandTest`: when it shows, pausing, lock screen, AirPods-only, song changes, sizes, colour picking, progress), the three looks rendered as pictures (playing with cover, paused with no cover, widened with the name), every screen re-rendered, all tests, lint and the release build pass.
 - **Not verified on your phone:** the exact fit around your S25 FE's camera (it's sized from the camera position Android reports, which I couldn't measure here), whether Samsung reports full-screen apps to it so it hides during videos, and how the swipe feels.
 - Code: `presentation/overlays/MiniIsland.kt`, `services/MiniIslandRules.kt`, `services/IslandPrefs.kt`, `services/NowPlaying.kt` (skip, progress), `overlays/OverlayWindow.kt`, `overlays/GlintOverlays.kt`, `screens/IslandSettingsScreen.kt`, `screens/AppSettingsScreen.kt`.
+
+## 24. The heart chip morphs out of the play button
+
+- **Your request:** in the opened island, about a second after it opens, the heart should come out of the play/pause button and move over to its place; with no heart reading it should show two dashes.
+- **What happens now:** open the island. One second later a small glass bubble buds out from under the play/pause button, stretches into the heart chip as it glides left to its spot at the bottom left, overshoots a touch and settles, with a light tick when it lands (if island haptics are on). The heart, number and "BPM" fade in as it takes shape.
+  - **Measuring:** the chip shows your live reading with the beating heart, as before; tap it for what the number means.
+  - **Not measuring:** it shows **-- BPM** with a quieter, still heart, so it's clear nothing is measuring. Tapping it opens pro.
+  - The chip is now always in the opened island (before, it only appeared while measuring). Coming back from the heart explanation page doesn't replay the animation. With Reduce motion it's simply there.
+- I read "don't show the music" as the opened island staying free of a song bar, which it still is: only the play/pause button. If you meant the mini island's song-name moments, they can be turned off in Settings > Island > Mini island > Show each new song's name.
+- **Checked:** rendered the opened island frame by frame (1.0, 1.1, 1.22, 1.33, 1.45, 1.6 and 3 seconds) and reviewed the motion; all tests, lint and the release build pass. **Not verified on your phone:** how it feels at full speed.
+- Code: `presentation/overlays/Island.kt` (`HeartChip`, `CHIP_DELAY_MS`).
