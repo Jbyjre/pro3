@@ -27,9 +27,8 @@ import me.kavishdevar.librepods.presentation.glint.heartPath
 import me.kavishdevar.librepods.presentation.glint.rememberHeartBeat
 import androidx.compose.animation.togetherWith
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.text.drawText
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.draw.drawWithCache
 import me.kavishdevar.librepods.services.HeartRate
 import me.kavishdevar.librepods.services.HeartInsights
 import me.kavishdevar.librepods.presentation.glint.HeartGlyph
@@ -202,10 +201,12 @@ internal class IslandGeometry(context: Context) {
      * 0 = tucked deep inside, 1 = fully budded off beside the pill.
      */
     val restSplit = satD / (satGap + 2f * satD)
-    val expandedW = minOf(screen.width - dp(20f), dp(430f))
-    // Header, AirPods and batteries (with the heart while measuring), music, time left.
-    val expandedH = dp(300f)
-    val expandedRadius = dp(44f)
+    val expandedW = minOf(screen.width - dp(28f), dp(368f))
+    // Header, AirPods and batteries (with the heart while measuring), time left and play/pause.
+    val expandedH = dp(212f)
+    // The heart's explanation needs more room: tapping the heart grows the island to this.
+    val detailH = dp(292f)
+    val expandedRadius = dp(40f)
     val windowTop = GlintOverlays.statusBarHeight(context) + dp(6f).roundToInt() - margin.roundToInt()
     val compactWindow = IntSize(
         (compactMainW + satGap + satD + margin * 2).roundToInt(),
@@ -214,6 +215,10 @@ internal class IslandGeometry(context: Context) {
     val expandedWindow = IntSize(
         (expandedW + margin * 2).roundToInt(),
         (expandedH + margin * 2 + shadowDrop).roundToInt()
+    )
+    val detailWindow = IntSize(
+        (expandedW + margin * 2).roundToInt(),
+        (detailH + margin * 2 + shadowDrop).roundToInt()
     )
 }
 
@@ -257,6 +262,9 @@ internal fun IslandHost(
     val expand = remember { Animatable(0f) }
     val expandH = remember { Animatable(0f) }
     val split = remember { Animatable(0f) }
+    // The heart's explanation page, and how far the island has grown to fit it (0..1).
+    var heartOpen by remember { mutableStateOf(false) }
+    val grow = remember { Animatable(0f) }
     var press by remember { mutableFloatStateOf(0f) }
     var touch by remember { mutableStateOf<Offset?>(null) }
     var dragY by remember { mutableFloatStateOf(0f) }
@@ -305,6 +313,26 @@ internal fun IslandHost(
         }
     }
 
+    // Opening the heart page grows the window first, then the glass; closing shrinks the glass
+    // first, then the window, so the shape is never cut off.
+    LaunchedEffect(phase) { if (phase != IslandPhase.Expanded) heartOpen = false }
+    LaunchedEffect(heartOpen) {
+        if (heartOpen) {
+            onWindowSize(geometry.detailWindow)
+            grow.animateTo(1f, morphH)
+        } else if (grow.value > 0f) {
+            grow.animateTo(0f, morphH)
+            if (currentPhase == IslandPhase.Expanded) onWindowSize(geometry.expandedWindow)
+        }
+    }
+    // The pill's turning AirPods start once the island has settled, so starting the video never
+    // competes with the morph for the same frames (the still frame shows until then).
+    var pillVideo by remember { mutableStateOf(false) }
+    LaunchedEffect(phase) {
+        pillVideo = false
+        if (phase == IslandPhase.Compact) { delay(if (reduceMotion) 0 else 340); pillVideo = true }
+    }
+
     // How long it stays (Settings > Island), counted from the last touch.
     LaunchedEffect(phase, generation, touches) {
         val hold = when (phase) {
@@ -345,6 +373,9 @@ internal fun IslandHost(
         else -> islandText(event, snapshot)
     }
 
+    /** The opened island's height right now: the main page, or growing toward the heart page. */
+    fun expandedHeight() = lerp(geometry.expandedH, geometry.detailH, grow.value)
+
     // Geometry for the current frame, shared by drawing and layout. Reading animatable
     // values here happens in the draw/layout phase, so animating never recomposes.
     fun frame(windowWidth: Float): IslandFrame {
@@ -358,8 +389,9 @@ internal fun IslandHost(
         val p = pull.value
         // Pulling down stretches the glass (with resistance), keeping its volume roughly constant.
         val stretch = (p.coerceAtLeast(0f) * 0.22f).coerceAtMost(26f * density)
+        val fullH = expandedHeight()
         val w = lerp(mainW0, geometry.expandedW, e) * sq - stretch * 0.35f
-        val h = (lerp(mainH0, geometry.expandedH, eh) * sq + stretch).coerceAtLeast(1f)
+        val h = (lerp(mainH0, fullH, eh) * sq + stretch).coerceAtLeast(1f)
         val radius = lerp(h / 2f, geometry.expandedRadius, e).coerceAtMost(h / 2f)
         val satR = geometry.satD / 2f * a * (1f - e)
         // Satellite travels from tucked inside the pill's right cap to a small gap beside it.
@@ -367,7 +399,7 @@ internal fun IslandHost(
         val protrude = lerp(tucked, geometry.satGap + geometry.satD, s) * (1f - e)
         val groupW = w + max(0f, protrude)
         val left = (windowWidth - groupW) / 2f
-        val top = geometry.margin + p.coerceAtMost(0f) * 0.35f + (1f - sq) * lerp(geometry.compactH, geometry.expandedH, eh) / 2f
+        val top = geometry.margin + p.coerceAtMost(0f) * 0.35f + (1f - sq) * lerp(geometry.compactH, fullH, eh) / 2f
         val main = Rect(left, top, left + w, top + h)
         val satCenter = Offset(main.right - geometry.satD / 2f + protrude, main.top + minOf(h, geometry.compactH) / 2f)
         return IslandFrame(main, radius, satCenter, satR, a, e, s)
@@ -476,7 +508,8 @@ internal fun IslandHost(
     ) {
         // Compact content: tiny buds on the left, title/subtitle; satellite glyph on the right.
         IslandLayout(
-            expandedSize = IntSize(geometry.expandedW.roundToInt(), geometry.expandedH.roundToInt()),
+            expandedWidth = geometry.expandedW.roundToInt(),
+            expandedHeight = { expandedHeight().roundToInt() },
             frameProvider = { frame(it) },
             compact = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -484,7 +517,7 @@ internal fun IslandHost(
                     if (event == IslandEvent.Music && art != null) {
                         Box(Modifier.width(42.dp), contentAlignment = Alignment.Center) { CoverArt(art, 30.dp, 8.dp) }
                     } else {
-                        IslandPods(budsWidth = 42.dp, play = phase != IslandPhase.Expanded)
+                        IslandPods(budsWidth = 42.dp, play = pillVideo)
                     }
                     Spacer(Modifier.width(9.dp))
                     Column {
@@ -506,6 +539,8 @@ internal fun IslandHost(
                     active = phase == IslandPhase.Expanded,
                     reduceMotion = reduceMotion,
                     age = age,
+                    heartOpen = heartOpen,
+                    onHeartOpen = { heartOpen = it },
                     onTouch = { touches++; haptics.tick() },
                     onAction = {
                         haptics.expand()
@@ -531,7 +566,8 @@ private data class IslandFrame(
 /** Places the three content groups exactly where the current frame's shapes are. */
 @Composable
 private fun IslandLayout(
-    expandedSize: IntSize,
+    expandedWidth: Int,
+    expandedHeight: () -> Int,
     frameProvider: (Float) -> IslandFrame,
     compact: @Composable () -> Unit,
     satellite: @Composable () -> Unit,
@@ -547,7 +583,7 @@ private fun IslandLayout(
         val loose = Constraints(maxWidth = w, maxHeight = h)
         val c = compactM.map { it.measure(Constraints(maxWidth = (f.main.width - f.main.height * 0.9f - f.main.height).roundToInt().coerceAtLeast(0), maxHeight = h)) }
         val s = satM.map { it.measure(loose) }
-        val e = expM.map { it.measure(Constraints.fixed(expandedSize.width, expandedSize.height)) }
+        val e = expM.map { it.measure(Constraints.fixed(expandedWidth, expandedHeight())) }
         layout(w, h) {
             val compactAlpha = (f.appear - 0.55f).coerceAtLeast(0f) / 0.45f * (1f - f.expand * 2.5f).coerceAtLeast(0f)
             c.forEach {
@@ -568,7 +604,14 @@ private fun IslandLayout(
             }
             e.forEach {
                 it.placeWithLayer(f.main.left.roundToInt(), f.main.top.roundToInt()) {
-                    alpha = ((f.expand - 0.45f) / 0.55f).coerceIn(0f, 1f)
+                    // Fades in on a smooth S-curve while settling from slightly smaller and higher,
+                    // so the content arrives with the glass instead of popping in at the end.
+                    val t = ((f.expand - 0.30f) / 0.70f).coerceIn(0f, 1f).let { x -> x * x * (3f - 2f * x) }
+                    alpha = t
+                    val sc = 0.965f + 0.035f * t
+                    scaleX = sc; scaleY = sc
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
+                    translationY = (1f - t) * -6f * density
                     clip = true
                     shape = RevealShape(f.main.width, f.main.height, f.radius)
                 }
@@ -610,18 +653,24 @@ private fun ExpandedIslandContent(
     active: Boolean,
     reduceMotion: Boolean,
     age: Int,
+    heartOpen: Boolean,
+    onHeartOpen: (Boolean) -> Unit,
     onTouch: () -> Unit,
     onAction: () -> Unit,
 ) {
+    val context = LocalContext.current
     val link by GlintStatus.link.collectAsState()
     val timeLeft by BatteryTimeLeft.estimate.collectAsState()
     val heart by HeartRate.state.collectAsState()
-    var heartOpen by remember { mutableStateOf(false) }
     val heartBpm = heart.bpm.takeIf { heartShowsOnIsland(heart, System.currentTimeMillis()) }
     // A reading that stops while the explanation is open closes it.
-    LaunchedEffect(heartBpm == null) { if (heartBpm == null) heartOpen = false }
-    // Collapsing the island returns to the main view next time.
-    LaunchedEffect(active) { if (!active) heartOpen = false }
+    LaunchedEffect(heartBpm == null) { if (heartBpm == null) onHeartOpen(false) }
+    // The turning AirPods start once the opening has settled (the still frame shows until then).
+    var podsVideo by remember { mutableStateOf(false) }
+    LaunchedEffect(active) {
+        podsVideo = false
+        if (active) { delay(if (reduceMotion) 0 else 420); podsVideo = true }
+    }
     val actionText = when {
         event is IslandEvent.MovedToDevice && event.canTakeBack -> "Use here"
         event is IslandEvent.Problem -> "Dismiss"
@@ -641,11 +690,11 @@ private fun ExpandedIslandContent(
         if (showHeart) {
             HeartDetail(
                 bpm = heartBpm ?: 0, age = age, content = content, secondary = secondary, dark = dark, reduceMotion = reduceMotion,
-                onBack = { onTouch(); heartOpen = false },
+                onBack = { onTouch(); onHeartOpen(false) },
             )
             return@AnimatedContent
         }
-        Column(Modifier.fillMaxSize().padding(start = 22.dp, end = 20.dp, top = 18.dp, bottom = 14.dp)) {
+        Column(Modifier.fillMaxSize().padding(start = 22.dp, end = 18.dp, top = 16.dp, bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, lineHeight = 22.sp, color = content))
@@ -666,12 +715,12 @@ private fun ExpandedIslandContent(
                 }
             }
             Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                IslandPods(budsWidth = if (heartBpm != null) 96.dp else 116.dp, play = active)
+                IslandPods(budsWidth = if (heartBpm != null) 92.dp else 108.dp, play = podsVideo)
                 Spacer(Modifier.weight(1f))
                 if (heartBpm != null) {
                     HeartBadge(
                         bpm = heartBpm, size = 66.dp, dark = dark, reduceMotion = reduceMotion, enabled = active,
-                        onClick = { onTouch(); heartOpen = true },
+                        onClick = { onTouch(); onHeartOpen(true) },
                     )
                     Spacer(Modifier.weight(1f))
                 }
@@ -681,9 +730,7 @@ private fun ExpandedIslandContent(
                     RingRow("Case", snapshot.case, snapshot.caseCharging, content, secondary, track2)
                 }
             }
-            MediaRow(track, content, secondary, dark, reduceMotion, active, onTouch)
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     timeLeft?.let { BatteryWords.headline(it) } ?: "Hold to open Glint",
                     modifier = Modifier.weight(1f),
@@ -692,7 +739,14 @@ private fun ExpandedIslandContent(
                 )
                 if (actionText != null) {
                     GlassPillButton(text = actionText, textColor = content, dark = dark, height = 32.dp, fontSize = 14.sp, onClick = onAction)
+                    Spacer(Modifier.width(8.dp))
                 }
+                // Just play and pause: no song bar, so the opened island stays small.
+                PlayPauseButton(
+                    playing = track.playing, color = content, size = 40.dp, glyph = 16.dp, reduceMotion = reduceMotion,
+                    enabled = active, glass = true, dark = dark,
+                    onClick = { onTouch(); NowPlaying.playPause(context) },
+                )
             }
         }
     }
@@ -703,35 +757,6 @@ internal fun heartShowsOnIsland(state: HeartRate.State, now: Long): Boolean =
     state.bpm != null && state.status != HeartRate.Status.Off && state.status != HeartRate.Status.NotConnected &&
         now - state.lastReadingMs < 10 * 60_000L
 
-/** Song, artist and app with previous / play-pause / next, on a soft inner panel. */
-@Composable
-private fun MediaRow(track: NowPlaying.Track, content: Color, secondary: Color, dark: Boolean, reduceMotion: Boolean, active: Boolean, onTouch: () -> Unit) {
-    val context = LocalContext.current
-    val (line1, line2) = NowPlaying.words(track)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(58.dp)
-            .background(if (dark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.05f), androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
-            .padding(start = 9.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        val art = track.art
-        if (art != null) CoverArt(art, 40.dp, 10.dp) else MusicNote(content.copy(alpha = 0.75f), 40.dp, dark)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(line1, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 17.sp, color = content))
-            if (line2.isNotEmpty()) Text(line2, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, lineHeight = 15.sp, color = secondary))
-        }
-        SkipButton(forward = false, color = content, enabled = active, onClick = { onTouch(); NowPlaying.previous(context) })
-        PlayPauseButton(
-            playing = track.playing, color = content, size = 44.dp, glyph = 20.dp, reduceMotion = reduceMotion, enabled = active,
-            onClick = { onTouch(); NowPlaying.playPause(context) },
-        )
-        SkipButton(forward = true, color = content, enabled = active, onClick = { onTouch(); NowPlaying.next(context) })
-    }
-}
-
 @Composable
 private fun CoverArt(art: androidx.compose.ui.graphics.ImageBitmap, size: Dp, corner: Dp) {
     androidx.compose.foundation.Image(
@@ -741,33 +766,31 @@ private fun CoverArt(art: androidx.compose.ui.graphics.ImageBitmap, size: Dp, co
     )
 }
 
-/** A soft tile with a music note, where the cover goes when there isn't one. */
-@Composable
-private fun MusicNote(color: Color, size: Dp, dark: Boolean) {
-    androidx.compose.foundation.Canvas(
-        Modifier.size(size).background(if (dark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.06f), androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
-    ) {
-        val w = this.size.width
-        val stem = androidx.compose.ui.graphics.drawscope.Stroke(w * 0.055f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
-        // Two joined eighth notes.
-        drawLine(color, Offset(w * 0.40f, w * 0.66f), Offset(w * 0.40f, w * 0.30f), stem.width, androidx.compose.ui.graphics.StrokeCap.Round)
-        drawLine(color, Offset(w * 0.68f, w * 0.60f), Offset(w * 0.68f, w * 0.24f), stem.width, androidx.compose.ui.graphics.StrokeCap.Round)
-        drawLine(color, Offset(w * 0.40f, w * 0.30f), Offset(w * 0.68f, w * 0.24f), w * 0.09f, androidx.compose.ui.graphics.StrokeCap.Round)
-        drawOval(color, Offset(w * 0.25f, w * 0.60f), Size(w * 0.17f, w * 0.13f))
-        drawOval(color, Offset(w * 0.53f, w * 0.54f), Size(w * 0.17f, w * 0.13f))
-    }
-}
-
 /**
  * Play and pause as one shape that morphs: the two pause bars slide into the two halves of
  * the play triangle (and back). A press squishes it; the release fires [onClick].
  */
 @Composable
-internal fun PlayPauseButton(playing: Boolean, color: Color, size: Dp, glyph: Dp, reduceMotion: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun PlayPauseButton(
+    playing: Boolean, color: Color, size: Dp, glyph: Dp, reduceMotion: Boolean,
+    enabled: Boolean = true, glass: Boolean = false, dark: Boolean = true, onClick: () -> Unit,
+) {
     val morphTo by androidx.compose.animation.core.animateFloatAsState(
         if (playing) 0f else 1f, if (reduceMotion) tween(0) else spring(0.7f, 520f), label = "playPause"
     )
     PressableGlyph(size = size, description = if (playing) "Pause" else "Play", onClick = onClick, enabled = enabled) {
+        if (glass) {
+            // A small glass disc: soft fill, light top rim fading downward, like the island's own edge.
+            val r = this.size.minDimension / 2f
+            drawCircle(if (dark) Color.White.copy(alpha = 0.13f) else Color.Black.copy(alpha = 0.06f), r)
+            drawCircle(
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    listOf(Color.White.copy(alpha = if (dark) 0.42f else 0.95f), Color.White.copy(alpha = if (dark) 0.05f else 0.35f))
+                ),
+                r - 0.5.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx())
+            )
+            if (!dark) drawCircle(Color.Black.copy(alpha = 0.07f), r - 0.3.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(0.6.dp.toPx()))
+        }
         val g = glyph.toPx()
         val o = Offset((this.size.width - g) / 2f, (this.size.height - g) / 2f)
         fun pt(px: Float, py: Float, qx: Float, qy: Float) = Offset(o.x + lerp(px, qx, morphTo) * g, o.y + lerp(py, qy, morphTo) * g)
@@ -790,86 +813,146 @@ internal fun PlayPauseButton(playing: Boolean, color: Color, size: Dp, glyph: Dp
     }
 }
 
-/** Two rounded triangles: next (forward) or previous. */
-@Composable
-private fun SkipButton(forward: Boolean, color: Color, enabled: Boolean, onClick: () -> Unit) {
-    PressableGlyph(size = 38.dp, description = if (forward) "Next" else "Previous", onClick = onClick, enabled = enabled) {
-        val g = 17.dp.toPx()
-        val o = Offset((this.size.width - g) / 2f, (this.size.height - g) / 2f)
-        fun x(v: Float) = o.x + (if (forward) v else 1f - v) * g
-        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(g * 0.07f, join = androidx.compose.ui.graphics.StrokeJoin.Round)
-        for (start in listOf(0.04f, 0.50f)) {
-            val tri = Path().apply {
-                moveTo(x(start), o.y + g * 0.20f); lineTo(x(start + 0.46f), o.y + g * 0.50f); lineTo(x(start), o.y + g * 0.80f); close()
-            }
-            drawPath(tri, color)
-            drawPath(tri, color, style = stroke)
+/**
+ * A tap target for the island's own buttons: consumes its touch (so the island behind doesn't
+ * also treat it as a tap or a hold), reports [onPressed] for the squish, and fires [onClick]
+ * when the finger lifts inside.
+ */
+private fun Modifier.islandPress(enabled: Boolean, description: String, onClick: () -> Unit, onPressed: (Boolean) -> Unit): Modifier {
+    if (!enabled) return this
+    return this
+        .semantics {
+            role = Role.Button
+            contentDescription = description
+            onClick { onClick(); true }
         }
-    }
+        .pointerInput(Unit) {
+            awaitEachGesture {
+                awaitFirstDown().consume()
+                onPressed(true)
+                var inside = true
+                while (true) {
+                    val ch = awaitPointerEvent().changes.firstOrNull() ?: break
+                    inside = ch.position.x in 0f..size.width.toFloat() && ch.position.y in 0f..size.height.toFloat()
+                    ch.consume()
+                    if (!ch.pressed) break
+                }
+                onPressed(false)
+                if (inside) onClick()
+            }
+        }
 }
 
-/** A round touch target that squishes when pressed, consumes its touch, and draws [draw]. */
+/** A round button that squishes softly when pressed and draws [draw]. */
 @Composable
 private fun PressableGlyph(size: Dp, description: String, onClick: () -> Unit, enabled: Boolean = true, draw: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit) {
     val currentOnClick by rememberUpdatedState(onClick)
     var pressed by remember { mutableStateOf(false) }
-    val scale by androidx.compose.animation.core.animateFloatAsState(if (pressed) 0.84f else 1f, spring(0.5f, 700f), label = "press")
+    val press by androidx.compose.animation.core.animateFloatAsState(if (pressed) 1f else 0f, spring(0.62f, 620f), label = "press")
     androidx.compose.foundation.Canvas(
         Modifier
             .size(size)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .then(if (!enabled) Modifier else Modifier.semantics {
-                role = Role.Button
-                contentDescription = description
-                onClick { currentOnClick(); true }
-            })
-            .pointerInput(enabled) {
-                if (!enabled) return@pointerInput
-                awaitEachGesture {
-                    // Consumed, so the island behind doesn't also treat this as a tap or a hold.
-                    awaitFirstDown().consume()
-                    pressed = true
-                    var inside = true
-                    while (true) {
-                        val ch = awaitPointerEvent().changes.firstOrNull() ?: break
-                        inside = ch.position.x in 0f..this.size.width.toFloat() && ch.position.y in 0f..this.size.height.toFloat()
-                        ch.consume()
-                        if (!ch.pressed) break
-                    }
-                    pressed = false
-                    if (inside) currentOnClick()
-                }
-            }
+            .graphicsLayer { val sc = 1f - 0.1f * press; scaleX = sc; scaleY = sc }
+            .islandPress(enabled, description, { currentOnClick() }, { pressed = it })
     ) {
-        if (pressed) drawCircle(Color.Gray.copy(alpha = 0.18f))
+        if (press > 0.01f) drawCircle(Color.Gray.copy(alpha = 0.18f * press.coerceIn(0f, 1f)))
         draw()
     }
 }
 
-/** A heart with the live number inside it, beating at that rate. Tap it for what it means. */
+/**
+ * A heart with the live number inside it, beating smoothly at that rate, with a soft glow that
+ * swells on each beat. Tap it for what it means. The shape and its shading are built once per
+ * size and the beat only scales the layer, so beating never redraws or re-measures anything.
+ */
 @Composable
 private fun HeartBadge(bpm: Int, size: Dp, dark: Boolean, reduceMotion: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
-    val beat = rememberHeartBeat(bpm, reduceMotion, peak = 1.07f)
-    val red = if (dark) Color(0xFFF04A50) else Color(0xFFE0303A)
-    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val peak = 1.06f
+    val beat = rememberHeartBeat(bpm, reduceMotion, peak = peak)
+    val top = if (dark) Color(0xFFFF6971) else Color(0xFFFF5C65)
+    val bottom = if (dark) Color(0xFFE5323F) else Color(0xFFD62536)
+    val label = if (dark) Color(0xFFF04A50) else Color(0xFFE0303A)
+    val currentOnClick by rememberUpdatedState(onClick)
+    var pressed by remember { mutableStateOf(false) }
+    val press by androidx.compose.animation.core.animateFloatAsState(if (pressed) 1f else 0f, spring(0.62f, 620f), label = "heartPress")
+    val numberSize = with(LocalDensity.current) { (size * 0.29f).toSp() }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        PressableGlyph(size = size, description = "Heart rate $bpm beats per minute. Tap for what it means", onClick = onClick, enabled = enabled) {
-            val s = this.size
-            scale(beat.value, beat.value) {
-                val heart = heartPath(s)
-                drawPath(heart, androidx.compose.ui.graphics.Brush.verticalGradient(listOf(red.copy(alpha = 0.92f), red), 0f, s.height))
-                // Glass sheen across the top lobes.
-                clipPath(heart) {
-                    drawOval(Color.White.copy(alpha = 0.28f), Offset(s.width * 0.10f, s.height * 0.06f), Size(s.width * 0.80f, s.height * 0.34f))
-                }
-                val number = measurer.measure(
-                    bpm.toString(),
-                    TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.Bold, fontSize = (s.width * 0.30f / density).sp, color = Color.White)
+        Box(
+            Modifier
+                .size(size)
+                .islandPress(enabled, "Heart rate $bpm beats per minute. Tap for what it means", { currentOnClick() }, { pressed = it }),
+            contentAlignment = Alignment.Center,
+        ) {
+            // Glow: brightens and spreads a little with each beat.
+            Spacer(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        val k = ((beat.value - 1f) / (peak - 1f)).coerceIn(0f, 1f)
+                        alpha = (if (dark) 0.30f else 0.20f) + 0.45f * k
+                        val sc = 1.02f + 0.10f * k
+                        scaleX = sc; scaleY = sc
+                    }
+                    .drawWithCache {
+                        val glow = androidx.compose.ui.graphics.Brush.radialGradient(
+                            listOf(bottom.copy(alpha = 0.55f), bottom.copy(alpha = 0f)),
+                            center = Offset(this.size.width / 2f, this.size.height * 0.52f), radius = this.size.minDimension * 0.62f
+                        )
+                        onDrawBehind { drawCircle(glow, this.size.minDimension * 0.62f, Offset(this.size.width / 2f, this.size.height * 0.52f)) }
+                    }
+            )
+            // The heart: a top-to-bottom red gradient, a soft light in the upper left, gentle
+            // depth toward the tip and a faint rim. No hard-edged shine.
+            Spacer(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { val sc = beat.value * (1f - 0.08f * press); scaleX = sc; scaleY = sc }
+                    .drawWithCache {
+                        val s = this.size
+                        val heart = heartPath(s)
+                        val body = androidx.compose.ui.graphics.Brush.verticalGradient(listOf(top, bottom), s.height * 0.07f, s.height * 0.93f)
+                        val light = androidx.compose.ui.graphics.Brush.radialGradient(
+                            listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0f)),
+                            center = Offset(s.width * 0.30f, s.height * 0.26f), radius = s.width * 0.42f
+                        )
+                        val depth = androidx.compose.ui.graphics.Brush.radialGradient(
+                            listOf(Color(0xFF6A0010).copy(alpha = 0.16f), Color.Transparent),
+                            center = Offset(s.width * 0.5f, s.height), radius = s.width * 0.6f
+                        )
+                        val rim = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx())
+                        onDrawBehind {
+                            drawPath(heart, body)
+                            drawPath(heart, depth)
+                            drawPath(heart, light)
+                            drawPath(heart, Color.White.copy(alpha = 0.20f), style = rim)
+                        }
+                    }
+            )
+            // The number rolls to each new reading instead of jumping.
+            androidx.compose.animation.AnimatedContent(
+                targetState = bpm,
+                transitionSpec = {
+                    val up = targetState > initialState
+                    val spec = if (reduceMotion) tween<androidx.compose.ui.unit.IntOffset>(0) else spring(0.86f, 500f)
+                    (androidx.compose.animation.slideInVertically(spec) { if (up) it / 2 else -it / 2 } + androidx.compose.animation.fadeIn(tween(160))) togetherWith
+                        (androidx.compose.animation.slideOutVertically(spec) { if (up) -it / 2 else it / 2 } + androidx.compose.animation.fadeOut(tween(120)))
+                },
+                modifier = Modifier
+                    .offset(y = size * -0.025f)
+                    .graphicsLayer { val sc = beat.value * (1f - 0.08f * press); scaleX = sc; scaleY = sc },
+                label = "bpm",
+            ) { value ->
+                Text(
+                    value.toString(),
+                    style = TextStyle(
+                        fontFamily = glintFontFamily, fontWeight = FontWeight.Bold, fontSize = numberSize, color = Color.White,
+                        fontFeatureSettings = "tnum",
+                        shadow = androidx.compose.ui.graphics.Shadow(Color(0x55000000), Offset(0f, 1f), 3f),
+                    ),
                 )
-                drawText(number, topLeft = Offset((s.width - number.size.width) / 2f, s.height * 0.44f - number.size.height / 2f))
             }
         }
-        Text("BPM", style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 0.6.sp, color = red))
+        Text("BPM", style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 0.6.sp, color = label))
     }
 }
 

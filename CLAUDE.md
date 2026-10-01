@@ -51,8 +51,9 @@
   App icon (Jake's choice: no AirPods/case, no pink, black/white/gray, smooth and abstract): Glint's ring around a glass pearl, in
   Black (default), White and Graphite (`drawable-v24/ic_launcher*`); chosen in Settings > App icon via manifest activity-aliases (`theme/AppIcon.kt`).
   Island moments and options: `services/IslandPrefs.kt` (Settings > Island, `IslandSettingsScreen.kt`). Music on the island: `services/NowPlaying.kt`
-  (media keys always; song names via optional Notification access, `MediaAccessService`). Heart shows only inside the opened island
-  (heart with the number; tap for the explanation); it pops the island only for high-rate alerts. Ear packets are primary/secondary, not left/right.
+  (media keys always; song names via optional Notification access, `MediaAccessService`). Jake wants the opened island small: no song bar,
+  just a play/pause button. Heart shows only inside the opened island (heart with the number; tapping it grows the island to the
+  explanation page); it pops the island only for high-rate alerts. Heart beat: one steady loop (`rememberHeartBeat`), never restarted per reading. Ear packets are primary/secondary, not left/right.
   Light/dark switch reveal: `theme/ThemeReveal.kt` (`ThemeReveal.change`). Don't `remember` theme colours (rows went white-on-white).
   Volume limit (hearing protection without root): `services/VolumeGuard.kt`. Always-on heart rate: `PREF_HR_ALWAYS`, `autoHeartRate()` in the service. The status notification is hidden unless
   `glint_status_notification` is on. Jake's app is personal: no visible LibrePods mentions.
