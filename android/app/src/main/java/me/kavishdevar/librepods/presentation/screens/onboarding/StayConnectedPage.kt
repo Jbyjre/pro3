@@ -88,7 +88,7 @@ fun StayConnectedPage(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                "Samsung phones pause apps in the background to save battery. These steps keep Glint ready so it reconnects on its own, even after a restart or a long idle day.",
+                "Three steps so Glint reconnects on its own, even after a restart.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -130,7 +130,7 @@ fun StayConnectedSteps() {
     StepRow(
         number = 1,
         title = "Link your AirPods",
-        body = linkMessage ?: "Android will wake Glint whenever your AirPods connect, even if the phone closed it. You'll see a system pop-up; tap your AirPods, then Allow.",
+        body = linkMessage ?: "Wakes Glint when your AirPods connect. Pick your AirPods, then Allow.",
         done = linked,
         action = if (linked) null else "Link" to {
             val saved = prefs.getString("mac_address", "")?.takeIf { it.isNotBlank() }
@@ -151,7 +151,7 @@ fun StayConnectedSteps() {
     StepRow(
         number = 2,
         title = "Allow unrestricted battery",
-        body = "Stops Android from freezing Glint to save battery. Glint itself uses very little: it mostly waits for Bluetooth events.",
+        body = "Stops Android from pausing Glint. It uses very little battery.",
         done = unrestricted,
         action = if (unrestricted) null else "Allow" to {
             try { context.startActivity(CompanionLink.batteryOptimizationIntent(context)) }
@@ -162,7 +162,7 @@ fun StayConnectedSteps() {
         StepRow(
             number = 3,
             title = "Samsung: never sleep",
-            body = "In Settings, open Battery, then Background usage limits, then Never sleeping apps, tap +, and add Glint. Also make sure Glint is not under \"Deep sleeping apps\". Tap Done here when finished.",
+            body = "Battery > Background usage limits > Never sleeping apps: add Glint. Then tap Done.",
             done = samsungDone,
             action = if (samsungDone) null else "Open settings" to {
                 try { context.startActivity(CompanionLink.samsungBackgroundLimitsIntent()) }

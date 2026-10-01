@@ -4,7 +4,7 @@
     <string name="app_widget_description">See your AirPods battery status right from your home screen!</string>
     <string name="accessibility">Accessibility</string>
     <string name="tone_volume">Tone Volume</string>
-    <string name="tone_volume_description">Adjust the tone volume of sound effects played by AirPods.</string>
+    <string name="tone_volume_description">Volume of the AirPods\' own sounds.</string>
     <string name="audio">Audio</string>
     <string name="adaptive_audio">Adaptive Audio</string>
     <string name="customize_adaptive_audio">Customize Adaptive Audio</string>
@@ -19,7 +19,7 @@
     <string name="adaptive">Adaptive</string>
     <string name="noise_cancellation">Noise Cancellation</string>
     <string name="press_and_hold_airpods">Press and Hold AirPods</string>
-    <string name="press_and_hold_noise_control_description">Press and hold the stem to cycle between the selected listening modes.</string>
+    <string name="press_and_hold_noise_control_description">Press and hold the stem to cycle through these.</string>
     <string name="head_gestures">Head Gestures</string>
     <string name="left">Left</string>
     <string name="right">Right</string>
@@ -28,9 +28,9 @@
     <string name="personalized_volume">Personalized Volume</string>
     <string name="personalized_volume_description">Adjusts the volume of media in response to your environment.</string>
     <string name="noise_cancellation_single_airpod">Noise Cancellation with Single AirPod</string>
-    <string name="noise_cancellation_single_airpod_description">Allow AirPods to be put in noise cancellation mode when only one AirPod is in your ear.</string>
+    <string name="noise_cancellation_single_airpod_description">Noise Cancellation with only one AirPod in.</string>
     <string name="volume_control">Volume Control</string>
-    <string name="volume_control_description">Adjust the volume by swiping up or down on the sensor located on the AirPods Pro stem.</string>
+    <string name="volume_control_description">Swipe the stem to change volume.</string>
     <string name="airpods_not_connected">AirPods not connected</string>
     <string name="airpods_not_connected_description">Please connect your AirPods to access settings.</string>
     <string name="back">Back</string>
@@ -81,7 +81,7 @@
     <string name="takeover_media_start">Starting media playback</string>
     <string name="takeover_media_start_desc">Your phone starts playing media</string>
     <string name="undo">Undo</string>
-    <string name="customize_transparency_mode_description">You can customize Transparency mode for your AirPods Pro to help you hear what\'s around you.</string>
+    <string name="customize_transparency_mode_description">Tune Transparency to help you hear what\'s around you.</string>
     <string name="loud_sound_reduction_description">Softens loud surrounding noise in Transparency and Adaptive.</string>
     <string name="loud_sound_reduction">Loud Sound Reduction</string>
     <string name="call_controls">Call Controls</string>
@@ -107,11 +107,11 @@
     <string name="transparency_mode">Transparency Mode</string>
     <string name="customize_transparency_mode">Customize Transparency Mode</string>
     <string name="press_speed">Press Speed</string>
-    <string name="press_speed_description">Adjust the speed required to press two or three times on your AirPods.</string>
+    <string name="press_speed_description">How fast to double or triple press.</string>
     <string name="press_and_hold_duration">Press and Hold Duration</string>
-    <string name="press_and_hold_duration_description">Adjust the duration required to press and hold on your AirPods.</string>
+    <string name="press_and_hold_duration_description">How long to press and hold.</string>
     <string name="volume_swipe_speed">Volume Swipe Speed</string>
-    <string name="volume_swipe_speed_description">To prevent unintended volume adjustments, select preferred wait time between swipes.</string>
+    <string name="volume_swipe_speed_description">Wait between swipes, to avoid accidental changes.</string>
     <string name="equalizer">Equalizer</string>
     <string name="apply_eq_to">Apply EQ to</string>
     <string name="phone">Phone</string>
@@ -268,7 +268,7 @@
     <string name="advanced_features">Advanced features</string>
     <string name="digital_assistant_on_long_press">Digital Assistant on Long Press</string>
     <string name="digital_assistant_on_long_press_description">Invoke Digital Assistant when long pressing the AirPods Pro stem.</string>
-    <string name="customizations_unavailable">Customizations unavailable. Connect your AirPods at least once to access.</string>
+    <string name="customizations_unavailable">Connect your AirPods once to see more settings.</string>
     <string name="xposed_available">Xposed available</string>
     <string name="app_enabled_in_xposed">App enabled in Xposed</string>
     <string name="subject">Subject</string>
