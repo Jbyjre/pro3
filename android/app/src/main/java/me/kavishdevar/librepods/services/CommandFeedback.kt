@@ -67,7 +67,7 @@ object CommandFeedback {
     fun sent(identifier: Byte, value: ByteArray, sent: Boolean) {
         if (!sent) {
             timeout?.cancel(); pendingMode = null
-            post(Kind.Failed, "Couldn't send that: the AirPods' controls aren't connected.")
+            post(Kind.Failed, "Couldn't send: controls offline")
             return
         }
         if (identifier != LISTENING_MODE || value.isEmpty()) return
@@ -85,7 +85,7 @@ object CommandFeedback {
     internal fun timedOut(mode: Int) {
         if (pendingMode != mode) return
         pendingMode = null
-        post(Kind.Failed, "Your AirPods didn't confirm ${modeName(mode)}. They may be connected to another device, or the controls dropped.")
+        post(Kind.Failed, "AirPods didn't switch to ${modeName(mode)}")
     }
 
     /** The AirPods reported a control value (their answer, or a change made on the stem). */
@@ -97,7 +97,7 @@ object CommandFeedback {
         pendingMode = null
         timeout?.cancel()
         if (got == want) post(Kind.Done, "${modeName(got)} is on")
-        else post(Kind.Failed, "Your AirPods stayed in ${modeName(got)}. ${modeName(want)} may be turned off in Press and hold settings.")
+        else post(Kind.Failed, "AirPods stayed in ${modeName(got)}")
     }
 
     fun clear() { _notice.value = null }

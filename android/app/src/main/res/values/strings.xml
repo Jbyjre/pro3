@@ -8,7 +8,7 @@
     <string name="audio">Audio</string>
     <string name="adaptive_audio">Adaptive Audio</string>
     <string name="customize_adaptive_audio">Customize Adaptive Audio</string>
-    <string name="adaptive_audio_description">Adaptive audio dynamically responds to your environment and cancels or allows external noise. You can customize Adaptive Audio to allow more or less noise.</string>
+    <string name="adaptive_audio_description">Blends Noise Cancellation and Transparency to suit your surroundings.</string>
     <string name="buds">Buds</string>
     <string name="case_alt">Case</string>
     <string name="test">Test</string>
@@ -24,7 +24,7 @@
     <string name="left">Left</string>
     <string name="right">Right</string>
     <string name="conversational_awareness">Conversational Awareness</string>
-    <string name="conversational_awareness_description">Lowers media volume and reduces background noise when you start speaking to other people.</string>
+    <string name="conversational_awareness_description">Lowers media and background noise when you talk.</string>
     <string name="personalized_volume">Personalized Volume</string>
     <string name="personalized_volume_description">Adjusts the volume of media in response to your environment.</string>
     <string name="noise_cancellation_single_airpod">Noise Cancellation with Single AirPod</string>
@@ -82,14 +82,14 @@
     <string name="takeover_media_start_desc">Your phone starts playing media</string>
     <string name="undo">Undo</string>
     <string name="customize_transparency_mode_description">You can customize Transparency mode for your AirPods Pro to help you hear what\'s around you.</string>
-    <string name="loud_sound_reduction_description">Loud Sound Reduction can actively reduce your exposure to loud environmental noises when in Transparency and Adaptive mode. Loud Sound Reduction is not active in Off mode.</string>
+    <string name="loud_sound_reduction_description">Softens loud surrounding noise in Transparency and Adaptive.</string>
     <string name="loud_sound_reduction">Loud Sound Reduction</string>
     <string name="call_controls">Call Controls</string>
     <string name="automatically_connect">Connect to this device automatically</string>
-    <string name="automatically_connect_description">When enabled, AirPods will try to connect to this device automatically. Else, they will try to autoconnect only when last connected.</string>
+    <string name="automatically_connect_description">Connect to this phone automatically, not only when it was used last.</string>
     <string name="sleep_detection">Pause media when falling asleep</string>
     <string name="off_listening_mode">Off Listening Mode</string>
-    <string name="off_listening_mode_description">When this is on, AirPods listening modes will include an Off option. Loud sound levels are not reduced when the listening mode is set to Off.</string>
+    <string name="off_listening_mode_description">Adds Off to the listening modes. Loud sounds aren\'t reduced in Off.</string>
     <string name="microphone">Microphone</string>
     <string name="microphone_mode">Microphone Mode</string>
     <string name="microphone_automatic">Automatic</string>
@@ -103,7 +103,7 @@
     <string name="hearing_aid">Hearing Aid</string>
     <string name="adjustments">Adjustments</string>
     <string name="swipe_to_control_amplification">Swipe to control amplification</string>
-    <string name="swipe_amplification_description">When in Transparency and no media is playing, swipe up and down on the Touch controls of your AirPods Pro to increase or decrease the amplification of environmental sounds.</string>
+    <string name="swipe_amplification_description">In Transparency with nothing playing, swipe the stem to change amplification.</string>
     <string name="transparency_mode">Transparency Mode</string>
     <string name="customize_transparency_mode">Customize Transparency Mode</string>
     <string name="press_speed">Press Speed</string>
@@ -131,10 +131,10 @@
     <string name="tone">Tone</string>
     <string name="ambient_noise_reduction">Ambient Noise Reduction</string>
     <string name="conversation_boost">Conversation Boost</string>
-    <string name="conversation_boost_description">Conversation Boost focuses your AirPods Pro on the person talking in front of you, making it easier to hear in a face-to-face conversation.</string>
+    <string name="conversation_boost_description">Focuses on the person talking in front of you.</string>
     <string name="hearing_aid_description">AirPods can use the results of a hearing test to make adjustments that improve the clarity of voices and sounds around you.\n\nHearing Aid is only intended for people with perceived mild to moderate hearing loss.</string>
     <string name="media_assist">Media Assist</string>
-    <string name="media_assist_description">AirPods Pro can use the results of a hearing test to make adjustments that improve the clarity of music, video, and calls.</string>
+    <string name="media_assist_description">Uses your hearing test to make music, video and calls clearer.</string>
     <string name="adjust_media">Adjust Music and Video</string>
     <string name="adjust_calls">Adjust Calls</string>
     <string name="widget">Widget</string>
@@ -142,9 +142,9 @@
     <string name="show_phone_battery_in_widget_description">Display your phone\'s battery level in the widget alongside AirPods battery</string>
     <string name="popup_animations">Popup Animations</string>
     <string name="show_bottom_sheet_popup">Card when the case opens</string>
-    <string name="show_bottom_sheet_popup_description">Off by default. Shows a card at the bottom of the screen when you open the AirPods case nearby. The top island works either way.</string>
-    <string name="show_island_popup">Dynamic Island popup</string>
-    <string name="show_island_popup_description">Show the Dynamic Island-style popup at the top for connection and takeover events.</string>
+    <string name="show_bottom_sheet_popup_description">A card at the bottom when you open the case nearby.</string>
+    <string name="show_island_popup">Island at the top</string>
+    <string name="show_island_popup_description">A small pop-up when your AirPods connect or change.</string>
     <string name="conversational_awareness_volume">Conversational Awareness Volume</string>
     <string name="quick_settings_tile">Quick Settings Tile</string>
     <string name="open_dialog_for_controlling">Open dialog for controlling</string>
@@ -207,7 +207,7 @@
     <string name="hearing_protection">Hearing Protection</string>
     <string name="workspace_use">Workspace Use</string>
     <string name="ppe">EN 352 Protection</string>
-    <string name="workspace_use_description">EN 352 Protection limits the maximum level of media to 82 dBA, and meets applicable EN 352 Standard requirements for personal hearing protection.</string>
+    <string name="workspace_use_description">Limits media to 82 dBA (EN 352 hearing protection).</string>
     <string name="environmental_noise">Environmental Noise</string>
     <string name="reconnect_to_last_device">Reconnect to last connected device</string>
     <string name="disconnect">Disconnect</string>
@@ -218,7 +218,7 @@
     <string name="unlock_advanced_features">Unlock advanced features</string>
     <string name="buy_price">Buy %s</string>
     <string name="restore_purchases">Restore purchases</string>
-    <string name="ear_detection_description">Automatically stop playing audio when you take them off, and resume playback when you put them back on.</string>
+    <string name="ear_detection_description">Pause when you take them out, resume when you put them back.</string>
     <string name="battery">Battery</string>
     <string name="battery_description">View accurate battery status in the app and notification.</string>
     <string name="noise_control_description">Switch between listening modes directly from the app or Quick Settings.</string>
@@ -274,7 +274,7 @@
     <string name="subject">Subject</string>
     <string name="describe_your_issue">Describe your issue</string>
     <string name="optimized_charging">Optimized Charge Limit</string>
-    <string name="optimized_charging_description">AirPods can learn from your daily usage and determine when to charge to an optmized limit and when to allow or full charge. This limit adapts to your daily usage and preserves your battery lifespan over time.\nThis setting may not affect unsupported AirPods, or AirPods on an older firmware version.</string>
+    <string name="optimized_charging_description">Learns your routine and waits to finish charging until you usually need them.</string>
     <string name="enable_app_in_xposed_or_update_device">Update your device or enable Glint in Xposed and reopen the app to proceed.</string>
     <string name="custom">Custom</string>
     <string name="recommended">Recommended</string>

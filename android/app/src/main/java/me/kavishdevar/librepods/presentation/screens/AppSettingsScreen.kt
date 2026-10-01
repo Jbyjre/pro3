@@ -18,6 +18,7 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import me.kavishdevar.librepods.presentation.components.AppearancePicker
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 
 import android.content.Intent
@@ -134,8 +135,13 @@ fun AppSettingsScreen(
 
         val isDarkTheme = isSystemInDarkTheme()
 
+        Text(
+            stringResource(R.string.appearance),
+            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = glintFontFamily, color = (if (isSystemInDarkTheme()) Color.White else Color.Black).copy(alpha = 0.6f)),
+            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp, top = 8.dp)
+        )
+        AppearancePicker()
         StyledToggle(
-            title = stringResource(R.string.appearance),
             label = stringResource(R.string.use_material3e),
             checked = state.m3eEnabled,
             onCheckedChange = viewModel::setm3eEnabled,

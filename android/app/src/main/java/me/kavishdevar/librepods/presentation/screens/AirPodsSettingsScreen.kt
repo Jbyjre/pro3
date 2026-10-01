@@ -317,9 +317,9 @@ fun AirPodsSettingsScreen(
             item(key = "link_status") {
                 val link by me.kavishdevar.librepods.services.GlintStatus.link.collectAsState()
                 val (dot, text) = when (link) {
-                    is me.kavishdevar.librepods.services.LinkState.Connected -> me.kavishdevar.librepods.presentation.glint.GlintColors.Green to "Controls connected: changes apply right away"
-                    is me.kavishdevar.librepods.services.LinkState.Connecting, is me.kavishdevar.librepods.services.LinkState.Retrying -> me.kavishdevar.librepods.presentation.glint.GlintColors.Amber to "Reconnecting controls… audio still works"
-                    is me.kavishdevar.librepods.services.LinkState.GaveUp -> me.kavishdevar.librepods.presentation.glint.GlintColors.Red to "Controls not connected: changes won't reach the AirPods"
+                    is me.kavishdevar.librepods.services.LinkState.Connected -> me.kavishdevar.librepods.presentation.glint.GlintColors.Green to "Controls connected"
+                    is me.kavishdevar.librepods.services.LinkState.Connecting, is me.kavishdevar.librepods.services.LinkState.Retrying -> me.kavishdevar.librepods.presentation.glint.GlintColors.Amber to "Reconnecting controls…"
+                    is me.kavishdevar.librepods.services.LinkState.GaveUp -> me.kavishdevar.librepods.presentation.glint.GlintColors.Red to "Controls offline: changes won't apply"
                     else -> me.kavishdevar.librepods.presentation.glint.GlintColors.Amber to "Waiting for your AirPods"
                 }
                 Row(
@@ -552,7 +552,7 @@ fun AirPodsSettingsScreen(
                 item(key = "head_tracking") {
                     StyledListItem(
                         name = stringResource(R.string.head_gestures),
-                        description = if (state.headGesturesEnabled) "On: nod to answer calls, shake to decline" else stringResource(R.string.off),
+                        description = if (state.headGesturesEnabled) stringResource(R.string.on) else stringResource(R.string.off),
                         onClick = navigateToHeadTracking
                     )
                 }
@@ -566,10 +566,10 @@ fun AirPodsSettingsScreen(
                         name = "Heart rate",
                         description = when (hr.status) {
                             HeartRate.Status.Live -> "${hr.bpm} BPM now"
-                            HeartRate.Status.Off -> "Measure with your AirPods"
+                            HeartRate.Status.Off -> "Off"
                             HeartRate.Status.Starting -> "Starting…"
-                            HeartRate.Status.NoSignal -> "No reading, check the fit"
-                            HeartRate.Status.NotConnected -> "Waiting for controls"
+                            HeartRate.Status.NoSignal -> "No reading"
+                            HeartRate.Status.NotConnected -> "Waiting"
                         },
                         onClick = navigateToHeartRate
                     )
@@ -579,8 +579,8 @@ fun AirPodsSettingsScreen(
             item(key = "spacer_recorder") { Spacer(modifier = Modifier.height(16.dp)) }
             item(key = "recorder") {
                 StyledListItem(
-                    name = "Recorder (experimental)",
-                    description = "Record with the AirPods' microphones",
+                    name = "Recorder",
+                    description = "Experimental",
                     onClick = navigateToRecorder
                 )
             }
@@ -632,8 +632,7 @@ fun AirPodsSettingsScreen(
                     // These exist in LibrePods but need a rooted phone with Xposed. Listing them
                     // plainly beats hiding them and leaving people wondering where they went.
                     StyledList(
-                        title = "Needs root",
-                        description = "These features need a rooted phone with the Xposed module, so they are off on a standard Samsung. Everything above works without root."
+                        title = "Needs a rooted phone",
                     ) {
                         StyledListItem(
                             name = stringResource(R.string.hearing_aid),
@@ -642,7 +641,7 @@ fun AirPodsSettingsScreen(
                         )
                         StyledListItem(
                             name = stringResource(R.string.loud_sound_reduction),
-                            description = "Changing this setting needs root",
+                            description = "Softens loud noise",
                             enabled = false
                         )
                         StyledListItem(
@@ -651,8 +650,8 @@ fun AirPodsSettingsScreen(
                             enabled = false
                         )
                         StyledListItem(
-                            name = "Battery in system Bluetooth settings",
-                            description = "Needs Glint installed as a system app (root module)",
+                            name = "System battery display",
+                            description = "Battery in Android's Bluetooth settings",
                             enabled = false
                         )
                     }

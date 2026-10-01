@@ -79,10 +79,13 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
@@ -100,7 +103,8 @@ import me.kavishdevar.librepods.presentation.glint.GlintColors
 import me.kavishdevar.librepods.presentation.glint.GlintComfort
 import me.kavishdevar.librepods.presentation.glint.GlintHaptics
 import me.kavishdevar.librepods.presentation.glint.ListeningModeGlyph
-import me.kavishdevar.librepods.presentation.glint.PodsSpinner
+import me.kavishdevar.librepods.presentation.glint.PodsVideo
+import me.kavishdevar.librepods.presentation.glint.PodsVideoConfig
 import me.kavishdevar.librepods.presentation.glint.SystemBlur
 import me.kavishdevar.librepods.presentation.glint.drawBolt
 import me.kavishdevar.librepods.presentation.glint.drawGlass
@@ -116,6 +120,8 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 internal enum class IslandPhase { Compact, Expanded, Leaving }
+
+private const val LONG_PRESS_MS = 450L
 
 internal class IslandController(private val context: Context) {
     private val window = OverlayWindow(context, "GlintIsland", anchorTop = true)
@@ -182,7 +188,7 @@ internal class IslandGeometry(context: Context) {
      */
     val restSplit = satD / (satGap + 2f * satD)
     val expandedW = minOf(screen.width - dp(20f), dp(430f))
-    val expandedH = dp(256f)
+    val expandedH = dp(204f)
     val expandedRadius = dp(44f)
     val windowTop = GlintOverlays.statusBarHeight(context) + dp(6f).roundToInt() - margin.roundToInt()
     val compactWindow = IntSize(
@@ -214,7 +220,9 @@ internal fun IslandHost(
     val reduceMotion = remember { GlintComfort.reduceMotion(context) }
     val reduceTransparency = remember { GlintComfort.reduceTransparency(context) }
     val light by rememberTiltLight(GlintComfort.tiltLight(context))
-    val look = remember { GlassLooks.island(density) }
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val look = remember(dark) { GlassLooks.island(density, dark) }
+    val ringTrack = if (dark) Color(0x33FFFFFF) else Color(0x1F000000)
 
     val useBlur = blurAllowed && !reduceTransparency
     val mainBlur = remember(useBlur) { if (useBlur) SystemBlur.create(view) else null }
@@ -271,7 +279,6 @@ internal fun IslandHost(
                     launch { delay(if (reduceMotion) 0 else 90); appear.animateTo(0f, if (reduceMotion) tween(160) else spring(1f, 500f)) }
                 }
                 onGone()
-                GlintOverlays.releaseIfIdle()
             }
         }
     }
@@ -281,9 +288,9 @@ internal fun IslandHost(
             is IslandEvent.ListeningMode -> ListeningModeGlyph(event.mode, look.content, size = 22.dp)
             is IslandEvent.MovedToDevice, IslandEvent.TakingOver -> Text("⇄", style = TextStyle(color = look.content, fontSize = 17.sp, fontFamily = glintFontFamily))
             is IslandEvent.Problem -> Text("!", style = TextStyle(color = GlintColors.Amber, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = glintFontFamily))
-            is IslandEvent.Charging -> BatteryRing(snapshot.case, true, size = 30.dp, stroke = 3.dp, track = Color(0x33FFFFFF), label = look.content, labelSize = 10.sp)
-            is IslandEvent.LowBattery -> BatteryRing(event.level, false, size = 30.dp, stroke = 3.dp, track = Color(0x33FFFFFF), label = look.content, labelSize = 10.sp)
-            else -> BatteryRing(snapshot.budsLevel, snapshot.budsCharging, size = 30.dp, stroke = 3.dp, track = Color(0x33FFFFFF), label = look.content, labelSize = 10.sp)
+            is IslandEvent.Charging -> BatteryRing(snapshot.case, true, size = 30.dp, stroke = 3.dp, track = ringTrack, label = look.content, labelSize = 10.sp)
+            is IslandEvent.LowBattery -> BatteryRing(event.level, false, size = 30.dp, stroke = 3.dp, track = ringTrack, label = look.content, labelSize = 10.sp)
+            else -> BatteryRing(snapshot.budsLevel, snapshot.budsCharging, size = 30.dp, stroke = 3.dp, track = ringTrack, label = look.content, labelSize = 10.sp)
         }
     }
     val (title, subtitle) = islandText(event, snapshot)
@@ -323,22 +330,36 @@ internal fun IslandHost(
                     var totalY = 0f
                     var totalX = 0f
                     var moved = false
-                    while (true) {
-                        val ev = awaitPointerEvent()
-                        val ch = ev.changes.firstOrNull() ?: break
-                        // A button or the spinning earbuds inside handled this touch.
-                        if (ch.isConsumed) moved = true
-                        if (!ch.pressed) break
-                        val dy = ch.positionChange().y
-                        totalY += dy
-                        totalX += ch.positionChange().x
-                        if (kotlin.math.abs(totalY) > 8f * density || kotlin.math.abs(totalX) > 8f * density) moved = true
-                        dragY = totalY
-                        touch = ch.position
+                    // Follows the finger until it lifts; returns when it does.
+                    suspend fun AwaitPointerEventScope.track() {
+                        while (true) {
+                            val ev = awaitPointerEvent()
+                            val ch = ev.changes.firstOrNull() ?: return
+                            // A button inside handled this touch.
+                            if (ch.isConsumed) moved = true
+                            if (!ch.pressed) return
+                            totalY += ch.positionChange().y
+                            totalX += ch.positionChange().x
+                            if (kotlin.math.abs(totalY) > 8f * density || kotlin.math.abs(totalX) > 8f * density) moved = true
+                            dragY = totalY
+                            touch = ch.position
+                        }
                     }
+                    // Hold (half a second, without moving) opens Glint.
+                    val lifted = withTimeoutOrNull(LONG_PRESS_MS) { track(); true } ?: false
+                    var opened = false
+                    if (!lifted && !moved) {
+                        opened = true
+                        haptics.expand()
+                        GlintOverlays.openApp(context)
+                        onPhase(IslandPhase.Leaving)
+                    }
+                    if (!lifted) track()
                     press = 0f
                     touch = null
-                    if (dragY < -28f * density) {
+                    if (opened) {
+                        // Already handled.
+                    } else if (dragY < -28f * density) {
                         haptics.dismiss()
                         onPhase(IslandPhase.Leaving)
                     } else if (!moved && currentPhase != IslandPhase.Leaving) {
@@ -353,6 +374,7 @@ internal fun IslandHost(
                 onClick(label = if (phase == IslandPhase.Expanded) "Collapse" else "Expand") {
                     onPhase(if (phase == IslandPhase.Expanded) IslandPhase.Compact else IslandPhase.Expanded); true
                 }
+                onLongClick(label = "Open Glint") { GlintOverlays.openApp(context); onPhase(IslandPhase.Leaving); true }
             }
             .drawBehind {
                 val f = frame(size.width)
@@ -413,16 +435,11 @@ internal fun IslandHost(
             satellite = satelliteContent,
             expanded = {
                 ExpandedIslandContent(
-                    event, snapshot, title, look.content, look.contentSecondary,
+                    event, snapshot, title, look.content, look.contentSecondary, look.dark,
                     active = phase == IslandPhase.Expanded,
                     onAction = {
                         haptics.expand()
                         if (event is IslandEvent.MovedToDevice && event.canTakeBack) GlintOverlays.takeBackHandler?.invoke()
-                        onPhase(IslandPhase.Leaving)
-                    },
-                    onOpenApp = {
-                        haptics.expand()
-                        GlintOverlays.openApp(context)
                         onPhase(IslandPhase.Leaving)
                     },
                 )
@@ -491,20 +508,22 @@ private fun IslandLayout(
 }
 
 /**
- * The turning earbuds. The frames come from the island clip (one full, seamless turn) with the
- * background already removed, so they float on the glass. The buds fill 88% x 53% of each
- * square frame, so the frame is sized from the width the buds should take and allowed to
- * overhang its slot (the overhang is transparent).
+ * The turning-AirPods clip, keyed off its black background so the buds float on the glass.
+ * Played as the original video (a smooth, seamless 25 fps turn). The buds fill 88% x 53% of
+ * the clip's square frame, so the frame is sized from the width the buds should take and
+ * allowed to overhang its slot (the overhang is transparent).
  */
 @Composable
-private fun IslandPods(budsWidth: Dp, play: Boolean, interactive: Boolean = false, turnMillis: Int = 7000) {
+private fun IslandPods(budsWidth: Dp, play: Boolean) {
     val frame = budsWidth / 0.88f
     Box(Modifier.size(budsWidth, frame * 0.56f), contentAlignment = Alignment.Center) {
-        PodsSpinner(
+        PodsVideo(
+            video = R.raw.island,
+            poster = R.drawable.island_poster,
+            aspectRatio = PodsVideoConfig.ISLAND_ASPECT,
+            keyBlack = true,
+            play = play,
             modifier = Modifier.requiredSize(frame),
-            turnMillis = turnMillis,
-            spinning = play,
-            interactive = interactive,
         )
     }
 }
@@ -516,9 +535,9 @@ private fun ExpandedIslandContent(
     title: String,
     content: Color,
     secondary: Color,
+    dark: Boolean,
     active: Boolean,
     onAction: () -> Unit,
-    onOpenApp: () -> Unit,
 ) {
     val link by GlintStatus.link.collectAsState()
     val timeLeft by BatteryTimeLeft.estimate.collectAsState()
@@ -527,10 +546,12 @@ private fun ExpandedIslandContent(
         event is IslandEvent.Problem -> "Dismiss"
         else -> null
     }
-    Column(Modifier.fillMaxSize().padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 14.dp)) {
+    val track = if (dark) Color(0x33FFFFFF) else Color(0x1F000000)
+    Column(Modifier.fillMaxSize().padding(start = 22.dp, end = 20.dp, top = 16.dp, bottom = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = content))
+                Spacer(Modifier.height(2.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val (dot, text) = linkSummary(link, snapshot, event)
                     Box(Modifier.size(7.dp).background(dot, CircleShape))
@@ -539,37 +560,31 @@ private fun ExpandedIslandContent(
                 }
             }
             if (snapshot.listeningMode in 1..4) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(64.dp)) {
                     ListeningModeGlyph(snapshot.listeningMode, content, size = 22.dp)
-                    Text(shortModeName(snapshot.listeningMode), style = TextStyle(fontFamily = glintFontFamily, fontSize = 10.sp, color = secondary))
+                    Spacer(Modifier.height(2.dp))
+                    Text(shortModeName(snapshot.listeningMode), maxLines = 1, style = TextStyle(fontFamily = glintFontFamily, fontSize = 10.sp, color = secondary, textAlign = TextAlign.Center))
                 }
             }
         }
-        Row(
-            Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Drag sideways to spin them.
-            IslandPods(budsWidth = 132.dp, play = active, interactive = active, turnMillis = 9000)
+        Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            IslandPods(budsWidth = 120.dp, play = active)
             Spacer(Modifier.weight(1f))
-            Column(verticalArrangement = Arrangement.spacedBy(7.dp), horizontalAlignment = Alignment.End) {
-                RingRow("Left", snapshot.left, snapshot.leftCharging, content, secondary)
-                RingRow("Right", snapshot.right, snapshot.rightCharging, content, secondary)
-                RingRow("Case", snapshot.case, snapshot.caseCharging, content, secondary)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
+                RingRow("Left", snapshot.left, snapshot.leftCharging, content, secondary, track)
+                RingRow("Right", snapshot.right, snapshot.rightCharging, content, secondary, track)
+                RingRow("Case", snapshot.case, snapshot.caseCharging, content, secondary, track)
             }
         }
-        timeLeft?.let { e ->
+        Row(Modifier.fillMaxWidth().height(34.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                BatteryWords.headline(e),
+                timeLeft?.let { BatteryWords.headline(it) } ?: "",
+                modifier = Modifier.weight(1f),
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
-                style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = secondary),
-                modifier = Modifier.padding(bottom = 8.dp)
+                style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = secondary)
             )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GlassPillButton(text = "Open Glint", textColor = content, modifier = Modifier.weight(1f), onClick = onOpenApp)
             if (actionText != null) {
-                GlassPillButton(text = actionText, textColor = content, modifier = Modifier.weight(1f), onClick = onAction)
+                GlassPillButton(text = actionText, textColor = content, dark = dark, height = 34.dp, fontSize = 14.sp, onClick = onAction)
             }
         }
     }
@@ -584,15 +599,15 @@ private fun linkSummary(link: LinkState, s: PodsSnapshot, event: IslandEvent): P
         else -> null
     }
     val base = when (link) {
-        is LinkState.Connected -> GlintColors.Green to "Connected, all controls available"
-        is LinkState.Connecting -> GlintColors.Amber to "Connecting controls…"
-        is LinkState.Retrying -> GlintColors.Amber to "Audio only, controls reconnecting"
-        is LinkState.GaveUp -> GlintColors.Red to "Audio only, controls unavailable"
+        is LinkState.Connected -> GlintColors.Green to "Connected"
+        is LinkState.Connecting -> GlintColors.Amber to "Connecting…"
+        is LinkState.Retrying -> GlintColors.Amber to "Reconnecting controls…"
+        is LinkState.GaveUp -> GlintColors.Red to "Audio only"
         LinkState.BluetoothOff -> GlintColors.Red to "Bluetooth is off"
-        LinkState.NoPermission -> GlintColors.Red to "Needs Nearby devices permission"
+        LinkState.NoPermission -> GlintColors.Red to "Needs permission"
         LinkState.Idle -> if (event is IslandEvent.MovedToDevice) GlintColors.Amber to "Playing on another device" else GlintColors.Amber to "Not connected"
     }
-    return if (where != null && link is LinkState.Connected) base.first to "Connected, $where" else base
+    return if (where != null && link is LinkState.Connected) base.first to "Connected · $where" else base
 }
 
 private fun shortModeName(mode: Int): String = when (mode) {
@@ -604,21 +619,21 @@ private fun shortModeName(mode: Int): String = when (mode) {
 }
 
 @Composable
-private fun RingRow(label: String, level: Int?, charging: Boolean, content: Color, secondary: Color) {
+private fun RingRow(label: String, level: Int?, charging: Boolean, content: Color, secondary: Color, track: Color) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         Text(label, style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = secondary))
         Text(
             if (level != null) "$level%" else "–",
             style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = content)
         )
-        BatteryRing(level, charging, size = 20.dp, stroke = 3.dp, track = Color(0x33FFFFFF), showLabel = false)
+        BatteryRing(level, charging, size = 20.dp, stroke = 3.dp, track = track, showLabel = false)
     }
 }
 
 internal fun islandText(event: IslandEvent, s: PodsSnapshot): Pair<String, String> = when (event) {
     IslandEvent.Connected -> s.name to "Connected"
     IslandEvent.InEar -> s.name to "In your ears"
-    is IslandEvent.LowBattery -> "Low battery" to "${s.name} · ${event.level}%"
+    is IslandEvent.LowBattery -> "Low battery" to "${event.level}% left"
     is IslandEvent.ListeningMode -> listeningModeName(event.mode) to s.name
     is IslandEvent.MovedToDevice -> "Moved to ${event.deviceName}" to s.name
     IslandEvent.TakingOver -> "Switching to this phone" to s.name

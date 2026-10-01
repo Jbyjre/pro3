@@ -71,8 +71,26 @@ data class GlassLook(
 )
 
 object GlassLooks {
-    /** Smoked glass for the island: reads like the Dynamic Island but lets light through. */
-    fun island(density: Float) = GlassLook(
+    /**
+     * The island's glass. Dark: smoked, like the Dynamic Island but letting light through.
+     * Light: frosted white with dark text, matching the light app and card.
+     */
+    fun island(density: Float, dark: Boolean = true) = if (!dark) GlassLook(
+        fillTop = Color(0xD6FFFFFF),
+        fillBottom = Color(0xE0F4F4F7),
+        opaqueTop = Color(0xFAFFFFFF),
+        opaqueBottom = Color(0xFCF1F1F5),
+        blurTint = Color(0x40FFFFFF),
+        blurRadiusPx = (40 * density).roundToInt(),
+        sheen = 0.4f,
+        specular = 0.45f,
+        rim = 0.9f,
+        caustic = 0.4f,
+        edge = Color(0x1F000000),
+        content = Color(0xFF1C1C1E),
+        contentSecondary = Color(0x993C3C43),
+        dark = false,
+    ) else GlassLook(
         fillTop = Color(0xB8121216),
         fillBottom = Color(0xD0070709),
         opaqueTop = Color(0xF7141418),

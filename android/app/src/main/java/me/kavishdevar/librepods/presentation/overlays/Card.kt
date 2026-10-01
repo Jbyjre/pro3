@@ -82,6 +82,8 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -211,7 +213,6 @@ internal fun CardHost(
                 }
             }
             onGone()
-            GlintOverlays.releaseIfIdle()
         }
     }
 
@@ -427,6 +428,8 @@ fun GlassPillButton(
     textColor: Color,
     modifier: Modifier = Modifier,
     dark: Boolean = true,
+    height: Dp = 48.dp,
+    fontSize: TextUnit = 16.sp,
     onClick: () -> Unit,
 ) {
     var pressed by remember { mutableStateOf(false) }
@@ -434,7 +437,7 @@ fun GlassPillButton(
     val scale by animateFloatAsState(if (pressed) 0.96f else 1f, spring(0.55f, 600f), label = "press")
     Box(
         modifier
-            .height(48.dp)
+            .height(height)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .drawBehind {
                 val r = size.height / 2f
@@ -486,7 +489,7 @@ fun GlassPillButton(
     ) {
         Text(
             text, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = textColor)
+            style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = fontSize, color = textColor)
         )
     }
 }

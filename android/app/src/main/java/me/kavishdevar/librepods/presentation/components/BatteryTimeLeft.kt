@@ -20,9 +20,8 @@ package me.kavishdevar.librepods.presentation.components
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -60,16 +59,18 @@ fun BatteryTimeLeft(estimate: BatteryEstimate?, connected: Boolean) {
             else -> null
         }
         if (headline != null) {
-            Text(
-                headline,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, fontFamily = glintFontFamily, color = ink, textAlign = TextAlign.Center)
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                estimate?.let { BatteryWords.detail(it) } ?: "Waiting for the first battery report",
-                style = TextStyle(fontSize = 13.sp, fontFamily = glintFontFamily, color = ink.copy(alpha = 0.55f), textAlign = TextAlign.Center)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    headline,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, fontFamily = glintFontFamily, color = ink, textAlign = TextAlign.Center)
+                )
+                InfoTip(
+                    "How this is worked out",
+                    (estimate?.let { BatteryWords.detail(it) + ". " } ?: "") +
+                        "It starts from Apple's rating (8 hours with noise cancellation) and switches to your real drain rate after about half an hour of listening, using the AirPods' 1% battery reports."
+                )
+            }
             estimate?.let { BatteryWords.case(it) }?.let {
                 Text(it, style = TextStyle(fontSize = 13.sp, fontFamily = glintFontFamily, color = ink.copy(alpha = 0.55f), textAlign = TextAlign.Center))
             }

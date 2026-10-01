@@ -9,7 +9,8 @@
 - Verify facts before stating them. Mark anything unchecked as "not verified".
 - Ask before spending money or doing anything hard to undo.
 - Always merge finished work into main yourself once you're confident in it (tests, lint and
-  release build pass, CI green on the latest commit). Jake asked for this; no need to ask first.
+  release build pass locally; if CI already finished on the latest commit it must be green, but
+  don't wait or poll for it). Jake asked for this; no need to ask first.
 
 ## Project notes
 - Android app ("Glint", a fork of LibrePods) lives in `android/`. Local build:
@@ -35,7 +36,8 @@
   `bluetooth/ReconnectPolicy.kt`, `utils/CompanionLink.kt`. Hidden Glint Lab: Settings >
   About > tap "Version code" 7 times.
 - The foss build has no paywall: `FOSSBillingProvider` reports everything included; the purchase page is Play-only.
-- Island earbud frames live in `assets/spin/buds` (48 keyed WebP frames from island.mp4; `PodsSpinner`).
+- The island plays island.mp4 as video (a frame-blending spinner glitched; don't bring it back).
+  Light/dark: `presentation/theme/Appearance.kt` (`GlintAppearance`, overlays use its context).
   Battery time left: `services/BatteryEstimator.kt`; bottom-card rules: `services/CardGate.kt`.
 - Glass rim light: always `GlintLight.rim()` (Kyant's default highlight is a 45-degree diagonal that looks tilted).
 - Heart rate: `bluetooth/SensorProto.kt` + `services/HeartRate.kt`; recorder: `audio/AirPodsRecorder.kt`;

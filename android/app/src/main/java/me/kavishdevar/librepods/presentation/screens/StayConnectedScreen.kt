@@ -84,25 +84,25 @@ fun StayConnectedScreen() {
         StyledList(title = "Glass & motion") {
             StyledToggle(
                 label = "Light follows tilt",
-                description = "Highlights shift as you tilt the phone. Off saves a little battery while pop-ups show.",
+                description = "Highlights move as you tilt the phone.",
                 checked = tilt,
                 onCheckedChange = { tilt = it; prefs.edit { putBoolean(GlintComfort.PREF_TILT_LIGHT, it) } },
             )
             StyledToggle(
                 label = "Reduce motion",
-                description = "Simple fades and still pictures instead of springy shapes and turning AirPods. Also on automatically when the phone's animations are off.",
+                description = "Simple fades and still pictures.",
                 checked = motion,
                 onCheckedChange = { motion = it; prefs.edit { putBoolean(GlintComfort.PREF_REDUCE_MOTION, it) } },
             )
             StyledToggle(
                 label = "Reduce transparency",
-                description = "Solid backgrounds behind pop-up text instead of see-through glass.",
+                description = "Solid surfaces instead of see-through glass.",
                 checked = transparency,
                 onCheckedChange = { transparency = it; prefs.edit { putBoolean(GlintComfort.PREF_REDUCE_TRANSPARENCY, it) } },
             )
             StyledToggle(
                 label = "Show listening mode changes",
-                description = "A small island appears when you switch modes on the AirPods themselves.",
+                description = "When you switch modes on the AirPods.",
                 checked = modeIsland,
                 onCheckedChange = { modeIsland = it; prefs.edit { putBoolean(PREF_MODE_ISLAND, it) } },
             )
@@ -111,8 +111,7 @@ fun StayConnectedScreen() {
         StyledList(title = "Notifications") {
             StyledToggle(
                 label = "Status in notifications",
-                description = if (statusNotification) "Battery and listening mode stay in your notification shade while connected."
-                    else "Off: nothing stays in your notification shade. Android needs a notification to keep the AirPods connection alive, so Glint keeps it on a hidden channel.",
+                description = if (statusNotification) "Battery and mode in the notification shade" else "Nothing stays in your notification shade",
                 checked = statusNotification,
                 onCheckedChange = {
                     statusNotification = it
