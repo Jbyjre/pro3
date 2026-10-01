@@ -45,12 +45,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * What's playing, and play/pause/skip for the island.
+ * What's playing, and play/pause for the island.
  *
  * Two levels, so the island works with any music app (Spotify included):
- * - **Always:** playing or paused (Android's "is music active"), and the media buttons
- *   (play, pause, next, previous) Android routes to the app that last played, the same way
- *   a headset button works. No permission needed.
+ * - **Always:** playing or paused (Android's "is music active"), and the play and pause
+ *   media buttons Android routes to the app that last played, the same way a headset button
+ *   works. No permission needed.
  * - **With Notification access** (optional, Settings > Island > Show song names): Android
  *   shares the music app's media session, so Glint shows the song, artist and cover, and
  *   uses the app's own controls. Glint reads nothing else from notifications.
@@ -72,7 +72,7 @@ object NowPlaying {
     private val _state = MutableStateFlow(Track())
     val state: StateFlow<Track> = _state.asStateFlow()
 
-    /** When Glint itself last pressed play/pause/skip (so the island doesn't announce it). */
+    /** When Glint itself last pressed play or pause (so the island doesn't announce it). */
     @Volatile var lastOwnActionAt = 0L
         private set
 
@@ -206,16 +206,6 @@ object NowPlaying {
         // Show the change straight away; the real state follows within a moment.
         _state.value = _state.value.copy(playing = !playing)
         main.postDelayed({ if (current == null) _state.value = _state.value.copy(playing = audioActive(context)) }, 900)
-    }
-
-    fun next(context: Context) {
-        lastOwnActionAt = SystemClock.elapsedRealtime()
-        current?.transportControls?.skipToNext() ?: key(context, KeyEvent.KEYCODE_MEDIA_NEXT)
-    }
-
-    fun previous(context: Context) {
-        lastOwnActionAt = SystemClock.elapsedRealtime()
-        current?.transportControls?.skipToPrevious() ?: key(context, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
     }
 
     private fun key(context: Context, code: Int) {

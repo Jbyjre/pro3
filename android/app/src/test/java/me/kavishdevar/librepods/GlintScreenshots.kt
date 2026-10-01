@@ -147,7 +147,7 @@ class GlintScreenshots {
         rule.onRoot().captureRoboImage("$out/symbols.png")
     }
 
-    private fun island(name: String, event: IslandEvent, phase: IslandPhase, dark: Boolean = true, then: () -> Unit = {}) {
+    private fun island(name: String, event: IslandEvent, phase: IslandPhase, dark: Boolean = true, tall: Boolean = false, then: () -> Unit = {}) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")
         GlintOverlays.updateSnapshot(demo)
         rule.mainClock.autoAdvance = false
@@ -155,7 +155,7 @@ class GlintScreenshots {
             val geo = IslandGeometry(RuntimeEnvironment.getApplication())
             Wallpaper(dark) {
                 Box(Modifier.padding(top = 12.dp).size(with(androidx.compose.ui.platform.LocalDensity.current) {
-                    val s = if (phase == IslandPhase.Expanded) geo.expandedWindow else geo.compactWindow
+                    val s = if (tall) geo.detailWindow else if (phase == IslandPhase.Expanded) geo.expandedWindow else geo.compactWindow
                     androidx.compose.ui.unit.DpSize(s.width.toDp(), s.height.toDp())
                 }).align(Alignment.TopCenter)) {
                     IslandHost(geo, event, phase, 0, blurAllowed = false, onPhase = {}, onWindowSize = {}, onGone = {})
@@ -226,7 +226,7 @@ class GlintScreenshots {
 
     @Test fun islandHeartDetail() = connectedLink {
         withHeart(72) {
-            island("island_heart_detail", IslandEvent.Connected, IslandPhase.Expanded) {
+            island("island_heart_detail", IslandEvent.Connected, IslandPhase.Expanded, tall = true) {
                 rule.onNodeWithContentDescription("Heart rate 72", substring = true).performClick()
                 rule.mainClock.advanceTimeBy(900)
             }
@@ -235,7 +235,7 @@ class GlintScreenshots {
 
     @Test fun islandHeartDetailLight() = connectedLink {
         withHeart(128) {
-            island("island_heart_detail_light", IslandEvent.Connected, IslandPhase.Expanded, dark = false) {
+            island("island_heart_detail_light", IslandEvent.Connected, IslandPhase.Expanded, dark = false, tall = true) {
                 rule.onNodeWithContentDescription("Heart rate 128", substring = true).performClick()
                 rule.mainClock.advanceTimeBy(900)
             }
