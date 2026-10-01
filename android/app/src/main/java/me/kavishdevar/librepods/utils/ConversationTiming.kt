@@ -41,6 +41,8 @@ object ConversationTiming {
     const val PAUSE_MAX_MS = 8_000L
     /** How far back "the same conversation" reaches. */
     const val WINDOW_MS = 30_000L
+    /** No "stopped talking" for this long after the last "talking": give the music back anyway. */
+    const val STUCK_MS = 5 * 60_000L
 
     /** How long to wait after "stopped talking"; [turns] = times you started talking in the last 30 s. */
     fun restoreDelayMs(pauseMode: Boolean, turns: Int): Long {

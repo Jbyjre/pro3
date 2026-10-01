@@ -332,6 +332,7 @@ object MediaController {
     private var rampTask: Runnable? = null
     private var duckedTo: Int? = null
     private val talkStarts = ArrayDeque<Long>()
+    private var stuckTask: Runnable? = null
 
     @Synchronized
     fun startSpeaking() {
@@ -343,6 +344,10 @@ object MediaController {
         talkStarts.addLast(now)
         while (talkStarts.isNotEmpty() && now - talkStarts.first() > ConversationTiming.WINDOW_MS) talkStarts.removeFirst()
         ConversationTiming.setTalking(true)
+        // Safety: if "stopped talking" never comes (the AirPods disconnected mid-conversation),
+        // give the music back after a while instead of leaving it down for good.
+        stuckTask?.let { handler.removeCallbacks(it) }
+        stuckTask = Runnable { restoreAfterConversation() }.also { handler.postDelayed(it, ConversationTiming.STUCK_MS) }
 
         if (initialVolume == null) {
             initialVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
@@ -383,6 +388,8 @@ object MediaController {
     @Synchronized
     private fun restoreAfterConversation() {
         restoreTask = null
+        stuckTask?.let { handler.removeCallbacks(it) }
+        stuckTask = null
         val start = initialVolume ?: return
         val now = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
         // If you changed the volume yourself while talking, your choice wins.
