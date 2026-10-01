@@ -222,6 +222,28 @@ class GlintScreenshots {
     @Test fun miniIslandSongName() = mini("mini_island_song_name", playing = true, wide = 1f, art = true, dark = true)
     @Test fun miniIslandPausedNoCover() = mini("mini_island_paused", playing = false, wide = 0f, art = false)
 
+    /** The opened island over time: the heart chip ("--" with no reading) morphing out of play/pause. */
+    @Test fun islandHeartChipMorph() {
+        me.kavishdevar.librepods.services.GlintStatus.set(me.kavishdevar.librepods.services.LinkState.Connected("AirPods Pro"))
+        GlintOverlays.updateSnapshot(demo)
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            val geo = IslandGeometry(RuntimeEnvironment.getApplication())
+            Wallpaper(true) {
+                Box(Modifier.padding(top = 12.dp).size(with(androidx.compose.ui.platform.LocalDensity.current) {
+                    androidx.compose.ui.unit.DpSize(geo.expandedWindow.width.toDp(), geo.expandedWindow.height.toDp())
+                }).align(Alignment.TopCenter)) {
+                    IslandHost(geo, IslandEvent.Music, IslandPhase.Expanded, 0, blurAllowed = false, onPhase = {}, onWindowSize = {}, onGone = {})
+                }
+            }
+        }
+        var t = 0L
+        listOf(1_000L, 1_100L, 1_220L, 1_330L, 1_450L, 1_600L, 3_000L).forEach { at ->
+            rule.mainClock.advanceTimeBy(at - t); t = at
+            rule.onRoot().captureRoboImage("$out/island_chip_morph_$at.png")
+        }
+    }
+
     @Test fun islandConnected() = island("island_connected", IslandEvent.Connected, IslandPhase.Compact)
     @Test fun islandLowBattery() = island("island_low_battery", IslandEvent.LowBattery(9), IslandPhase.Compact, dark = false)
     @Test fun islandMode() = island("island_mode", IslandEvent.ListeningMode(2), IslandPhase.Compact)
@@ -282,6 +304,7 @@ class GlintScreenshots {
     @Test fun islandHeartDetail() = connectedLink {
         withHeart(72) {
             island("island_heart_detail", IslandEvent.Connected, IslandPhase.Expanded, tall = true) {
+                rule.mainClock.advanceTimeBy(1_000) // the chip lands about 1.6 s after opening
                 rule.onNodeWithContentDescription("Heart rate 72", substring = true).performClick()
                 rule.mainClock.advanceTimeBy(900)
             }
@@ -291,6 +314,7 @@ class GlintScreenshots {
     @Test fun islandHeartDetailLight() = connectedLink {
         withHeart(128) {
             island("island_heart_detail_light", IslandEvent.Connected, IslandPhase.Expanded, dark = false, tall = true) {
+                rule.mainClock.advanceTimeBy(1_000) // the chip lands about 1.6 s after opening
                 rule.onNodeWithContentDescription("Heart rate 128", substring = true).performClick()
                 rule.mainClock.advanceTimeBy(900)
             }
