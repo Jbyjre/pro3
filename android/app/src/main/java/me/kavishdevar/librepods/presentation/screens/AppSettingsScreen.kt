@@ -161,8 +161,8 @@ fun AppSettingsScreen(
                 onClick = navigateToRename,
             )
             StyledListItem(
-                name = "Island",
-                description = "When it appears, music controls, how long it stays",
+                name = "Dynamic Island",
+                description = "Around the camera, and the mini island pop-ups",
                 orientation = ListItemOrientation.Vertical,
                 onClick = navigateToIsland,
             )

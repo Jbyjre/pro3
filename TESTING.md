@@ -125,3 +125,8 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 
 1. Open the island (tap it). About a second later, a bubble should come out from under the play/pause button and glide left into the heart chip.
 2. Not measuring: it reads **-- BPM**; tapping it opens pro. Measuring: it shows your number and beats; tapping it opens the explanation.
+
+## J. Round 27: Dynamic Island names, idle look, Conversation Awareness
+
+1. Connect the AirPods with no music: the Dynamic Island appears around the camera in dark graphite (slightly lighter than black) with the battery ring and mode symbol. Tap it: it expands. Play music: it turns pure black with the cover and bars.
+2. Turn on Conversation Awareness, play music, start talking: the volume drops and three dots show on the Dynamic Island. Talk back and forth: the volume should stay down the whole time, not bounce. Stop talking: about 2 seconds later it swells back. Change the volume yourself while talking: afterwards it stays where you put it.

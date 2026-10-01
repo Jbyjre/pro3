@@ -178,7 +178,7 @@ fun GlintLabScreen() {
                 OutlinedButton(onClick = { island(IslandEvent.BudOut(remaining = 0, paused = false)) }) { Text("Both out") }
                 OutlinedButton(onClick = { island(IslandEvent.BothIn) }) { Text("Both in") }
                 OutlinedButton(onClick = { island(IslandEvent.Music) }) { Text("Music") }
-                OutlinedButton(onClick = { GlintOverlays.previewMiniIsland(context) }) { Text("Mini island") }
+                OutlinedButton(onClick = { GlintOverlays.previewMiniIsland(context) }) { Text("Dynamic Island") }
                 OutlinedButton(onClick = {
                     island(IslandEvent.Problem("Couldn't reach the controls", "Audio works. Open pro for details."))
                 }) { Text("Problem") }

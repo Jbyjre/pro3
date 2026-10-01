@@ -129,6 +129,17 @@ internal class MiniIslandController(private val context: Context) {
     private var unlocked = true
     private var lingerJob: Job? = null
     private var shownFor: Any? = null
+    private var lastWant = false
+
+    /**
+     * Where the pill is, or will be in a moment: lets a pop-up grow out of it even when both
+     * start together (the AirPods connecting shows the pill and the "Connected" pop-up at once).
+     */
+    fun plannedOrigin(): GlintOverlays.MiniOrigin? {
+        GlintOverlays.miniOrigin?.let { return it }
+        if (!lastWant || !portrait()) return null
+        return MiniGeometry(context).origin()
+    }
 
     /** True while the pill should animate away (then the window is removed). */
     private val leaving = mutableStateOf(false)
@@ -225,6 +236,7 @@ internal class MiniIslandController(private val context: Context) {
             playing = playing, pausedForMs = pausedFor, playedRecently = playedRecently,
             airPodsUp = GlintStatus.link.value is LinkState.Connected,
         )
+        lastWant = want
         if (!want) GlintOverlays.miniOrigin = null
         if (want) {
             leaving.value = false
@@ -250,6 +262,7 @@ internal class MiniIslandController(private val context: Context) {
             val live by NowPlaying.state.collectAsState()
             val pods by GlintOverlays.snapshot.collectAsState()
             val heart by me.kavishdevar.librepods.services.HeartRate.state.collectAsState()
+            val talking by me.kavishdevar.librepods.utils.ConversationTiming.talking.collectAsState()
             MiniIslandHost(
                 geometry = geo,
                 track = sample.value ?: live,
@@ -261,13 +274,9 @@ internal class MiniIslandController(private val context: Context) {
                 handOff = GlintOverlays.islandVisible.value,
                 onVisible = { up ->
                     // Tells the big island where to grow from while the pill is up.
-                    GlintOverlays.miniOrigin = if (up) GlintOverlays.MiniOrigin(
-                        dx = geo.offsetX.toFloat(),
-                        top = geo.centerY - geo.size.height / 2f,
-                        width = geo.size.compactWidth,
-                        height = geo.size.height,
-                    ) else null
+                    GlintOverlays.miniOrigin = if (up) geo.origin() else null
                 },
+                talking = talking,
                 onWindowSize = { window.resize(it) },
                 onTouchable = { window.setTouchable(it) },
                 onGone = { window.dismiss() },
@@ -328,6 +337,14 @@ internal class MiniGeometry(context: Context, testCutouts: List<android.graphics
     /** The size it grows out of: the camera hole itself. */
     val seedW: Float get() = hole?.width()?.toFloat()?.coerceAtMost(size.compactWidth) ?: (size.height * 0.6f)
     val seedH: Float get() = hole?.height()?.toFloat()?.coerceAtMost(size.height) ?: (size.height * 0.6f)
+
+    /** The resting pill, for a pop-up to grow out of. */
+    fun origin() = GlintOverlays.MiniOrigin(
+        dx = offsetX.toFloat(),
+        top = centerY - size.height / 2f,
+        width = size.compactWidth,
+        height = size.height,
+    )
 }
 
 @Composable
@@ -344,6 +361,8 @@ internal fun MiniIslandHost(
     /** The big island is up: it grew out of this pill, so this one steps aside at once. */
     handOff: Boolean = false,
     onVisible: (Boolean) -> Unit = {},
+    /** Conversation Awareness has the music down: a small "talking" sign on the right. */
+    talking: Boolean = false,
     onTouchable: (Boolean) -> Unit,
     onGone: () -> Unit,
     onOpen: () -> Unit,
@@ -374,8 +393,8 @@ internal fun MiniIslandHost(
         if (visible) {
             val handedBack = SystemClock.elapsedRealtime() - GlintOverlays.returnToMiniAt < 800L
             // The big island just shrank back into this spot: carry on as if it never left.
+            onVisible(true) // from the start, so a pop-up arriving meanwhile grows from here
             if (reduce || handedBack) appear.snapTo(1f) else appear.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = 320f))
-            onVisible(true)
         } else {
             onVisible(false)
             if (wide.value > 0f) wide.snapTo(0f)
@@ -407,7 +426,10 @@ internal fun MiniIslandHost(
     // Sound bars: a gentle, continuous wiggle while playing, ticked about 30 times a second
     // (plenty for bars this small, and half the work of every frame).
     val clock = remember { mutableLongStateOf(0L) }
-    val moving = visible && track.playing && !reduce && still == null
+    val lowPulse = content == MiniIslandRules.Content.AirPods && (pods.budsLevel ?: 100) <= 10 && !pods.budsCharging
+    val moving = visible && (track.playing || talking || lowPulse) && !reduce && still == null
+    val talk = remember { Animatable(if (talking) 1f else 0f) }
+    LaunchedEffect(talking) { talk.animateTo(if (talking) 1f else 0f, tween(if (reduce) 0 else 260)) }
     LaunchedEffect(moving) {
         while (moving) {
             clock.longValue = SystemClock.elapsedRealtime()
@@ -494,7 +516,21 @@ internal fun MiniIslandHost(
             val top = m + (s.height - compactH) / 2f
             val left = cx - pillW / 2f
             val r = compactH / 2f
-            drawRoundRect(Color.Black, Offset(left, top), Size(pillW, pillH), CornerRadius(r, r))
+            // Just sitting there with the AirPods (no music): a touch lighter than black with a
+            // faint rim of light along the top, so it stands out slightly from the background.
+            // With music it's pure black, at one with the camera.
+            val idle = 1f - music.value
+            val fill = androidx.compose.ui.graphics.lerp(Color.Black, Color(0xFF1D1D20), idle)
+            drawRoundRect(fill, Offset(left, top), Size(pillW, pillH), CornerRadius(r, r))
+            if (idle > 0.01f) {
+                drawRoundRect(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.22f * idle), Color.White.copy(alpha = 0.04f * idle)), top, top + pillH
+                    ),
+                    Offset(left + 0.5f, top + 0.5f), Size(pillW - 1f, pillH - 1f), CornerRadius(r - 0.5f, r - 0.5f),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(0.8f * density),
+                )
+            }
 
             // Contents fade in once the pill is mostly formed.
             val c0 = ((a - 0.55f) / 0.45f).coerceIn(0f, 1f)
@@ -521,13 +557,15 @@ internal fun MiniIslandHost(
                 val tl = Offset(artC.x - rr, artC.y - rr)
                 val st = androidx.compose.ui.graphics.drawscope.Stroke(2.2f * density, cap = StrokeCap.Round)
                 drawArc(Color.White.copy(alpha = 0.18f * pc), 0f, 360f, false, tl, Size(rr * 2, rr * 2), style = st)
-                if (lvl != null) drawArc(ringC.copy(alpha = pc), -90f, 360f * lvl / 100f, false, tl, Size(rr * 2, rr * 2), style = st)
+                // 10% and below: the ring breathes gently so it catches your eye.
+                val breathe = if (lowPulse && !reduce) 0.55f + 0.45f * (0.5f + 0.5f * sin(clock.longValue / 1000f * 3.2f)) else 1f
+                if (lvl != null) drawArc(ringC.copy(alpha = pc * breathe), -90f, 360f * lvl / 100f, false, tl, Size(rr * 2, rr * 2), style = st)
                 val num = measurer.measure(
                     lvl?.toString() ?: "–",
                     TextStyle(fontFamily = glintFontFamily, fontSize = (side * 0.34f / density / fontScale).sp, fontWeight = FontWeight.SemiBold, color = Color.White),
                 )
                 drawText(num, alpha = pc, topLeft = Offset(artC.x - num.size.width / 2f, artC.y - num.size.height / 2f))
-                if (heartBpm != null) {
+                if (heartBpm != null && talk.value < 0.5f) {
                     val hs = side * 0.36f * beat.value
                     val hp = heartPath(Size(hs, hs))
                     translate(barsC.x - hs / 2f, barsC.y - side * 0.30f - hs / 2f + side * 0.08f) { drawPath(hp, Color.White.copy(alpha = pc)) }
@@ -574,16 +612,27 @@ internal fun MiniIslandHost(
             val gap = 2.4f * density
             val maxH = side * 0.62f
             val startX = barsC.x - (4 * barW + 3 * gap) / 2f + barW / 2f
-            if (c > 0.001f) for (i in 0 until 4) {
+            // Talking (Conversation Awareness turned the music down): three soft dots that
+            // ripple like speech, in place of the bars or the mode symbol.
+            val tk = talk.value * c0
+            if (tk > 0.01f) {
+                val dotR = 1.9f * density
+                for (i in 0 until 3) {
+                    val wave = if (moving) 0.5f + 0.5f * sin(t * 6f - i * 0.9f) else 0.6f
+                    drawCircle(Color.White.copy(alpha = tk * (0.45f + 0.55f * wave)), dotR * (0.85f + 0.3f * wave),
+                        Offset(barsC.x + (i - 1) * 5.2f * density, barsC.y))
+                }
+            }
+            if (c * (1f - talk.value) > 0.001f) for (i in 0 until 4) {
                 val wiggle = 0.35f + 0.65f * abs(sin(t * (2.3f + i * 0.73f) + i * 1.7f))
                 val rest = if (i % 2 == 0) 0.62f else 0.42f // Reduce motion: steady bars
                 val hgt = lerp(barW, maxH * (if (moving) wiggle else rest), level.floatValue)
                 val x = startX + i * (barW + gap)
-                drawLine(accent.copy(alpha = c), Offset(x, barsC.y - hgt / 2f), Offset(x, barsC.y + hgt / 2f), barW, StrokeCap.Round)
+                drawLine(accent.copy(alpha = c * (1f - talk.value)), Offset(x, barsC.y - hgt / 2f), Offset(x, barsC.y + hgt / 2f), barW, StrokeCap.Round)
             }
         }
         // AirPods view, right side: the listening mode symbol (when not measuring heart rate).
-        if (music.value < 0.999f && heartBpm == null && pods.listeningMode in 1..4) {
+        if (music.value < 0.999f && heartBpm == null && pods.listeningMode in 1..4 && talk.value < 0.999f) {
             val side = s.height - 8f * density
             val glyph = side * 0.7f
             ListeningModeGlyph(
@@ -596,7 +645,7 @@ internal fun MiniIslandHost(
                         IntOffset((barsX - glyph / 2f + nudge.value).roundToInt(), (m + s.height / 2f - glyph / 2f).roundToInt())
                     }
                     .graphicsLayer {
-                        alpha = ((appear.value - 0.55f) / 0.45f).coerceIn(0f, 1f) * (1f - music.value)
+                        alpha = ((appear.value - 0.55f) / 0.45f).coerceIn(0f, 1f) * (1f - music.value) * (1f - talk.value)
                     },
                 size = androidx.compose.ui.unit.Dp(glyph / density),
             )

@@ -58,6 +58,8 @@
   no time-left line, batteries as L/R/case rings, just a play/pause button. Heart shows only inside the opened island as a small
   chip in the island's own white/graphite (never red); it is always there ("-- BPM" with no reading, tap opens the app),
   morphing out of the play/pause button 1 s after opening (`CHIP_DELAY_MS`); with a reading, tapping it grows the island to the explanation page. It pops the island only for high-rate alerts. Heart beat: one steady loop (`rememberHeartBeat`), never restarted per reading. Ear packets are primary/secondary, not left/right.
+  NAMES (Jake's): the camera pill is the "Dynamic Island" in the UI (code: MiniIsland*); the pop-ups are the "mini island"
+  (code: Island*/IslandController). Conversation Awareness restore timing: `utils/ConversationTiming.kt`.
   Mini island (black pill around the front camera while music plays; cover + progress ring left, bars in cover colour right,
   widens with the song name; tap = big island, swipe = skip, hold = open app; hides in landscape/full-screen/lock screen/30 s
   after pause): `overlays/MiniIsland.kt`, rules `services/MiniIslandRules.kt`, prefs in `IslandPrefs` (`PREF_MINI*`). While it's
