@@ -88,6 +88,8 @@ fun BatteryRing(
     label: Color = Color.White,
     labelSize: TextUnit = 11.sp,
     showLabel: Boolean = true,
+    /** Draw a bolt in the middle while charging (off when something else sits in the middle). */
+    centerBolt: Boolean = true,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val reduce = androidx.compose.runtime.remember { GlintComfort.reduceMotion(context) }
@@ -127,7 +129,7 @@ fun BatteryRing(
             if (charging) {
                 val r = this.size.minDimension * 0.17f
                 val c = Offset(this.size.width * 0.5f, this.size.height * 0.5f)
-                if (!showLabel || level == null) drawBolt(c, r * 1.4f, color)
+                if (centerBolt && (!showLabel || level == null)) drawBolt(c, r * 1.4f, color)
             }
         }
         if (showLabel && level != null) {

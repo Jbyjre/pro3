@@ -33,8 +33,6 @@ import me.kavishdevar.librepods.services.HeartRate
 import me.kavishdevar.librepods.services.HeartInsights
 import me.kavishdevar.librepods.presentation.glint.HeartGlyph
 import me.kavishdevar.librepods.services.LinkState
-import me.kavishdevar.librepods.services.BatteryTimeLeft
-import me.kavishdevar.librepods.services.BatteryWords
 import android.content.Context
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -203,7 +201,7 @@ internal class IslandGeometry(context: Context) {
     val restSplit = satD / (satGap + 2f * satD)
     val expandedW = minOf(screen.width - dp(28f), dp(368f))
     // Header, AirPods and batteries (with the heart while measuring), time left and play/pause.
-    val expandedH = dp(212f)
+    val expandedH = dp(196f)
     // The heart's explanation needs more room: tapping the heart grows the island to this.
     val detailH = dp(292f)
     val expandedRadius = dp(40f)
@@ -353,7 +351,7 @@ internal fun IslandHost(
             is IslandEvent.LowBattery -> BatteryRing(event.level, false, size = 30.dp, stroke = 3.dp, track = ringTrack, label = look.content, labelSize = 10.sp)
             is IslandEvent.Heart -> {
                 val hr by HeartRate.state.collectAsState()
-                HeartGlyph(hr.bpm, if (dark) Color(0xFFF04A50) else Color(0xFFE0303A), size = 20.dp, reduceMotion = reduceMotion)
+                HeartGlyph(hr.bpm, look.content, size = 20.dp, reduceMotion = reduceMotion)
             }
             // Only a button while the island is a pill: once it opens, the bubble fades out over
             // the listening-mode symbol and must not catch taps there.
@@ -520,15 +518,25 @@ internal fun IslandHost(
                         IslandPods(budsWidth = 42.dp, play = pillVideo)
                     }
                     Spacer(Modifier.width(9.dp))
-                    Column {
-                        Text(
-                            title, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 17.sp, color = look.content)
-                        )
-                        Text(
-                            subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 15.sp, color = look.contentSecondary)
-                        )
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = title to subtitle,
+                        transitionSpec = {
+                            val move = if (reduceMotion) tween<androidx.compose.ui.unit.IntOffset>(0) else spring(0.9f, 420f)
+                            (androidx.compose.animation.fadeIn(tween(200, 60)) + androidx.compose.animation.slideInVertically(move) { it / 3 }) togetherWith
+                                (androidx.compose.animation.fadeOut(tween(120)) + androidx.compose.animation.slideOutVertically(move) { -it / 3 })
+                        },
+                        label = "pillWords",
+                    ) { (t, sub) ->
+                        Column {
+                            Text(
+                                t, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 17.sp, color = look.content)
+                            )
+                            Text(
+                                sub, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 15.sp, color = look.contentSecondary)
+                            )
+                        }
                     }
                 }
             },
@@ -660,7 +668,6 @@ private fun ExpandedIslandContent(
 ) {
     val context = LocalContext.current
     val link by GlintStatus.link.collectAsState()
-    val timeLeft by BatteryTimeLeft.estimate.collectAsState()
     val heart by HeartRate.state.collectAsState()
     val heartBpm = heart.bpm.takeIf { heartShowsOnIsland(heart, System.currentTimeMillis()) }
     // A reading that stops while the explanation is open closes it.
@@ -715,28 +722,28 @@ private fun ExpandedIslandContent(
                 }
             }
             Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                IslandPods(budsWidth = if (heartBpm != null) 92.dp else 108.dp, play = podsVideo)
+                IslandPods(budsWidth = 104.dp, play = podsVideo)
                 Spacer(Modifier.weight(1f))
-                if (heartBpm != null) {
-                    HeartBadge(
-                        bpm = heartBpm, size = 66.dp, dark = dark, reduceMotion = reduceMotion, enabled = active,
-                        onClick = { onTouch(); onHeartOpen(true) },
-                    )
-                    Spacer(Modifier.weight(1f))
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(7.dp), horizontalAlignment = Alignment.End) {
-                    RingRow("Left", snapshot.left, snapshot.leftCharging, content, secondary, track2)
-                    RingRow("Right", snapshot.right, snapshot.rightCharging, content, secondary, track2)
-                    RingRow("Case", snapshot.case, snapshot.caseCharging, content, secondary, track2)
+                // Left, right and case as three rings marked L, R and a case symbol; % under each.
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    PartRing(PartMark.Left, snapshot.left, snapshot.leftCharging, content, secondary, track2)
+                    PartRing(PartMark.Right, snapshot.right, snapshot.rightCharging, content, secondary, track2)
+                    PartRing(PartMark.Case, snapshot.case, snapshot.caseCharging, content, secondary, track2)
                 }
             }
             Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    timeLeft?.let { BatteryWords.headline(it) } ?: "Hold to open Glint",
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = secondary)
-                )
+                // While measuring: a small heart chip in the island's own colours; tap for the explanation.
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = heartBpm != null,
+                    enter = androidx.compose.animation.fadeIn(tween(220)) + androidx.compose.animation.scaleIn(if (reduceMotion) tween(0) else spring(0.7f, 420f), initialScale = 0.85f),
+                    exit = androidx.compose.animation.fadeOut(tween(160)) + androidx.compose.animation.scaleOut(tween(160), targetScale = 0.9f),
+                ) {
+                    HeartChip(
+                        bpm = heartBpm ?: 0, content = content, secondary = secondary, dark = dark, reduceMotion = reduceMotion, enabled = active,
+                        onClick = { onTouch(); onHeartOpen(true) },
+                    )
+                }
+                Spacer(Modifier.weight(1f))
                 if (actionText != null) {
                     GlassPillButton(text = actionText, textColor = content, dark = dark, height = 32.dp, fontSize = 14.sp, onClick = onAction)
                     Spacer(Modifier.width(8.dp))
@@ -779,18 +786,7 @@ internal fun PlayPauseButton(
         if (playing) 0f else 1f, if (reduceMotion) tween(0) else spring(0.7f, 520f), label = "playPause"
     )
     PressableGlyph(size = size, description = if (playing) "Pause" else "Play", onClick = onClick, enabled = enabled) {
-        if (glass) {
-            // A small glass disc: soft fill, light top rim fading downward, like the island's own edge.
-            val r = this.size.minDimension / 2f
-            drawCircle(if (dark) Color.White.copy(alpha = 0.13f) else Color.Black.copy(alpha = 0.06f), r)
-            drawCircle(
-                androidx.compose.ui.graphics.Brush.verticalGradient(
-                    listOf(Color.White.copy(alpha = if (dark) 0.42f else 0.95f), Color.White.copy(alpha = if (dark) 0.05f else 0.35f))
-                ),
-                r - 0.5.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx())
-            )
-            if (!dark) drawCircle(Color.Black.copy(alpha = 0.07f), r - 0.3.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(0.6.dp.toPx()))
-        }
+        if (glass) drawGlassCapsule(dark)
         val g = glyph.toPx()
         val o = Offset((this.size.width - g) / 2f, (this.size.height - g) / 2f)
         fun pt(px: Float, py: Float, qx: Float, qy: Float) = Offset(o.x + lerp(px, qx, morphTo) * g, o.y + lerp(py, qy, morphTo) * g)
@@ -869,9 +865,11 @@ private fun PressableGlyph(size: Dp, description: String, onClick: () -> Unit, e
 private fun HeartBadge(bpm: Int, size: Dp, dark: Boolean, reduceMotion: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     val peak = 1.06f
     val beat = rememberHeartBeat(bpm, reduceMotion, peak = peak)
-    val top = if (dark) Color(0xFFFF6971) else Color(0xFFFF5C65)
-    val bottom = if (dark) Color(0xFFE5323F) else Color(0xFFD62536)
-    val label = if (dark) Color(0xFFF04A50) else Color(0xFFE0303A)
+    // Like the icon's pearl: a white heart on the dark island, a graphite one on the light island.
+    val top = if (dark) Color(0xFFFFFFFF) else Color(0xFF5A5E66)
+    val bottom = if (dark) Color(0xFFC3C7CE) else Color(0xFF1E2024)
+    val ink = if (dark) Color(0xFF16171A) else Color.White
+    val label = if (dark) Color(0xB3FFFFFF) else Color(0x99000000)
     val currentOnClick by rememberUpdatedState(onClick)
     var pressed by remember { mutableStateOf(false) }
     val press by androidx.compose.animation.core.animateFloatAsState(if (pressed) 1f else 0f, spring(0.62f, 620f), label = "heartPress")
@@ -895,7 +893,7 @@ private fun HeartBadge(bpm: Int, size: Dp, dark: Boolean, reduceMotion: Boolean,
                     }
                     .drawWithCache {
                         val glow = androidx.compose.ui.graphics.Brush.radialGradient(
-                            listOf(bottom.copy(alpha = 0.55f), bottom.copy(alpha = 0f)),
+                            listOf(bottom.copy(alpha = if (dark) 0.30f else 0.22f), bottom.copy(alpha = 0f)),
                             center = Offset(this.size.width / 2f, this.size.height * 0.52f), radius = this.size.minDimension * 0.62f
                         )
                         onDrawBehind { drawCircle(glow, this.size.minDimension * 0.62f, Offset(this.size.width / 2f, this.size.height * 0.52f)) }
@@ -916,7 +914,7 @@ private fun HeartBadge(bpm: Int, size: Dp, dark: Boolean, reduceMotion: Boolean,
                             center = Offset(s.width * 0.30f, s.height * 0.26f), radius = s.width * 0.42f
                         )
                         val depth = androidx.compose.ui.graphics.Brush.radialGradient(
-                            listOf(Color(0xFF6A0010).copy(alpha = 0.16f), Color.Transparent),
+                            listOf(Color.Black.copy(alpha = 0.14f), Color.Transparent),
                             center = Offset(s.width * 0.5f, s.height), radius = s.width * 0.6f
                         )
                         val rim = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx())
@@ -945,9 +943,8 @@ private fun HeartBadge(bpm: Int, size: Dp, dark: Boolean, reduceMotion: Boolean,
                 Text(
                     value.toString(),
                     style = TextStyle(
-                        fontFamily = glintFontFamily, fontWeight = FontWeight.Bold, fontSize = numberSize, color = Color.White,
+                        fontFamily = glintFontFamily, fontWeight = FontWeight.Bold, fontSize = numberSize, color = ink,
                         fontFeatureSettings = "tnum",
-                        shadow = androidx.compose.ui.graphics.Shadow(Color(0x55000000), Offset(0f, 1f), 3f),
                     ),
                 )
             }
@@ -979,7 +976,7 @@ private fun HeartDetail(bpm: Int, age: Int, content: Color, secondary: Color, da
             val hr by HeartRate.state.collectAsState()
             Text(
                 if (hr.status == HeartRate.Status.Live) "Live" else "Last reading",
-                style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = bandColor)
+                style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = secondary)
             )
         }
         Spacer(Modifier.height(6.dp))
@@ -987,7 +984,12 @@ private fun HeartDetail(bpm: Int, age: Int, content: Color, secondary: Color, da
             HeartBadge(bpm = bpm, size = 96.dp, dark = dark, reduceMotion = reduceMotion, onClick = onBack)
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(meaning.headline, maxLines = 2, style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, lineHeight = 22.sp, color = bandColor))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // The scale's colour for this reading, as a small dot, so the headline stays calm.
+                    Box(Modifier.size(9.dp).background(bandColor, CircleShape))
+                    Spacer(Modifier.width(7.dp))
+                    Text(meaning.headline, maxLines = 2, style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, lineHeight = 22.sp, color = content))
+                }
                 Spacer(Modifier.height(4.dp))
                 Text(meaning.detail, maxLines = 5, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, lineHeight = 17.sp, color = content.copy(alpha = 0.86f)))
             }
@@ -1058,16 +1060,111 @@ private fun shortModeName(mode: Int): String = when (mode) {
     else -> ""
 }
 
+internal enum class PartMark(val spoken: String) { Left("Left"), Right("Right"), Case("Case") }
+
+/**
+ * One battery as a ring with its part marked inside (L, R, or a small case), and the level
+ * under it. Charging turns the ring green with a soft light running round it, and adds a
+ * small bolt before the level.
+ */
 @Composable
-private fun RingRow(label: String, level: Int?, charging: Boolean, content: Color, secondary: Color, track: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        Text(label, style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = secondary))
-        Text(
-            if (level != null) "$level%" else "–",
-            style = TextStyle(fontFamily = glintFontFamily, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = content)
-        )
-        BatteryRing(level, charging, size = 22.dp, stroke = 3.dp, track = track, showLabel = false)
+private fun PartRing(mark: PartMark, level: Int?, charging: Boolean, content: Color, secondary: Color, track: Color) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.semantics(mergeDescendants = true) {
+            contentDescription = "${mark.spoken} ${level?.let { "$it percent" } ?: "unknown"}${if (charging) ", charging" else ""}"
+        },
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            BatteryRing(level, charging, size = 38.dp, stroke = 3.5.dp, track = track, showLabel = false, centerBolt = false)
+            when (mark) {
+                PartMark.Case -> androidx.compose.foundation.Image(
+                    me.kavishdevar.librepods.presentation.glint.GlintSymbols.CaseFill, null,
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(content.copy(alpha = if (level == null) 0.4f else 0.9f)),
+                    modifier = Modifier.size(15.dp),
+                )
+                else -> Text(
+                    if (mark == PartMark.Left) "L" else "R",
+                    style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = content.copy(alpha = if (level == null) 0.4f else 0.9f))
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (charging && level != null) {
+                androidx.compose.foundation.Canvas(Modifier.size(9.dp)) { drawBolt(center, size.minDimension * 0.5f, GlintColors.Green) }
+                Spacer(Modifier.width(2.dp))
+            }
+            Text(
+                if (level != null) "$level%" else "–",
+                style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (level != null) content else secondary, fontFeatureSettings = "tnum")
+            )
+        }
     }
+}
+
+/**
+ * A small glass chip with a heart in the island's own colour, beating at the live rate, and the
+ * number. Sits beside the play button; tap it for the explanation.
+ */
+@Composable
+private fun HeartChip(bpm: Int, content: Color, secondary: Color, dark: Boolean, reduceMotion: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val beat = rememberHeartBeat(bpm, reduceMotion, peak = 1.16f)
+    val currentOnClick by rememberUpdatedState(onClick)
+    var pressed by remember { mutableStateOf(false) }
+    val press by androidx.compose.animation.core.animateFloatAsState(if (pressed) 1f else 0f, spring(0.62f, 620f), label = "chipPress")
+    Row(
+        Modifier
+            .height(34.dp)
+            .graphicsLayer { val sc = 1f - 0.05f * press; scaleX = sc; scaleY = sc }
+            .drawBehind { drawGlassCapsule(dark) }
+            .islandPress(enabled, "Heart rate $bpm beats per minute. Tap for what it means", { currentOnClick() }, { pressed = it })
+            .padding(start = 11.dp, end = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Spacer(
+            Modifier
+                .size(14.dp)
+                .graphicsLayer { scaleX = beat.value; scaleY = beat.value }
+                .drawWithCache {
+                    val heart = heartPath(size)
+                    onDrawBehind { drawPath(heart, content.copy(alpha = 0.92f)) }
+                }
+        )
+        Spacer(Modifier.width(7.dp))
+        androidx.compose.animation.AnimatedContent(
+            targetState = bpm,
+            transitionSpec = {
+                val up = targetState > initialState
+                val spec = if (reduceMotion) tween<androidx.compose.ui.unit.IntOffset>(0) else spring(0.86f, 500f)
+                (androidx.compose.animation.slideInVertically(spec) { if (up) it / 2 else -it / 2 } + androidx.compose.animation.fadeIn(tween(160))) togetherWith
+                    (androidx.compose.animation.slideOutVertically(spec) { if (up) -it / 2 else it / 2 } + androidx.compose.animation.fadeOut(tween(120)))
+            },
+            label = "chipBpm",
+        ) { value ->
+            Text("$value", style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = content, fontFeatureSettings = "tnum"))
+        }
+        Spacer(Modifier.width(4.dp))
+        Text("BPM", style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.4.sp, color = secondary))
+    }
+}
+
+/**
+ * The island's small glass surface (play button, heart chip): a soft fill and a light rim that
+ * fades downward from the top, like the island's own edge. Round ends at any width.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGlassCapsule(dark: Boolean) {
+    val r = CornerRadius(size.height / 2f)
+    drawRoundRect(if (dark) Color.White.copy(alpha = 0.13f) else Color.Black.copy(alpha = 0.06f), cornerRadius = r)
+    val inset = 0.5.dp.toPx()
+    drawRoundRect(
+        androidx.compose.ui.graphics.Brush.verticalGradient(
+            listOf(Color.White.copy(alpha = if (dark) 0.42f else 0.95f), Color.White.copy(alpha = if (dark) 0.05f else 0.35f))
+        ),
+        topLeft = Offset(inset, inset), size = Size(size.width - 2 * inset, size.height - 2 * inset),
+        cornerRadius = CornerRadius(size.height / 2f - inset), style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx())
+    )
+    if (!dark) drawRoundRect(Color.Black.copy(alpha = 0.07f), cornerRadius = r, style = androidx.compose.ui.graphics.drawscope.Stroke(0.6.dp.toPx()))
 }
 
 /** The heart island's lines, with the live reading. */
