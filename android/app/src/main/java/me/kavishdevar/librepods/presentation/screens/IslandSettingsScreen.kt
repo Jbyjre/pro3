@@ -139,7 +139,7 @@ fun IslandSettingsScreen() {
             StyledToggle(
                 label = "Dynamic Island around the camera",
                 description = "A small pill around the front camera. With music: the cover and moving bars (swipe to change song). " +
-                    "With AirPods: their battery and listening mode, or your heart rate. Tap it to expand it, hold it to open pro. " +
+                    "With AirPods: their battery and listening mode, or your heart rate. Tap once to expand, twice to play/pause, three times to skip; hold to open pro. " +
                     "The mini island pop-ups grow out of it and shrink back into it.",
                 checked = mini,
                 onCheckedChange = {
@@ -152,7 +152,7 @@ fun IslandSettingsScreen() {
                 label = "Always while AirPods are connected",
                 description = "Off: only while music plays",
                 checked = miniAlways,
-                enabled = mini,
+
                 onCheckedChange = {
                     miniAlways = it
                     prefs.edit { putBoolean(IslandPrefs.PREF_MINI_ALWAYS, it) }
@@ -164,14 +164,13 @@ fun IslandSettingsScreen() {
                 description = if (songNames && access) "It widens for a moment when a song starts or changes"
                 else "Needs \"Show song names\" and Notification access (under Music)",
                 checked = miniNames,
-                enabled = mini,
                 onCheckedChange = { miniNames = it; prefs.edit { putBoolean(IslandPrefs.PREF_MINI_NAMES, it) } },
             )
             StyledToggle(
                 label = "Only with AirPods connected",
                 description = "Off: shows for music on any speaker or headphones",
                 checked = miniAirPodsOnly,
-                enabled = mini,
+
                 onCheckedChange = {
                     miniAirPodsOnly = it
                     prefs.edit { putBoolean(IslandPrefs.PREF_MINI_AIRPODS_ONLY, it) }
@@ -182,17 +181,16 @@ fun IslandSettingsScreen() {
 
         StyledList(title = "When the mini island appears") {
             IslandPrefs.Trigger.entries.forEach { t ->
-                // Music moments are the Dynamic Island's job while it's on.
-                val byMini = mini && (t == IslandPrefs.Trigger.MusicStarts || t == IslandPrefs.Trigger.SongChanges)
+                // Every switch can always be changed (greyed-out switches looked stuck); a note says
+                // when one also needs something else to work.
                 StyledToggle(
                     label = t.label,
                     description = when {
-                        byMini -> "Shown by the Dynamic Island instead"
-                        t == IslandPrefs.Trigger.SongChanges && songNames && !access -> "Needs Notification access (under Music)"
+                        t == IslandPrefs.Trigger.SongChanges && !(songNames && access) -> "Needs song names and Notification access (under Music)"
                         else -> t.description
                     },
                     checked = triggers[t] == true,
-                    enabled = master && !byMini && (t != IslandPrefs.Trigger.SongChanges || (songNames && access)),
+                    enabled = master,
                     onCheckedChange = { on -> triggers[t] = on; prefs.edit { putBoolean(t.key, on) } },
                 )
             }
@@ -277,7 +275,8 @@ fun IslandSettingsScreen() {
         }
         Text(
             "Tap a pop-up to open it, hold it to open pro, swipe it up to put it away. " +
-                "The Dynamic Island hides by itself in landscape, in full-screen apps, on the lock screen, and 30 seconds after music stops when your AirPods aren't connected. " +
+                "The Dynamic Island stays while your AirPods are connected (also sideways and on the lock screen, if your phone allows it there); it only steps aside in full-screen videos and games. " +
+                "Tap it once to expand, twice to play or pause, three times for the next song. " +
                 "While you measure heart rate, the heart shows inside the opened island; tap it for what the number means.",
             style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = ink.copy(alpha = 0.55f)),
             modifier = Modifier.padding(horizontal = 16.dp),
