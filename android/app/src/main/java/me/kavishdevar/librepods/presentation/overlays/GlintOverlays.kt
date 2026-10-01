@@ -144,6 +144,18 @@ object GlintOverlays {
     /** True while the big island is on screen (the mini island hides meanwhile). */
     val islandVisible = androidx.compose.runtime.mutableStateOf(false)
 
+    /**
+     * Where the mini island is right now (null when it isn't showing), so the big island can
+     * grow out of it: [dx] is its centre's distance from the screen's middle, [top] its top
+     * edge from the top of the screen, all in pixels.
+     */
+    data class MiniOrigin(val dx: Float, val top: Float, val width: Float, val height: Float)
+
+    @Volatile var miniOrigin: MiniOrigin? = null
+
+    /** When a big island that grew out of the mini island shrank back into it (elapsedRealtime). */
+    @Volatile internal var returnToMiniAt = 0L
+
     @SuppressLint("StaticFieldLeak")
     private var mini: MiniIslandController? = null
 

@@ -104,4 +104,17 @@ class MiniIslandTest {
         assertTrue(s.compactWidth <= 280 * d - 16 * d)
         assertTrue(s.wideWidth <= 280 * d - 16 * d)
     }
+
+    @Test fun staysWithAirPodsAndPicksWhatToShow() {
+        val idle = base.copy(playing = false, pausedForMs = Long.MAX_VALUE, playedRecently = false, airPodsUp = true)
+        assertFalse(MiniIslandRules.wanted(idle))
+        assertTrue(MiniIslandRules.wanted(idle.copy(alwaysWithAirPods = true)))
+        assertFalse(MiniIslandRules.wanted(idle.copy(alwaysWithAirPods = true, airPodsUp = false)))
+        assertFalse(MiniIslandRules.wanted(idle.copy(alwaysWithAirPods = true, screenUnlocked = false)))
+
+        assertEquals(MiniIslandRules.Content.Music, MiniIslandRules.content(playing = true, pausedForMs = 0, playedRecently = true, airPodsUp = true))
+        assertEquals(MiniIslandRules.Content.Music, MiniIslandRules.content(playing = false, pausedForMs = 5_000, playedRecently = true, airPodsUp = true))
+        assertEquals(MiniIslandRules.Content.AirPods, MiniIslandRules.content(playing = false, pausedForMs = 60_000, playedRecently = true, airPodsUp = true))
+        assertEquals(MiniIslandRules.Content.AirPods, MiniIslandRules.content(playing = false, pausedForMs = Long.MAX_VALUE, playedRecently = false, airPodsUp = true))
+    }
 }

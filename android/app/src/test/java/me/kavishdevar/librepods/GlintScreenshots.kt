@@ -177,6 +177,8 @@ class GlintScreenshots {
         name: String, playing: Boolean, wide: Float, art: Boolean, dark: Boolean = false,
         /** "hole" (centred punch-hole), "notch", "corner" (top-left hole) or "none". */
         shape: String = "hole",
+        airPods: PodsSnapshot? = null,
+        heart: Int? = null,
     ) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")
         rule.mainClock.autoAdvance = false
@@ -210,6 +212,8 @@ class GlintScreenshots {
                     }).align(Alignment.TopCenter)) {
                         me.kavishdevar.librepods.presentation.overlays.MiniIslandHost(
                             geometry = geo, track = track, leaving = false, hidden = false,
+                            content = if (airPods != null) me.kavishdevar.librepods.services.MiniIslandRules.Content.AirPods else me.kavishdevar.librepods.services.MiniIslandRules.Content.Music,
+                            pods = airPods ?: PodsSnapshot(), heartBpm = heart,
                             onWindowSize = {}, onTouchable = {}, onGone = {}, onOpen = {}, onHold = {}, onSkip = {},
                             still = 1f, stillWide = wide,
                         )
@@ -235,6 +239,46 @@ class GlintScreenshots {
     @Test fun miniIslandPlaying() = mini("mini_island_playing", playing = true, wide = 0f, art = true)
     @Test fun miniIslandSongName() = mini("mini_island_song_name", playing = true, wide = 1f, art = true, dark = true)
     @Test fun miniIslandPausedNoCover() = mini("mini_island_paused", playing = false, wide = 0f, art = false)
+    @Test fun miniIslandAirPods() = mini("mini_island_airpods", playing = false, wide = 0f, art = false, airPods = demo)
+    @Test fun miniIslandAirPodsHeart() = mini("mini_island_airpods_heart", playing = false, wide = 0f, art = false, airPods = demo, heart = 74, dark = true)
+    @Test fun miniIslandAirPodsLow() = mini("mini_island_airpods_low", playing = false, wide = 0f, art = false, airPods = demo.copy(left = 9, right = 12))
+    @Test fun miniIslandAirPodsCharging() = mini("mini_island_airpods_charging", playing = false, wide = 0f, art = false, airPods = demo.copy(leftCharging = true, rightCharging = true))
+
+    /** The big island growing out of the mini island by the camera, frame by frame. */
+    @Test fun islandFromMini() {
+        GlintOverlays.updateSnapshot(demo)
+        rule.mainClock.autoAdvance = false
+        val app = RuntimeEnvironment.getApplication()
+        val d = app.resources.displayMetrics.density
+        val screenW = app.resources.displayMetrics.widthPixels
+        val hole = android.graphics.Rect((screenW / 2 - 13 * d).toInt(), (10 * d).toInt(), (screenW / 2 + 13 * d).toInt(), (36 * d).toInt())
+        val mg = me.kavishdevar.librepods.presentation.overlays.MiniGeometry(app, listOf(hole))
+        val origin = GlintOverlays.MiniOrigin(mg.offsetX.toFloat(), mg.centerY - mg.size.height / 2f, mg.size.compactWidth, mg.size.height)
+        rule.setContent {
+            val geo = IslandGeometry(app, origin)
+            Wallpaper(false) {
+                val dens = androidx.compose.ui.platform.LocalDensity.current
+                Box(Modifier.fillMaxWidth().height(with(dens) { (geo.compactWindow.height + geo.windowTop.coerceAtLeast(0)).toDp() + 20.dp })) {
+                    Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(0, geo.windowTop) }.size(with(dens) {
+                        androidx.compose.ui.unit.DpSize(geo.compactWindow.width.toDp(), geo.compactWindow.height.toDp())
+                    }).align(Alignment.TopCenter)) {
+                        IslandHost(geo, IslandEvent.Connected, IslandPhase.Compact, 0, blurAllowed = false, onPhase = {}, onWindowSize = {}, onGone = {})
+                    }
+                    androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+                        val c = androidx.compose.ui.geometry.Offset(hole.exactCenterX(), hole.exactCenterY())
+                        drawCircle(androidx.compose.ui.graphics.Color(0xFF0B0B0F), hole.width() / 2f * 0.62f, c)
+                        drawCircle(androidx.compose.ui.graphics.Color(0xFF1F2A44), hole.width() / 2f * 0.26f, c)
+                    }
+                }
+            }
+        }
+        var t = 0L
+        listOf(16L, 60L, 110L, 170L, 260L, 600L).forEach { at ->
+            rule.mainClock.advanceTimeBy(at - t); t = at
+            rule.onRoot().captureRoboImage("$out/island_from_mini_$at.png")
+        }
+    }
+
     @Test fun miniIslandNotch() = mini("mini_island_notch", playing = true, wide = 0f, art = true, shape = "notch")
     @Test fun miniIslandNotchWide() = mini("mini_island_notch_wide", playing = true, wide = 1f, art = true, shape = "notch")
     @Test fun miniIslandCornerCamera() = mini("mini_island_corner", playing = true, wide = 0f, art = true, shape = "corner")

@@ -93,6 +93,7 @@ fun IslandSettingsScreen() {
     var mini by remember { mutableStateOf(IslandPrefs.mini(prefs)) }
     var miniNames by remember { mutableStateOf(IslandPrefs.miniNames(prefs)) }
     var miniAirPodsOnly by remember { mutableStateOf(IslandPrefs.miniAirPodsOnly(prefs)) }
+    var miniAlways by remember { mutableStateOf(IslandPrefs.miniAlways(prefs)) }
     var canDraw by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
 
     // Picks up changes made on Android's settings pages while this screen is open or returning.
@@ -136,12 +137,24 @@ fun IslandSettingsScreen() {
         StyledList(title = "Mini island") {
             StyledToggle(
                 label = "Mini island around the camera",
-                description = "A small pill around the front camera while music plays, with the cover and moving bars. " +
-                    "Tap it to open the island, swipe it to change song, hold it to open pro.",
+                description = "A small pill around the front camera. With music: the cover and moving bars (swipe to change song). " +
+                    "With AirPods: their battery and listening mode, or your heart rate. Tap it to open the island, hold it to open pro. " +
+                    "The island grows out of it and shrinks back into it.",
                 checked = mini,
                 onCheckedChange = {
                     mini = it
                     prefs.edit { putBoolean(IslandPrefs.PREF_MINI, it) }
+                    GlintOverlays.refreshMiniIsland(context)
+                },
+            )
+            StyledToggle(
+                label = "Always while AirPods are connected",
+                description = "Off: only while music plays",
+                checked = miniAlways,
+                enabled = mini,
+                onCheckedChange = {
+                    miniAlways = it
+                    prefs.edit { putBoolean(IslandPrefs.PREF_MINI_ALWAYS, it) }
                     GlintOverlays.refreshMiniIsland(context)
                 },
             )
