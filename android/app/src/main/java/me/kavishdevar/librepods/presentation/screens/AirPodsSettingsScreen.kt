@@ -267,29 +267,6 @@ fun AirPodsSettingsScreen(
         reconnectFromSavedMac: () -> Unit,
 ) {
     val sharedPreferences = LocalContext.current.getSharedPreferences("settings", MODE_PRIVATE)
-    var deviceName by remember {
-        mutableStateOf(
-            TextFieldValue(
-                sharedPreferences.getString("name", state.deviceName).toString()
-            )
-        )
-    }
-
-    val nameChangeListener = remember {
-        SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == "name") {
-                deviceName =
-                    TextFieldValue(sharedPreferences.getString("name", "AirPods Pro").toString())
-            }
-        }
-    }
-
-    DisposableEffect(Unit) {
-        sharedPreferences.registerOnSharedPreferenceChangeListener(nameChangeListener)
-        onDispose {
-            sharedPreferences.unregisterOnSharedPreferenceChangeListener(nameChangeListener)
-        }
-    }
 
     if (state.isLocallyConnected) {
         val capabilities = state.capabilities
@@ -336,13 +313,7 @@ fun AirPodsSettingsScreen(
                 Spacer(modifier = Modifier.height(28.dp))
             }
 
-            item(key = "name") {
-                StyledListItem(
-                    name = stringResource(R.string.name),
-                    description = deviceName.text,
-                    onClick = navigateToRename,
-                )
-            }
+            // The AirPods' name lives in Settings now (Jake: not needed on the main page every day).
 
             // Read from the same capability list as the rest of this screen (the model alone
             // could be missing, which hid the row). Hearing Protection always shows now: its

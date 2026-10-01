@@ -136,9 +136,33 @@ object GlintOverlays {
         _snapshot.value = value
     }
 
-    fun showIsland(context: Context, event: IslandEvent) = main.post {
+    fun showIsland(context: Context, event: IslandEvent, expand: Boolean = false) = main.post {
         val c = island ?: IslandController(context.applicationContext).also { island = it }
-        c.show(event)
+        c.show(event, expand)
+    }
+
+    /** True while the big island is on screen (the mini island hides meanwhile). */
+    val islandVisible = androidx.compose.runtime.mutableStateOf(false)
+
+    @SuppressLint("StaticFieldLeak")
+    private var mini: MiniIslandController? = null
+
+    /**
+     * Starts the mini island: the small pill around the front camera while something plays.
+     * It then follows the music, the setting and the screen by itself. Safe to call often.
+     */
+    fun startMiniIsland(context: Context) = main.post {
+        val c = mini ?: MiniIslandController(context.applicationContext).also { mini = it }
+        c.start()
+    }
+
+    /** Re-checks whether the mini island should be up (after a settings change). */
+    fun refreshMiniIsland(context: Context) = main.post { mini?.refresh() ?: startMiniIsland(context) }
+
+    /** Shows the mini island for a few seconds with sample music, for Settings > Island > Try it. */
+    fun previewMiniIsland(context: Context) = main.post {
+        val c = mini ?: MiniIslandController(context.applicationContext).also { mini = it }
+        c.preview()
     }
 
     fun showCard(context: Context) = main.post {

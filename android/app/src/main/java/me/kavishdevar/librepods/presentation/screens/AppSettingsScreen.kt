@@ -113,6 +113,7 @@ fun AppSettingsScreen(
     navigateToStayConnected: () -> Unit = {},
     navigateToIsland: () -> Unit = {},
     navigateToGlintLab: () -> Unit = {},
+    navigateToRename: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -150,7 +151,15 @@ fun AppSettingsScreen(
             onCheckedChange = viewModel::setm3eEnabled,
         )
 
+        // Your AirPods' name (moved here from the main page). Read fresh each time this screen
+        // opens, so a rename shows straight away when you come back.
+        val podsName = remember { context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).getString("name", null) }
         StyledList(title = "pro") {
+            StyledListItem(
+                name = stringResource(R.string.name),
+                description = podsName?.takeIf { it.isNotBlank() } ?: "AirPods",
+                onClick = navigateToRename,
+            )
             StyledListItem(
                 name = "Island",
                 description = "When it appears, music controls, how long it stays",

@@ -30,6 +30,12 @@ object IslandPrefs {
     const val PREF_DURATION = "glint_island_duration"
     const val PREF_HAPTICS = "glint_island_haptics"
     const val PREF_SONG_NAMES = "glint_island_song_names"
+    /** The mini island: a small pill around the front camera while something plays. */
+    const val PREF_MINI = "glint_mini_island"
+    /** Let the mini island widen for a moment to show each new song's name. */
+    const val PREF_MINI_NAMES = "glint_mini_song_names"
+    /** Only show the mini island while the AirPods are connected (off: for any audio). */
+    const val PREF_MINI_AIRPODS_ONLY = "glint_mini_airpods_only"
 
     enum class Trigger(val key: String, val default: Boolean, val label: String, val description: String) {
         Connected("glint_island_connect", true, "AirPods connect", "Once each time they connect."),
@@ -63,4 +69,8 @@ object IslandPrefs {
 
     /** Song names and the music app's own controls (needs Notification access). */
     fun songNames(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_SONG_NAMES, true)
+
+    fun mini(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI, true)
+    fun miniNames(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_NAMES, true)
+    fun miniAirPodsOnly(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_AIRPODS_ONLY, false)
 }

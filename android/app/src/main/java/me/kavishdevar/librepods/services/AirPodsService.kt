@@ -641,6 +641,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         )
         // What's playing, for the island's music controls and its "something started" moment.
         NowPlaying.attach(this)
+        // The mini island around the camera follows the music by itself from here.
+        GlintOverlays.startMiniIsland(this)
         serviceScope.launch(Dispatchers.Main) {
             var previous = NowPlaying.state.value
             NowPlaying.state.collect { now ->
@@ -2035,6 +2037,9 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         if (t - NowPlaying.lastOwnActionAt < 3_000L || t - lastEarChangeAt < 4_000L) return
         val airPodsUp = BluetoothConnectionManager.aacpSocket?.isConnected == true || GlintStatus.link.value is LinkState.GaveUp
         if (!airPodsUp || appInForeground()) return
+        // The mini island around the camera already shows music starting and each new song
+        // (with its name), so the big island doesn't pop up for them too.
+        if (IslandPrefs.mini(sharedPreferences) && Settings.canDrawOverlays(this)) return
         val started = new.playing && !old.playing
         val newSong = new.playing && old.playing && new.fromSession && new.title != null && old.title != null &&
             (new.title != old.title || new.artist != old.artist)

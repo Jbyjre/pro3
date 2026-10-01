@@ -65,6 +65,15 @@ internal class OverlayWindow(
     private var params: WindowManager.LayoutParams? = null
     val isShowing: Boolean get() = view != null
 
+    /** Told when the window is added (true) or removed (false). */
+    var onShownChanged: ((Boolean) -> Unit)? = null
+
+    /**
+     * False while the app in front hides the status bar (a full-screen video or game), as
+     * reported to this window by Android. Not verified on every launcher/skin.
+     */
+    val statusBarVisible = mutableStateOf(true)
+
     init {
         savedStateController.performAttach()
         savedStateController.performRestore(null)
@@ -73,7 +82,9 @@ internal class OverlayWindow(
 
     fun canShow(): Boolean = Settings.canDrawOverlays(context)
 
-    fun show(initialSize: IntSize, offsetY: Int, content: @Composable () -> Unit): Boolean {
+    fun show(initialSize: IntSize, offsetY: Int, content: @Composable () -> Unit): Boolean = show(initialSize, offsetY, 0, content)
+
+    fun show(initialSize: IntSize, offsetY: Int, offsetX: Int, content: @Composable () -> Unit): Boolean {
         if (view != null) return true
         if (!canShow()) {
             Log.d(tag, "No overlay permission")
@@ -85,6 +96,10 @@ internal class OverlayWindow(
             setViewTreeSavedStateRegistryOwner(this@OverlayWindow)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setContent(content)
+            setOnApplyWindowInsetsListener { v, insets ->
+                statusBarVisible.value = insets.isVisible(android.view.WindowInsets.Type.statusBars())
+                v.onApplyWindowInsets(insets)
+            }
         }
         val lp = WindowManager.LayoutParams(
             initialSize.width,
@@ -98,6 +113,7 @@ internal class OverlayWindow(
         ).apply {
             gravity = (if (anchorTop) Gravity.TOP else Gravity.BOTTOM) or Gravity.CENTER_HORIZONTAL
             y = offsetY
+            x = offsetX
             title = tag
             windowAnimations = 0
             fitInsetsTypes = 0
@@ -111,6 +127,7 @@ internal class OverlayWindow(
                 windowManager.addCrossWindowBlurEnabledListener(context.mainExecutor, blurListener)
             } catch (_: Throwable) {}
             lifecycleRegistry.currentState = Lifecycle.State.RESUMED
+            onShownChanged?.invoke(true)
             true
         } catch (e: Exception) {
             Log.e(tag, "Could not add overlay: ${e.message}")
@@ -127,9 +144,21 @@ internal class OverlayWindow(
         try { windowManager.updateViewLayout(v, lp) } catch (e: Exception) { Log.w(tag, "resize: ${e.message}") }
     }
 
+    /** When false, touches go straight through to whatever is underneath. */
+    fun setTouchable(touchable: Boolean) {
+        val v = view ?: return
+        val lp = params ?: return
+        val flags = if (touchable) lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        else lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        if (flags == lp.flags) return
+        lp.flags = flags
+        try { windowManager.updateViewLayout(v, lp) } catch (e: Exception) { Log.w(tag, "touchable: ${e.message}") }
+    }
+
     fun dismiss() {
         val v = view ?: return
         view = null
+        onShownChanged?.invoke(false)
         try { windowManager.removeCrossWindowBlurEnabledListener(blurListener) } catch (_: Throwable) {}
         lifecycleRegistry.currentState = Lifecycle.State.CREATED
         try { windowManager.removeViewImmediate(v) } catch (e: Exception) { Log.w(tag, "remove: ${e.message}") }

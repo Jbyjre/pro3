@@ -338,3 +338,20 @@ A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every
 - **Fixed on the way:** switch rows picked their text colour from the phone's light/dark setting instead of the app's own Appearance choice, which could give dark text on a dark row. They now follow the app.
 - **Checked:** all 152 unit tests pass (including new ones for reading the repository name), every screen re-rendered in light and dark and reviewed, lint and the release build pass. **Not verified on your phone:** how the vibrations and springs feel, and the backup against your real GitHub account.
 - Code: `services/HeartBackup.kt`, `presentation/glint/RowIcons.kt`, `IconAction.kt`, `GlassBudget.kt`, `GlintMotion.kt`, `components/StyledListItem.kt`, `StyledToggle.kt`, `NoiseControlButton.kt`, `navigation/AppNavGraph.kt`, `.github/workflows/glint-apk.yml`.
+
+## 23. Name moved to Settings, the mini island around the camera
+
+- **Name moved (your request).** The AirPods' name row is gone from the main page. It's now the first row in **Settings** (under "pro"), with the current name shown next to it; tapping it opens the same rename page as before.
+- **Mini island (your request: one really small thing around the top camera that always shows music is playing).** While anything plays, a small black pill wraps around the front camera, like the iPhone's Dynamic Island in its music state:
+  - **Left of the camera:** the song's cover, with a thin ring around it showing how far through the song you are. **Right:** four moving sound bars in the cover's own colour (white for grey covers).
+  - **New song or skip:** it widens for about 3 seconds with the song and artist under the camera line, then tucks back. Long names scroll once.
+  - **Touch:** tap it to open the full island (opened straight to the big view when your AirPods are connected); **swipe left for the next song, right for the previous one** (it follows your finger a little and ticks); hold it to open pro.
+  - **Paused:** the cover greys out and the bars flatten into dots; after 30 seconds it shrinks back into the camera. It also hides by itself while the big island is up, in landscape, in full-screen apps (videos, games), and on the lock screen.
+  - It grows out of the camera when it appears and shrinks back into it when it leaves. Black on purpose, in light and dark mode, so the camera looks like part of it.
+  - **Settings > Island > Mini island:** turn it off; turn off the song-name moments; or "Only with AirPods connected" (off by default, so it shows for music on any speaker or headphones, as you asked). **Try it** has a "Mini island" button.
+  - Song names, covers and the progress ring need the same Notification access as the island's song names. Without it the pill still shows (a music note instead of the cover), and skipping still works using the same media buttons a headset sends.
+  - **Smarter, less noise:** while the mini island is on, the big island no longer pops up for "Something starts playing" or "Each new song", since the mini island already shows both. Those two switches say so.
+  - Light on battery: the bars update about 30 times a second instead of every frame, stop while paused, and the pill is a tiny window that lets touches through everywhere else.
+- **Checked:** new unit tests (`MiniIslandTest`: when it shows, pausing, lock screen, AirPods-only, song changes, sizes, colour picking, progress), the three looks rendered as pictures (playing with cover, paused with no cover, widened with the name), every screen re-rendered, all tests, lint and the release build pass.
+- **Not verified on your phone:** the exact fit around your S25 FE's camera (it's sized from the camera position Android reports, which I couldn't measure here), whether Samsung reports full-screen apps to it so it hides during videos, and how the swipe feels.
+- Code: `presentation/overlays/MiniIsland.kt`, `services/MiniIslandRules.kt`, `services/IslandPrefs.kt`, `services/NowPlaying.kt` (skip, progress), `overlays/OverlayWindow.kt`, `overlays/GlintOverlays.kt`, `screens/IslandSettingsScreen.kt`, `screens/AppSettingsScreen.kt`.

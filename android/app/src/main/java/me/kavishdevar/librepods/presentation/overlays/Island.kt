@@ -140,12 +140,18 @@ internal class IslandController(private val context: Context) {
     private val generation = mutableIntStateOf(0)
     val isShowing: Boolean get() = window.isShowing
 
+    init {
+        // The mini island around the camera steps aside while this one is up.
+        window.onShownChanged = { GlintOverlays.islandVisible.value = it }
+    }
+
     private var shownAt = 0L
 
-    fun show(e: IslandEvent) {
+    /** [expand]: open straight into the big view (a tap on the mini island asked for it). */
+    fun show(e: IslandEvent, expand: Boolean = false) {
         event.value = e
         generation.intValue++
-        val wantsExpanded = (e is IslandEvent.MovedToDevice && e.canTakeBack) || e is IslandEvent.Problem
+        val wantsExpanded = expand || (e is IslandEvent.MovedToDevice && e.canTakeBack) || e is IslandEvent.Problem
         // Safety net: an island can't legitimately stay up this long (it leaves after 10 s at
         // most). If one is stuck, for example its animation froze while the screen was off,
         // remove it so this event still appears instead of being swallowed.

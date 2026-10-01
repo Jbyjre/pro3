@@ -112,6 +112,7 @@ object RowIcons {
     val Trash = icon("trash", P("M4.6 6.6h14.8M9.6 6.4V4.8a1.2 1.2 0 0 1 1.2-1.2h2.4a1.2 1.2 0 0 1 1.2 1.2v1.6"), P("M6.4 6.8l.9 12.1a1.8 1.8 0 0 0 1.8 1.7h5.8a1.8 1.8 0 0 0 1.8-1.7l.9-12.1"), P("M10.2 10.6v6M13.8 10.6v6"))
     val LetterL = icon("letter.l", P("M9.2 6v12h6"))
     val LetterR = icon("letter.r", P("M8.8 18V6h4.2a3.3 3.3 0 0 1 0 6.6H8.8M12.6 12.6l3.4 5.4"))
+    val Note = icon("note", P("M9.4 17.2V5.6l9.4-2v11.4"), P(circle(7.2f, 17.2f, 2.3f), true), P(circle(16.6f, 15.0f, 2.3f), true), P("M9.4 9l9.4-2"))
     val History = icon("history", P("M4.6 12a7.4 7.4 0 1 0 2.2-5.2"), P("M4.4 4.4v3.6H8"), P("M12 8.2V12l2.6 1.8"))
 
     /**
@@ -135,7 +136,7 @@ object RowIcons {
         listOf("hearing", "ear detection", "ear tip") to Ear,
         listOf("conversation") to Speech,
         listOf("head") to Head,
-        listOf("stay connected", "automatic connection", "connection") to Link,
+        listOf("stay connected", "automatic connection", "connection", "airpods connected") to Link,
         listOf("phone", "call") to Phone,
         listOf("equalizer", "adjustment", "customiz", "advanced", "transparency") to Sliders,
         listOf("noise") to Waves,
@@ -144,6 +145,7 @@ object RowIcons {
         listOf("license") to Document,
         listOf("rename") to Pencil,
         listOf("appearance", "app icon", "theme") to Contrast,
+        listOf("song", "music") to Note,
         listOf("audio", "volume", "sound") to Speaker,
         listOf("support", "everything essential") to Star,
         listOf("about") to Info,

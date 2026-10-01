@@ -110,3 +110,13 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 2. **Icons:** Settings and the main screen show a small picture next to each row (heart, bell, ear, shield and so on). On Heart rate, the round glass heart starts/stops measuring when tapped, the button under the line is a play/stop symbol, and the session card has share and reset symbols. **Press and hold** any round symbol button to see its name.
 3. **Feel:** switching screens should glide and settle softly; the screen behind sinks back a little. Tapping cards, listening modes and symbol buttons gives a light tick and a squish.
 4. **Glass on Battery Saver:** turn Battery Saver on with the app open. The glass should stay smooth and look nearly the same (slightly less blur, no rainbow edge); turn it off and it goes back.
+
+## H. Round 23: mini island, name in Settings
+
+1. **Name:** the main page no longer has the Name row. Settings shows it at the top; tap it to rename.
+2. **Mini island:** play music (any app). A small black pill should appear around the front camera: cover on the left, moving bars on the right. Check it sits evenly around the camera.
+3. **Skip:** swipe the pill left: the next song plays and the pill widens with its name for about 3 seconds. Swipe right: previous song.
+4. **Tap / hold:** tap opens the full island; hold opens pro.
+5. **Pause:** the cover greys and the bars become dots; about 30 seconds later it shrinks into the camera.
+6. **Hides:** turn the phone sideways, play a full-screen video, lock the phone. It should get out of the way each time and come back after.
+7. **Settings > Island > Mini island:** each switch works; Try it > Mini island shows a 7-second sample.

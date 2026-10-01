@@ -57,6 +57,10 @@
   (media keys always; song names via optional Notification access, `MediaAccessService`). Jake wants the opened island small: no song bar,
   no time-left line, batteries as L/R/case rings, just a play/pause button. Heart shows only inside the opened island as a small
   chip in the island's own white/graphite (never red); tapping it grows the island to the explanation page. It pops the island only for high-rate alerts. Heart beat: one steady loop (`rememberHeartBeat`), never restarted per reading. Ear packets are primary/secondary, not left/right.
+  Mini island (black pill around the front camera while music plays; cover + progress ring left, bars in cover colour right,
+  widens with the song name; tap = big island, swipe = skip, hold = open app; hides in landscape/full-screen/lock screen/30 s
+  after pause): `overlays/MiniIsland.kt`, rules `services/MiniIslandRules.kt`, prefs in `IslandPrefs` (`PREF_MINI*`). While it's
+  on, the big island skips the music-start/new-song pops. The AirPods name row lives in Settings, not the main page (Jake's choice).
   Row pictures: `glint/RowIcons.kt` (picked from the row name; `RowIconTile`); icon buttons with press-and-hold label:
   `glint/IconAction.kt`. Glass lightens on Battery Saver/heat: `glint/GlassBudget.kt`. Screen changes use springs (`AppNavGraph.kt`).
   Light/dark switch reveal: `theme/ThemeReveal.kt` (`ThemeReveal.change`). Don't `remember` theme colours (rows went white-on-white).
