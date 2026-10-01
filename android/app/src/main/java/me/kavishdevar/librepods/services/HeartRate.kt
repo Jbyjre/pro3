@@ -158,6 +158,47 @@ object HeartInsights {
         }
     }
 
+    /**
+     * A resting estimate: the lowest average over any 3-minute stretch of the session (needs at
+     * least 3 minutes of readings). Most accurate when you've been sitting still for a while.
+     */
+    fun restingEstimate(samples: List<HeartRate.Sample>): Int? {
+        val window = 180_000L
+        var best: Double? = null
+        var start = 0
+        var sum = 0L
+        samples.forEachIndexed { end, s ->
+            sum += s.bpm
+            while (s.timeMs - samples[start].timeMs > window) { sum -= samples[start].bpm; start++ }
+            val count = end - start + 1
+            // A full window with enough readings in it (some may be missing while a bud moves).
+            if (s.timeMs - samples[start].timeMs >= window - 10_000 && count >= 60) {
+                val avg = sum.toDouble() / count
+                if (best == null || avg < best!!) best = avg
+            }
+        }
+        return best?.let { kotlin.math.round(it).toInt() }
+    }
+
+    /**
+     * Recovery: how far your heart rate fell in the minute after the session's highest point,
+     * using the readings 55–65 seconds after it. Null until that minute has passed, or when
+     * the peak wasn't an effort (below 100 BPM).
+     */
+    fun recovery(samples: List<HeartRate.Sample>): Int? {
+        val peak = samples.maxByOrNull { it.bpm } ?: return null
+        if (peak.bpm < 100) return null
+        val after = samples.filter { it.timeMs - peak.timeMs in 55_000..65_000 }
+        if (after.size < 3) return null
+        return peak.bpm - kotlin.math.round(after.map { it.bpm }.average()).toInt()
+    }
+
+    /** The session as CSV: one row per reading, ISO time (UTC), milliseconds, BPM. */
+    fun csv(samples: List<HeartRate.Sample>): String = buildString {
+        append("time_utc,time_ms,bpm\n")
+        samples.forEach { append(java.time.Instant.ofEpochMilli(it.timeMs)).append(',').append(it.timeMs).append(',').append(it.bpm).append('\n') }
+    }
+
     /** A summary of [samples] if they cover at least a minute. */
     fun summarize(samples: List<HeartRate.Sample>): Session? {
         if (samples.size < 2 || samples.last().timeMs - samples.first().timeMs < 60_000) return null

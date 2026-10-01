@@ -41,6 +41,8 @@
   Battery time left: `services/BatteryEstimator.kt`; bottom-card rules: `services/CardGate.kt`.
 - Glass rim light: always `GlintLight.rim()` (Kyant's default highlight is a 45-degree diagonal that looks tilted).
 - Heart rate: `bluetooth/SensorProto.kt` + `services/HeartRate.kt`; recorder: `audio/AirPodsRecorder.kt`;
-  change confirmation: `services/CommandFeedback.kt`. The status notification is hidden unless
+  change confirmation: `services/CommandFeedback.kt`. Live sharing: `services/HeartLink.kt` (BLE heart-rate sensor,
+  https webhook, broadcast; screen `HeartShareScreen.kt`). A Wi-Fi local server was blocked by the session safety
+  setting; only add it if Jake explicitly asks. The status notification is hidden unless
   `glint_status_notification` is on. Jake's app is personal: no visible LibrePods mentions.
 - See `DECISIONS.md` and `TESTING.md` at the repo root.

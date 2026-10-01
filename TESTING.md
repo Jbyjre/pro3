@@ -37,6 +37,8 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 | Island | Turn Bluetooth off and on, or put the AirPods in | The island appears once when they connect, with the earbuds turning. Tap it: it grows into a card with batteries and time left. Hold it to open Glint. The earbuds turn smoothly |
 | Change feedback | Tap Adaptive on the main screen | A glass notice says "Switching to Adaptive…" then "Adaptive is on". If the AirPods don't answer, it says so and offers Reconnect |
 | Heart rate | Main screen > **Heart rate** > Start measuring (both buds in) | A number within a few seconds, a heart beating at that rate, and a line building up. Take a bud out: it says there's no reading |
+| Share heart rate | Heart rate > **Share live heart rate**: turn on Bluetooth sensor, start measuring, then in a fitness app or watch search for a heart-rate sensor | Your phone appears and shows the same BPM. Web address: paste an https webhook and tap Send a test: "It worked" |
+| Heart insights | Measure at least 3 minutes sitting, then exercise and stop | "Resting, est." appears; a minute after your peak, "1-min recovery". Export readings opens the share sheet with a CSV |
 | Recorder | Main screen > **Recorder (experimental)** | Tap the red button, speak, stop. A recording appears you can play. If it says no audio is arriving, that firmware doesn't support it |
 | Head gestures | Main screen > Head gestures | The dot moves as you turn and tilt your head; Test Head Gestures reacts to a nod or shake |
 | Light/dark | Settings > Appearance: Light, then Dark | The app, its status bar and the island all switch |

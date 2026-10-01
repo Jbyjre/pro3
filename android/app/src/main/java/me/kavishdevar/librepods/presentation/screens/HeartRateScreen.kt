@@ -86,6 +86,10 @@ import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.services.GlintStatus
 import me.kavishdevar.librepods.services.HeartRate
 import me.kavishdevar.librepods.services.HeartInsights
+import me.kavishdevar.librepods.services.HeartLink
+import me.kavishdevar.librepods.services.PREF_LINK_BLE
+import me.kavishdevar.librepods.services.PREF_LINK_BROADCAST
+import me.kavishdevar.librepods.services.PREF_LINK_WEBHOOK
 import me.kavishdevar.librepods.presentation.components.InfoTip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
@@ -112,7 +116,7 @@ private val HeartDark = Color(0xFFF04A50)
  * sessions, and an optional alert. Longer explanations sit behind small "i" buttons.
  */
 @Composable
-fun HeartRateScreen() {
+fun HeartRateScreen(navigateToShare: () -> Unit = {}) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
     val state by HeartRate.state.collectAsState()
@@ -206,11 +210,54 @@ fun HeartRateScreen() {
                     Stat("Average", state.average, ink, muted, Modifier.weight(1f))
                     Stat("Highest", state.max, ink, muted, Modifier.weight(1f))
                 }
+                val resting = remember(state.samples.size / 30) { HeartInsights.restingEstimate(state.samples) }
+                val recovery = remember(state.samples.size / 5) { HeartInsights.recovery(state.samples) }
+                if (resting != null || recovery != null) {
+                    Spacer(Modifier.height(14.dp))
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        if (resting != null) Insight("Resting, est.", "$resting", ink, muted, Modifier.weight(1f))
+                        if (recovery != null) Insight("1-min recovery", if (recovery > 0) "−$recovery" else "$recovery", ink, muted, Modifier.weight(1f))
+                        InfoTip(
+                            "Resting and recovery",
+                            "Resting, est.: your lowest 3-minute average this session; closest to your true resting rate when you've sat still for a while. " +
+                                "1-min recovery: how far your heart rate fell in the minute after this session's highest reading (shown once that reading is 100 BPM or more). " +
+                                "Bigger drops generally go with better fitness. In a well-known 1999 study, a drop of 12 BPM or less one minute after a treadmill test was linked with higher health risk. " +
+                                "These are estimates, not a medical test."
+                        )
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Export readings",
+                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = accent),
+                    modifier = Modifier.clickable { exportCsv(context, state.samples) }.padding(vertical = 6.dp)
+                )
                 if (age > 0) {
                     Spacer(Modifier.height(16.dp))
                     ZoneBar(HeartInsights.timeInZones(state.samples, age), accent, ink, muted)
                 }
             }
+        }
+
+        // Share live.
+        val shareStatus by HeartLink.status.collectAsState()
+        val sharing = listOf(PREF_LINK_BLE, PREF_LINK_WEBHOOK, PREF_LINK_BROADCAST).count { prefs.getBoolean(it, false) }
+        Row(
+            Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).clickable(onClick = navigateToShare).padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Share live heart rate", style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, color = ink))
+                Text(
+                    when {
+                        sharing == 0 -> "Watches, fitness apps, automations"
+                        shareStatus.beacon is HeartLink.Beacon.Advertising && measuring -> "Live as a Bluetooth sensor"
+                        else -> "$sharing on · while measuring"
+                    },
+                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted)
+                )
+            }
+            Text("›", style = TextStyle(fontFamily = glintFontFamily, fontSize = 24.sp, color = muted))
         }
 
         // Effort zones need an age.
@@ -277,7 +324,7 @@ fun HeartRateScreen() {
             InfoTip(
                 "About these readings",
                 "Measured by the sensor in AirPods Pro 3 while you wear them; a snug fit in both ears gives the steadiest readings. " +
-                    "Readings stay on this phone. Measuring continues in the background until you stop it."
+                    "Readings stay on this phone unless you turn on sharing or export them. Measuring continues in the background until you stop it."
             )
         }
         Spacer(Modifier.height(bottomPadding))
@@ -317,6 +364,33 @@ private fun statusLine(status: HeartRate.Status, connected: Boolean): String = w
     HeartRate.Status.Live -> "Live"
     HeartRate.Status.NoSignal -> "No reading. Check both buds fit snugly"
     HeartRate.Status.NotConnected -> "Waiting for the AirPods"
+}
+
+@Composable
+private fun Insight(label: String, value: String, ink: Color, muted: Color, modifier: Modifier) {
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(value, modifier = Modifier.alignByBaseline(), style = TextStyle(fontFamily = glintFontFamily, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = ink))
+            Text(" BPM", modifier = Modifier.alignByBaseline(), style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, color = muted))
+        }
+        Text(label, style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, color = muted))
+    }
+}
+
+/** Writes this session's readings to a CSV file and opens the share sheet. */
+private fun exportCsv(context: Context, samples: List<HeartRate.Sample>) {
+    if (samples.isEmpty()) return
+    val dir = java.io.File(context.filesDir, "exports").apply { mkdirs() }
+    dir.listFiles()?.forEach { it.delete() } // keep only the latest export
+    val stamp = java.text.SimpleDateFormat("yyyy-MM-dd-HHmm", java.util.Locale.US).format(Date(samples.first().timeMs))
+    val file = java.io.File(dir, "heart-rate-$stamp.csv")
+    file.writeText(HeartInsights.csv(samples))
+    val uri = androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".provider", file)
+    val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+        .setType("text/csv")
+        .putExtra(android.content.Intent.EXTRA_STREAM, uri)
+        .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    context.startActivity(android.content.Intent.createChooser(send, "Export heart rate"))
 }
 
 @Composable

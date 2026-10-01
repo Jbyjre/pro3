@@ -412,6 +412,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         attManager = ATTManagerv2()
 
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
+        HeartLink.attach(this, serviceScope)
 
         localMac = config.selfMacAddress
         if (localMac.isEmpty()) {
@@ -3507,6 +3508,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         Log.d(TAG, "Service stopped is being destroyed for some reason!")
 
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
+        HeartLink.detach()
 
         try {
             unregisterReceiver(bluetoothReceiver)
