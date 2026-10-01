@@ -158,6 +158,27 @@ const val PREF_HR_ALERT_BPM = "glint_hr_alert_bpm"
 /** Measure quietly whenever the AirPods are worn (no button press needed). */
 const val PREF_HR_ALWAYS = "glint_hr_always"
 private const val PREF_HR_VARIANT = "glint_hr_variant"
+/** Background measuring pace: 0 continuous (about every 5 s), 1 balanced, 2 saver. */
+const val PREF_HR_PACE = "glint_hr_pace"
+/** Your age, for effort zones (0 = not set). */
+const val PREF_HR_AGE = "glint_hr_age"
+/** Show the island when background measuring starts and for high-rate alerts. */
+const val PREF_HR_ISLAND = "glint_hr_island"
+/** Readings in the first 3 seconds after the sensor starts are dropped (they start high). */
+const val HR_WARMUP_MS = 3_000L
+/** Turn Conversation Awareness on only while the AirPods are in Adaptive. */
+const val PREF_CA_ADAPTIVE_ONLY = "glint_ca_adaptive_only"
+
+/** How often background measuring reads: all the time, or one-minute bursts with rests. */
+enum class HeartPace(val restMs: Long) {
+    Continuous(0L),
+    Balanced(4 * 60_000L),
+    Saver(14 * 60_000L);
+    companion object {
+        const val BURST_MS = 60_000L
+        fun of(v: Int) = entries.getOrElse(v) { Continuous }
+    }
+}
 
 object ServiceManager {
     private var service: AirPodsService? = null
@@ -925,6 +946,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     sendANCBroadcast()
                     updateNoiseControlWidget()
                     refreshNotification()
+                    applyConversationAwarenessRule()
                 }
             }
 
@@ -1734,6 +1756,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         val rates = if (background) listOf(5_000_000L, 1_000_000L) else listOf(1_000_000L)
         val attempts = rates.flatMap { r -> variants.map { it to r } }
         hrStartedAt = System.currentTimeMillis()
+        hrFirstRawAt = 0L
         hrBackground = background
         HeartRate.saveSession(this) // keeps the last session if this one starts fresh
         HeartRate.starting(hrStartedAt, background)
@@ -1747,7 +1770,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 val askedAt = System.currentTimeMillis()
                 aacpManager.sendSensorInterval(variant, rate)
                 delay(if (rate > 1_000_000L) 14_000 else 8_000)
-                if (HeartRate.state.value.lastReadingMs >= askedAt) {
+                if (hrLastRawAt >= askedAt) {
                     found = true
                     sharedPreferences.edit { putInt(PREF_HR_VARIANT, variant) }
                     break
@@ -1758,19 +1781,70 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 if (background) { pauseHeartRate(); return@launch }
                 aacpManager.sendSensorInterval(hrService, interval)
                 HeartRate.status(HeartRate.Status.NoSignal)
+            } else if (background) {
+                announceHeartOnIsland()
             }
+            // Battery-saving pace (background only): one minute of readings, then the sensor
+            // rests for a few minutes. Continuous keeps the stream on.
+            val pace = if (background) HeartPace.of(sharedPreferences.getInt(PREF_HR_PACE, 0)) else HeartPace.Continuous
             // Readings stop when the buds come out; say so instead of showing an old number.
             val quietAfter = interval / 1000 * 3 + 7_000
-            var ticks = 0
+            // Check less often in the background: fewer wake-ups, same result.
+            val tick = if (background) 10_000L else 3_000L
+            var burstStarted = System.currentTimeMillis()
+            var lastSave = System.currentTimeMillis()
             while (true) {
-                delay(3_000)
+                delay(tick)
+                val now = System.currentTimeMillis()
                 // Save every 10 minutes so a long session survives the app being closed.
-                if (++ticks % 200 == 0) HeartRate.saveSession(this@AirPodsService)
+                if (now - lastSave >= 10 * 60_000L) { lastSave = now; HeartRate.saveSession(this@AirPodsService) }
                 val st = HeartRate.state.value
-                val quiet = System.currentTimeMillis() - st.lastReadingMs > quietAfter
+                if (found && pace != HeartPace.Continuous && now - burstStarted >= HeartPace.BURST_MS) {
+                    // Rest the sensor, then start the next burst if the buds are still in.
+                    aacpManager.sendSensorInterval(hrService, 0L)
+                    HeartRate.resting(now + pace.restMs)
+                    delay(pace.restMs)
+                    if (BluetoothConnectionManager.aacpSocket?.isConnected != true || !budsWorn()) continue
+                    hrFirstRawAt = 0L // the sensor warms up again
+                    aacpManager.sendSensorInterval(hrService, interval)
+                    burstStarted = System.currentTimeMillis()
+                    HeartRate.status(HeartRate.Status.Starting)
+                    continue
+                }
+                val quiet = now - st.lastReadingMs > quietAfter
                 if (st.status == HeartRate.Status.Live && quiet) HeartRate.status(HeartRate.Status.NoSignal)
             }
         }
+    }
+
+    /** The island says measuring started (background only, once per session, if allowed). */
+    private fun announceHeartOnIsland() {
+        if (!sharedPreferences.getBoolean(PREF_HR_ISLAND, true) || appInForeground()) return
+        val session = HeartRate.state.value.sessionStartMs
+        if (session == lastHeartIsland) return
+        lastHeartIsland = session
+        showIslandEvent(IslandEvent.Heart(alert = false))
+    }
+
+    private var lastHeartIsland = 0L
+    /** When the current stream's first reading arrived, and the latest one (kept or not). */
+    private var hrFirstRawAt = 0L
+    private var hrLastRawAt = 0L
+
+    /**
+     * "Only in Adaptive": Conversation Awareness on while the AirPods are in Adaptive (mode 4),
+     * off in the other modes. Sent only when it would change something.
+     */
+    fun applyConversationAwarenessRule() {
+        if (!sharedPreferences.getBoolean(PREF_CA_ADAPTIVE_ONLY, false)) return
+        if (BluetoothConnectionManager.aacpSocket?.isConnected != true) return
+        val mode = ancNotification.status
+        if (mode !in 1..4) return
+        val want = mode == 4
+        val id = AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG
+        val now = aacpManager.getControlCommandStatus(id)?.value?.firstOrNull()
+        if (now == (if (want) 0x01.toByte() else 0x02.toByte())) return
+        aacpManager.sendControlCommand(id.value, want)
     }
 
     /** True while at least one bud is in an ear. */
@@ -1826,8 +1900,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         if (hrService != 0 && BluetoothConnectionManager.aacpSocket?.isConnected == true) aacpManager.sendSensorInterval(hrService, 0L)
         hrService = 0
         hrBackground = false
-        HeartRate.saveSession(this)
         HeartRate.status(HeartRate.Status.Off)
+        HeartRate.saveSession(this)
     }
 
     /** Experimental: record from the AirPods' microphones over their own link. */
@@ -1858,19 +1932,29 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             aacpManager.sendSensorInterval(hrService, 0L)
         }
         hrService = 0
-        HeartRate.saveSession(this)
         HeartRate.status(HeartRate.Status.Off)
+        HeartRate.saveSession(this)
     }
 
     private fun onHeartRate(bpm: Int) {
         // Ignore stray readings after a stop.
         if (hrService == 0) return
         val now = System.currentTimeMillis()
+        hrLastRawAt = now
+        // The sensor's first few seconds read high while it settles, then drop; skip them.
+        if (hrFirstRawAt == 0L) hrFirstRawAt = now
+        if (now - hrFirstRawAt < HR_WARMUP_MS) return
+        // A very long session: save it and carry on in a fresh one instead of dropping readings.
+        if (HeartRate.state.value.samples.size >= HeartRate.MAX_SAMPLES) {
+            HeartRate.saveSession(this)
+            HeartRate.rollOver(now)
+        }
         HeartRate.reading(bpm, now)
         val limit = sharedPreferences.getInt(PREF_HR_ALERT_BPM, 140)
         if (sharedPreferences.getBoolean(PREF_HR_ALERT, false) && bpm > limit && now - lastHrAlertAt > 10 * 60_000L) {
             lastHrAlertAt = now
             showHeartRateAlert(bpm, limit)
+            if (sharedPreferences.getBoolean(PREF_HR_ISLAND, true)) showIslandEvent(IslandEvent.Heart(alert = true))
         }
     }
 

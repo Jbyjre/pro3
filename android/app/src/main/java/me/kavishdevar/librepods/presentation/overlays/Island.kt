@@ -22,6 +22,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import me.kavishdevar.librepods.services.GlintStatus
 import me.kavishdevar.librepods.services.HeartRate
+import me.kavishdevar.librepods.services.HeartInsights
+import me.kavishdevar.librepods.presentation.glint.HeartGlyph
 import me.kavishdevar.librepods.services.LinkState
 import me.kavishdevar.librepods.services.BatteryTimeLeft
 import me.kavishdevar.librepods.services.BatteryWords
@@ -264,7 +266,7 @@ internal fun IslandHost(
                     launch { delay(if (reduceMotion) 0 else 110); split.animateTo(geometry.restSplit, soft) }
                 }
                 onWindowSize(geometry.compactWindow)
-                val hold = if (event is IslandEvent.LowBattery) 5_000L else 3_600L
+                val hold = if (event is IslandEvent.LowBattery || (event is IslandEvent.Heart && event.alert)) 5_000L else 3_600L
                 delay(hold)
                 onPhase(IslandPhase.Leaving)
             }
@@ -299,10 +301,16 @@ internal fun IslandHost(
             is IslandEvent.Problem -> Text("!", style = TextStyle(color = GlintColors.Amber, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = glintFontFamily))
             is IslandEvent.Charging -> BatteryRing(snapshot.case, true, size = 30.dp, stroke = 3.dp, track = ringTrack, label = look.content, labelSize = 10.sp)
             is IslandEvent.LowBattery -> BatteryRing(event.level, false, size = 30.dp, stroke = 3.dp, track = ringTrack, label = look.content, labelSize = 10.sp)
+            is IslandEvent.Heart -> {
+                val hr by HeartRate.state.collectAsState()
+                HeartGlyph(hr.bpm, if (dark) Color(0xFFF04A50) else Color(0xFFE0303A), size = 20.dp, reduceMotion = reduceMotion)
+            }
             else -> BatteryRing(snapshot.budsLevel, snapshot.budsCharging, size = 30.dp, stroke = 3.dp, track = ringTrack, label = look.content, labelSize = 10.sp)
         }
     }
-    val (title, subtitle) = islandText(event, snapshot)
+    val heartNow by HeartRate.state.collectAsState()
+    val age = remember { context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).getInt(me.kavishdevar.librepods.services.PREF_HR_AGE, 0) }
+    val (title, subtitle) = if (event is IslandEvent.Heart) heartIslandText(event, heartNow.bpm, age) else islandText(event, snapshot)
 
     // Geometry for the current frame, shared by drawing and layout. Reading animatable
     // values here happens in the draw/layout phase, so animating never recomposes.
@@ -661,6 +669,13 @@ private fun RingRow(label: String, level: Int?, charging: Boolean, content: Colo
     }
 }
 
+/** The heart island's lines, with the live reading. */
+internal fun heartIslandText(event: IslandEvent.Heart, bpm: Int?, age: Int = 0): Pair<String, String> = when {
+    event.alert -> "High heart rate" to (bpm?.let { "$it BPM" } ?: "Above your limit")
+    bpm == null -> "Heart rate" to "Measuring…"
+    else -> "Heart rate" to "$bpm BPM · ${HeartInsights.meaning(bpm, age, 0).headline}"
+}
+
 internal fun islandText(event: IslandEvent, s: PodsSnapshot): Pair<String, String> = when (event) {
     IslandEvent.Connected -> s.name to "Connected"
     IslandEvent.InEar -> s.name to "In your ears"
@@ -670,6 +685,7 @@ internal fun islandText(event: IslandEvent, s: PodsSnapshot): Pair<String, Strin
     IslandEvent.TakingOver -> "Switching to this phone" to s.name
     IslandEvent.Charging -> "Charging" to (s.case?.let { "Case $it%" } ?: s.name)
     is IslandEvent.Problem -> event.title to event.message
+    is IslandEvent.Heart -> heartIslandText(event, null)
 }
 
 /** Clips expanded content to the island's current (growing) shape, anchored top-left. */

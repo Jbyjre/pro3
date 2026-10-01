@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.glint.touchGlow
+
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
@@ -260,6 +262,7 @@ private fun StyledListItemContent(
                             }
                         }
                     )
+                    .touchGlow(MaterialTheme.colorScheme.onSurface, enabled)
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onPress = {

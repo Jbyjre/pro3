@@ -19,6 +19,7 @@
 package me.kavishdevar.librepods.presentation.glint
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
@@ -88,7 +89,18 @@ fun BatteryRing(
     labelSize: TextUnit = 11.sp,
     showLabel: Boolean = true,
 ) {
-    val sweep by animateFloatAsState(((level ?: 0) / 100f).coerceIn(0f, 1f), spring(dampingRatio = 0.8f, stiffness = 120f), label = "ring")
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val reduce = androidx.compose.runtime.remember { GlintComfort.reduceMotion(context) }
+    val target = ((level ?: 0) / 100f).coerceIn(0f, 1f)
+    // Fills from empty when it first appears, then follows changes on a spring.
+    val fill = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(if (reduce) target else 0f) }
+    androidx.compose.runtime.LaunchedEffect(target) { if (reduce) fill.snapTo(target) else fill.animateTo(target, spring(dampingRatio = 0.8f, stiffness = 120f)) }
+    // While charging, a soft light travels round the filled part of the ring.
+    val shimmer = if (charging && level != null && !reduce) {
+        androidx.compose.animation.core.rememberInfiniteTransition(label = "charge").animateFloat(
+            0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2_200, easing = androidx.compose.animation.core.LinearEasing)), label = "charge"
+        )
+    } else null
     val color = if (charging && (level ?: 0) > 20) GlintColors.Green else GlintColors.forLevel(level)
     Box(
         modifier
@@ -101,8 +113,16 @@ fun BatteryRing(
             val inset = s / 2f
             val arcSize = Size(this.size.width - s, this.size.height - s)
             drawArc(track, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(s))
+            val sweep = fill.value
             if (level != null) {
                 drawArc(color, -90f, 360f * sweep, false, Offset(inset, inset), arcSize, style = Stroke(s, cap = StrokeCap.Round))
+                shimmer?.let { sh ->
+                    val span = 360f * sweep
+                    if (span > 30f) {
+                        val head = -90f + span * sh.value
+                        drawArc(Color.White.copy(alpha = 0.55f), head - 14f, 14f, false, Offset(inset, inset), arcSize, style = Stroke(s * 0.7f, cap = StrokeCap.Round))
+                    }
+                }
             }
             if (charging) {
                 val r = this.size.minDimension * 0.17f

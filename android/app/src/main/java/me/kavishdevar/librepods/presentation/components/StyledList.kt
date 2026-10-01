@@ -1,5 +1,7 @@
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.glint.riseIn
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,7 +39,7 @@ fun StyledList(
 
     val m3eEnabled = LocalDesignSystem.current == DesignSystem.Material
 
-    Column (modifier = modifier) {
+    Column (modifier = modifier.riseIn()) {
         title?.let {
             Box(
                 modifier = Modifier

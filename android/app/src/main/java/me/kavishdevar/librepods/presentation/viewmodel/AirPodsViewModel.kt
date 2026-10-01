@@ -230,7 +230,8 @@ class AirPodsViewModel(
 
     val uiState: StateFlow<AirPodsUiState> = _uiState
 
-    private var isDemoMode = false
+    var isDemoMode = false
+        private set
 
     private val listeners =
         mutableMapOf<ControlCommandIdentifiers, AACPManager.ControlCommandListener>()

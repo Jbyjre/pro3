@@ -69,7 +69,18 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 5. **Main screen states**: preview "Bluetooth off", "Connecting", "Couldn't connect" and "Waiting".
 6. Also try **dark mode** (the card's clip switches to its dark version), and **Settings > Accessibility > Visibility enhancements** options such as reduce animations (the clips become still pictures) and high-contrast text.
 
-## F. Known limits (not bugs)
+## F. Heart rate, history and backup (round 16)
+
+1. **Warm-up:** tap Start measuring. The first number should appear after a few seconds and should *not* start high and then drop (the first 3 seconds are thrown away).
+2. **Background + island:** turn on Measure whenever worn, close Glint, put the AirPods in. Within about 20 seconds the island should show "Heart rate · NN BPM" with a beating heart.
+3. **Pace:** pick Balanced, take the buds out and back in. The Heart rate screen should alternate between "Live" and "Last reading · next in about N min".
+4. **History:** Heart rate > History. Every session of a minute or more is listed by day; tap one to see its graph.
+5. **GitHub backup:** History > Back up to GitHub > Set up > Open GitHub, create the token, paste it, Connect. On github.com you should see a new **private** repository `glint-heart-backup` with a `heart` folder. End a session: a new file should appear there within a minute.
+6. **Restore:** (optional) delete a session on the phone, then tap Restore. It comes back.
+7. **Hearing Protection:** main screen > Hearing Protection. Turn Workspace Use on and off; the switch should stay where you put it. With the AirPods disconnected the switches should be greyed out with "Connect your AirPods to change this".
+8. **Only in Adaptive:** main screen > Audio > Only in Adaptive on. Switch to Transparency: Conversational Awareness turns off; switch to Adaptive: it turns on.
+
+## G. Known limits (not bugs)
 
 - Features marked **Needs root** don't work on a standard Samsung.
 - Overlays don't appear on the lock screen (Android hides app overlays there).

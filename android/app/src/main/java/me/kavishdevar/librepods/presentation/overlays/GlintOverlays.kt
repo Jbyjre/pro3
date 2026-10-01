@@ -100,6 +100,8 @@ sealed interface IslandEvent {
     data object TakingOver : IslandEvent
     data object Charging : IslandEvent
     data class Problem(val title: String, val message: String) : IslandEvent
+    /** Heart rate: background measuring just started, or [alert] for a high reading. */
+    data class Heart(val alert: Boolean) : IslandEvent
 }
 
 /**

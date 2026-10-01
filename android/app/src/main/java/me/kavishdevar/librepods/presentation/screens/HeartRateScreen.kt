@@ -15,17 +15,22 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+
 package me.kavishdevar.librepods.presentation.screens
 
 import android.content.Context
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
-import androidx.core.content.edit
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +48,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -52,72 +58,69 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
+import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import kotlinx.coroutines.delay
-import me.kavishdevar.librepods.presentation.components.StyledButton
+import me.kavishdevar.librepods.presentation.components.InfoTip
+import me.kavishdevar.librepods.presentation.glint.pressable
+import me.kavishdevar.librepods.presentation.glint.riseIn
+import me.kavishdevar.librepods.presentation.components.LiquidSegments
 import me.kavishdevar.librepods.presentation.components.StyledToggle
+import me.kavishdevar.librepods.presentation.glint.CapsuleShape
+import me.kavishdevar.librepods.presentation.glint.GlassTier
 import me.kavishdevar.librepods.presentation.glint.GlintComfort
-import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+import me.kavishdevar.librepods.presentation.glint.glintGlass
+import me.kavishdevar.librepods.presentation.glint.heartPath
+import me.kavishdevar.librepods.presentation.glint.rememberHeartBeat
 import me.kavishdevar.librepods.services.GlintStatus
-import me.kavishdevar.librepods.services.HeartRate
+import me.kavishdevar.librepods.services.HeartBackup
+import me.kavishdevar.librepods.services.HeartHistory
 import me.kavishdevar.librepods.services.HeartInsights
 import me.kavishdevar.librepods.services.HeartLink
+import me.kavishdevar.librepods.services.HeartPace
+import me.kavishdevar.librepods.services.HeartRate
+import me.kavishdevar.librepods.services.LinkState
+import me.kavishdevar.librepods.services.PREF_HR_AGE
+import me.kavishdevar.librepods.services.PREF_HR_ALERT
+import me.kavishdevar.librepods.services.PREF_HR_ALERT_BPM
+import me.kavishdevar.librepods.services.PREF_HR_ALWAYS
+import me.kavishdevar.librepods.services.PREF_HR_ISLAND
+import me.kavishdevar.librepods.services.PREF_HR_PACE
 import me.kavishdevar.librepods.services.PREF_LINK_BLE
 import me.kavishdevar.librepods.services.PREF_LINK_BROADCAST
 import me.kavishdevar.librepods.services.PREF_LINK_WEBHOOK
-import me.kavishdevar.librepods.presentation.components.InfoTip
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.runtime.mutableLongStateOf
-import me.kavishdevar.librepods.services.LinkState
-import me.kavishdevar.librepods.services.PREF_HR_ALERT
-import me.kavishdevar.librepods.services.PREF_HR_ALWAYS
-import me.kavishdevar.librepods.services.PREF_HR_ALERT_BPM
 import me.kavishdevar.librepods.services.ServiceManager
-import java.text.DateFormat
-import java.util.Date
-import kotlin.math.ceil
-import kotlin.math.floor
-import kotlin.math.roundToInt
-
-private const val PREF_HR_AGE = "glint_hr_age"
-
-/** Heart-rate line colours, checked for contrast and lightness on the light and dark cards. */
-private val HeartLight = Color(0xFFE0303A)
-private val HeartDark = Color(0xFFF04A50)
 
 /**
- * Heart rate from the AirPods Pro 3's sensor: the live number with a heart that beats at that
- * rate, what it means (effort zone), this session's line and trend, time in each zone, earlier
- * sessions, and an optional alert. Longer explanations sit behind small "i" buttons.
+ * Heart rate from the AirPods Pro 3's sensor: a live card (rolling number, a heart that
+ * beats at your rate inside a glass orb, an ECG-style sweep, colour that swells with each
+ * beat), what the reading means on a scale, this session's line and trend, your history,
+ * and the measuring options. Longer explanations sit behind small "i" buttons.
  */
 @Composable
-fun HeartRateScreen(navigateToShare: () -> Unit = {}) {
+fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> Unit = {}) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
     val state by HeartRate.state.collectAsState()
@@ -126,7 +129,7 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}) {
     val ink = if (dark) Color.White else Color.Black
     val muted = ink.copy(alpha = 0.6f)
     val card = if (dark) Color(0xFF1C1C1E) else Color.White
-    val accent = if (dark) HeartDark else HeartLight
+    val accent = HeartColors.accent(dark)
     val topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 84.dp
     val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp
     val connected = link is LinkState.Connected
@@ -135,7 +138,10 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}) {
     var age by remember { mutableIntStateOf(prefs.getInt(PREF_HR_AGE, 0)) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(5_000); now = System.currentTimeMillis() } }
-    val history = remember(state.status) { HeartRate.history(context) }
+    val historyVersion by HeartHistory.version.collectAsState()
+    val history = remember(historyVersion) { HeartRate.history(context) }
+    val usual = remember(history) { HeartInsights.usualResting(history, System.currentTimeMillis()) ?: 0 }
+    var index = 0
 
     Column(
         Modifier
@@ -147,60 +153,58 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}) {
     ) {
         Spacer(Modifier.height(topPadding - 14.dp))
 
-        // Live reading.
-        Column(
-            Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(vertical = 24.dp, horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            BeatingHeart(bpm = state.bpm.takeIf { live }, color = accent)
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
-                Text(
-                    state.bpm?.takeIf { live }?.toString() ?: "--",
-                    modifier = Modifier.alignByBaseline(),
-                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 60.sp, fontWeight = FontWeight.SemiBold, color = ink)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text("BPM", modifier = Modifier.alignByBaseline(), style = TextStyle(fontFamily = glintFontFamily, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = muted))
-            }
-            val bpm = state.bpm
-            if (live && bpm != null && age > 0) {
-                val z = HeartInsights.zone(bpm, age)
-                Text("${z.label} effort", style = TextStyle(fontFamily = glintFontFamily, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = accent))
-                Text(z.meaning, style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted, textAlign = TextAlign.Center))
-            } else {
-                Text(statusLine(state.status, connected), style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, color = muted, textAlign = TextAlign.Center))
-            }
-            Spacer(Modifier.height(16.dp))
-            StyledButton(
-                onClick = {
-                    val service = ServiceManager.getService()
-                    if (measuring) service?.stopHeartRate() else service?.startHeartRate()
-                },
-                backdrop = rememberLayerBackdrop(),
-                maxScale = 0.06f,
-                enabled = connected || measuring,
-            ) {
-                Text(
-                    if (measuring) "Stop" else "Start measuring",
-                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = ink),
-                    modifier = Modifier.padding(horizontal = 10.dp)
-                )
+        LiveCard(
+            state = state, connected = connected, measuring = measuring, dark = dark, card = card, ink = ink, muted = muted, accent = accent,
+            modifier = Modifier.riseIn(index++),
+            onToggle = {
+                val service = ServiceManager.getService()
+                if (measuring) service?.stopHeartRate() else service?.startHeartRate()
+            },
+        )
+
+        // What the reading means.
+        val shownBpm = state.bpm?.takeIf { live || state.status == HeartRate.Status.Resting || state.status == HeartRate.Status.Starting }
+        AnimatedVisibility(shownBpm != null, enter = fadeIn() + expandVertically(spring(0.85f, 300f)), exit = fadeOut() + shrinkVertically()) {
+            val bpm = shownBpm ?: state.bpm ?: 70
+            val m = HeartInsights.meaning(bpm, age, usual)
+            Column(Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(18.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("What it means", modifier = Modifier.weight(1f), style = heartText(13, muted, FontWeight.Medium))
+                    InfoTip(
+                        "Reading your heart rate",
+                        "For most adults a resting heart rate between 60 and 100 BPM is normal (American Heart Association). " +
+                            "Lower is common when you're relaxed, asleep or very fit. It rises with movement, stress, caffeine, heat and illness. " +
+                            "\"Usual\" is the middle of your resting estimates from the last 30 days. " +
+                            "With your age set, readings above the light range show your effort zone instead. For fitness, not medical use."
+                    )
+                }
+                AnimatedContent(m, transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) }, label = "meaning") { mm ->
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(10.dp).background(HeartColors.band(mm.band, dark), CircleShape))
+                            Spacer(Modifier.width(8.dp))
+                            Text(mm.headline, style = heartText(18, ink, FontWeight.SemiBold))
+                        }
+                        Text(mm.detail, modifier = Modifier.padding(top = 4.dp), style = heartText(14, muted).copy(lineHeight = 19.sp))
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                HeartScale(bpm, usual, age, dark, ink)
             }
         }
 
         // This session.
         if (state.samples.size >= 2) {
-            Column(Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(18.dp)) {
+            Column(Modifier.riseIn(index++).fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("This session", modifier = Modifier.weight(1f), style = TextStyle(fontFamily = glintFontFamily, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = ink))
+                    Text("This session", modifier = Modifier.weight(1f), style = heartText(17, ink, FontWeight.SemiBold))
                     HeartInsights.trend(state.samples, now)?.takeIf { live }?.let {
-                        Text(it.words, style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted), modifier = Modifier.padding(end = 12.dp))
+                        Text(it.words, style = heartText(13, muted), modifier = Modifier.padding(end = 12.dp))
                     }
                     Text(
                         "Reset",
-                        style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = accent),
-                        modifier = Modifier.clickable { HeartRate.clear() }.padding(6.dp)
+                        style = heartText(14, accent, FontWeight.Medium),
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { HeartRate.clear() }.padding(6.dp)
                     )
                 }
                 Spacer(Modifier.height(10.dp))
@@ -220,7 +224,7 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}) {
                         if (recovery != null) Insight("1-min recovery", if (recovery > 0) "−$recovery" else "$recovery", ink, muted, Modifier.weight(1f))
                         InfoTip(
                             "Resting and recovery",
-                            "Resting, est.: your lowest 3-minute average this session; closest to your true resting rate when you've sat still for a while. " +
+                            "Resting, est.: your lowest 3-minute average this session (10-minute with a battery-saving pace); closest to your true resting rate when you've sat still for a while. " +
                                 "1-min recovery: how far your heart rate fell in the minute after this session's highest reading (shown once that reading is 100 BPM or more). " +
                                 "Bigger drops generally go with better fitness. In a well-known 1999 study, a drop of 12 BPM or less one minute after a treadmill test was linked with higher health risk. " +
                                 "These are estimates, not a medical test."
@@ -230,8 +234,8 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}) {
                 Spacer(Modifier.height(10.dp))
                 Text(
                     "Export readings",
-                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = accent),
-                    modifier = Modifier.clickable { exportCsv(context, state.samples) }.padding(vertical = 6.dp)
+                    style = heartText(14, accent, FontWeight.Medium),
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { exportCsv(context, state.samples) }.padding(vertical = 6.dp)
                 )
                 if (age > 0) {
                     Spacer(Modifier.height(16.dp))
@@ -240,35 +244,38 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}) {
             }
         }
 
+        // History.
+        HistoryCard(history, card, ink, muted, accent, dark, Modifier.riseIn(index++), navigateToHistory)
+
         // Share live.
         val shareStatus by HeartLink.status.collectAsState()
         val sharing = listOf(PREF_LINK_BLE, PREF_LINK_WEBHOOK, PREF_LINK_BROADCAST).count { prefs.getBoolean(it, false) }
         Row(
-            Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).clickable(onClick = navigateToShare).padding(horizontal = 18.dp, vertical = 14.dp),
+            Modifier.riseIn(index++).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(card).pressable(navigateToShare).padding(horizontal = 18.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                Text("Share live heart rate", style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, color = ink))
+                Text("Share live heart rate", style = heartText(16, ink))
                 Text(
                     when {
                         sharing == 0 -> "Watches, fitness apps, automations"
                         shareStatus.beacon is HeartLink.Beacon.Advertising && measuring -> "Live as a Bluetooth sensor"
                         else -> "$sharing on · while measuring"
                     },
-                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted)
+                    style = heartText(13, muted)
                 )
             }
-            Text("›", style = TextStyle(fontFamily = glintFontFamily, fontSize = 24.sp, color = muted))
+            Text("›", style = heartText(24, muted))
         }
 
         // Effort zones need an age.
-        Column(Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(horizontal = 18.dp, vertical = 12.dp)) {
+        Column(Modifier.riseIn(index++).fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(horizontal = 18.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Effort zones", style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, color = ink))
+                    Text("Effort zones", style = heartText(16, ink))
                     Text(
                         if (age > 0) "Age $age · max about ${HeartInsights.maxHeartRate(age)} BPM" else "Add your age to see them",
-                        style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted)
+                        style = heartText(13, muted)
                     )
                 }
                 InfoTip(
@@ -276,20 +283,23 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}) {
                     "Based on the American Heart Association's guidance: your maximum heart rate is about 220 minus your age. " +
                         "Moderate effort is 50–70% of it, vigorous 70–85%. A normal resting rate for most adults is 60–100 BPM."
                 )
-                Stepper("−", ink, dark) { age = if (age == 0) 30 else (age - 1).coerceAtLeast(13); prefs.edit { putInt(PREF_HR_AGE, age) } }
+                Stepper("−", ink, dark, "Younger") { age = if (age == 0) 30 else (age - 1).coerceAtLeast(13); prefs.edit { putInt(PREF_HR_AGE, age) } }
                 Spacer(Modifier.width(8.dp))
-                Stepper("+", ink, dark) { age = if (age == 0) 30 else (age + 1).coerceAtMost(90); prefs.edit { putInt(PREF_HR_AGE, age) } }
+                Stepper("+", ink, dark, "Older") { age = if (age == 0) 30 else (age + 1).coerceAtMost(90); prefs.edit { putInt(PREF_HR_AGE, age) } }
             }
         }
 
-        // Always-on.
+        // Always-on, its pace, and the island.
         var always by remember { mutableStateOf(prefs.getBoolean(PREF_HR_ALWAYS, false)) }
-        Column(Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(horizontal = 4.dp)) {
+        var pace by remember { mutableIntStateOf(prefs.getInt(PREF_HR_PACE, 0)) }
+        var island by remember { mutableStateOf(prefs.getBoolean(PREF_HR_ISLAND, true)) }
+        Column(Modifier.riseIn(index++).fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(horizontal = 4.dp)) {
             StyledToggle(
                 label = "Measure whenever worn",
                 description = when {
                     !always -> "Even with Glint closed, no notification"
-                    state.background && live -> "On now, about every 5 seconds"
+                    state.background && state.status == HeartRate.Status.Resting -> "Resting the sensor between readings"
+                    state.background && live -> paceWords(HeartPace.of(pace))
                     else -> "Starts when you put your AirPods in"
                 },
                 checked = always,
@@ -299,264 +309,215 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}) {
                     ServiceManager.getService()?.autoHeartRate()
                 }
             )
-            Row(Modifier.padding(start = 14.dp, end = 6.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("How it saves battery", modifier = Modifier.weight(1f), style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted))
-                InfoTip(
-                    "Measure whenever worn",
-                    "Glint starts measuring when a bud goes in and stops a minute after both come out; each stretch is saved under Earlier. " +
-                        "It asks your AirPods for a reading about every 5 seconds instead of every second, to save battery (if they don't accept that, it uses every second). " +
-                        "Pressing Stop pauses it until you next put your AirPods in. The extra battery use on the AirPods hasn't been measured."
-                )
+            AnimatedVisibility(always, enter = fadeIn() + expandVertically(spring(0.85f, 300f)), exit = fadeOut() + shrinkVertically()) {
+                Column(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Pace", modifier = Modifier.weight(1f), style = heartText(13, muted, FontWeight.Medium))
+                        InfoTip(
+                            "Measuring pace",
+                            "Every 5 s: the sensor stays on while you wear your AirPods, with a reading about every 5 seconds (every second if your AirPods don't accept that). " +
+                                "Balanced: one minute of readings every 5 minutes, so the sensor is on about 80% less. " +
+                                "Saver: one minute every 15 minutes, about 93% less. " +
+                                "Fewer readings mean less battery on your AirPods and less Bluetooth traffic; the exact saving hasn't been measured. " +
+                                "Manual sessions (Start measuring) always read continuously. A new pace applies from the next time measuring starts."
+                        )
+                    }
+                    LiquidSegments(
+                        listOf("Every 5 s", "Balanced", "Saver"), pace,
+                        { pace = it; prefs.edit { putInt(PREF_HR_PACE, it) } },
+                        track = if (dark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.04f),
+                    )
+                    Text(paceWords(HeartPace.of(pace)), modifier = Modifier.padding(top = 6.dp, start = 4.dp), style = heartText(13, muted))
+                }
             }
+            StyledToggle(
+                label = "Show on the island",
+                description = if (island) "When measuring starts in the background, and for alerts" else "Measuring stays silent",
+                checked = island,
+                onCheckedChange = { island = it; prefs.edit { putBoolean(PREF_HR_ISLAND, it) } }
+            )
         }
 
         // Alert.
         var alert by remember { mutableStateOf(prefs.getBoolean(PREF_HR_ALERT, false)) }
         var limit by remember { mutableIntStateOf(prefs.getInt(PREF_HR_ALERT_BPM, 140)) }
-        Column(Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(horizontal = 4.dp)) {
+        Column(Modifier.riseIn(index++).fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(horizontal = 4.dp)) {
             StyledToggle(
                 label = "High heart rate alert",
                 description = if (alert) "Above $limit BPM, at most every 10 minutes" else null,
                 checked = alert,
                 onCheckedChange = { alert = it; prefs.edit { putBoolean(PREF_HR_ALERT, it) } }
             )
-            if (alert) {
+            AnimatedVisibility(alert, enter = fadeIn() + expandVertically(spring(0.85f, 300f)), exit = fadeOut() + shrinkVertically()) {
                 Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Limit", style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, color = ink), modifier = Modifier.weight(1f))
-                    Stepper("−", ink, dark) { limit = (limit - 5).coerceAtLeast(90); prefs.edit { putInt(PREF_HR_ALERT_BPM, limit) } }
-                    Text("$limit BPM", style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = ink, textAlign = TextAlign.Center), modifier = Modifier.width(96.dp))
-                    Stepper("+", ink, dark) { limit = (limit + 5).coerceAtMost(200); prefs.edit { putInt(PREF_HR_ALERT_BPM, limit) } }
-                }
-            }
-        }
-
-        // Earlier sessions.
-        if (history.isNotEmpty()) {
-            Column(Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(vertical = 8.dp)) {
-                Text("Earlier", modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp), style = TextStyle(fontFamily = glintFontFamily, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = ink))
-                val dateFmt = remember { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT) }
-                history.take(5).forEach { h ->
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(dateFmt.format(Date(h.startMs)), style = TextStyle(fontFamily = glintFontFamily, fontSize = 15.sp, color = ink))
-                            Text("${(h.endMs - h.startMs) / 60_000} min · ${h.min}–${h.max} BPM", style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted))
+                    Text("Limit", style = heartText(16, ink), modifier = Modifier.weight(1f))
+                    Stepper("−", ink, dark, "Lower limit") { limit = (limit - 5).coerceAtLeast(90); prefs.edit { putInt(PREF_HR_ALERT_BPM, limit) } }
+                    Box(Modifier.width(96.dp), contentAlignment = Alignment.Center) {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            RollingNumber("$limit", heartText(16, ink, FontWeight.SemiBold))
+                            Text(" BPM", style = heartText(16, ink, FontWeight.SemiBold))
                         }
-                        Text("${h.average}", style = TextStyle(fontFamily = glintFontFamily, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = ink))
-                        Text(" avg", style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted))
                     }
+                    Stepper("+", ink, dark, "Raise limit") { limit = (limit + 5).coerceAtMost(200); prefs.edit { putInt(PREF_HR_ALERT_BPM, limit) } }
                 }
             }
         }
 
         Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("For fitness, not medical use", style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted))
+            Text("For fitness, not medical use", style = heartText(13, muted))
             InfoTip(
                 "About these readings",
                 "Measured by the sensor in AirPods Pro 3 while you wear them; a snug fit in both ears gives the steadiest readings. " +
-                    "Readings stay on this phone unless you turn on sharing or export them. Measuring continues in the background until you stop it."
+                    "Readings stay on this phone unless you turn on sharing, export them, or back them up to your own private GitHub repository (History)."
             )
         }
         Spacer(Modifier.height(bottomPadding))
     }
 }
 
-/** Time in each effort zone this session, as one bar from light to peak with labels. */
-@Composable
-private fun ZoneBar(times: Map<HeartInsights.Zone, Long>, accent: Color, ink: Color, muted: Color) {
-    val total = times.values.sum().coerceAtLeast(1)
-    val shades = listOf(0.25f, 0.5f, 0.75f, 1f)
-    Text("Time in zones", style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = muted))
-    Spacer(Modifier.height(6.dp))
-    Row(Modifier.fillMaxWidth().height(10.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        HeartInsights.Zone.entries.forEachIndexed { i, z ->
-            val secs = times[z] ?: 0
-            if (secs > 0) Box(Modifier.weight(secs.toFloat() / total).fillMaxSize().background(accent.copy(alpha = shades[i]), RoundedCornerShape(4.dp)))
-        }
-    }
-    Spacer(Modifier.height(8.dp))
-    // Only the zones you were in, so the legend stays short.
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        HeartInsights.Zone.entries.forEachIndexed { i, z ->
-            val secs = times[z] ?: 0
-            if (secs >= 30) Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(8.dp).background(accent.copy(alpha = shades[i]), CircleShape))
-                Spacer(Modifier.width(5.dp))
-                Text("${z.label} ${(secs + 30) / 60} min", maxLines = 1, style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, color = ink.copy(alpha = 0.75f)))
-            }
-        }
-    }
-}
-
-private fun statusLine(status: HeartRate.Status, connected: Boolean): String = when (status) {
-    HeartRate.Status.Off -> if (connected) "Not measuring" else "Connect your AirPods first"
-    HeartRate.Status.Starting -> "Starting…"
-    HeartRate.Status.Live -> "Live"
-    HeartRate.Status.NoSignal -> "No reading. Check both buds fit snugly"
-    HeartRate.Status.NotConnected -> "Waiting for the AirPods"
-}
-
-@Composable
-private fun Insight(label: String, value: String, ink: Color, muted: Color, modifier: Modifier) {
-    Column(modifier) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(value, modifier = Modifier.alignByBaseline(), style = TextStyle(fontFamily = glintFontFamily, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = ink))
-            Text(" BPM", modifier = Modifier.alignByBaseline(), style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, color = muted))
-        }
-        Text(label, style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, color = muted))
-    }
-}
-
-/** Writes this session's readings to a CSV file and opens the share sheet. */
-private fun exportCsv(context: Context, samples: List<HeartRate.Sample>) {
-    if (samples.isEmpty()) return
-    val dir = java.io.File(context.filesDir, "exports").apply { mkdirs() }
-    dir.listFiles()?.forEach { it.delete() } // keep only the latest export
-    val stamp = java.text.SimpleDateFormat("yyyy-MM-dd-HHmm", java.util.Locale.US).format(Date(samples.first().timeMs))
-    val file = java.io.File(dir, "heart-rate-$stamp.csv")
-    file.writeText(HeartInsights.csv(samples))
-    val uri = androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".provider", file)
-    val send = android.content.Intent(android.content.Intent.ACTION_SEND)
-        .setType("text/csv")
-        .putExtra(android.content.Intent.EXTRA_STREAM, uri)
-        .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    context.startActivity(android.content.Intent.createChooser(send, "Export heart rate"))
-}
-
-@Composable
-private fun Stat(label: String, value: Int?, ink: Color, muted: Color, modifier: Modifier) {
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value?.toString() ?: "--", style = TextStyle(fontFamily = glintFontFamily, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = ink))
-        Text(label, style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, color = muted))
-    }
-}
-
-@Composable
-private fun Stepper(symbol: String, ink: Color, dark: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .size(40.dp)
-            .background(if (dark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.06f), RoundedCornerShape(20.dp))
-            .semantics { contentDescription = if (symbol == "+") "Raise limit" else "Lower limit" }
-            .pointerInput(Unit) { detectTapGestures { onClick() } },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(symbol, style = TextStyle(fontFamily = glintFontFamily, fontSize = 20.sp, fontWeight = FontWeight.Medium, color = ink))
-    }
-}
-
-/** A heart that beats once per measured beat (still with reduce motion or no reading). */
-@Composable
-private fun BeatingHeart(bpm: Int?, color: Color) {
-    val context = LocalContext.current
-    val reduceMotion = remember { GlintComfort.reduceMotion(context) }
-    val scale = remember { Animatable(1f) }
-    LaunchedEffect(bpm, reduceMotion) {
-        if (bpm == null || reduceMotion) { scale.snapTo(1f); return@LaunchedEffect }
-        while (true) {
-            val period = (60_000 / bpm).toLong().coerceIn(240L, 2_400L)
-            scale.animateTo(1.14f, tween(110, easing = FastOutSlowInEasing))
-            scale.animateTo(1f, tween(220, easing = FastOutSlowInEasing))
-            delay((period - 330).coerceAtLeast(0))
-        }
-    }
-    // A soft glow that swells with each beat, so the reading feels alive behind the glass.
-    Box(Modifier.size(width = 120.dp, height = 56.dp), contentAlignment = Alignment.Center) {
-    if (bpm != null) Canvas(Modifier.size(120.dp, 56.dp)) {
-        val beat = ((scale.value - 1f) / 0.14f).coerceIn(0f, 1f)
-        drawCircle(
-            androidx.compose.ui.graphics.Brush.radialGradient(
-                listOf(color.copy(alpha = 0.16f + 0.18f * beat), Color.Transparent),
-                center = center, radius = size.height * (0.85f + 0.25f * beat)
-            ),
-            radius = size.height * (0.85f + 0.25f * beat)
-        )
-    }
-    Canvas(Modifier.size(44.dp).graphicsLayer { scaleX = scale.value; scaleY = scale.value }) {
-        val w = size.width
-        val h = size.height
-        val p = Path().apply {
-            moveTo(w * 0.5f, h * 0.92f)
-            cubicTo(w * 0.1f, h * 0.62f, -w * 0.02f, h * 0.30f, w * 0.22f, h * 0.14f)
-            cubicTo(w * 0.36f, h * 0.04f, w * 0.48f, h * 0.14f, w * 0.5f, h * 0.24f)
-            cubicTo(w * 0.52f, h * 0.14f, w * 0.64f, h * 0.04f, w * 0.78f, h * 0.14f)
-            cubicTo(w * 1.02f, h * 0.30f, w * 0.9f, h * 0.62f, w * 0.5f, h * 0.92f)
-            close()
-        }
-        drawPath(p, if (bpm == null) color.copy(alpha = 0.35f) else color)
-    }
-    }
+internal fun paceWords(p: HeartPace) = when (p) {
+    HeartPace.Continuous -> "A reading about every 5 seconds"
+    HeartPace.Balanced -> "1 minute of readings every 5 minutes"
+    HeartPace.Saver -> "1 minute of readings every 15 minutes"
 }
 
 /**
- * The session as one 2dp line on a recessive grid. Touch and drag to read any point: a thin
- * crosshair and the value and time appear above the line.
+ * The live reading, on a field of colour that drifts and swells with each beat. The heart
+ * sits in a glass orb and the Start/Stop button is a glass capsule: both bend and blur the
+ * colour behind them (real refraction on the graphics chip). Solid with Reduce transparency.
  */
 @Composable
-private fun HeartChart(samples: List<HeartRate.Sample>, line: Color, ink: Color, surface: Color, dark: Boolean) {
-    val measurer = rememberTextMeasurer()
-    var probe by remember { mutableStateOf<Float?>(null) }
-    val lo = (floor((samples.minOf { it.bpm } - 5) / 10.0) * 10).toInt()
-    val hi = (ceil((samples.maxOf { it.bpm } + 5) / 10.0) * 10).toInt().coerceAtLeast(lo + 20)
-    val t0 = samples.first().timeMs
-    val t1 = samples.last().timeMs.coerceAtLeast(t0 + 1)
-    val timeFmt = remember { DateFormat.getTimeInstance(DateFormat.SHORT) }
-    val grid = ink.copy(alpha = if (dark) 0.12f else 0.08f)
-    val label = TextStyle(fontFamily = glintFontFamily, fontSize = 11.sp, color = ink.copy(alpha = 0.55f))
-    Canvas(
-        Modifier
-            .fillMaxWidth()
-            .height(170.dp)
-            .semantics { contentDescription = "Heart rate this session, from ${samples.minOf { it.bpm }} to ${samples.maxOf { it.bpm }} beats per minute" }
-            .pointerInput(samples.size) {
-                detectDragGestures(
-                    onDragStart = { probe = it.x },
-                    onDragEnd = { probe = null },
-                    onDragCancel = { probe = null },
-                ) { change, _ -> probe = change.position.x }
+private fun LiveCard(
+    state: HeartRate.State,
+    connected: Boolean,
+    measuring: Boolean,
+    dark: Boolean,
+    card: Color,
+    ink: Color,
+    muted: Color,
+    accent: Color,
+    modifier: Modifier,
+    onToggle: () -> Unit,
+) {
+    val context = LocalContext.current
+    val reduceMotion = remember { GlintComfort.reduceMotion(context) }
+    val solid = remember { GlintComfort.reduceTransparency(context) }
+    val live = state.status == HeartRate.Status.Live
+    val bpm = state.bpm?.takeIf { live }
+    val shown = state.bpm?.takeIf { live || state.status == HeartRate.Status.Resting || state.status == HeartRate.Status.Starting }
+    val beat = rememberHeartBeat(bpm, reduceMotion)
+    val time = rememberFrameTime(running = bpm != null && !reduceMotion)
+    val backdrop = rememberLayerBackdrop()
+    Box(modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp))) {
+        Canvas(Modifier.matchParentSize().layerBackdrop(backdrop)) {
+            val b = ((beat.value - 1f) / 0.14f).coerceIn(0f, 1f)
+            drawAurora(card, accent, dark, time.longValue, b, live)
+        }
+        Column(Modifier.fillMaxWidth().padding(vertical = 22.dp, horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            // The heart in a glass orb.
+            Box(
+                Modifier
+                    .size(72.dp)
+                    .glintGlass(backdrop, dark, solid, CircleShape, GlassTier.Floating, tint = if (dark) Color.White.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.35f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(Modifier.size(36.dp).graphicsLayer { scaleX = beat.value; scaleY = beat.value }) {
+                    val p = heartPath(size)
+                    drawPath(p, if (bpm == null) accent.copy(alpha = 0.4f) else accent)
+                    // A little gloss on the heart itself.
+                    drawPath(p, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.35f), Color.Transparent), 0f, size.height * 0.55f))
+                }
             }
-            .pointerInput(samples.size) { detectTapGestures(onPress = { probe = it.x; tryAwaitRelease(); probe = null }) }
-    ) {
-        val left = 34.dp.toPx()
-        val top = 22.dp.toPx()
-        val bottom = size.height - 18.dp.toPx()
-        val right = size.width - 6.dp.toPx()
-        fun x(t: Long) = left + (right - left) * ((t - t0).toFloat() / (t1 - t0))
-        fun y(b: Int) = bottom - (bottom - top) * ((b - lo).toFloat() / (hi - lo))
-        // Grid: three recessive levels with their values.
-        for (v in listOf(lo, (lo + hi) / 2, hi)) {
-            val gy = y(v)
-            drawLine(grid, Offset(left, gy), Offset(right, gy), strokeWidth = 1.dp.toPx())
-            val t = measurer.measure(v.toString(), label)
-            drawText(t, topLeft = Offset(0f, gy - t.size.height / 2f))
-        }
-        // Time labels at both ends.
-        val start = measurer.measure(timeFmt.format(Date(t0)), label)
-        drawText(start, topLeft = Offset(left, bottom + 3.dp.toPx()))
-        val end = measurer.measure(timeFmt.format(Date(t1)), label)
-        drawText(end, topLeft = Offset(right - end.size.width, bottom + 3.dp.toPx()))
-        // The line (thinned to about one point per pixel column).
-        val step = (samples.size / (right - left)).toInt().coerceAtLeast(1)
-        val path = Path()
-        samples.forEachIndexed { i, s ->
-            if (i % step != 0 && i != samples.lastIndex) return@forEachIndexed
-            if (i == 0) path.moveTo(x(s.timeMs), y(s.bpm)) else path.lineTo(x(s.timeMs), y(s.bpm))
-        }
-        drawPath(path, line, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-        // Latest reading: an 8dp dot with a 2dp surface ring.
-        val lastP = Offset(x(samples.last().timeMs), y(samples.last().bpm))
-        drawCircle(surface, 6.dp.toPx(), lastP)
-        drawCircle(line, 4.dp.toPx(), lastP)
-        // Crosshair and readout.
-        probe?.let { px ->
-            val target = t0 + ((px.coerceIn(left, right) - left) / (right - left) * (t1 - t0)).roundToInt()
-            val s = samples.minBy { kotlin.math.abs(it.timeMs - target) }
-            val sx = x(s.timeMs)
-            drawLine(ink.copy(alpha = 0.35f), Offset(sx, top), Offset(sx, bottom), strokeWidth = 1.dp.toPx())
-            drawCircle(surface, 6.dp.toPx(), Offset(sx, y(s.bpm)))
-            drawCircle(line, 4.dp.toPx(), Offset(sx, y(s.bpm)))
-            val read = measurer.measure("${s.bpm} BPM · ${timeFmt.format(Date(s.timeMs))}", label.copy(color = ink, fontWeight = FontWeight.Medium))
-            val rx = (sx - read.size.width / 2f).coerceIn(left, right - read.size.width)
-            drawText(read, topLeft = Offset(rx, 0f))
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
+                if (shown != null) {
+                    RollingNumber(
+                        "$shown",
+                        heartText(60, if (live) ink else ink.copy(alpha = 0.55f), FontWeight.SemiBold),
+                        Modifier.alignByBaseline()
+                    )
+                } else {
+                    Text("--", modifier = Modifier.alignByBaseline(), style = heartText(60, ink, FontWeight.SemiBold))
+                }
+                Spacer(Modifier.width(6.dp))
+                Text("BPM", modifier = Modifier.alignByBaseline(), style = heartText(17, muted, FontWeight.Medium))
+            }
+            Text(statusLine(state, connected), style = heartText(14, muted).copy(textAlign = TextAlign.Center))
+            Spacer(Modifier.height(10.dp))
+            EkgTrace(bpm, accent, time)
+            Spacer(Modifier.height(14.dp))
+            val enabled = connected || measuring
+            Box(
+                Modifier
+                    .glintGlass(backdrop, dark, solid, CapsuleShape, GlassTier.Inline, tint = if (dark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.5f))
+                    .clip(CapsuleShape)
+                    .graphicsLayer { alpha = if (enabled) 1f else 0.45f }
+                    .semantics { role = Role.Button; contentDescription = if (measuring) "Stop measuring" else "Start measuring" }
+                    .then(if (enabled) Modifier.pressable(onToggle) else Modifier)
+                    .padding(horizontal = 28.dp, vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AnimatedContent(measuring, transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "toggle") { m ->
+                    Text(if (m) "Stop" else "Start measuring", style = heartText(16, ink, FontWeight.Medium))
+                }
+            }
         }
     }
+}
+
+private fun statusLine(state: HeartRate.State, connected: Boolean): String = when (state.status) {
+    HeartRate.Status.Off -> if (connected) "Not measuring" else "Connect your AirPods first"
+    HeartRate.Status.Starting -> "Starting…"
+    HeartRate.Status.Live -> if (state.background) "Live · measuring while worn" else "Live"
+    HeartRate.Status.NoSignal -> "No reading. Check both buds fit snugly"
+    HeartRate.Status.NotConnected -> "Waiting for the AirPods"
+    HeartRate.Status.Resting -> {
+        val mins = ((state.nextBurstMs - System.currentTimeMillis()) / 60_000L + 1).coerceAtLeast(1)
+        "Last reading · next in about $mins min"
+    }
+}
+
+/** History at a glance: the last 14 days as range bars, totals, and the backup status. */
+@Composable
+private fun HistoryCard(
+    history: List<HeartInsights.Session>,
+    card: Color,
+    ink: Color,
+    muted: Color,
+    accent: Color,
+    dark: Boolean,
+    modifier: Modifier,
+    onOpen: () -> Unit,
+) {
+    val context = LocalContext.current
+    LaunchedEffect(Unit) { HeartBackup.refresh(context) }
+    val backup by HeartBackup.status.collectAsState()
+    val days = remember(history) { HeartInsights.days(history) }
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(card).pressable(onOpen).padding(18.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("History", style = heartText(17, ink, FontWeight.SemiBold))
+                Text(
+                    if (history.isEmpty()) "Sessions of a minute or more appear here"
+                    else "${history.size} sessions · ${durationWords(history.sumOf { it.minutes })} measured",
+                    style = heartText(13, muted)
+                )
+            }
+            Text("›", style = heartText(24, muted))
+        }
+        if (days.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            DayBars(days, 14, accent, ink, dark, selected = null, onSelect = { onOpen() }, height = 110.dp)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(backupLine(backup), style = heartText(12, muted))
+    }
+}
+
+internal fun backupLine(s: HeartBackup.Status): String = when (s) {
+    HeartBackup.Status.Off -> "Not backed up · set up GitHub backup in History"
+    HeartBackup.Status.Idle -> "GitHub backup on"
+    is HeartBackup.Status.Working -> s.what
+    is HeartBackup.Status.Done -> if (s.atMs > 0) "Backed up " + android.text.format.DateUtils.getRelativeTimeSpanString(s.atMs, System.currentTimeMillis(), 60_000L) else "GitHub backup on"
+    is HeartBackup.Status.Problem -> s.message
 }

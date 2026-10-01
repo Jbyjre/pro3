@@ -52,6 +52,8 @@ class AppTourScreenshots {
     fun setUp() {
         PodsVideoConfig.enabled = false
         context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().clear().commit()
+        java.io.File(context.filesDir, "heart").deleteRecursively()
+        me.kavishdevar.librepods.services.HeartHistory.resetCache()
         BillingManager.provider = FOSSBillingProvider(context)
         GlintStatus.set(LinkState.Idle)
         BatteryTimeLeft.publish(null)
@@ -148,6 +150,41 @@ class AppTourScreenshots {
         me.kavishdevar.librepods.services.HeartRate.status(me.kavishdevar.librepods.services.HeartRate.Status.Off)
         me.kavishdevar.librepods.services.HeartRate.clear()
     }
+    /** Three weeks of demo sessions with readings, for the history screens. */
+    private fun seedHistory(): Long {
+        val day = 24 * 3600_000L
+        val today = java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        var last = 0L
+        for (d in 20 downTo 0) {
+            if (d % 4 == 3) continue
+            for (k in 0 until (if (d % 3 == 0) 2 else 1)) {
+                val start = today - d * day + (8 + k * 9) * 3600_000L
+                val minutes = 25 + (d * 7 + k * 13) % 50
+                val base = 64 + (d % 5) - k * 2
+                val samples = (0 until minutes * 12).map { i ->
+                    val effort = if (k == 1 && i in 120..260) (40 * kotlin.math.sin((i - 120) / 140.0 * Math.PI)).toInt() else 0
+                    me.kavishdevar.librepods.services.HeartRate.Sample(start + i * 5000L, base + (6 * kotlin.math.sin(i / 40.0)).toInt() + effort)
+                }
+                me.kavishdevar.librepods.services.HeartHistory.save(context, samples)
+                last = start
+            }
+        }
+        return last
+    }
+
+    @Test fun heartHistory() {
+        seedHistory()
+        context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().putInt("glint_hr_age", 30).commit()
+        both("35_heart_history", listOf(Screen.HeartRate, Screen.HeartHistory))
+        tour("35_heart_history", dark = true, stack = listOf(Screen.HeartRate, Screen.HeartHistory))
+    }
+
+    @Test fun heartSession() {
+        val start = seedHistory()
+        context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().putInt("glint_hr_age", 30).commit()
+        both("36_heart_session", listOf(Screen.HeartHistory, Screen.HeartSession(start)))
+    }
+
     @Test fun recorder() = both("32_recorder", listOf(Screen.Recorder))
     @Test fun heartShare() {
         context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit()

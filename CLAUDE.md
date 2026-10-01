@@ -44,6 +44,9 @@
 - Heart rate: `bluetooth/SensorProto.kt` + `services/HeartRate.kt`; recorder: `audio/AirPodsRecorder.kt`;
   change confirmation: `services/CommandFeedback.kt`. Live sharing: `services/HeartLink.kt` (BLE heart-rate sensor,
   https webhook, broadcast; screen `HeartShareScreen.kt`). A Wi-Fi local server was blocked by the session safety
-  setting; only add it if Jake explicitly asks. Always-on heart rate: `PREF_HR_ALWAYS`, `autoHeartRate()` in the service. The status notification is hidden unless
+  setting; only add it if Jake explicitly asks. History: `services/HeartHistory.kt` (one CSV per session in
+  files/heart); GitHub backup: `services/HeartBackup.kt` (classic token, private repo, Keystore-encrypted token);
+  screens `HeartHistoryScreen.kt`. Readings in the first 3 s of each sensor start are dropped (`HR_WARMUP_MS`).
+  Background pace `PREF_HR_PACE`. "Only in Adaptive" CA: `PREF_CA_ADAPTIVE_ONLY`. Motion helpers: `glint/GlintMotion.kt`. Always-on heart rate: `PREF_HR_ALWAYS`, `autoHeartRate()` in the service. The status notification is hidden unless
   `glint_status_notification` is on. Jake's app is personal: no visible LibrePods mentions.
 - See `DECISIONS.md` and `TESTING.md` at the repo root.

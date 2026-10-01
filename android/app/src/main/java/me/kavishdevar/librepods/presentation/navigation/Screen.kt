@@ -88,5 +88,9 @@ sealed interface Screen: NavKey {
     data object Recorder: Screen
     @Serializable
     data object HeartShare: Screen
+    @Serializable
+    data object HeartHistory: Screen
+    @Serializable
+    data class HeartSession(val startMs: Long): Screen
 
 }

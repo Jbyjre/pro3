@@ -23,6 +23,10 @@ package me.kavishdevar.librepods.presentation.components
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import me.kavishdevar.librepods.R
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import me.kavishdevar.librepods.services.PREF_CA_ADAPTIVE_ONLY
+import me.kavishdevar.librepods.services.ServiceManager
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @Composable
@@ -48,6 +52,14 @@ fun AudioSettings(
     vendorIdHook: Boolean,
     isPremium: Boolean
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = androidx.compose.runtime.remember { context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE) }
+    var adaptiveOnly by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(prefs.getBoolean(PREF_CA_ADAPTIVE_ONLY, false)) }
+    fun setAdaptiveOnly(on: Boolean) {
+        adaptiveOnly = on
+        prefs.edit().putBoolean(PREF_CA_ADAPTIVE_ONLY, on).apply()
+        if (on) ServiceManager.getService()?.applyConversationAwarenessRule()
+    }
     if (adaptiveVolumeCapability || conversationalAwarenessCapability || loudSoundReductionCapability || adaptiveAudioCapability) {
         StyledList(title = stringResource(R.string.audio)) {
             if (adaptiveVolumeCapability) {
@@ -63,9 +75,21 @@ fun AudioSettings(
             if (conversationalAwarenessCapability) {
                 StyledToggle(
                     label = stringResource(R.string.conversational_awareness),
-                    description = lockedPrefix(isPremium) + stringResource(R.string.conversational_awareness_description),
+                    description = lockedPrefix(isPremium) + if (adaptiveOnly) "Follows Adaptive: on in Adaptive, off in other modes" else stringResource(R.string.conversational_awareness_description),
                     checked = conversationalAwarenessChecked,
-                    onCheckedChange = onConversationalAwarenessCheckedChange,
+                    onCheckedChange = {
+                        // Switching it by hand takes over from "Only in Adaptive".
+                        if (adaptiveOnly) setAdaptiveOnly(false)
+                        onConversationalAwarenessCheckedChange(it)
+                    },
+                    enabled = isPremium,
+                )
+                StyledToggle(
+                    label = "Only in Adaptive",
+                    description = if (adaptiveOnly) "Turns on when you switch to Adaptive, off for the other modes"
+                        else "Talking lowers your music only while in Adaptive",
+                    checked = adaptiveOnly,
+                    onCheckedChange = { setAdaptiveOnly(it) },
                     enabled = isPremium,
                 )
             }
