@@ -40,6 +40,11 @@ object HeartRate {
         NoSignal,
         /** The AirPods' control connection isn't up, so the sensor can't be reached. */
         NotConnected,
+        /**
+         * Measuring in short bursts to save battery (the Balanced or Saver pace): the sensor
+         * is off until the next burst. The last reading stays on screen.
+         */
+        Resting,
     }
 
     data class Sample(val timeMs: Long, val bpm: Int)
@@ -52,6 +57,8 @@ object HeartRate {
         val samples: List<Sample> = emptyList(),
         /** Measuring by itself because the buds are worn (always-on mode), about every 5 s. */
         val background: Boolean = false,
+        /** With a battery-saving pace: when the next burst of readings starts (0 = n/a). */
+        val nextBurstMs: Long = 0L,
     ) {
         val min: Int? get() = samples.minOfOrNull { it.bpm }
         val max: Int? get() = samples.maxOfOrNull { it.bpm }
@@ -77,23 +84,22 @@ object HeartRate {
     /** A break this long between readings starts a new session. */
     const val NEW_SESSION_GAP_MS = 30 * 60_000L
 
-    private const val PREF_SESSIONS = "glint_hr_sessions"
+    /** Earlier sessions, newest first (all of them; see [HeartHistory]). */
+    fun history(context: android.content.Context): List<HeartInsights.Session> = HeartHistory.sessions(context)
 
-    const val MAX_HISTORY = 40
-
-    /** Earlier sessions, newest first (the last [MAX_HISTORY]). */
-    fun history(context: android.content.Context): List<HeartInsights.Session> =
-        context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
-            .getString(PREF_SESSIONS, "").orEmpty().lines().mapNotNull { HeartInsights.Session.decode(it) }
-
-    /** Saves the current session to the history if it lasted at least a minute. */
+    /**
+     * Saves the current session (all its readings) to the history if it lasted at least a
+     * minute, then lets the GitHub backup pick it up if that's turned on.
+     */
     internal fun saveSession(context: android.content.Context) {
-        val summary = HeartInsights.summarize(state.value.samples) ?: return
-        val prefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
-        val old = history(context).filter { it.startMs != summary.startMs }
-        val lines = (listOf(summary) + old).take(MAX_HISTORY).joinToString("\n") { it.encode() }
-        prefs.edit().putString(PREF_SESSIONS, lines).apply()
+        val samples = state.value.samples
+        if (samples.size < 2) return
+        HeartHistory.save(context, samples) ?: return
+        HeartBackup.onSessionSaved(context)
     }
+
+    /** The session is full: it was saved, so carry on in a fresh one. */
+    internal fun rollOver(now: Long) = _state.update { State(status = it.status, bpm = it.bpm, sessionStartMs = now, background = it.background) }
 
     internal fun reading(bpm: Int, now: Long) = _state.update {
         val samples = (it.samples + Sample(now, bpm)).let { list -> if (list.size > MAX_SAMPLES) list.drop(list.size - MAX_SAMPLES) else list }
@@ -101,8 +107,17 @@ object HeartRate {
     }
 
     internal fun status(status: Status) = _state.update {
-        it.copy(status = status, bpm = if (status == Status.Live) it.bpm else null, background = it.background && status != Status.Off)
+        it.copy(
+            status = status,
+            // Keep the last number between battery-saving bursts (Resting, then Starting again).
+            bpm = if (status == Status.Live || status == Status.Resting || (status == Status.Starting && it.status == Status.Resting)) it.bpm else null,
+            background = it.background && status != Status.Off,
+            nextBurstMs = if (status == Status.Resting) it.nextBurstMs else 0L,
+        )
     }
+
+    /** Between bursts of readings (battery-saving pace) until [nextMs]. */
+    internal fun resting(nextMs: Long) = _state.update { it.copy(status = Status.Resting, nextBurstMs = nextMs) }
 
     /** Clears the session's readings (the Reset button). */
     fun clear() = _state.update { State(status = it.status) }
@@ -161,19 +176,43 @@ object HeartInsights {
     }
 
     /** A finished session, kept so you can compare with earlier ones. */
-    data class Session(val startMs: Long, val endMs: Long, val average: Int, val min: Int, val max: Int) {
-        fun encode() = "$startMs,$endMs,$average,$min,$max"
+    data class Session(
+        val startMs: Long,
+        val endMs: Long,
+        val average: Int,
+        val min: Int,
+        val max: Int,
+        /** How many readings are saved (0 for sessions from before readings were kept). */
+        val readings: Int = 0,
+        /** Lowest 3-minute average, when the session was long enough (else 0). */
+        val resting: Int = 0,
+    ) {
+        val minutes: Long get() = (endMs - startMs) / 60_000
+        fun encode() = "$startMs,$endMs,$average,$min,$max,$readings,$resting"
         companion object {
-            fun decode(line: String): Session? = line.split(",").mapNotNull { it.toLongOrNull() }
-                .takeIf { it.size == 5 }?.let { Session(it[0], it[1], it[2].toInt(), it[3].toInt(), it[4].toInt()) }
+            fun decode(line: String): Session? = line.split(",").mapNotNull { it.trim().toLongOrNull() }
+                .takeIf { it.size == 5 || it.size == 7 }
+                ?.let { Session(it[0], it[1], it[2].toInt(), it[3].toInt(), it[4].toInt(), it.getOrElse(5) { 0L }.toInt(), it.getOrElse(6) { 0L }.toInt()) }
         }
     }
 
     /**
      * A resting estimate: the lowest average over any 3-minute stretch of the session (needs at
      * least 3 minutes of readings). Most accurate when you've been sitting still for a while.
+     * With a battery-saving pace (short bursts a few minutes apart) it's the lowest average of
+     * any one burst with at least 10 readings over 45 seconds or more.
      */
     fun restingEstimate(samples: List<HeartRate.Sample>): Int? {
+        if (samples.size < 10) return null
+        val span = samples.last().timeMs - samples.first().timeMs
+        val sparse = span > 0 && samples.size * 60_000.0 / span < 6.0 // under 6 readings a minute
+        if (sparse) {
+            // Split into bursts at gaps of over 90 seconds.
+            val bursts = mutableListOf(mutableListOf(samples.first()))
+            samples.zipWithNext().forEach { (a, b) -> if (b.timeMs - a.timeMs > 90_000) bursts.add(mutableListOf(b)) else bursts.last().add(b) }
+            return bursts.filter { it.size >= 10 && it.last().timeMs - it.first().timeMs >= 45_000 }
+                .minOfOrNull { b -> b.map { it.bpm }.average() }?.let { kotlin.math.round(it).toInt() }
+        }
         val window = 180_000L
         var best: Double? = null
         var start = 0
@@ -214,6 +253,99 @@ object HeartInsights {
     fun summarize(samples: List<HeartRate.Sample>): Session? {
         if (samples.size < 2 || samples.last().timeMs - samples.first().timeMs < 60_000) return null
         val bpms = samples.map { it.bpm }
-        return Session(samples.first().timeMs, samples.last().timeMs, bpms.average().toInt(), bpms.min(), bpms.max())
+        return Session(
+            samples.first().timeMs, samples.last().timeMs, bpms.average().roundToInt(), bpms.min(), bpms.max(),
+            readings = samples.size, resting = restingEstimate(samples) ?: 0,
+        )
     }
+
+    /**
+     * Readings as compact CSV for the saved session files: a header, then one
+     * `time_ms,bpm` row per reading. Readable in any spreadsheet.
+     */
+    fun compactCsv(samples: List<HeartRate.Sample>): String = buildString(samples.size * 18 + 16) {
+        append("time_ms,bpm\n")
+        samples.forEach { append(it.timeMs).append(',').append(it.bpm).append('\n') }
+    }
+
+    /** Reads either CSV layout Glint writes (export or saved session); skips anything else. */
+    fun parseCsv(text: String): List<HeartRate.Sample> = text.lineSequence().mapNotNull { line ->
+        val parts = line.split(',')
+        if (parts.size < 2) return@mapNotNull null
+        // "time_ms,bpm" or "time_utc,time_ms,bpm".
+        val t = parts[parts.size - 2].trim().toLongOrNull() ?: return@mapNotNull null
+        val b = parts.last().trim().toIntOrNull() ?: return@mapNotNull null
+        if (b !in 20..250) null else HeartRate.Sample(t, b)
+    }.toList().sortedBy { it.timeMs }
+
+    /** Where a reading sits, for the colour of the "what it means" scale. */
+    enum class Band { Low, Resting, Raised, Exercise, High }
+
+    /** What a reading means right now, in plain words. */
+    data class Meaning(val headline: String, val detail: String, val band: Band)
+
+    /**
+     * Explains [bpm]. With an [age], effort zones (AHA: max about 220 minus age; moderate
+     * 50–70%, vigorous 70–85%) take over above the light zone. Otherwise it's compared with
+     * the typical adult resting range (60–100 BPM, AHA) and, when known, your own usual
+     * resting rate ([usualResting], from your history).
+     */
+    fun meaning(bpm: Int, age: Int, usualResting: Int): Meaning {
+        val vsUsual = if (usualResting > 0) {
+            val d = bpm - usualResting
+            when {
+                d >= 6 -> " About $d above your usual resting rate ($usualResting)."
+                d <= -6 -> " About ${-d} below your usual resting rate ($usualResting)."
+                else -> " Right around your usual resting rate ($usualResting)."
+            }
+        } else ""
+        if (age > 0) {
+            val z = zone(bpm, age)
+            val pct = (bpm * 100f / maxHeartRate(age)).roundToInt()
+            when (z) {
+                Zone.Moderate -> return Meaning("Moderate effort", "$pct% of your estimated maximum (${maxHeartRate(age)}). A brisk-walk level: good for steady exercise.", Band.Exercise)
+                Zone.Vigorous -> return Meaning("Vigorous effort", "$pct% of your estimated maximum (${maxHeartRate(age)}). Hard work like running; builds fitness.", Band.Exercise)
+                Zone.Peak -> return Meaning("Near your maximum", "$pct% of your estimated maximum (${maxHeartRate(age)}). Only sustainable briefly; ease off if you feel unwell.", Band.High)
+                Zone.Light -> Unit
+            }
+        }
+        return when {
+            bpm < 50 -> Meaning("Lower than typical", "Under the usual 60–100 resting range. Common during deep rest and in very fit people.$vsUsual", Band.Low)
+            bpm < 60 -> Meaning("Calm, low resting range", "Just under the typical 60–100 range; common when relaxed or fit.$vsUsual", Band.Low)
+            bpm <= 100 -> Meaning("Normal resting range", "Within the typical adult resting range of 60–100 BPM.$vsUsual", Band.Resting)
+            bpm <= 120 -> Meaning("Raised", "Above the typical resting range: normal while moving, after coffee or when stressed.$vsUsual", Band.Raised)
+            else -> Meaning("High for resting", "Normal during exercise. If you're sitting still and it stays this high, rest and check again.$vsUsual", Band.High)
+        }
+    }
+
+    /**
+     * Your usual resting rate: the middle value of the resting estimates from sessions in the
+     * last 30 days (needs at least 3). Null when there isn't enough history yet.
+     */
+    fun usualResting(sessions: List<Session>, now: Long): Int? {
+        val r = sessions.filter { it.resting > 0 && now - it.startMs <= 30L * 86_400_000 }.map { it.resting }.sorted()
+        if (r.size < 3) return null
+        return r[r.size / 2]
+    }
+
+    /** One day of history for the overview chart. */
+    data class Day(val dayStartMs: Long, val min: Int, val max: Int, val average: Int, val minutes: Long, val sessions: Int, val resting: Int)
+
+    /** Sessions grouped by local calendar day, newest first. Averages are weighted by length. */
+    fun days(sessions: List<Session>, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): List<Day> =
+        sessions.groupBy { java.time.Instant.ofEpochMilli(it.startMs).atZone(zone).toLocalDate() }
+            .map { (date, list) ->
+                val weights = list.map { (it.endMs - it.startMs).coerceAtLeast(60_000L).toDouble() }
+                val avg = list.zip(weights).sumOf { (s, w) -> s.average * w } / weights.sum()
+                Day(
+                    dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli(),
+                    min = list.minOf { it.min },
+                    max = list.maxOf { it.max },
+                    average = avg.roundToInt(),
+                    minutes = list.sumOf { it.minutes },
+                    sessions = list.size,
+                    resting = list.filter { it.resting > 0 }.minOfOrNull { it.resting } ?: 0,
+                )
+            }
+            .sortedByDescending { it.dayStartMs }
 }

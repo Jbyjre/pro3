@@ -130,21 +130,40 @@ fun InfoTip(title: String, text: String, modifier: Modifier = Modifier) {
 @Composable
 fun AppearancePicker(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val dark = isSystemInDarkTheme()
-    val ink = if (dark) Color.White else Color.Black
-    val reduceMotion = remember { GlintComfort.reduceMotion(context) }
     val mode by GlintAppearance.mode(context)
     val options = listOf(GlintAppearance.SYSTEM to "Automatic", GlintAppearance.LIGHT to "Light", GlintAppearance.DARK to "Dark")
     val selected = options.indexOfFirst { it.first == (mode ?: GlintAppearance.SYSTEM) }.coerceAtLeast(0)
+    LiquidSegments(options.map { it.second }, selected, { GlintAppearance.set(context, options[it].first) }, modifier)
+}
+
+/**
+ * A segmented control with a liquid glass thumb: it stretches along its travel, settles with
+ * a little give, and carries a soft top sheen and rim like a drop of glass. Still with
+ * Reduce motion.
+ */
+@Composable
+fun LiquidSegments(
+    options: List<String>,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    track: Color? = null,
+) {
+    val context = LocalContext.current
+    val dark = isSystemInDarkTheme()
+    val ink = if (dark) Color.White else Color.Black
+    val reduceMotion = remember { GlintComfort.reduceMotion(context) }
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
             .height(44.dp)
-            .background(if (dark) Color(0xFF1C1C1E) else Color.White, RoundedCornerShape(22.dp))
+            .background(track ?: if (dark) Color(0xFF1C1C1E) else Color.White, RoundedCornerShape(22.dp))
             .padding(4.dp)
     ) {
         val segment = maxWidth / options.size
-        val x by animateDpAsState(segment * selected, if (reduceMotion) tween(0) else spring(0.8f, 420f), label = "theme")
+        val x by animateDpAsState(segment * selected, if (reduceMotion) tween(0) else spring(0.8f, 420f), label = "segment")
+        val thumb = if (dark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.07f)
+        val sheen = if (dark) 0.22f else 0.65f
         Box(
             Modifier
                 .offset { IntOffset(x.roundToPx(), 0) }
@@ -156,20 +175,32 @@ fun AppearancePicker(modifier: Modifier = Modifier) {
                     scaleX = 1f + 0.25f * travel
                     scaleY = 1f - 0.06f * travel
                 }
-                .background(if (dark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.07f), RoundedCornerShape(18.dp))
+                .background(thumb, RoundedCornerShape(18.dp))
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0f to Color.White.copy(alpha = sheen * 0.5f), 0.45f to Color.Transparent, 1f to Color.White.copy(alpha = sheen * 0.12f)
+                    ),
+                    RoundedCornerShape(18.dp)
+                )
+                .border(
+                    0.75.dp,
+                    androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = sheen), Color.White.copy(alpha = sheen * 0.15f), Color.White.copy(alpha = sheen * 0.45f))),
+                    RoundedCornerShape(18.dp)
+                )
         )
         Row(Modifier.fillMaxSize().selectableGroup()) {
-            options.forEachIndexed { i, (value, label) ->
+            options.forEachIndexed { i, label ->
                 Box(
                     Modifier
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(18.dp))
-                        .selectable(selected = i == selected, role = Role.RadioButton) { GlintAppearance.set(context, value) },
+                        .selectable(selected = i == selected, role = Role.RadioButton) { onSelect(i) },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         label,
+                        maxLines = 1,
                         style = TextStyle(
                             fontFamily = glintFontFamily, fontSize = 15.sp,
                             fontWeight = if (i == selected) FontWeight.SemiBold else FontWeight.Normal,

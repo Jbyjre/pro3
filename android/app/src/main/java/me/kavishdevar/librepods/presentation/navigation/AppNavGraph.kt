@@ -40,6 +40,8 @@ import me.kavishdevar.librepods.presentation.screens.VersionScreen
 import me.kavishdevar.librepods.presentation.screens.GlintLabScreen
 import me.kavishdevar.librepods.presentation.screens.HeartRateScreen
 import me.kavishdevar.librepods.presentation.screens.HeartShareScreen
+import me.kavishdevar.librepods.presentation.screens.HeartHistoryScreen
+import me.kavishdevar.librepods.presentation.screens.HeartSessionScreen
 import me.kavishdevar.librepods.presentation.screens.RecorderScreen
 import me.kavishdevar.librepods.presentation.screens.StayConnectedScreen
 import me.kavishdevar.librepods.presentation.screens.onboarding.OnboardingScreen
@@ -145,7 +147,18 @@ fun AppNavGraph(
                         NavEntry(screen) { GlintLabScreen() }
 
                     Screen.HeartRate ->
-                        NavEntry(screen) { HeartRateScreen(navigateToShare = { navigate(Screen.HeartShare) }) }
+                        NavEntry(screen) {
+                            HeartRateScreen(
+                                navigateToShare = { navigate(Screen.HeartShare) },
+                                navigateToHistory = { navigate(Screen.HeartHistory) },
+                            )
+                        }
+
+                    Screen.HeartHistory ->
+                        NavEntry(screen) { HeartHistoryScreen(openSession = { navigate(Screen.HeartSession(it)) }) }
+
+                    is Screen.HeartSession ->
+                        NavEntry(screen) { HeartSessionScreen(screen.startMs, onDeleted = { if (backStack.size > 1) backStack.removeAt(backStack.lastIndex) }) }
 
                     Screen.HeartShare ->
                         NavEntry(screen) { HeartShareScreen() }

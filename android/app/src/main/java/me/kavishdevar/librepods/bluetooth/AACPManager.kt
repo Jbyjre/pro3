@@ -214,10 +214,9 @@ class AACPManager {
     private fun setControlCommandStatusValue(
         identifier: ControlCommandIdentifiers, value: ByteArray
     ) {
-        val existingStatus = getControlCommandStatus(identifier)
-        if (existingStatus?.value.contentEquals(value)) {
-            controlCommandStatusList.remove(existingStatus)
-        }
+        // Replace the stored value. (This used to remove it only when unchanged, so a changed
+        // value was stored next to the old one and lookups kept returning the old one.)
+        controlCommandStatusList.removeAll { it.identifier == identifier }
         controlCommandListeners[identifier]?.forEach { listener ->
             listener.onControlCommandReceived(ControlCommand(identifier.value, value))
         }

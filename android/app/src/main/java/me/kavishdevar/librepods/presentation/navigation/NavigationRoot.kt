@@ -44,6 +44,8 @@ fun NavigationRoot(
     }
 
     val currentScreen = backStack.last()
+    // Mark the moment a screen opens (before its content composes) so its cards rise in.
+    androidx.compose.runtime.remember(currentScreen) { me.kavishdevar.librepods.presentation.glint.GlintEnter.screenOpened(); 0 }
 
     val state by airPodsViewModel.uiState.collectAsState()
 
@@ -76,6 +78,8 @@ fun NavigationRoot(
         Screen.HeartRate -> "Heart rate"
         Screen.Recorder -> "Recorder"
         Screen.HeartShare -> "Share live"
+        Screen.HeartHistory -> "History"
+        is Screen.HeartSession -> "Session"
     }
 
     // is this a bad idea? probably. I can't think of a better way without having to pass around a shouldShowBackButton to each screen to pass to each scaffold

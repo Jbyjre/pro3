@@ -20,6 +20,8 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.glint.touchGlow
+
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 
 import androidx.compose.foundation.background
@@ -262,8 +264,11 @@ private fun StyledToggleContent(
                     .fillMaxWidth()
                     .background(
                         shape = RoundedCornerShape(28.dp),
-                        color = if (isPressed.value) Color(0xFFE0E0E0) else Color.Transparent
+                        // Was a fixed light grey, which flashed a bright box in dark mode.
+                        color = if (isPressed.value) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f) else Color.Transparent
                     )
+                    .clip(RoundedCornerShape(28.dp))
+                    .touchGlow(MaterialTheme.colorScheme.onSurface, enabled)
                     .padding(16.dp)
                     .pointerInput(Unit) {
                         detectTapGestures(
