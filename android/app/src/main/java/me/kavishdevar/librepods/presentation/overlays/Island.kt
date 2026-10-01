@@ -135,6 +135,8 @@ import kotlin.math.roundToInt
 internal enum class IslandPhase { Compact, Expanded, Leaving }
 
 private const val LONG_PRESS_MS = 450L
+/** The longest a closing island may take before its window is removed regardless. */
+private const val LEAVE_TIMEOUT_MS = 1_500L
 /** How long after the island opens before the heart chip morphs out of the play/pause button. */
 internal const val CHIP_DELAY_MS = 1_000L
 /** Back, play/pause and skip side by side (34 + 6 + 40 + 6 + 34). */
@@ -188,7 +190,7 @@ internal class IslandController(private val context: Context) {
                 phase = phase.value,
                 generation = generation.intValue,
                 blurAllowed = window.blurAllowed.value,
-                onPhase = { phase.value = it },
+                onPhase = { setPhase(it) },
                 onWindowSize = { window.resize(it) },
                 onGone = { window.dismiss() },
             )
@@ -197,7 +199,23 @@ internal class IslandController(private val context: Context) {
 
     fun dismiss(animated: Boolean) {
         if (!window.isShowing) return
-        if (animated) phase.value = IslandPhase.Leaving else window.dismiss()
+        if (animated) setPhase(IslandPhase.Leaving) else window.dismiss()
+    }
+
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * Leaving always ends with the window removed: if the closing animation stalls (the screen
+     * turned off mid-way, the phone was busy), an invisible window would otherwise linger over
+     * the top of the screen and swallow taps, including on the Dynamic Island.
+     */
+    private fun setPhase(p: IslandPhase) {
+        phase.value = p
+        if (p != IslandPhase.Leaving) return
+        val gen = generation.intValue
+        main.postDelayed({
+            if (window.isShowing && phase.value == IslandPhase.Leaving && generation.intValue == gen) window.dismiss()
+        }, LEAVE_TIMEOUT_MS)
     }
 }
 
@@ -229,35 +247,37 @@ internal class IslandGeometry(context: Context, val origin: GlintOverlays.MiniOr
     val expandedRadius = dp(40f)
     // Rests just under the status bar, and never over the camera (some phones report no status
     // bar height, for example while a full-screen app is open).
-    private val restWindowTop = maxOf(
+    private val restScreenTop = maxOf(
         GlintOverlays.statusBarHeight(context).toFloat(),
         origin?.let { it.top + it.height } ?: 0f,
-    ).roundToInt() + dp(6f).roundToInt() - margin.roundToInt()
+    ).roundToInt() + dp(6f).roundToInt()
     /**
-     * Growing out of the mini island: the window reaches up far enough to include the mini
-     * island's spot by the camera (plus a little room), and everything else moves down by the
-     * same amount so the island still settles in its usual place.
+     * With the Dynamic Island up, this window starts right under it, so it never covers the
+     * pill (which stays tappable) or the status bar (pulling down notifications still works);
+     * the pop-up drops out of the pill's underside. Otherwise it has its usual margin above.
      */
-    val lift: Float = origin?.let { max(0f, restWindowTop - (it.top - dp(8f))) } ?: 0f
-    val windowTop = (restWindowTop - lift).roundToInt()
+    val windowTop: Int = origin?.let { (it.top + it.height + dp(1f)).roundToInt().coerceAtMost(restScreenTop) }
+        ?: (restScreenTop - margin.roundToInt())
     /** The pill's top edge at rest, inside the window. */
-    val restTop = margin + lift
-    // Where the shape starts (and ends when it leaves): the mini island, or a small dot.
+    val restTop = (restScreenTop - windowTop).toFloat()
+    // Where the shape starts (and ends when it leaves): a drop from the Dynamic Island's
+    // underside, or a small dot.
     val seedW = origin?.width ?: tiny
-    val seedH = origin?.height ?: tiny
-    val seedTop = origin?.let { it.top - windowTop } ?: restTop
+    val seedH = if (origin != null) dp(8f) else tiny
+    val seedTop = if (origin != null) 0f else restTop
     val seedDx = origin?.dx ?: 0f
+    private val below = margin + shadowDrop
     val compactWindow = IntSize(
         (compactMainW + satGap + satD + margin * 2).roundToInt(),
-        (compactH + margin * 2 + shadowDrop + lift).roundToInt()
+        (restTop + compactH + below).roundToInt()
     )
     val expandedWindow = IntSize(
         (expandedW + margin * 2).roundToInt(),
-        (expandedH + margin * 2 + shadowDrop + lift).roundToInt()
+        (restTop + expandedH + below).roundToInt()
     )
     val detailWindow = IntSize(
         (expandedW + margin * 2).roundToInt(),
-        (detailH + margin * 2 + shadowDrop + lift).roundToInt()
+        (restTop + detailH + below).roundToInt()
     )
 }
 

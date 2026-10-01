@@ -129,8 +129,35 @@ internal class MiniIslandController(private val context: Context) {
     private var unlocked = true
     /** A connection blip (a few seconds of "reconnecting") doesn't make it vanish and come back. */
     private var lastConnectedAt = 0L
-    private fun airPodsUp() = GlintStatus.link.value is LinkState.Connected ||
-        (lastConnectedAt > 0L && SystemClock.elapsedRealtime() - lastConnectedAt < AIRPODS_GRACE_MS)
+    /**
+     * The AirPods count as connected when pro's control link is up, when it gave up but audio
+     * still plays through them (some phones refuse the control channel), when Android lists
+     * them as an audio output, or for a few seconds after a blip.
+     */
+    private fun airPodsUp(): Boolean {
+        val link = GlintStatus.link.value
+        return link is LinkState.Connected || link is LinkState.GaveUp || airPodsAudio() ||
+            (lastConnectedAt > 0L && SystemClock.elapsedRealtime() - lastConnectedAt < AIRPODS_GRACE_MS)
+    }
+
+    private val audio = context.getSystemService(android.media.AudioManager::class.java)
+
+    /** AirPods among Android's current audio outputs (by the saved address or the name). */
+    private fun airPodsAudio(): Boolean = runCatching {
+        val mac = prefs.getString("mac_address", null)?.takeIf { it.isNotBlank() }
+        audio?.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS).orEmpty().any { d ->
+            val bt = d.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                d.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                d.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+            bt && ((mac != null && d.address.equals(mac, ignoreCase = true)) ||
+                d.productName?.toString()?.contains("AirPods", ignoreCase = true) == true)
+        }
+    }.getOrDefault(false)
+
+    private val audioDevices = object : android.media.AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(added: Array<out android.media.AudioDeviceInfo>?) = refresh()
+        override fun onAudioDevicesRemoved(removed: Array<out android.media.AudioDeviceInfo>?) = refresh()
+    }
     private var lingerJob: Job? = null
     private var shownFor: Any? = null
     private var lastWant = false
@@ -189,6 +216,7 @@ internal class MiniIslandController(private val context: Context) {
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
         prefs.registerOnSharedPreferenceChangeListener(prefListener)
+        runCatching { audio?.registerAudioDeviceCallback(audioDevices, android.os.Handler(android.os.Looper.getMainLooper())) }
         context.registerComponentCallbacks(rotation)
         scope.launch { NowPlaying.state.collect { onTrack(it) } }
         scope.launch {
@@ -386,7 +414,7 @@ internal fun MiniIslandHost(
     // Full-screen apps hide it, but only after the status bar has been gone for a moment, so a
     // screen that briefly hides it (opening or closing an app) doesn't make it flicker.
     var fullScreen by remember { mutableStateOf(false) }
-    LaunchedEffect(hidden) { if (hidden) { delay(700); fullScreen = true } else fullScreen = false }
+    LaunchedEffect(hidden) { if (hidden) { delay(FULL_SCREEN_MS); fullScreen = true } else fullScreen = false }
     val visible = !leaving && !fullScreen
 
     val appear = remember { Animatable(still ?: 0f) }
@@ -426,6 +454,11 @@ internal fun MiniIslandHost(
             if (reduce || handOff) appear.snapTo(0f) else appear.animateTo(0f, spring(dampingRatio = 1f, stiffness = 520f))
             if (leaving) onGone()
         }
+    }
+
+    // Asked to leave while already out of sight (for example in a full-screen app): just go.
+    LaunchedEffect(leaving, visible) {
+        if (still == null && leaving && !visible && appear.value < 0.01f) onGone()
     }
 
     // A new song (or the first one): widen for a moment with its name, then tuck back.
@@ -769,6 +802,8 @@ internal fun accentOfPixels(pixels: IntArray): Color {
     return Color(android.graphics.Color.HSVToColor(h))
 }
 
+/** The status bar must be gone this long before it counts as a full-screen app. */
+private const val FULL_SCREEN_MS = 1_200L
 /** Waits this long after a tap for a second or third one. */
 private const val TAP_GAP_MS = 300L
 /** How long a dropped connection may last before the Dynamic Island leaves. */
