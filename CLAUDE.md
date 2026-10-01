@@ -48,7 +48,7 @@
   files/heart); GitHub backup: `services/HeartBackup.kt` (classic token, private repo, Keystore-encrypted token);
   screens `HeartHistoryScreen.kt`. Readings in the first 3 s of each sensor start are dropped (`HR_WARMUP_MS`).
   Background pace `PREF_HR_PACE`. "Only in Adaptive" CA: `PREF_CA_ADAPTIVE_ONLY`. Motion helpers: `glint/GlintMotion.kt`.
-  App icon (Jake's choice: no AirPods/case): glass bubble with a smile on a sunset gradient (`drawable-v24/ic_launcher_*`).
+  App icon (Jake's choice: no AirPods/case, no pink): Glint's battery ring around a glass orb on a blue-to-aqua sweep (`drawable-v24/ic_launcher_*`).
   Light/dark switch reveal: `theme/ThemeReveal.kt` (`ThemeReveal.change`). Don't `remember` theme colours (rows went white-on-white).
   Volume limit (hearing protection without root): `services/VolumeGuard.kt`. Always-on heart rate: `PREF_HR_ALWAYS`, `autoHeartRate()` in the service. The status notification is hidden unless
   `glint_status_notification` is on. Jake's app is personal: no visible LibrePods mentions.
