@@ -39,6 +39,17 @@ import me.kavishdevar.librepods.presentation.overlays.CardGeometry
 import me.kavishdevar.librepods.presentation.overlays.CardHost
 import me.kavishdevar.librepods.presentation.overlays.GlintOverlays
 import me.kavishdevar.librepods.presentation.overlays.IslandEvent
+import me.kavishdevar.librepods.services.BatteryEstimate
+import me.kavishdevar.librepods.services.BatteryEstimator
+import me.kavishdevar.librepods.services.BatteryTimeLeft
+import me.kavishdevar.librepods.services.GlintStatus
+import me.kavishdevar.librepods.services.HeartRate
+import me.kavishdevar.librepods.services.LinkState
+import me.kavishdevar.librepods.services.NowPlaying
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
 import me.kavishdevar.librepods.presentation.overlays.IslandGeometry
 import me.kavishdevar.librepods.presentation.overlays.IslandHost
 import me.kavishdevar.librepods.presentation.overlays.IslandPhase
@@ -136,7 +147,8 @@ class GlintScreenshots {
         rule.onRoot().captureRoboImage("$out/symbols.png")
     }
 
-    private fun island(name: String, event: IslandEvent, phase: IslandPhase, dark: Boolean = true) {
+    private fun island(name: String, event: IslandEvent, phase: IslandPhase, dark: Boolean = true, then: () -> Unit = {}) {
+        if (dark) RuntimeEnvironment.setQualifiers("+night")
         GlintOverlays.updateSnapshot(demo)
         rule.mainClock.autoAdvance = false
         rule.setContent {
@@ -151,6 +163,7 @@ class GlintScreenshots {
             }
         }
         rule.mainClock.advanceTimeBy(1_200)
+        then()
         rule.onRoot().captureRoboImage("$out/$name.png")
     }
 
@@ -166,6 +179,67 @@ class GlintScreenshots {
         island("island_expanded_connected", IslandEvent.Connected, IslandPhase.Expanded)
         me.kavishdevar.librepods.services.BatteryTimeLeft.publish(null)
         me.kavishdevar.librepods.services.GlintStatus.set(me.kavishdevar.librepods.services.LinkState.Idle)
+    }
+
+    // ---- Round 19: more moments, music controls, the heart ----
+
+    private val demoArt by lazy {
+        val bmp = android.graphics.Bitmap.createBitmap(144, 144, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(bmp)
+        val p = android.graphics.Paint().apply {
+            shader = android.graphics.LinearGradient(0f, 0f, 144f, 144f, 0xFF2D6CDF.toInt(), 0xFFE0607E.toInt(), android.graphics.Shader.TileMode.CLAMP)
+        }
+        c.drawRect(0f, 0f, 144f, 144f, p)
+        c.drawCircle(72f, 72f, 34f, android.graphics.Paint().apply { color = 0x66FFFFFF })
+        bmp.asImageBitmap()
+    }
+
+    private fun withMusic(art: Boolean = true, playing: Boolean = true, block: () -> Unit) {
+        NowPlaying.preview(NowPlaying.Track(playing = playing, title = "Midnight City", artist = "M83", app = "Spotify", art = if (art) demoArt else null, fromSession = true))
+        try { block() } finally { NowPlaying.preview(NowPlaying.Track()) }
+    }
+
+    private fun withHeart(bpm: Int, block: () -> Unit) {
+        val now = System.currentTimeMillis()
+        listOf(-14, -6, 9, 0).forEachIndexed { i, d -> HeartRate.reading(bpm + d, now - (3 - i) * 1_000L) }
+        try { block() } finally { HeartRate.status(HeartRate.Status.Off) }
+    }
+
+    private fun connectedLink(block: () -> Unit) {
+        GlintStatus.set(LinkState.Connected("AirPods Pro"))
+        BatteryTimeLeft.publish(BatteryEstimate(197, BatteryEstimator.Confidence.MEASURED, worn = true, charging = false, caseCharges = 1.5))
+        try { block() } finally { BatteryTimeLeft.publish(null); GlintStatus.set(LinkState.Idle) }
+    }
+
+    @Test fun islandBudOut() = withMusic(playing = false) { island("island_bud_out", IslandEvent.BudOut(remaining = 1, paused = true), IslandPhase.Compact) }
+    @Test fun islandBothOutLight() = island("island_both_out_light", IslandEvent.BudOut(remaining = 0, paused = false), IslandPhase.Compact, dark = false)
+    @Test fun islandMusic() = withMusic { island("island_music", IslandEvent.Music, IslandPhase.Compact) }
+    @Test fun islandMusicNoAccess() {
+        NowPlaying.preview(NowPlaying.Track(playing = true))
+        island("island_music_no_names_light", IslandEvent.Music, IslandPhase.Compact, dark = false)
+        NowPlaying.preview(NowPlaying.Track())
+    }
+    @Test fun islandCharging() = island("island_charging", IslandEvent.Charging, IslandPhase.Compact)
+    @Test fun islandExpandedMusicHeart() = connectedLink { withMusic { withHeart(72) { island("island_expanded_music_heart", IslandEvent.Connected, IslandPhase.Expanded) } } }
+    @Test fun islandExpandedMusicLight() = connectedLink { withMusic(art = false, playing = false) { island("island_expanded_music_light", IslandEvent.BudOut(1, true), IslandPhase.Expanded, dark = false) } }
+    @Test fun islandExpandedHeartLight() = connectedLink { withMusic { withHeart(128) { island("island_expanded_heart_light", IslandEvent.Connected, IslandPhase.Expanded, dark = false) } } }
+
+    @Test fun islandHeartDetail() = connectedLink {
+        withHeart(72) {
+            island("island_heart_detail", IslandEvent.Connected, IslandPhase.Expanded) {
+                rule.onNodeWithContentDescription("Heart rate 72", substring = true).performClick()
+                rule.mainClock.advanceTimeBy(900)
+            }
+        }
+    }
+
+    @Test fun islandHeartDetailLight() = connectedLink {
+        withHeart(128) {
+            island("island_heart_detail_light", IslandEvent.Connected, IslandPhase.Expanded, dark = false) {
+                rule.onNodeWithContentDescription("Heart rate 128", substring = true).performClick()
+                rule.mainClock.advanceTimeBy(900)
+            }
+        }
     }
 
     private fun card(name: String, dark: Boolean) {
@@ -218,13 +292,22 @@ class GlintScreenshots {
     @Test
     fun icon() {
         rule.setContent {
-            Row(Modifier.background(Color(0xFF9FB4D8)).padding(24.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                Box(Modifier.size(160.dp).androidx_clip()) {
-                    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_launcher_background), null, Modifier.fillMaxSize())
-                    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_launcher_foreground), null, Modifier.fillMaxSize())
+            Column(Modifier.background(Color(0xFF9FB4D8)).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    me.kavishdevar.librepods.presentation.theme.AppIcon.entries.forEach {
+                        me.kavishdevar.librepods.presentation.components.IconPreview(it, 112.dp)
+                    }
                 }
-                Box(Modifier.size(160.dp).androidx_clip().background(Color(0xFF2B3A55))) {
-                    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_launcher_monochrome), null, Modifier.fillMaxSize())
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    me.kavishdevar.librepods.presentation.theme.AppIcon.entries.forEach {
+                        me.kavishdevar.librepods.presentation.components.IconPreview(it, 48.dp)
+                    }
+                    Box(Modifier.size(48.dp).androidx_clip().background(Color(0xFF2B3A55))) {
+                        androidx.compose.foundation.Image(
+                            androidx.compose.ui.res.painterResource(R.drawable.ic_launcher_monochrome), null,
+                            Modifier.fillMaxSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f }
+                        )
+                    }
                 }
             }
         }

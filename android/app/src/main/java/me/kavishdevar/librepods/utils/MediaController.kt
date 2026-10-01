@@ -102,6 +102,7 @@ object MediaController {
             super.onPlaybackConfigChanged(configs)
             val now = SystemClock.uptimeMillis()
             val isActive = audioManager.isMusicActive
+            me.kavishdevar.librepods.services.NowPlaying.audioChanged(isActive)
             Log.d("MediaController", "Playback config changed, iPausedTheMedia: $iPausedTheMedia, isActive: $isActive, pausedForOtherDevice: $pausedForOtherDevice, lastKnownIsMusicActive: $lastKnownIsMusicActive")
 
             if (!isActive && lastPlayWithReplay && now - lastPlayTime < 2500L) {
@@ -216,6 +217,20 @@ object MediaController {
             Log.d("MediaController", "Sending play because music is not active")
             sendPlay()
         }
+    }
+
+    /**
+     * Play or pause pressed on Glint's island. The island sends the key itself; this only keeps
+     * the auto-pause bookkeeping right: a pause you chose is never undone when a bud goes back
+     * in, and a play you chose counts as yours.
+     */
+    @Synchronized
+    fun userPlayback(play: Boolean) {
+        if (!this::audioManager.isInitialized) return
+        iPausedTheMedia = false
+        userPlayedTheMedia = play
+        if (play) pausedWhileTakingOver = false
+        lastSelfActionAt = SystemClock.uptimeMillis()
     }
 
     @Synchronized

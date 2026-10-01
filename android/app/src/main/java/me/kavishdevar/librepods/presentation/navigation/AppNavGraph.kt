@@ -38,6 +38,7 @@ import me.kavishdevar.librepods.presentation.screens.TroubleshootingScreen
 import me.kavishdevar.librepods.presentation.screens.UpdateHearingTestRoute
 import me.kavishdevar.librepods.presentation.screens.VersionScreen
 import me.kavishdevar.librepods.presentation.screens.GlintLabScreen
+import me.kavishdevar.librepods.presentation.screens.IslandSettingsScreen
 import me.kavishdevar.librepods.presentation.screens.HeartRateScreen
 import me.kavishdevar.librepods.presentation.screens.HeartShareScreen
 import me.kavishdevar.librepods.presentation.screens.HeartHistoryScreen
@@ -136,12 +137,16 @@ fun AppNavGraph(
                                 navigateToTroubleshooting = { navigate(Screen.Troubleshooting) },
                                 navigateToOpenSourceLicenses = { navigate(Screen.OpenSourceLicenses) },
                                 navigateToStayConnected = { navigate(Screen.StayConnected) },
+                                navigateToIsland = { navigate(Screen.IslandSettings) },
                                 navigateToGlintLab = { navigate(Screen.GlintLab) },
                             )
                         }
 
                     Screen.StayConnected ->
                         NavEntry(screen) { StayConnectedScreen() }
+
+                    Screen.IslandSettings ->
+                        NavEntry(screen) { IslandSettingsScreen() }
 
                     Screen.GlintLab ->
                         NavEntry(screen) { GlintLabScreen() }

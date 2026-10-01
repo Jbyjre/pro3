@@ -87,7 +87,17 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 3. **Volume limit:** main screen > Hearing Protection > Limit media volume on, pick 60%. Play music on the AirPods and press volume up: it should stop at about 60% and the screen should say when it turned it down.
 4. **Heart:** with your age set, the session graph is green/amber/orange/red by effort; History shows Resting heart rate and Personal bests.
 
-## H. Known limits (not bugs)
+## H. Round 19: icon, island, music, heart
+
+1. **Icon:** Settings > App icon: tap White, then Graphite, then Black. The home-screen icon changes within a few seconds. If it vanishes from the home screen, drag Glint back from the app list.
+2. **AirPod out:** play music, take one AirPod out. The island shows "One AirPod out · Music paused" with a play button. Tap the button: the music plays again. Put the bud back: "Both AirPods in".
+3. **Music starts:** with Glint closed, start a song in Spotify. After about 1.5 s the island shows "Now playing" (or the song name, see 5) with a pause button. Tap it: Spotify pauses.
+4. **Opened island:** tap the island. The music row has previous / play-pause / next; each should work in Spotify.
+5. **Song names:** Settings > Island > Show song names > Allow, turn Glint on. If Android says "Restricted setting", tap App info, the ⋮ menu, Allow restricted settings, then Allow again. Start a song: the island shows its name, artist and cover.
+6. **Heart:** start measuring heart rate, then tap the island open. A red heart with your number beats in the middle. Tap it: the explanation page with the scale. Tap the back arrow to return.
+7. **Settings > Island:** turn off "An AirPod comes out" and take a bud out: no island. Try Short and Long under "Stays on screen for". Use the Try it buttons.
+
+## I. Known limits (not bugs)
 
 - Features marked **Needs root** don't work on a standard Samsung.
 - Overlays don't appear on the lock screen (Android hides app overlays there).
