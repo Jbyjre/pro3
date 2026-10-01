@@ -82,7 +82,7 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 
 ## G. Round 17
 
-1. **Icon:** the home screen shows the glass bubble with a smile. With themed icons on (Samsung: Home screen settings > Themed icons, if your One UI has it), it shows the outline version.
+1. **Icon:** the home screen shows the blue-aqua icon with the white ring around a glass orb. With themed icons on (Samsung: Home screen settings > Themed icons, if your One UI has it), it shows the outline version.
 2. **Light/dark:** Settings > Appearance, tap Dark then Light. The new look should spread out in a circle from your finger, and no row should stay white in dark mode.
 3. **Volume limit:** main screen > Hearing Protection > Limit media volume on, pick 60%. Play music on the AirPods and press volume up: it should stop at about 60% and the screen should say when it turned it down.
 4. **Heart:** with your age set, the session graph is green/amber/orange/red by effort; History shows Resting heart rate and Personal bests.

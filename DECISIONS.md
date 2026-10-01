@@ -263,3 +263,10 @@ A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every
 - **Glass everywhere.** I rendered every screen and checked them side by side. The Troubleshooting screen still used flat Material buttons; they're Glint's glass buttons now. Chart labels ("avg", "usual") were moved so they don't sit on the line.
 - Code: `res/drawable-v24/ic_launcher_*.xml`, `presentation/theme/ThemeReveal.kt`, `services/VolumeGuard.kt`, `HeartParts.kt` (`RestingTrendChart`, zone-coloured `HeartChart`), `HeartInsights.peakAverage/secondsAbove/records/restingSeries`.
 
+
+## 18. New icon: battery ring, no pink
+
+- **Your request:** the pink sunset icon wasn't smooth, then a full redesign. The new icon is Glint's own battery ring (a white ring about three-quarters filled, with a glow where it ends) around a glass orb, on a smooth violet-blue-aqua sweep. No AirPods, no case, no pink, no smile or sparkle. Chosen because the ring is what the app itself shows.
+- The one-colour (themed icons) version is the ring and orb. Android only uses it if "Themed icons" is on in the phone's settings; it can't be forced off from the app.
+- Drawn as a picture first and checked in circle, rounded and square shapes and at small size; the app build itself is **not verified on a phone**.
+- Code: `res/drawable-v24/ic_launcher_*.xml`.
