@@ -197,3 +197,14 @@ A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every
 - **Shorter text:** setup (This phone, Permissions, Stay connected), the Accessibility screen descriptions, and the "connect once" note in Settings.
 - **Audit:** every screen was rendered in the test tour and checked by eye, including the whole main screen top to bottom. Real touch feel (springs, haptics) **needs the phone; not verified**.
 
+
+## 14. Live heart-rate sharing and more useful heart info
+
+- **Share live heart rate** (Heart rate > Share live heart rate). Three options, each off until switched on, and all quiet unless you're measuring:
+  - **Bluetooth sensor:** the phone shows up as a standard Bluetooth heart-rate sensor (Heart Rate Service 0x180D, the same kind a chest strap is), so watches, bike computers, gym machines and fitness apps can pair to it. Like a chest strap, any nearby device can connect while it's on. Needs the "Nearby devices" permission, which is asked for when you turn it on.
+  - **Send to a web address:** posts `{"bpm":72,"time":<ms>,"status":"live"}` to an https address you choose (Home Assistant, Zapier/Make/IFTTT, your own app), every 10 seconds by default (5 s minimum), plus a final `"stopped"` message. https only so the reading is encrypted. Has a "Send a test" button.
+  - **Automation apps:** Android broadcast `io.github.jbyjre.glint.HEART_RATE` with extras `bpm`, `time`, `status` for Tasker ("Intent Received" event) or MacroDroid ("Intent Received" trigger).
+  - **Not added:** a Wi-Fi live page/stream (a small web server in the app that other devices on your Wi-Fi could open). The cloud session's safety setting blocked writing it ("exposing a local service"); it needs Jake's explicit go-ahead.
+- **More useful heart info:** a resting estimate (lowest 3-minute average), 1-minute recovery after the session's peak (shown when the peak is 100 BPM or more; the 12 BPM reference is from Cole et al., NEJM 1999), and "Export readings" (CSV through the share sheet). The expanded island shows the live BPM while you measure.
+- Code: `services/HeartLink.kt` (outlets, wired from the service), `presentation/screens/HeartShareScreen.kt`, `HeartInsights.restingEstimate/recovery/csv`.
+- **Not verified on the phone:** pairing a watch or app to the Bluetooth sensor, a real web address receiving posts, Tasker receiving the broadcast.

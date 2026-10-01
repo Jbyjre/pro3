@@ -149,6 +149,17 @@ class AppTourScreenshots {
         me.kavishdevar.librepods.services.HeartRate.clear()
     }
     @Test fun recorder() = both("32_recorder", listOf(Screen.Recorder))
+    @Test fun heartShare() {
+        context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit()
+            .putBoolean("glint_link_ble", true)
+            .putBoolean("glint_link_webhook", true)
+            .putString("glint_link_webhook_url", "https://example.com/api/webhook/heart")
+            .commit()
+        me.kavishdevar.librepods.services.HeartLink.refresh()
+        both("34_heart_share", listOf(Screen.HeartRate, Screen.HeartShare))
+        tour("34_heart_share", dark = true, stack = listOf(Screen.HeartRate, Screen.HeartShare))
+        context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().clear().commit()
+    }
     @Test fun licenses() = both("20_licenses", listOf(Screen.OpenSourceLicenses))
 
 

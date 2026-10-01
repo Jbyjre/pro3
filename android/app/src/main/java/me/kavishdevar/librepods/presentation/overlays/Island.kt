@@ -21,6 +21,7 @@ package me.kavishdevar.librepods.presentation.overlays
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import me.kavishdevar.librepods.services.GlintStatus
+import me.kavishdevar.librepods.services.HeartRate
 import me.kavishdevar.librepods.services.LinkState
 import me.kavishdevar.librepods.services.BatteryTimeLeft
 import me.kavishdevar.librepods.services.BatteryWords
@@ -594,6 +595,17 @@ private fun ExpandedIslandContent(
             }
         }
         Row(Modifier.fillMaxWidth().height(34.dp), verticalAlignment = Alignment.CenterVertically) {
+            // While measuring, the live heart rate leads the bottom line.
+            val heart by HeartRate.state.collectAsState()
+            val bpm = heart.bpm
+            if (heart.status == HeartRate.Status.Live && bpm != null) {
+                Text(
+                    "\u2665 $bpm BPM",
+                    modifier = Modifier.padding(end = 10.dp).semantics { contentDescription = "Heart rate $bpm beats per minute" },
+                    maxLines = 1,
+                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (dark) Color(0xFFF04A50) else Color(0xFFE0303A))
+                )
+            }
             Text(
                 timeLeft?.let { BatteryWords.headline(it) } ?: "",
                 modifier = Modifier.weight(1f),

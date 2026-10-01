@@ -75,6 +75,7 @@ fun NavigationRoot(
         Screen.GlintLab -> "Glint Lab"
         Screen.HeartRate -> "Heart rate"
         Screen.Recorder -> "Recorder"
+        Screen.HeartShare -> "Share live"
     }
 
     // is this a bad idea? probably. I can't think of a better way without having to pass around a shouldShowBackButton to each screen to pass to each scaffold
