@@ -125,6 +125,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Permissions may have just been granted (setup, Android's settings): let the mini
+        // island around the camera catch up.
+        me.kavishdevar.librepods.presentation.overlays.GlintOverlays.refreshMiniIsland(this)
+    }
+
     override fun onDestroy() {
         try {
             unbindService(serviceConnection)

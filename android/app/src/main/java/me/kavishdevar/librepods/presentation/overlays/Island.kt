@@ -201,7 +201,8 @@ internal class IslandGeometry(context: Context) {
     val tiny = dp(34f)
     val compactH = dp(44f)
     // Wide enough for the buds, two readable lines and the bubble inside one pill.
-    val compactMainW = dp(268f)
+    // Narrow phones: never wider than the screen (with a small margin each side).
+    val compactMainW = minOf(dp(268f), screen.width - dp(24f))
     val satD = dp(42f)
     val satGap = dp(9f)
     /**
@@ -233,6 +234,18 @@ internal class IslandGeometry(context: Context) {
 
 @Composable
 internal fun IslandHost(
+    geometry: IslandGeometry,
+    event: IslandEvent,
+    phase: IslandPhase,
+    generation: Int,
+    blurAllowed: Boolean,
+    onPhase: (IslandPhase) -> Unit,
+    onWindowSize: (IntSize) -> Unit,
+    onGone: () -> Unit,
+) = CappedFontScale { IslandHostContent(geometry, event, phase, generation, blurAllowed, onPhase, onWindowSize, onGone) }
+
+@Composable
+private fun IslandHostContent(
     geometry: IslandGeometry,
     event: IslandEvent,
     phase: IslandPhase,
@@ -753,7 +766,9 @@ private fun ExpandedIslandContent(
                 IslandPods(budsWidth = 104.dp, play = podsVideo)
                 Spacer(Modifier.weight(1f))
                 // Left, right and case as three rings marked L, R and a case symbol; % under each.
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                // Narrow phones get a little less space between the rings.
+                val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 360
+                Row(horizontalArrangement = Arrangement.spacedBy(if (narrow) 9.dp else 14.dp)) {
                     PartRing(PartMark.Left, snapshot.left, snapshot.leftCharging, content, secondary, track2)
                     PartRing(PartMark.Right, snapshot.right, snapshot.rightCharging, content, secondary, track2)
                     PartRing(PartMark.Case, snapshot.case, snapshot.caseCharging, content, secondary, track2)
@@ -1133,6 +1148,8 @@ private fun PartRing(mark: PartMark, level: Int?, charging: Boolean, content: Co
             }
             Text(
                 if (level != null) "$level%" else "–",
+                maxLines = 1,
+                softWrap = false, // never "54" over "%" on narrow phones
                 style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (level != null) content else secondary, fontFeatureSettings = "tnum")
             )
         }

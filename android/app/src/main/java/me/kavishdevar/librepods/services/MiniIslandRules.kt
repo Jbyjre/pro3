@@ -66,7 +66,41 @@ object MiniIslandRules {
         val h = (holeH + 10f * density).coerceIn(28f * density, 40f * density)
         val side = h - 8f * density // the cover is a circle this wide
         val compact = maxOf(holeW, h) + 2f * (side + 7f * density)
-        val wide = minOf(screenW - 24f * density, 280f * density).coerceAtLeast(compact)
-        return Size(h, compact, wide, h + 26f * density)
+        val fit = screenW - 16f * density
+        val c = compact.coerceAtMost(fit)
+        val wide = minOf(screenW - 24f * density, 280f * density).coerceIn(c, fit)
+        return Size(h, c, wide, h + 26f * density)
+    }
+
+    /** A rectangle in screen pixels (Android's Rect, without needing Android in tests). */
+    data class Box(val left: Int, val top: Int, val right: Int, val bottom: Int) {
+        val width get() = right - left
+        val height get() = bottom - top
+        val centerX get() = (left + right) / 2f
+        val centerY get() = (top + bottom) / 2f
+    }
+
+    /**
+     * Which camera cutout to wrap, from all the cutouts the phone reports. Works for every
+     * shape of phone:
+     * - a punch-hole or a notch near the middle of the top edge: wrap it;
+     * - a camera in a corner (or off to one side): don't wrap it, since a pill centred on it
+     *   would run off the screen; the pill sits in the middle of the status bar instead;
+     * - no cutout, or one on a side or the bottom (landscape, tablets): null, same as above;
+     * - very wide cutouts (more than 60% of the screen) are treated as no cutout.
+     */
+    fun pickCamera(cutouts: List<Box>, screenW: Int, screenH: Int): Box? =
+        cutouts
+            .filter { it.top < screenH / 4 && it.width > 0 && it.height > 0 && it.width <= screenW * 0.6f }
+            .filter { kotlin.math.abs(it.centerX - screenW / 2f) <= screenW * 0.12f }
+            .minByOrNull { kotlin.math.abs(it.centerX - screenW / 2f) }
+
+    /**
+     * Where the pill's middle goes, measured from the top of the screen: on the camera, or in
+     * the middle of the status bar, but never so high that the pill's top would be cut off.
+     */
+    fun centerY(camera: Box?, statusBarH: Int, pillH: Float, density: Float): Float {
+        val wanted = camera?.centerY ?: (if (statusBarH > 0) statusBarH / 2f else 12f * density)
+        return wanted.coerceAtLeast(pillH / 2f + 1f * density)
     }
 }

@@ -173,13 +173,22 @@ class GlintScreenshots {
      * The mini island around a punch-hole camera (drawn here as a dark lens, the size of a
      * typical front camera), compact or widened with the song's name.
      */
-    private fun mini(name: String, playing: Boolean, wide: Float, art: Boolean, dark: Boolean = false) {
+    private fun mini(
+        name: String, playing: Boolean, wide: Float, art: Boolean, dark: Boolean = false,
+        /** "hole" (centred punch-hole), "notch", "corner" (top-left hole) or "none". */
+        shape: String = "hole",
+    ) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")
         rule.mainClock.autoAdvance = false
         val app = RuntimeEnvironment.getApplication()
         val d = app.resources.displayMetrics.density
         val screenW = app.resources.displayMetrics.widthPixels
-        val hole = android.graphics.Rect((screenW / 2 - 13 * d).toInt(), (10 * d).toInt(), (screenW / 2 + 13 * d).toInt(), (36 * d).toInt())
+        val hole = when (shape) {
+            "notch" -> android.graphics.Rect((screenW / 2 - 80 * d).toInt(), 0, (screenW / 2 + 80 * d).toInt(), (30 * d).toInt())
+            "corner" -> android.graphics.Rect((16 * d).toInt(), (10 * d).toInt(), (42 * d).toInt(), (36 * d).toInt())
+            "none" -> null
+            else -> android.graphics.Rect((screenW / 2 - 13 * d).toInt(), (10 * d).toInt(), (screenW / 2 + 13 * d).toInt(), (36 * d).toInt())
+        }
         val cover = if (art) android.graphics.Bitmap.createBitmap(144, 144, android.graphics.Bitmap.Config.ARGB_8888).also { b ->
             val c = android.graphics.Canvas(b)
             c.drawPaint(android.graphics.Paint().apply {
@@ -191,7 +200,7 @@ class GlintScreenshots {
             durationMs = 243_000L, positionMs = 90_000L, positionAtMs = android.os.SystemClock.elapsedRealtime().coerceAtLeast(1L),
         )
         rule.setContent {
-            val geo = me.kavishdevar.librepods.presentation.overlays.MiniGeometry(app, hole)
+            val geo = me.kavishdevar.librepods.presentation.overlays.MiniGeometry(app, listOfNotNull(hole))
             Wallpaper(dark) {
                 val dens = androidx.compose.ui.platform.LocalDensity.current
                 Box(Modifier.fillMaxWidth().height(with(dens) { (geo.wideWindow.height + geo.windowTop.coerceAtLeast(0)).toDp() + 40.dp })) {
@@ -205,11 +214,16 @@ class GlintScreenshots {
                             still = 1f, stillWide = wide,
                         )
                     }
-                    // The camera lens, on top, where the real one would be.
-                    androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+                    // The camera, on top, where the real one would be.
+                    if (hole != null) androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
                         val c = androidx.compose.ui.geometry.Offset(hole.exactCenterX(), hole.exactCenterY())
-                        drawCircle(androidx.compose.ui.graphics.Color(0xFF0B0B0F), hole.width() / 2f * 0.62f, c)
-                        drawCircle(androidx.compose.ui.graphics.Color(0xFF1F2A44), hole.width() / 2f * 0.26f, c)
+                        if (shape == "notch") {
+                            drawRoundRect(androidx.compose.ui.graphics.Color.Black, androidx.compose.ui.geometry.Offset(hole.left.toFloat(), -20f),
+                                androidx.compose.ui.geometry.Size(hole.width().toFloat(), hole.height() + 20f), androidx.compose.ui.geometry.CornerRadius(14 * d))
+                        }
+                        val r = minOf(hole.width(), hole.height()) / 2f
+                        drawCircle(androidx.compose.ui.graphics.Color(0xFF0B0B0F), r * 0.62f, c)
+                        drawCircle(androidx.compose.ui.graphics.Color(0xFF1F2A44), r * 0.26f, c)
                     }
                 }
             }
@@ -221,6 +235,15 @@ class GlintScreenshots {
     @Test fun miniIslandPlaying() = mini("mini_island_playing", playing = true, wide = 0f, art = true)
     @Test fun miniIslandSongName() = mini("mini_island_song_name", playing = true, wide = 1f, art = true, dark = true)
     @Test fun miniIslandPausedNoCover() = mini("mini_island_paused", playing = false, wide = 0f, art = false)
+    @Test fun miniIslandNotch() = mini("mini_island_notch", playing = true, wide = 0f, art = true, shape = "notch")
+    @Test fun miniIslandNotchWide() = mini("mini_island_notch_wide", playing = true, wide = 1f, art = true, shape = "notch")
+    @Test fun miniIslandCornerCamera() = mini("mini_island_corner", playing = true, wide = 0f, art = true, shape = "corner")
+    @Test fun miniIslandNoCutout() = mini("mini_island_no_cutout", playing = true, wide = 1f, art = true, shape = "none")
+    @Test @org.robolectric.annotation.Config(qualifiers = "w320dp-h640dp-xhdpi")
+    fun miniIslandSmallPhoneBigFont() {
+        RuntimeEnvironment.setFontScale(2f)
+        mini("mini_island_small_big_font", playing = true, wide = 1f, art = true)
+    }
 
     /** The opened island over time: the heart chip ("--" with no reading) morphing out of play/pause. */
     @Test fun islandHeartChipMorph() {
@@ -242,6 +265,13 @@ class GlintScreenshots {
             rule.mainClock.advanceTimeBy(at - t); t = at
             rule.onRoot().captureRoboImage("$out/island_chip_morph_$at.png")
         }
+    }
+
+    /** A small phone with the biggest system font: the opened island still fits. */
+    @Test @org.robolectric.annotation.Config(qualifiers = "w320dp-h640dp-xhdpi")
+    fun islandSmallPhoneBigFont() = connectedLink {
+        RuntimeEnvironment.setFontScale(2f)
+        island("island_small_big_font", IslandEvent.Connected, IslandPhase.Expanded, dark = false)
     }
 
     @Test fun islandConnected() = island("island_connected", IslandEvent.Connected, IslandPhase.Compact)

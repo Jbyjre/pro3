@@ -61,7 +61,8 @@
   Mini island (black pill around the front camera while music plays; cover + progress ring left, bars in cover colour right,
   widens with the song name; tap = big island, swipe = skip, hold = open app; hides in landscape/full-screen/lock screen/30 s
   after pause): `overlays/MiniIsland.kt`, rules `services/MiniIslandRules.kt`, prefs in `IslandPrefs` (`PREF_MINI*`). While it's
-  on, the big island skips the music-start/new-song pops. The AirPods name row lives in Settings, not the main page (Jake's choice).
+  on, the big island skips the music-start/new-song pops. Placement works for punch-hole, notch, corner camera and no
+  cutout (`MiniIslandRules.pickCamera`); overlays cap font scale at 1.15 (`CappedFontScale`); island widths clamp to the screen. The AirPods name row lives in Settings, not the main page (Jake's choice).
   Row pictures: `glint/RowIcons.kt` (picked from the row name; `RowIconTile`); icon buttons with press-and-hold label:
   `glint/IconAction.kt`. Glass lightens on Battery Saver/heat: `glint/GlassBudget.kt`. Screen changes use springs (`AppNavGraph.kt`).
   Light/dark switch reveal: `theme/ThemeReveal.kt` (`ThemeReveal.change`). Don't `remember` theme colours (rows went white-on-white).

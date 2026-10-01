@@ -121,7 +121,7 @@ internal class MiniIslandController(private val context: Context) {
     private var playedRecently = false
     private var unlocked = true
     private var lingerJob: Job? = null
-    private var shownRotation = -1
+    private var shownFor: Any? = null
 
     /** True while the pill should animate away (then the window is removed). */
     private val leaving = mutableStateOf(false)
@@ -145,8 +145,8 @@ internal class MiniIslandController(private val context: Context) {
 
     private val rotation = object : ComponentCallbacks {
         override fun onConfigurationChanged(newConfig: Configuration) {
-            // The camera's place on screen moves with the rotation: measure again.
-            if (window.isShowing && currentRotation() != shownRotation) window.dismiss()
+            // The camera's place on screen moves with rotation, folding and display size: measure again.
+            if (window.isShowing && MiniGeometry(context).key != shownFor) window.dismiss()
             refresh()
         }
         @Deprecated("Deprecated in Java")
@@ -229,7 +229,7 @@ internal class MiniIslandController(private val context: Context) {
 
     private fun show() {
         val geo = MiniGeometry(context)
-        shownRotation = currentRotation()
+        shownFor = geo.key
         window.show(geo.compactWindow, geo.windowTop, geo.offsetX) {
             val live by NowPlaying.state.collectAsState()
             MiniIslandHost(
@@ -252,10 +252,6 @@ internal class MiniIslandController(private val context: Context) {
 
     private fun portrait() = context.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
 
-    @Suppress("DEPRECATION")
-    private fun currentRotation(): Int =
-        (context.getSystemService(android.view.WindowManager::class.java)?.defaultDisplay?.rotation) ?: 0
-
     private fun isUnlocked(): Boolean {
         val pm = context.getSystemService(PowerManager::class.java)
         val km = context.getSystemService(KeyguardManager::class.java)
@@ -264,7 +260,7 @@ internal class MiniIslandController(private val context: Context) {
 }
 
 /** Where the front camera is, and the pill's sizes around it, in pixels. */
-internal class MiniGeometry(context: Context, testHole: android.graphics.Rect? = null) {
+internal class MiniGeometry(context: Context, testCutouts: List<android.graphics.Rect>? = null) {
     private val density = context.resources.displayMetrics.density
     private val screen = GlintOverlays.screenSize(context)
     /** Room around the pill for the swipe nudge and the springy overshoot. */
@@ -275,16 +271,20 @@ internal class MiniGeometry(context: Context, testHole: android.graphics.Rect? =
     val centerY: Float
     val offsetX: Int
 
+    /** What this was measured for: measure again when any of it changes (rotation, fold, display size). */
+    val key = Triple(screen, density, context.resources.configuration.orientation)
+
     init {
         val wm = context.getSystemService(android.view.WindowManager::class.java)
-        val cutout = wm.currentWindowMetrics.windowInsets.displayCutout
-        // The top camera: a cutout touching the top quarter, nearest the middle.
-        hole = testHole ?: cutout?.boundingRects
-            ?.filter { it.top < screen.height / 4 && it.width() < screen.width / 3 }
-            ?.minByOrNull { abs(it.exactCenterX() - screen.width / 2f) }
-        size = MiniIslandRules.size(hole?.width()?.toFloat() ?: 0f, hole?.height()?.toFloat() ?: 0f, density, screen.width.toFloat())
-        centerY = hole?.exactCenterY() ?: (GlintOverlays.statusBarHeight(context) / 2f)
-        offsetX = hole?.let { (it.exactCenterX() - screen.width / 2f).roundToInt() } ?: 0
+        val cutouts = (testCutouts ?: wm.currentWindowMetrics.windowInsets.displayCutout?.boundingRects.orEmpty())
+            .map { MiniIslandRules.Box(it.left, it.top, it.right, it.bottom) }
+        // The camera to wrap (punch-hole or notch near the middle); corner cameras and phones
+        // without a cutout get the pill in the middle of the status bar instead.
+        val cam = MiniIslandRules.pickCamera(cutouts, screen.width, screen.height)
+        hole = cam?.let { android.graphics.Rect(it.left, it.top, it.right, it.bottom) }
+        size = MiniIslandRules.size(cam?.width?.toFloat() ?: 0f, cam?.height?.toFloat() ?: 0f, density, screen.width.toFloat())
+        centerY = MiniIslandRules.centerY(cam, GlintOverlays.statusBarHeight(context), size.height, density)
+        offsetX = cam?.let { (it.centerX - screen.width / 2f).roundToInt() } ?: 0
     }
 
     val windowTop: Int get() = (centerY - size.height / 2f - margin).roundToInt()
@@ -342,10 +342,15 @@ internal fun MiniIslandHost(
     // A new song (or the first one): widen for a moment with its name, then tuck back.
     val songKey = track.title to track.artist
     val names = remember { IslandPrefs.miniNames(prefs) }
+    // Each song is announced once: coming back after the big island closes doesn't repeat it.
+    var announced by remember { mutableStateOf<Pair<String?, String?>?>(null) }
     LaunchedEffect(songKey, visible) {
-        if (still != null || !visible || !names || track.title == null) return@LaunchedEffect
+        if (still != null || !visible || !names || track.title == null || songKey == announced) return@LaunchedEffect
+        announced = songKey
         delay(if (appear.value < 0.9f) 380 else 0)
         onWindowSize(geometry.wideWindow)
+        // Let the bigger window reach the screen before growing into it (no flicker).
+        androidx.compose.runtime.withFrameNanos { }
         if (reduce) wide.snapTo(1f) else wide.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = 300f))
         delay(MiniIslandRules.NAME_SHOW_MS)
         if (reduce) wide.snapTo(0f) else wide.animateTo(0f, spring(dampingRatio = 1f, stiffness = 340f))
@@ -481,6 +486,11 @@ internal fun MiniIslandHost(
         // The song's name under the camera line while wide.
         if (wide.value > 0.05f && textLine.isNotEmpty()) {
             val dpW = (s.wideWidth - 28f * density) / density
+            // The name line has a fixed height: follow big system font sizes only up to 115%.
+            val ld = LocalDensity.current
+            androidx.compose.runtime.CompositionLocalProvider(
+                LocalDensity provides androidx.compose.ui.unit.Density(ld.density, ld.fontScale.coerceAtMost(1.15f))
+            ) {
             Text(
                 textLine,
                 maxLines = 1,
@@ -493,6 +503,7 @@ internal fun MiniIslandHost(
                     .graphicsLayer { alpha = ((wide.value - 0.4f) / 0.6f).coerceIn(0f, 1f) }
                     .basicMarquee(iterations = 1, initialDelayMillis = 900),
             )
+            }
         }
     }
 }
