@@ -62,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -73,6 +74,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import me.kavishdevar.librepods.R
+import me.kavishdevar.librepods.presentation.glint.RowIconTile
+import me.kavishdevar.librepods.presentation.glint.RowIcons
 import me.kavishdevar.librepods.presentation.glint.SymbolText
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
 import me.kavishdevar.librepods.presentation.theme.LocalDesignSystem
@@ -296,8 +299,13 @@ private fun StyledListItemContent(
                         .padding(vertical = if (orientation == ListItemOrientation.Vertical) 12.dp else 0.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // A picture for the row (from its name), unless it brings its own or is a choice in a list.
+                    val autoIcon = if (leadingContent == null && selected == null) RowIcons.forName(name) else null
                     if (leadingContent != null) {
                         leadingContent()
+                        Spacer(modifier = Modifier.width(12.dp))
+                    } else if (autoIcon != null) {
+                        RowIconTile(autoIcon, MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface.luminance() < 0.5f, pressed)
                         Spacer(modifier = Modifier.width(12.dp))
                     }
                     Column (verticalArrangement = Arrangement.Center, modifier = Modifier.weight(1f)) {
@@ -336,7 +344,7 @@ private fun StyledListItemContent(
                         thickness = 1.dp,
                         color = Color(0x40888888),
                         modifier = Modifier
-                            .padding(start = if (leadingContent != null) 12.dp else 0.dp)
+                            .padding(start = if (leadingContent != null) 12.dp else if (selected == null && RowIcons.forName(name) != null) 42.dp else 0.dp)
                     )
                 }
             }

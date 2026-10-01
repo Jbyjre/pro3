@@ -18,6 +18,17 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.Image
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.graphics.ColorFilter
+import me.kavishdevar.librepods.presentation.glint.IconAction
+import me.kavishdevar.librepods.presentation.glint.RowIcons
 import android.content.Context
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -201,11 +212,9 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
                     HeartInsights.trend(state.samples, now)?.takeIf { live }?.let {
                         Text(it.words, style = heartText(13, muted), modifier = Modifier.padding(end = 12.dp))
                     }
-                    Text(
-                        "Reset",
-                        style = heartText(14, accent, FontWeight.Medium),
-                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { HeartRate.clear() }.padding(6.dp)
-                    )
+                    IconAction(RowIcons.Share, "Export readings", ink, dark, size = 36.dp) { exportCsv(context, state.samples) }
+                    Spacer(Modifier.width(8.dp))
+                    IconAction(RowIcons.History, "Reset this session", ink, dark, tint = accent, size = 36.dp) { HeartRate.clear() }
                 }
                 Spacer(Modifier.height(10.dp))
                 HeartChart(state.samples, accent, ink, card, dark, zoneAge = age, average = state.average)
@@ -231,12 +240,6 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
                         )
                     }
                 }
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Export readings",
-                    style = heartText(14, accent, FontWeight.Medium),
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { exportCsv(context, state.samples) }.padding(vertical = 6.dp)
-                )
                 if (age > 0) {
                     Spacer(Modifier.height(16.dp))
                     ZoneBar(HeartInsights.timeInZones(state.samples, age), accent, ink, muted)
@@ -300,7 +303,7 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
             StyledToggle(
                 label = "Measure whenever worn",
                 description = when {
-                    !always -> "Even with Glint closed, no notification"
+                    !always -> "Even with pro closed, no notification"
                     state.background && state.status == HeartRate.Status.Resting -> "Resting the sensor between readings"
                     state.background && live -> paceWords(HeartPace.of(pace))
                     else -> "Starts when you put your AirPods in"
@@ -417,11 +420,28 @@ private fun LiveCard(
             drawAurora(card, accent, dark, time.longValue, b, live)
         }
         Column(Modifier.fillMaxWidth().padding(vertical = 22.dp, horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            // The heart in a glass orb.
+            // The heart in a glass orb. It's also a button: like Apple's interactive glass it
+            // swells and lights up under your finger, then settles back with a soft bounce.
+            val orbSource = remember { MutableInteractionSource() }
+            val orbPressed by orbSource.collectIsPressedAsState()
+            val orbEnabled = connected || measuring
+            val swell by animateFloatAsState(if (orbPressed && !reduceMotion && orbEnabled) 1.1f else 1f, spring(dampingRatio = 0.42f, stiffness = 420f), label = "orbSwell")
+            val view = LocalView.current
             Box(
                 Modifier
                     .size(72.dp)
-                    .glintGlass(backdrop, dark, solid, CircleShape, GlassTier.Floating, tint = if (dark) Color.White.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.35f)),
+                    .graphicsLayer { scaleX = swell; scaleY = swell }
+                    .glintGlass(
+                        backdrop, dark, solid, CircleShape, GlassTier.Floating,
+                        tint = if (orbPressed) (if (dark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.55f))
+                        else if (dark) Color.White.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.35f)
+                    )
+                    .clip(CircleShape)
+                    .semantics { role = Role.Button; contentDescription = if (measuring) "Stop measuring" else "Start measuring" }
+                    .clickable(interactionSource = orbSource, indication = null, enabled = orbEnabled) {
+                        view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+                        onToggle()
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 Canvas(Modifier.size(36.dp).graphicsLayer { scaleX = beat.value; scaleY = beat.value }) {
@@ -457,11 +477,23 @@ private fun LiveCard(
                     .graphicsLayer { alpha = if (enabled) 1f else 0.45f }
                     .semantics { role = Role.Button; contentDescription = if (measuring) "Stop measuring" else "Start measuring" }
                     .then(if (enabled) Modifier.pressable(onToggle) else Modifier)
-                    .padding(horizontal = 28.dp, vertical = 12.dp),
+                    .padding(horizontal = 30.dp, vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                AnimatedContent(measuring, transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "toggle") { m ->
-                    Text(if (m) "Stop" else "Start measuring", style = heartText(16, ink, FontWeight.Medium))
+                // A play or stop symbol instead of words; it spins and swaps like a morph.
+                AnimatedContent(
+                    measuring,
+                    transitionSpec = {
+                        (fadeIn(tween(160)) + scaleIn(spring(0.55f, 600f), 0.4f)) togetherWith (fadeOut(tween(100)) + scaleOut(tween(120), 0.4f))
+                    },
+                    label = "toggle"
+                ) { m ->
+                    Image(
+                        if (m) RowIcons.Stop else RowIcons.Play,
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(if (m) accent else ink),
+                        modifier = Modifier.size(26.dp)
+                    )
                 }
             }
         }

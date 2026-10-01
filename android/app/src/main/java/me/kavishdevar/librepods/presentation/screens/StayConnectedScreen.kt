@@ -73,7 +73,7 @@ fun StayConnectedScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Spacer(Modifier.height(topPadding))
-        SectionHeader("Keep Glint running")
+        SectionHeader("Keep pro running")
         StayConnectedSteps()
         Spacer(Modifier.height(8.dp))
         var tilt by remember { mutableStateOf(prefs.getBoolean(GlintComfort.PREF_TILT_LIGHT, true)) }

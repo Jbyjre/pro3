@@ -1,4 +1,4 @@
-# Glint: decisions and why
+# pro (formerly Glint): decisions and why
 
 Glint is a personal fork of [LibrePods](https://github.com/librepods-org/librepods) for a Samsung Galaxy S25 FE with AirPods Pro 3. This page explains the big choices in plain language. "Verified" means I checked it against code, documentation or a build. "Not verified" means it can only be confirmed on your phone.
 
@@ -318,3 +318,23 @@ A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every
 - **Smaller still:** without the time-left line the opened island is 196 points tall (it was 300 two rounds ago).
 - **Smoother:** when the island changes its message while it's showing (for example "One AirPod out" turning into "Both AirPods in"), the words now glide into each other instead of jumping. The heart chip fades and grows in when a reading starts, and its number rolls to each new reading. The play button and heart chip share one glass style.
 - **Not verified on your phone:** the feel of the motion.
+
+## 22. New name "pro", heart backup into pro3, icons, more feel
+
+- **Name (your choice: "pro", lowercase).** Everything you see now says pro: the home-screen label, setup, settings, notifications, and the download file (**pro.apk**, test builds **pro-preview.apk**). Two things deliberately did *not* change: the app's internal ID (`io.github.jbyjre.glint`), because changing it would make Android treat it as a different app (it wouldn't update over your current one and your settings would be lost), and internal code names, which you never see.
+- **Heart backup goes into pro3 (your request: no second repository).**
+  - pro3 is currently **public** (checked on GitHub), and heart data is health data, so you chose to make pro3 private. Until it is, the app refuses to upload and tells you how: pro3 > Settings > Danger Zone > Change visibility > Private (steps checked against GitHub's documentation).
+  - The files go on a separate **branch** called `heart-backup` (think of it as a separate shelf in the same cupboard). It holds only heart files, never mixes with the app's code, and the cloud build is told to skip it, so backups don't trigger app builds. To see it on github.com, switch the branch menu from "main" to "heart-backup".
+  - **Safer key.** The "Open GitHub" button now opens a *fine-grained* token page already filled in (name, "Contents: write", never expires). You only pick **pro3** under Repository access. This key can only touch pro3, unlike the old kind that could touch every repository you own. Checked: GitHub documents these pre-fill options and lists "Contents: write" as enough for every call the backup makes. Old-style tokens still work.
+  - **Smarter:** if you're offline when a session ends, it now backs up by itself as soon as the internet is back (it used to wait for the next session). The repository box also accepts `pro3`, `Jbyjre/pro3` or a pasted github.com link.
+  - Note on making pro3 private: the app's download page stays reachable for you while signed in to GitHub. **Not verified:** how many free cloud-build minutes your account gets for private repositories.
+- **More icons, less text (your request).**
+  - Every setting row whose meaning has a clear picture now shows one on a small glass tile: heart, island, bell, shield, ear, mic, phone, link, L/R and so on (41 new drawn icons in the app's own rounded style). Rows with no clear picture show none rather than a random one.
+  - Heart rate: the button under the line is a **play/stop symbol** that morphs between the two; the round glass heart itself is now a start/stop button; the session card has **share** and **reset** symbols instead of the "Export readings" and "Reset" words. History: backup is **cloud-up / cloud-down / power** symbols; a saved session has **share** and **trash** symbols. **Press and hold** any round symbol to see its name in a small bubble; screen readers always hear the name.
+- **More tactile, smoother (your request).**
+  - Moving between screens now runs on spring physics instead of a fixed timer: it starts quickly and settles softly, and the screen underneath dims and sinks back a little, like a card being covered.
+  - Light vibration ticks: tapping cards, listening-mode buttons and symbol buttons (they also squish and spring back with a small overshoot). The row pictures bounce when you press their row. The glass heart swells and brightens under your finger, like Apple's interactive glass.
+- **Smarter glass.** On Battery Saver, or when the phone reports it is getting hot, the glass switches to a lighter recipe (less blur, no rainbow edge, a touch more tint so text stays clear) and switches back by itself. Full glass is GPU work; this keeps scrolling smooth exactly when the phone is struggling.
+- **Fixed on the way:** switch rows picked their text colour from the phone's light/dark setting instead of the app's own Appearance choice, which could give dark text on a dark row. They now follow the app.
+- **Checked:** all 152 unit tests pass (including new ones for reading the repository name), every screen re-rendered in light and dark and reviewed, lint and the release build pass. **Not verified on your phone:** how the vibrations and springs feel, and the backup against your real GitHub account.
+- Code: `services/HeartBackup.kt`, `presentation/glint/RowIcons.kt`, `IconAction.kt`, `GlassBudget.kt`, `GlintMotion.kt`, `components/StyledListItem.kt`, `StyledToggle.kt`, `NoiseControlButton.kt`, `navigation/AppNavGraph.kt`, `.github/workflows/glint-apk.yml`.

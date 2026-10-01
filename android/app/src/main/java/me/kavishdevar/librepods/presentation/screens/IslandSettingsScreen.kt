@@ -115,14 +115,14 @@ fun IslandSettingsScreen() {
         StyledList(title = "Island") {
             StyledToggle(
                 label = "Show the island",
-                description = if (canDraw) "Glint's pop-up at the top of the screen" else "Needs \"Display over other apps\" for Glint",
+                description = if (canDraw) "pro's pop-up at the top of the screen" else "Needs \"Display over other apps\" for pro",
                 checked = master,
                 onCheckedChange = { master = it; prefs.edit { putBoolean(IslandPrefs.PREF_MASTER, it) } },
             )
         }
         if (!canDraw) {
             Hint(
-                "Android hasn't allowed Glint to draw over other apps yet, so the island can't appear.",
+                "Android hasn't allowed pro to draw over other apps yet, so the island can't appear.",
                 "Allow", ink, dark,
             ) { open(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).setData(android.net.Uri.fromParts("package", context.packageName, null))) }
         }
@@ -157,8 +157,8 @@ fun IslandSettingsScreen() {
         }
         if (songNames && !access) {
             Hint(
-                "To show what's playing, Android needs you to give Glint Notification access. " +
-                    "Glint only uses it to read the song and use your music app's controls.",
+                "To show what's playing, Android needs you to give pro Notification access. " +
+                    "pro only uses it to read the song and use your music app's controls.",
                 "Allow", ink, dark,
             ) {
                 if (!open(context, NowPlaying.accessSettingsIntent(context))) {
@@ -214,7 +214,7 @@ fun IslandSettingsScreen() {
             }
         }
         Text(
-            "Tap the island to open it, hold it to open Glint, swipe up to put it away. " +
+            "Tap the island to open it, hold it to open pro, swipe up to put it away. " +
                 "While you measure heart rate, the heart shows inside the opened island; tap it for what the number means.",
             style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = ink.copy(alpha = 0.55f)),
             modifier = Modifier.padding(horizontal = 16.dp),

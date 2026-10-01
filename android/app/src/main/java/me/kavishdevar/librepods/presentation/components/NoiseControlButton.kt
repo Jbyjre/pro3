@@ -18,6 +18,13 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import android.view.HapticFeedbackConstants
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -45,14 +52,19 @@ fun NoiseControlButton(
     modifier: Modifier = Modifier,
     usePadding: Boolean = true
 ) {
+    // Tactile: the symbol squishes under the finger and springs back, with a light tick.
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val view = LocalView.current
+    val squish by animateFloatAsState(if (pressed) 0.82f else 1f, spring(dampingRatio = 0.4f, stiffness = 600f), label = "modeSquish")
     Column(
         modifier = modifier
             .fillMaxHeight()
             .then(if (usePadding) Modifier.padding(horizontal = 4.dp, vertical = 4.dp) else Modifier)
             .clickable(
-                onClick = onClick,
+                onClick = { view.performHapticFeedback(if (android.os.Build.VERSION.SDK_INT >= 34) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK); onClick() },
                 indication = null,
-                interactionSource = remember { MutableInteractionSource() }
+                interactionSource = source
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -61,7 +73,7 @@ fun NoiseControlButton(
             bitmap = icon,
             contentDescription = null,
             tint = textColor,
-            modifier = Modifier.size(40.dp)
+            modifier = Modifier.size(40.dp).graphicsLayer { scaleX = squish; scaleY = squish }
         )
     }
 }

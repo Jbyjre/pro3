@@ -18,6 +18,7 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.glint.GlassBudget
 import me.kavishdevar.librepods.presentation.glint.GlintLight
 import android.content.res.Configuration
 import androidx.compose.animation.animateColorAsState
@@ -275,7 +276,7 @@ fun StyledSwitch(
                             refractionHeight = 6f.dp.toPx(),
                             refractionAmount = size.height / 2f,
                             depthEffect = true,
-                            chromaticAberration = true
+                            chromaticAberration = !GlassBudget.light.value
                         )
                     }
                 )

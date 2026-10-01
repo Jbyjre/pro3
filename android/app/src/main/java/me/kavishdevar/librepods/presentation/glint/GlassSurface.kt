@@ -71,17 +71,18 @@ fun Modifier.glintGlass(
         effects = {
             if (!solid) {
                 vibrancy()
-                blur(tier.blur.toPx())
+                // Lighter recipe while the phone saves battery or runs hot (see GlassBudget).
+                blur((if (GlassBudget.light.value) tier.blur * 0.6f else tier.blur).toPx())
                 lens(
                     refractionHeight = tier.refraction.toPx(),
                     refractionAmount = (tier.refraction * 1.8f).toPx(),
                     depthEffect = true,
-                    chromaticAberration = true
+                    chromaticAberration = !GlassBudget.light.value
                 )
             }
         },
         highlight = { GlintLight.rim(if (solid) 0f else if (dark) 0.6f else 0.9f) },
-        onDrawSurface = { drawRect(tint) }
+        onDrawSurface = { drawRect(if (GlassBudget.light.value && !solid) tint.copy(alpha = (tint.alpha + 0.12f).coerceAtMost(1f)) else tint) }
     )
     .then(if (solid) Modifier.border(1.dp, if (dark) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.45f), shape) else Modifier)
 

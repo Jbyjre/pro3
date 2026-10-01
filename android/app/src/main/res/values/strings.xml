@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-    <string name="app_name" translatable="false">Glint</string>
+    <string name="app_name" translatable="false">pro</string>
     <string name="app_description">Your AirPods, fully at home on Android.</string>
     <string name="app_widget_description">See your AirPods battery status right from your home screen!</string>
     <string name="accessibility">Accessibility</string>
@@ -186,7 +186,7 @@
     <string name="custom_camera_package">Custom Camera appid</string>
     <string name="custom_camera_package_set_success">Custom camera appid set successfully</string>
     <string name="app_listener_service_label">Camera listener</string>
-    <string name="app_listener_service_description">Listener service for Glint to detect when the camera is active to activate camera control on AirPods.</string>
+    <string name="app_listener_service_description">Listener service for pro to detect when the camera is active to activate camera control on AirPods.</string>
     <string name="open_source_licenses">Open Source Licenses</string>
     <string name="hearing_test">Update Hearing Test</string>
     <string name="update_hearing_test">Update Hearing Test Result</string>
@@ -275,13 +275,13 @@
     <string name="describe_your_issue">Describe your issue</string>
     <string name="optimized_charging">Optimized Charge Limit</string>
     <string name="optimized_charging_description">Learns your routine and waits to finish charging until you usually need them.</string>
-    <string name="enable_app_in_xposed_or_update_device">Update your device or enable Glint in Xposed and reopen the app to proceed.</string>
+    <string name="enable_app_in_xposed_or_update_device">Update your device or enable pro in Xposed and reopen the app to proceed.</string>
     <string name="custom">Custom</string>
     <string name="recommended">Recommended</string>
     <string name="appearance">Appearance</string>
     <string name="use_material3e">Use Material 3 Expressive</string>
     <string name="material3e">Material 3 Expressive</string>
-    <string name="update_m3e_description">Glint supports a Material 3 Expressive look based on Material 3 Expressive including updated typography and adaptive color schemes.\nYou can switch back to the Apple look from the app\'s settings.</string>
+    <string name="update_m3e_description">pro supports a Material 3 Expressive look based on Material 3 Expressive including updated typography and adaptive color schemes.\nYou can switch back to the Apple look from the app\'s settings.</string>
     <string name="update_equalizer_description">Available only on the latest AirPods Beta firmware. An Apple device running OS version 27 is required to install the beta firmware.</string>
     <string name="what_s_new">What\'s New</string>
     <string name="reconnecting">Reconnecting</string>

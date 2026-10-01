@@ -100,6 +100,7 @@ class MainActivity : ComponentActivity() {
             }
             ProvideAppearance(this) {
             me.kavishdevar.librepods.presentation.glint.TrackGlassTilt()
+            me.kavishdevar.librepods.presentation.glint.TrackGlassBudget()
             val dark = isSystemInDarkTheme()
             LaunchedEffect(dark) {
                 // Status and navigation bar icons follow the chosen appearance, not just the phone's.
