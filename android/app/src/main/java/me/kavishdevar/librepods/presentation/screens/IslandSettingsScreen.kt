@@ -90,6 +90,9 @@ fun IslandSettingsScreen() {
     var access by remember { mutableStateOf(NowPlaying.hasAccess(context)) }
     var duration by remember { mutableIntStateOf(IslandPrefs.duration(prefs).ordinal) }
     var haptics by remember { mutableStateOf(IslandPrefs.haptics(prefs)) }
+    var mini by remember { mutableStateOf(IslandPrefs.mini(prefs)) }
+    var miniNames by remember { mutableStateOf(IslandPrefs.miniNames(prefs)) }
+    var miniAirPodsOnly by remember { mutableStateOf(IslandPrefs.miniAirPodsOnly(prefs)) }
     var canDraw by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
 
     // Picks up changes made on Android's settings pages while this screen is open or returning.
@@ -127,13 +130,52 @@ fun IslandSettingsScreen() {
             ) { open(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).setData(android.net.Uri.fromParts("package", context.packageName, null))) }
         }
 
+        StyledList(title = "Mini island") {
+            StyledToggle(
+                label = "Mini island around the camera",
+                description = "A small pill around the front camera while music plays, with the cover and moving bars. " +
+                    "Tap it to open the island, swipe it to change song, hold it to open pro.",
+                checked = mini,
+                onCheckedChange = {
+                    mini = it
+                    prefs.edit { putBoolean(IslandPrefs.PREF_MINI, it) }
+                    GlintOverlays.refreshMiniIsland(context)
+                },
+            )
+            StyledToggle(
+                label = "Show each new song's name",
+                description = if (songNames && access) "It widens for a moment when a song starts or changes"
+                else "Needs \"Show song names\" and Notification access (under Music)",
+                checked = miniNames,
+                enabled = mini,
+                onCheckedChange = { miniNames = it; prefs.edit { putBoolean(IslandPrefs.PREF_MINI_NAMES, it) } },
+            )
+            StyledToggle(
+                label = "Only with AirPods connected",
+                description = "Off: shows for music on any speaker or headphones",
+                checked = miniAirPodsOnly,
+                enabled = mini,
+                onCheckedChange = {
+                    miniAirPodsOnly = it
+                    prefs.edit { putBoolean(IslandPrefs.PREF_MINI_AIRPODS_ONLY, it) }
+                    GlintOverlays.refreshMiniIsland(context)
+                },
+            )
+        }
+
         StyledList(title = "When it appears") {
             IslandPrefs.Trigger.entries.forEach { t ->
+                // Music moments are the mini island's job while it's on.
+                val byMini = mini && (t == IslandPrefs.Trigger.MusicStarts || t == IslandPrefs.Trigger.SongChanges)
                 StyledToggle(
                     label = t.label,
-                    description = if (t == IslandPrefs.Trigger.SongChanges && songNames && !access) "Needs Notification access (under Music)" else t.description,
+                    description = when {
+                        byMini -> "Shown by the mini island instead"
+                        t == IslandPrefs.Trigger.SongChanges && songNames && !access -> "Needs Notification access (under Music)"
+                        else -> t.description
+                    },
                     checked = triggers[t] == true,
-                    enabled = master && (t != IslandPrefs.Trigger.SongChanges || (songNames && access)),
+                    enabled = master && !byMini && (t != IslandPrefs.Trigger.SongChanges || (songNames && access)),
                     onCheckedChange = { on -> triggers[t] = on; prefs.edit { putBoolean(t.key, on) } },
                 )
             }
@@ -212,9 +254,13 @@ fun IslandSettingsScreen() {
                     GlintOverlays.showIsland(context, event)
                 }
             }
+            GlassPillButton(text = "Mini island", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
+                GlintOverlays.previewMiniIsland(context)
+            }
         }
         Text(
             "Tap the island to open it, hold it to open pro, swipe up to put it away. " +
+                "The mini island hides by itself in landscape, in full-screen apps, on the lock screen and 30 seconds after music stops. " +
                 "While you measure heart rate, the heart shows inside the opened island; tap it for what the number means.",
             style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = ink.copy(alpha = 0.55f)),
             modifier = Modifier.padding(horizontal = 16.dp),

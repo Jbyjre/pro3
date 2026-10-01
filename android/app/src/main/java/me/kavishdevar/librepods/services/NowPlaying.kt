@@ -65,7 +65,20 @@ object NowPlaying {
         val art: ImageBitmap? = null,
         /** True when the details come from the music app itself (Notification access). */
         val fromSession: Boolean = false,
-    )
+        /** Song length, 0 when the app doesn't say (or without Notification access). */
+        val durationMs: Long = 0L,
+        /** Position at [positionAtMs] (elapsedRealtime), moving at [speed] while playing. */
+        val positionMs: Long = 0L,
+        val positionAtMs: Long = 0L,
+        val speed: Float = 1f,
+    ) {
+        /** How far through the song, 0..1, at [nowElapsed]; null when unknown. */
+        fun progress(nowElapsed: Long): Float? {
+            if (durationMs <= 0L || positionAtMs <= 0L) return null
+            val moved = if (playing) ((nowElapsed - positionAtMs) * speed).toLong() else 0L
+            return ((positionMs + moved).toFloat() / durationMs).coerceIn(0f, 1f)
+        }
+    }
 
     private const val TAG = "NowPlaying"
     private val main = Handler(Looper.getMainLooper())
@@ -156,13 +169,18 @@ object NowPlaying {
         val old = _state.value
         val sameSong = old.title == title && old.artist == artist && old.fromSession
         val art = if (sameSong && old.art != null) old.art else artwork(md)
+        val ps = c.playbackState
         _state.value = Track(
-            playing = c.playbackState?.state.let { it == PlaybackState.STATE_PLAYING || it == PlaybackState.STATE_BUFFERING },
+            playing = ps?.state.let { it == PlaybackState.STATE_PLAYING || it == PlaybackState.STATE_BUFFERING },
             title = title,
             artist = artist,
             app = appName(context, c.packageName),
             art = art,
             fromSession = true,
+            durationMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION)?.coerceAtLeast(0L) ?: 0L,
+            positionMs = ps?.position?.takeIf { it >= 0L } ?: 0L,
+            positionAtMs = ps?.lastPositionUpdateTime?.takeIf { it > 0L } ?: 0L,
+            speed = ps?.playbackSpeed?.takeIf { it > 0f } ?: 1f,
         )
     }
 
@@ -206,6 +224,20 @@ object NowPlaying {
         // Show the change straight away; the real state follows within a moment.
         _state.value = _state.value.copy(playing = !playing)
         main.postDelayed({ if (current == null) _state.value = _state.value.copy(playing = audioActive(context)) }, 900)
+    }
+
+    /**
+     * Next or previous song, from the mini island's swipe. Uses the music app's own controls
+     * when Notification access is on, otherwise the same media keys a headset sends.
+     */
+    fun skip(context: Context, next: Boolean) {
+        lastOwnActionAt = SystemClock.elapsedRealtime()
+        val t = current?.transportControls
+        if (t != null) {
+            if (next) t.skipToNext() else t.skipToPrevious()
+        } else {
+            key(context, if (next) KeyEvent.KEYCODE_MEDIA_NEXT else KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+        }
     }
 
     private fun key(context: Context, code: Int) {

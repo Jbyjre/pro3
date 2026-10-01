@@ -1,5 +1,7 @@
 package me.kavishdevar.librepods
 
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.fillMaxWidth
 import android.app.Application
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -166,6 +168,59 @@ class GlintScreenshots {
         then()
         rule.onRoot().captureRoboImage("$out/$name.png")
     }
+
+    /**
+     * The mini island around a punch-hole camera (drawn here as a dark lens, the size of a
+     * typical front camera), compact or widened with the song's name.
+     */
+    private fun mini(name: String, playing: Boolean, wide: Float, art: Boolean, dark: Boolean = false) {
+        if (dark) RuntimeEnvironment.setQualifiers("+night")
+        rule.mainClock.autoAdvance = false
+        val app = RuntimeEnvironment.getApplication()
+        val d = app.resources.displayMetrics.density
+        val screenW = app.resources.displayMetrics.widthPixels
+        val hole = android.graphics.Rect((screenW / 2 - 13 * d).toInt(), (10 * d).toInt(), (screenW / 2 + 13 * d).toInt(), (36 * d).toInt())
+        val cover = if (art) android.graphics.Bitmap.createBitmap(144, 144, android.graphics.Bitmap.Config.ARGB_8888).also { b ->
+            val c = android.graphics.Canvas(b)
+            c.drawPaint(android.graphics.Paint().apply {
+                shader = android.graphics.LinearGradient(0f, 0f, 144f, 144f, 0xFFFF6A3D.toInt(), 0xFF7B2CBF.toInt(), android.graphics.Shader.TileMode.CLAMP)
+            })
+        }.asImageBitmap() else null
+        val track = me.kavishdevar.librepods.services.NowPlaying.Track(
+            playing = playing, title = "Midnight City", artist = "M83", app = "Spotify", art = cover, fromSession = true,
+            durationMs = 243_000L, positionMs = 90_000L, positionAtMs = android.os.SystemClock.elapsedRealtime().coerceAtLeast(1L),
+        )
+        rule.setContent {
+            val geo = me.kavishdevar.librepods.presentation.overlays.MiniGeometry(app, hole)
+            Wallpaper(dark) {
+                val dens = androidx.compose.ui.platform.LocalDensity.current
+                Box(Modifier.fillMaxWidth().height(with(dens) { (geo.wideWindow.height + geo.windowTop.coerceAtLeast(0)).toDp() + 40.dp })) {
+                    Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(0, geo.windowTop) }.size(with(dens) {
+                        val s = if (wide > 0f) geo.wideWindow else geo.compactWindow
+                        androidx.compose.ui.unit.DpSize(s.width.toDp(), s.height.toDp())
+                    }).align(Alignment.TopCenter)) {
+                        me.kavishdevar.librepods.presentation.overlays.MiniIslandHost(
+                            geometry = geo, track = track, leaving = false, hidden = false,
+                            onWindowSize = {}, onTouchable = {}, onGone = {}, onOpen = {}, onHold = {}, onSkip = {},
+                            still = 1f, stillWide = wide,
+                        )
+                    }
+                    // The camera lens, on top, where the real one would be.
+                    androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+                        val c = androidx.compose.ui.geometry.Offset(hole.exactCenterX(), hole.exactCenterY())
+                        drawCircle(androidx.compose.ui.graphics.Color(0xFF0B0B0F), hole.width() / 2f * 0.62f, c)
+                        drawCircle(androidx.compose.ui.graphics.Color(0xFF1F2A44), hole.width() / 2f * 0.26f, c)
+                    }
+                }
+            }
+        }
+        rule.mainClock.advanceTimeBy(600)
+        rule.onRoot().captureRoboImage("$out/$name.png")
+    }
+
+    @Test fun miniIslandPlaying() = mini("mini_island_playing", playing = true, wide = 0f, art = true)
+    @Test fun miniIslandSongName() = mini("mini_island_song_name", playing = true, wide = 1f, art = true, dark = true)
+    @Test fun miniIslandPausedNoCover() = mini("mini_island_paused", playing = false, wide = 0f, art = false)
 
     @Test fun islandConnected() = island("island_connected", IslandEvent.Connected, IslandPhase.Compact)
     @Test fun islandLowBattery() = island("island_low_battery", IslandEvent.LowBattery(9), IslandPhase.Compact, dark = false)

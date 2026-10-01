@@ -143,6 +143,7 @@ fun AppNavGraph(
                                 navigateToStayConnected = { navigate(Screen.StayConnected) },
                                 navigateToIsland = { navigate(Screen.IslandSettings) },
                                 navigateToGlintLab = { navigate(Screen.GlintLab) },
+                                navigateToRename = { navigate(Screen.Rename) },
                             )
                         }
 
