@@ -315,22 +315,6 @@ fun AirPodsSettingsScreen(
 
             // The AirPods' name lives in Settings now (Jake: not needed on the main page every day).
 
-            // Read from the same capability list as the rest of this screen (the model alone
-            // could be missing, which hid the row). Hearing Protection always shows now: its
-            // volume limit works with any AirPods.
-            val hasHearingAidCapability = capabilities.contains(Capability.HEARING_AID)
-            item(key = "spacer_hearing_health") {
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-            item(key = "hearing_health") {
-                HearingHealthSettings(
-                    hasPPECapability = true,
-                    hasHearingAidCapability = hasHearingAidCapability,
-                    vendorIdHook = state.vendorIdHook,
-                    navigateToHearingProtection = navigateToHearingProtection,
-                    navigateToHearingAid = navigateToHearingAid
-                )
-            }
 
             if (capabilities.contains(Capability.LISTENING_MODE)) {
                 item(key = "spacer_noise") {
@@ -472,6 +456,23 @@ fun AirPodsSettingsScreen(
                 )
             }
 
+            // Hearing health sits below the everyday controls (Jake: it doesn't need to be at the top).
+            // Read from the same capability list as the rest of this screen (the model alone
+            // could be missing, which hid the row). Hearing Protection always shows now: its
+            // volume limit works with any AirPods.
+            val hasHearingAidCapability = capabilities.contains(Capability.HEARING_AID)
+            item(key = "spacer_hearing_health") {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            item(key = "hearing_health") {
+                HearingHealthSettings(
+                    hasPPECapability = true,
+                    hasHearingAidCapability = hasHearingAidCapability,
+                    vendorIdHook = state.vendorIdHook,
+                    navigateToHearingProtection = navigateToHearingProtection,
+                    navigateToHearingAid = navigateToHearingAid
+                )
+            }
             item(key = "spacer_connection") { Spacer(modifier = Modifier.height(16.dp)) }
             item(key = "connection") {
                 ConnectionSettings(

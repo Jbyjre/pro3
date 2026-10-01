@@ -137,6 +137,8 @@ internal enum class IslandPhase { Compact, Expanded, Leaving }
 private const val LONG_PRESS_MS = 450L
 /** How long after the island opens before the heart chip morphs out of the play/pause button. */
 internal const val CHIP_DELAY_MS = 1_000L
+/** Back, play/pause and skip side by side (34 + 6 + 40 + 6 + 34). */
+private val CONTROLS_W = 120.dp
 
 internal class IslandController(private val context: Context) {
     private val window = OverlayWindow(context, "GlintIsland", anchorTop = true)
@@ -824,7 +826,7 @@ private fun ExpandedIslandContent(
                         enabled = active && chipIn.value > 0.9f,
                         morph = chipIn.value,
                         bud = chipBud.value,
-                        fromX = slotW.toFloat(),
+                        fromX = slotW + with(androidx.compose.ui.platform.LocalDensity.current) { 80.dp.toPx() },
                         onClick = {
                             onTouch()
                             if (heartBpm != null) onHeartOpen(true) else GlintOverlays.openApp(context)
@@ -835,12 +837,40 @@ private fun ExpandedIslandContent(
                     GlassPillButton(text = actionText, textColor = content, dark = dark, height = 32.dp, fontSize = 14.sp, onClick = onAction)
                     Spacer(Modifier.width(8.dp))
                 }
-                // Just play and pause: no song bar, so the opened island stays small.
-                PlayPauseButton(
-                    playing = track.playing, color = content, size = 40.dp, glyph = 16.dp, reduceMotion = reduceMotion,
-                    enabled = active, glass = true, dark = dark,
-                    onClick = { onTouch(); NowPlaying.playPause(context) },
-                )
+                // Music controls, no song bar (the opened island stays small). At first there's
+                // only play/pause, at the right edge; with the heart chip, back and skip bud out
+                // from under it and spread apart as play/pause glides into the middle.
+                val m = chipIn.value
+                val bud = chipBud.value
+                val ready = active && m > 0.9f
+                Box(Modifier.width(CONTROLS_W).height(40.dp)) {
+                    val travel = with(androidx.compose.ui.platform.LocalDensity.current) { 40.dp.toPx() }
+                    SkipButton(
+                        next = false, color = content, dark = dark, enabled = ready,
+                        modifier = Modifier.graphicsLayer {
+                            translationX = (1f - m) * (travel * 2f + 3.dp.toPx())
+                            val sc = 0.55f + 0.45f * bud; scaleX = sc; scaleY = sc; alpha = bud
+                        },
+                        glyphAlpha = { ((chipIn.value - 0.3f) / 0.4f).coerceIn(0f, 1f) },
+                        onClick = { onTouch(); NowPlaying.skip(context, next = false) },
+                    )
+                    SkipButton(
+                        next = true, color = content, dark = dark, enabled = ready,
+                        modifier = Modifier.offset(x = 86.dp).graphicsLayer {
+                            translationX = -(1f - m) * 3.dp.toPx()
+                            val sc = 0.55f + 0.45f * bud; scaleX = sc; scaleY = sc; alpha = bud
+                        },
+                        glyphAlpha = { ((chipIn.value - 0.3f) / 0.4f).coerceIn(0f, 1f) },
+                        onClick = { onTouch(); NowPlaying.skip(context, next = true) },
+                    )
+                    Box(Modifier.offset(x = 40.dp).graphicsLayer { translationX = (1f - m) * travel }) {
+                        PlayPauseButton(
+                            playing = track.playing, color = content, size = 40.dp, glyph = 16.dp, reduceMotion = reduceMotion,
+                            enabled = active, glass = true, dark = dark,
+                            onClick = { onTouch(); NowPlaying.playPause(context) },
+                        )
+                    }
+                }
             }
         }
     }
@@ -927,6 +957,34 @@ private fun Modifier.islandPress(enabled: Boolean, description: String, onClick:
 }
 
 /** A round button that squishes softly when pressed and draws [draw]. */
+/** Back or skip: two small rounded triangles, on the island's glass. */
+@Composable
+private fun SkipButton(next: Boolean, color: Color, dark: Boolean, enabled: Boolean, modifier: Modifier = Modifier, glyphAlpha: () -> Float = { 1f }, onClick: () -> Unit) {
+    Box(modifier.padding(top = 3.dp).size(34.dp)) {
+        PressableGlyph(size = 34.dp, description = if (next) "Next song" else "Previous song", onClick = onClick, enabled = enabled) {
+            drawGlassCapsule(dark)
+            val g = 12.dp.toPx()
+            val cy = size.height / 2f
+            val dir = if (next) 1f else -1f
+            val cx = size.width / 2f
+            val effect = androidx.compose.ui.graphics.PathEffect.cornerPathEffect(g * 0.12f)
+            for (k in 0..1) {
+                val baseX = cx + dir * (k * g * 0.5f - g * 0.5f)
+                val p = Path().apply {
+                    moveTo(baseX, cy - g * 0.42f)
+                    lineTo(baseX + dir * g * 0.5f, cy)
+                    lineTo(baseX, cy + g * 0.42f)
+                    close()
+                }
+                // The arrows appear once the button has come out from under play/pause.
+                val a = glyphAlpha()
+                drawPath(p, color, alpha = a, style = androidx.compose.ui.graphics.drawscope.Fill)
+                drawPath(p, color, alpha = a, style = androidx.compose.ui.graphics.drawscope.Stroke(g * 0.08f, pathEffect = effect))
+            }
+        }
+    }
+}
+
 @Composable
 private fun PressableGlyph(size: Dp, description: String, onClick: () -> Unit, enabled: Boolean = true, draw: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit) {
     val currentOnClick by rememberUpdatedState(onClick)

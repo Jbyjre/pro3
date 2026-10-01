@@ -130,3 +130,12 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 
 1. Connect the AirPods with no music: the Dynamic Island appears around the camera in dark graphite (slightly lighter than black) with the battery ring and mode symbol. Tap it: it expands. Play music: it turns pure black with the cover and bars.
 2. Turn on Conversation Awareness, play music, start talking: the volume drops and three dots show on the Dynamic Island. Talk back and forth: the volume should stay down the whole time, not bounce. Stop talking: about 2 seconds later it swells back. Change the volume yourself while talking: afterwards it stays where you put it.
+
+## K. Round 28
+
+1. Connect the AirPods: the Dynamic Island stays around the camera. Turn the phone sideways and lock it: it should stay (on the lock screen only if your phone allows it). Play a full-screen video: it steps aside, and comes back after.
+2. Tap it once: it expands below the clock (the clock and icons must not cover it). Twice: play/pause. Three times: next song.
+3. Trigger a pop-up (Settings > Islands > Try it): it grows out of the Dynamic Island, which stays and goes softly blurry, then sharpens with a small bounce when the pop-up goes back in.
+4. Open the island: after a second, back and skip come out of the play button and the heart chip glides left.
+5. Settings > Islands: every switch changes and works straight away.
+6. Main page: Hearing Protection is below the audio settings.

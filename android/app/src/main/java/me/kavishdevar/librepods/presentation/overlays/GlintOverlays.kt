@@ -201,9 +201,34 @@ object GlintOverlays {
     val isIslandShowing: Boolean get() = island?.isShowing == true
     val isCardShowing: Boolean get() = card?.isShowing == true
 
+    /**
+     * The status bar's height (where the phone draws its clock and icons, always above our
+     * pop-ups). Asked three ways and the largest wins: from a background service Android can
+     * answer the window question with 0 on newer versions, which put the island under the clock.
+     */
+    @SuppressLint("DiscouragedApi", "InternalInsetResource")
     internal fun statusBarHeight(context: Context): Int {
-        val wm = context.getSystemService(WindowManager::class.java)
-        return wm.currentWindowMetrics.windowInsets.getInsets(WindowInsets.Type.statusBars() or WindowInsets.Type.displayCutout()).top
+        val fromInsets = runCatching {
+            val wm = context.getSystemService(WindowManager::class.java)
+            wm.currentWindowMetrics.windowInsets.getInsets(WindowInsets.Type.statusBars() or WindowInsets.Type.displayCutout()).top
+        }.getOrDefault(0)
+        val id = context.resources.getIdentifier("status_bar_height", "dimen", "android")
+        val fromResources = if (id > 0) runCatching { context.resources.getDimensionPixelSize(id) }.getOrDefault(0) else 0
+        val screenH = screenSize(context).height
+        val fromCutout = cameraCutouts(context).filter { it.top < screenH / 4 }.maxOfOrNull { it.bottom } ?: 0
+        return maxOf(fromInsets, fromResources, fromCutout)
+    }
+
+    /** The camera cutouts, from the window if Android says, otherwise from the display itself. */
+    internal fun cameraCutouts(context: Context): List<android.graphics.Rect> {
+        val fromWindow = runCatching {
+            context.getSystemService(WindowManager::class.java).currentWindowMetrics.windowInsets.displayCutout?.boundingRects
+        }.getOrNull().orEmpty()
+        if (fromWindow.isNotEmpty()) return fromWindow
+        return runCatching {
+            context.getSystemService(android.hardware.display.DisplayManager::class.java)
+                ?.getDisplay(android.view.Display.DEFAULT_DISPLAY)?.cutout?.boundingRects
+        }.getOrNull().orEmpty()
     }
 
     internal fun navigationBarHeight(context: Context): Int {

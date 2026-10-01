@@ -17,6 +17,7 @@
 */
 package me.kavishdevar.librepods.presentation.overlays
 
+import kotlinx.coroutines.coroutineScope
 import me.kavishdevar.librepods.presentation.glint.rememberHeartBeat
 import me.kavishdevar.librepods.presentation.glint.heartPath
 import me.kavishdevar.librepods.presentation.glint.listeningModeName
@@ -24,7 +25,6 @@ import me.kavishdevar.librepods.presentation.glint.ListeningModeGlyph
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.onSizeChanged
-import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.ComponentCallbacks
 import android.content.Context
@@ -72,7 +72,6 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -114,9 +113,10 @@ import kotlin.math.sin
  * the camera and sound bars (in the cover's own colour) on the other; it widens for a moment
  * to show each new song's name.
  *
- * Touch: tap opens the full island, swipe left/right skips to the next/previous song, hold
- * opens pro. It steps aside while the big island is up, in landscape, in full-screen apps, on
- * the lock screen, and 30 seconds after the music stops.
+ * In the app it's the "Dynamic Island". Touch: one tap expands it, two play/pause, three skip
+ * to the next song; swipe left/right changes song; hold opens pro. It stays while the AirPods
+ * are connected (blurring softly while a pop-up grows out of it), steps aside only in
+ * full-screen apps, and otherwise leaves 30 seconds after the music stops.
  */
 internal class MiniIslandController(private val context: Context) {
     private val window = OverlayWindow(context, "GlintMiniIsland", anchorTop = true)
@@ -127,6 +127,10 @@ internal class MiniIslandController(private val context: Context) {
     private var stoppedAt = 0L
     private var playedRecently = false
     private var unlocked = true
+    /** A connection blip (a few seconds of "reconnecting") doesn't make it vanish and come back. */
+    private var lastConnectedAt = 0L
+    private fun airPodsUp() = GlintStatus.link.value is LinkState.Connected ||
+        (lastConnectedAt > 0L && SystemClock.elapsedRealtime() - lastConnectedAt < AIRPODS_GRACE_MS)
     private var lingerJob: Job? = null
     private var shownFor: Any? = null
     private var lastWant = false
@@ -137,7 +141,7 @@ internal class MiniIslandController(private val context: Context) {
      */
     fun plannedOrigin(): GlintOverlays.MiniOrigin? {
         GlintOverlays.miniOrigin?.let { return it }
-        if (!lastWant || !portrait()) return null
+        if (!lastWant) return null
         return MiniGeometry(context).origin()
     }
 
@@ -150,11 +154,9 @@ internal class MiniIslandController(private val context: Context) {
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) {
-            unlocked = when (i.action) {
-                Intent.ACTION_SCREEN_OFF -> false
-                Intent.ACTION_USER_PRESENT -> true
-                else -> isUnlocked()
-            }
+            // Off only while the screen is off: it stays on the lock screen too (when the phone
+            // lets pop-ups show there; Android may hide them under the lock screen).
+            unlocked = i.action != Intent.ACTION_SCREEN_OFF
             refresh()
         }
     }
@@ -176,7 +178,7 @@ internal class MiniIslandController(private val context: Context) {
     fun start() {
         if (started) { refresh(); return }
         started = true
-        unlocked = isUnlocked()
+        unlocked = context.getSystemService(PowerManager::class.java)?.isInteractive ?: true
         ContextCompat.registerReceiver(
             context, screenReceiver,
             IntentFilter().apply {
@@ -189,7 +191,13 @@ internal class MiniIslandController(private val context: Context) {
         prefs.registerOnSharedPreferenceChangeListener(prefListener)
         context.registerComponentCallbacks(rotation)
         scope.launch { NowPlaying.state.collect { onTrack(it) } }
-        scope.launch { GlintStatus.link.collect { refresh() } }
+        scope.launch {
+            GlintStatus.link.collect { link ->
+                if (link is LinkState.Connected) lastConnectedAt = SystemClock.elapsedRealtime()
+                else if (lastConnectedAt > 0L) scope.launch { delay(AIRPODS_GRACE_MS + 100); refresh() }
+                refresh()
+            }
+        }
     }
 
     private fun onTrack(t: NowPlaying.Track) {
@@ -227,14 +235,14 @@ internal class MiniIslandController(private val context: Context) {
                 pausedForMs = pausedFor,
                 playedRecently = previewing || playedRecently,
                 airPodsOnly = !previewing && IslandPrefs.miniAirPodsOnly(prefs),
-                airPodsUp = GlintStatus.link.value is LinkState.Connected,
+                airPodsUp = airPodsUp(),
                 screenUnlocked = previewing || unlocked,
                 alwaysWithAirPods = !previewing && IslandPrefs.miniAlways(prefs),
             )
-        ) && portrait()
+        )
         content.value = if (previewing) MiniIslandRules.Content.Music else MiniIslandRules.content(
             playing = playing, pausedForMs = pausedFor, playedRecently = playedRecently,
-            airPodsUp = GlintStatus.link.value is LinkState.Connected,
+            airPodsUp = airPodsUp(),
         )
         lastWant = want
         if (!want) GlintOverlays.miniOrigin = null
@@ -272,6 +280,7 @@ internal class MiniIslandController(private val context: Context) {
                 leaving = leaving.value,
                 hidden = !window.statusBarVisible.value,
                 handOff = GlintOverlays.islandVisible.value,
+                onPlayPause = { if (sample.value == null) NowPlaying.playPause(context) },
                 onVisible = { up ->
                     // Tells the big island where to grow from while the pill is up.
                     GlintOverlays.miniOrigin = if (up) geo.origin() else null
@@ -294,13 +303,7 @@ internal class MiniIslandController(private val context: Context) {
         }
     }
 
-    private fun portrait() = context.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
 
-    private fun isUnlocked(): Boolean {
-        val pm = context.getSystemService(PowerManager::class.java)
-        val km = context.getSystemService(KeyguardManager::class.java)
-        return (pm?.isInteractive ?: true) && !(km?.isKeyguardLocked ?: false)
-    }
 }
 
 /** Where the front camera is, and the pill's sizes around it, in pixels. */
@@ -319,8 +322,7 @@ internal class MiniGeometry(context: Context, testCutouts: List<android.graphics
     val key = Triple(screen, density, context.resources.configuration.orientation)
 
     init {
-        val wm = context.getSystemService(android.view.WindowManager::class.java)
-        val cutouts = (testCutouts ?: wm.currentWindowMetrics.windowInsets.displayCutout?.boundingRects.orEmpty())
+        val cutouts = (testCutouts ?: GlintOverlays.cameraCutouts(context))
             .map { MiniIslandRules.Box(it.left, it.top, it.right, it.bottom) }
         // The camera to wrap (punch-hole or notch near the middle); corner cameras and phones
         // without a cutout get the pill in the middle of the status bar instead.
@@ -358,8 +360,9 @@ internal fun MiniIslandHost(
     content: MiniIslandRules.Content = MiniIslandRules.Content.Music,
     pods: PodsSnapshot = PodsSnapshot(),
     heartBpm: Int? = null,
-    /** The big island is up: it grew out of this pill, so this one steps aside at once. */
+    /** A mini island pop-up is up (it grew out of this pill): this one stays, softly blurred. */
     handOff: Boolean = false,
+    onPlayPause: () -> Unit = {},
     onVisible: (Boolean) -> Unit = {},
     /** Conversation Awareness has the music down: a small "talking" sign on the right. */
     talking: Boolean = false,
@@ -377,12 +380,32 @@ internal fun MiniIslandHost(
     val density = LocalDensity.current.density
     val reduce = remember { GlintComfort.reduceMotion(context) }
     val prefs = remember { IslandPrefs.prefs(context) }
-    val buzz = remember { IslandBuzz(GlintHaptics(view), IslandPrefs.haptics(prefs)) }
-    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val visible = !leaving && !hidden && !handOff && !landscape
+    // Settings are read live, so a change in Settings > Islands applies at once.
+    val hapticsOn by rememberPref(prefs, IslandPrefs.PREF_HAPTICS, true)
+    val buzz = remember(hapticsOn) { IslandBuzz(GlintHaptics(view), hapticsOn) }
+    // Full-screen apps hide it, but only after the status bar has been gone for a moment, so a
+    // screen that briefly hides it (opening or closing an app) doesn't make it flicker.
+    var fullScreen by remember { mutableStateOf(false) }
+    LaunchedEffect(hidden) { if (hidden) { delay(700); fullScreen = true } else fullScreen = false }
+    val visible = !leaving && !fullScreen
 
     val appear = remember { Animatable(still ?: 0f) }
     val wide = remember { Animatable(stillWide) }
+    // While a pop-up is out: a soft glass blur, with a gentle swell as it leaves and a little
+    // bounce as it comes back in.
+    val soften = remember { Animatable(0f) }
+    val wave = remember { Animatable(1f) }
+    LaunchedEffect(handOff) {
+        if (still != null) return@LaunchedEffect
+        if (reduce) { soften.snapTo(if (handOff) 1f else 0f); return@LaunchedEffect }
+        coroutineScope {
+            launch { soften.animateTo(if (handOff) 1f else 0f, tween(if (handOff) 280 else 420)) }
+            launch {
+                wave.animateTo(if (handOff) 1.07f else 0.95f, tween(140))
+                wave.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 380f))
+            }
+        }
+    }
     val nudge = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
@@ -407,7 +430,7 @@ internal fun MiniIslandHost(
 
     // A new song (or the first one): widen for a moment with its name, then tuck back.
     val songKey = track.title to track.artist
-    val names = remember { IslandPrefs.miniNames(prefs) }
+    val names by rememberPref(prefs, IslandPrefs.PREF_MINI_NAMES, true)
     // Each song is announced once: coming back after the big island closes doesn't repeat it.
     var announced by remember { mutableStateOf<Pair<String?, String?>?>(null) }
     LaunchedEffect(songKey, visible) {
@@ -469,6 +492,9 @@ internal fun MiniIslandHost(
     val swipeOn by androidx.compose.runtime.rememberUpdatedState(content == MiniIslandRules.Content.Music)
     val textLine = listOfNotNull(track.title, track.artist).joinToString("  ·  ")
 
+    val currentOpen by androidx.compose.runtime.rememberUpdatedState(onOpen)
+    val currentPlayPause by androidx.compose.runtime.rememberUpdatedState(onPlayPause)
+    val currentSkip by androidx.compose.runtime.rememberUpdatedState(onSkip)
     var boxW by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     Box(
         Modifier
@@ -476,8 +502,25 @@ internal fun MiniIslandHost(
             .onSizeChanged { boxW = it.width }
             .semantics { role = Role.Button; contentDescription = describe }
             .pointerInput(Unit) {
+                // Once: expand. Twice: play/pause. Three times: next song. Taps are counted
+                // for a moment before acting, so a double tap never expands first.
+                var taps = 0
+                var pending: kotlinx.coroutines.Job? = null
                 detectTapGestures(
-                    onTap = { buzz.tick(); onOpen() },
+                    onTap = {
+                        taps++
+                        buzz.tick()
+                        pending?.cancel()
+                        pending = scope.launch {
+                            delay(if (taps >= 3) 0L else TAP_GAP_MS)
+                            when (taps) {
+                                1 -> currentOpen()
+                                2 -> currentPlayPause()
+                                else -> currentSkip(true)
+                            }
+                            taps = 0
+                        }
+                    },
                     onLongPress = { buzz.expand(); onHold() },
                 )
             }
@@ -503,7 +546,13 @@ internal fun MiniIslandHost(
                 )
             }
     ) {
-        Canvas(Modifier.fillMaxSize().graphicsLayer { translationX = nudge.value }) {
+        Canvas(Modifier.fillMaxSize().graphicsLayer {
+            translationX = nudge.value
+            scaleX = wave.value; scaleY = wave.value
+            val b = soften.value * 5f * density
+            renderEffect = if (b > 0.3f) androidx.compose.ui.graphics.BlurEffect(b, b, androidx.compose.ui.graphics.TileMode.Decal) else null
+            alpha = 1f - 0.18f * soften.value
+        }) {
             val a = appear.value.coerceAtLeast(0f)
             val w = wide.value
             if (a <= 0.001f) return@Canvas
@@ -522,10 +571,18 @@ internal fun MiniIslandHost(
             val idle = 1f - music.value
             val fill = androidx.compose.ui.graphics.lerp(Color.Black, Color(0xFF1D1D20), idle)
             drawRoundRect(fill, Offset(left, top), Size(pillW, pillH), CornerRadius(r, r))
-            if (idle > 0.01f) {
+            run {
+                // The rim catches the light from above and swings a little as you tilt the
+                // phone (the same light as the rest of the app's glass). Faint with music.
+                val swing = Math.toRadians(me.kavishdevar.librepods.presentation.glint.GlintLight.swing.floatValue.toDouble()).toFloat()
+                val cxp = left + pillW / 2f
+                val reach = pillH
+                val from = Offset(cxp - kotlin.math.sin(swing) * reach, top - kotlin.math.cos(swing) * reach * 0.2f)
+                val to = Offset(cxp + kotlin.math.sin(swing) * reach, top + pillH)
+                val glow = 0.07f + 0.15f * idle
                 drawRoundRect(
-                    androidx.compose.ui.graphics.Brush.verticalGradient(
-                        listOf(Color.White.copy(alpha = 0.22f * idle), Color.White.copy(alpha = 0.04f * idle)), top, top + pillH
+                    androidx.compose.ui.graphics.Brush.linearGradient(
+                        listOf(Color.White.copy(alpha = glow), Color.White.copy(alpha = glow * 0.18f)), from, to
                     ),
                     Offset(left + 0.5f, top + 0.5f), Size(pillW - 1f, pillH - 1f), CornerRadius(r - 0.5f, r - 0.5f),
                     style = androidx.compose.ui.graphics.drawscope.Stroke(0.8f * density),
@@ -710,4 +767,21 @@ internal fun accentOfPixels(pixels: IntArray): Color {
     h[1] = h[1].coerceAtMost(0.7f)
     h[2] = h[2].coerceAtLeast(0.9f)
     return Color(android.graphics.Color.HSVToColor(h))
+}
+
+/** Waits this long after a tap for a second or third one. */
+private const val TAP_GAP_MS = 300L
+/** How long a dropped connection may last before the Dynamic Island leaves. */
+private const val AIRPODS_GRACE_MS = 5_000L
+
+/** A boolean setting that updates when it changes elsewhere (Settings > Islands). */
+@Composable
+private fun rememberPref(prefs: SharedPreferences, key: String, default: Boolean): androidx.compose.runtime.State<Boolean> {
+    val state = remember { mutableStateOf(prefs.getBoolean(key, default)) }
+    androidx.compose.runtime.DisposableEffect(prefs, key) {
+        val l = SharedPreferences.OnSharedPreferenceChangeListener { p, k -> if (k == key) state.value = p.getBoolean(key, default) }
+        prefs.registerOnSharedPreferenceChangeListener(l)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(l) }
+    }
+    return state
 }
