@@ -150,12 +150,45 @@ fun HeartHistoryScreen(openSession: (Long) -> Unit = {}) {
             }
         }
 
+        // Resting trend and personal bests.
+        if (sessions.any { it.resting > 0 }) item {
+            val points = remember(sessions) { HeartInsights.restingSeries(sessions, System.currentTimeMillis()) }
+            Column(Modifier.riseIn(1).fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(18.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Resting heart rate", modifier = Modifier.weight(1f), style = heartText(17, ink, FontWeight.SemiBold))
+                    InfoTip(
+                        "Resting heart rate over time",
+                        "One dot per day: that day's lowest resting estimate. Comparing it with your own usual rate tells you more than any single number. " +
+                            "It tends to drift down with regular exercise and good rest, and up with stress, poor sleep, heat, alcohol or illness. For fitness, not medical use."
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                RestingTrendChart(points, usual, accent, ink, dark, System.currentTimeMillis())
+            }
+        }
+        if (sessions.isNotEmpty()) item {
+            val r = remember(sessions) { HeartInsights.records(sessions) }
+            val fmt = remember { DateFormat.getDateInstance(DateFormat.MEDIUM) }
+            Column(Modifier.riseIn(2).fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(18.dp)) {
+                Text("Personal bests", style = heartText(17, ink, FontWeight.SemiBold))
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth()) {
+                    r.lowestResting?.let { Insight("Lowest resting · ${fmt.format(Date(it.startMs))}", "${it.resting}", ink, muted, Modifier.weight(1f).pressable { if (it.readings > 0) openSession(it.startMs) }) }
+                    r.highestPeak?.let { Insight("Highest · ${fmt.format(Date(it.startMs))}", "${it.max}", ink, muted, Modifier.weight(1f).pressable { if (it.readings > 0) openSession(it.startMs) }) }
+                }
+                r.longest?.let {
+                    Spacer(Modifier.height(10.dp))
+                    Insight("Longest session · ${fmt.format(Date(it.startMs))}", durationWords(it.minutes.coerceAtLeast(1)), ink, muted, Modifier.pressable { if (it.readings > 0) openSession(it.startMs) }, unit = "")
+                }
+            }
+        }
+
         // Backup.
-        item { BackupCard(card, ink, muted, accent, dark, Modifier.riseIn(1)) }
+        item { BackupCard(card, ink, muted, accent, dark, Modifier.riseIn(3)) }
 
         // All sessions, by day.
         grouped.forEachIndexed { g, (date, list) ->
-            val row = g + 2
+            val row = g + 4
             item(key = "d$date") {
                 Text(
                     dayTitle(date),
@@ -351,7 +384,7 @@ fun HeartSessionScreen(startMs: Long, onDeleted: () -> Unit = {}) {
             Spacer(Modifier.height(10.dp))
             if (list == null) Text("Loading…", style = heartText(14, muted))
             else if (list.size < 2) Text("No readings saved for this session.", style = heartText(14, muted))
-            else HeartChart(list, accent, ink, card, dark, height = 200.dp)
+            else HeartChart(list, accent, ink, card, dark, height = 200.dp, zoneAge = age, average = summary?.average)
             Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth()) {
                 Stat("Lowest", summary?.min, ink, muted, Modifier.weight(1f))
@@ -360,6 +393,20 @@ fun HeartSessionScreen(startMs: Long, onDeleted: () -> Unit = {}) {
             }
             if (list != null && list.size >= 2) {
                 val recovery = remember(list) { HeartInsights.recovery(list) }
+                val peak5 = remember(list) { HeartInsights.peakAverage(list) }
+                val above100 = remember(list) { HeartInsights.secondsAbove(list, 100) }
+                if (peak5 != null || above100 >= 60) {
+                    Spacer(Modifier.height(14.dp))
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        if (peak5 != null) Insight("Hardest 5 minutes", "$peak5", ink, muted, Modifier.weight(1f))
+                        if (above100 >= 60) Insight("Above 100 BPM", durationWords(above100 / 60), ink, muted, Modifier.weight(1f), unit = "")
+                        InfoTip(
+                            "Effort in this session",
+                            "Hardest 5 minutes: your highest average over any 5 minutes, a steadier measure of effort than the single highest reading. " +
+                                "Above 100 BPM: how long your heart rate was over 100, the top of the typical resting range."
+                        )
+                    }
+                }
                 if ((summary?.resting ?: 0) > 0 || recovery != null) {
                     Spacer(Modifier.height(14.dp))
                     Row(Modifier.fillMaxWidth()) {

@@ -100,4 +100,29 @@ class HeartInsightsTest {
         val dense = (0 until 400).map { HeartRate.Sample(it * 1000L, if (it in 100..300) 62 else 75) }
         assertEquals(62, HeartInsights.restingEstimate(dense))
     }
+
+    @Test fun peakAverageFindsTheHardestFiveMinutes() {
+        // 20 minutes at 70 with a 6-minute stretch at 130 in the middle.
+        val s = (0 until 1200).map { HeartRate.Sample(it * 1000L, if (it in 500..860) 130 else 70) }
+        assertEquals(130, HeartInsights.peakAverage(s))
+        assertNull(HeartInsights.peakAverage(s.take(200))) // under 5 minutes
+    }
+
+    @Test fun secondsAboveCountsTimeNotReadings() {
+        val s = (0 until 60).map { HeartRate.Sample(it * 5000L, if (it < 12) 120 else 80) } // one a 5 s
+        assertEquals(60L, HeartInsights.secondsAbove(s, 100))
+    }
+
+    @Test fun recordsAndRestingSeries() {
+        val day = 86_400_000L
+        val z = java.time.ZoneOffset.UTC
+        val now = 50 * day
+        val a = HeartInsights.Session(now - 3 * day, now - 3 * day + 600_000, 70, 58, 120, 10, 60)
+        val b = HeartInsights.Session(now - 2 * day, now - 2 * day + 3_600_000, 75, 55, 165, 10, 57)
+        val c = HeartInsights.Session(now - 40 * day, now - 40 * day + 60_000, 90, 80, 100, 10, 50)
+        val r = HeartInsights.records(listOf(a, b, c))
+        assertEquals(c, r.lowestResting); assertEquals(b, r.highestPeak); assertEquals(b, r.longest)
+        // The 30-day series leaves out the 40-day-old session and runs oldest first.
+        assertEquals(listOf(60, 57), HeartInsights.restingSeries(listOf(a, b, c), now, 30, z).map { it.second })
+    }
 }

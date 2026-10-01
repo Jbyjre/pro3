@@ -80,7 +80,14 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 7. **Hearing Protection:** main screen > Hearing Protection. Turn Workspace Use on and off; the switch should stay where you put it. With the AirPods disconnected the switches should be greyed out with "Connect your AirPods to change this".
 8. **Only in Adaptive:** main screen > Audio > Only in Adaptive on. Switch to Transparency: Conversational Awareness turns off; switch to Adaptive: it turns on.
 
-## G. Known limits (not bugs)
+## G. Round 17
+
+1. **Icon:** the home screen shows the glass bubble with a smile. With themed icons on (Samsung: Home screen settings > Themed icons, if your One UI has it), it shows the outline version.
+2. **Light/dark:** Settings > Appearance, tap Dark then Light. The new look should spread out in a circle from your finger, and no row should stay white in dark mode.
+3. **Volume limit:** main screen > Hearing Protection > Limit media volume on, pick 60%. Play music on the AirPods and press volume up: it should stop at about 60% and the screen should say when it turned it down.
+4. **Heart:** with your age set, the session graph is green/amber/orange/red by effort; History shows Resting heart rate and Personal bests.
+
+## H. Known limits (not bugs)
 
 - Features marked **Needs root** don't work on a standard Samsung.
 - Overlays don't appear on the lock screen (Android hides app overlays there).

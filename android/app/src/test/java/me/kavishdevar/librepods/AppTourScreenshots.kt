@@ -185,6 +185,33 @@ class AppTourScreenshots {
         both("36_heart_session", listOf(Screen.HeartHistory, Screen.HeartSession(start)))
     }
 
+    /**
+     * Switching light to dark inside the app. (The circular reveal needs a picture of the
+     * screen, which the test renderer can't take, so here it falls back to a plain switch.)
+     */
+    @Test fun appearanceReveal() {
+        val vm = AirPodsViewModel().apply { activateDemoMode() }
+        rule.setContent {
+            me.kavishdevar.librepods.presentation.theme.ProvideAppearance(context) {
+                LibrePodsTheme(m3eEnabled = false) {
+                    me.kavishdevar.librepods.presentation.theme.ThemeRevealHost {
+                        NavigationRoot(airPodsViewModel = vm, initialStack = listOf(Screen.AppSettings), showOnboarding = false)
+                    }
+                }
+            }
+        }
+        rule.mainClock.advanceTimeBy(2_000)
+        rule.runOnIdle {
+            me.kavishdevar.librepods.presentation.theme.ThemeReveal.change(
+                context, me.kavishdevar.librepods.presentation.theme.GlintAppearance.DARK, androidx.compose.ui.geometry.Offset(1000f, 330f)
+            )
+        }
+        // Every row must take the new theme (rows used to keep the old one: white on white).
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.onRoot().captureRoboImage("$out/37_appearance_switched_to_dark.png")
+        me.kavishdevar.librepods.presentation.theme.GlintAppearance.set(context, me.kavishdevar.librepods.presentation.theme.GlintAppearance.SYSTEM)
+    }
+
     @Test fun recorder() = both("32_recorder", listOf(Screen.Recorder))
     @Test fun heartShare() {
         context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit()

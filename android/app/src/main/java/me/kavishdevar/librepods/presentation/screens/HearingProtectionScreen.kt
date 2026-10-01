@@ -19,6 +19,13 @@
 package me.kavishdevar.librepods.presentation.screens
 
 import androidx.compose.foundation.background
+import me.kavishdevar.librepods.services.VolumeGuard
+import me.kavishdevar.librepods.services.PREF_VOLUME_LIMIT_ON
+import me.kavishdevar.librepods.services.PREF_VOLUME_LIMIT
+import me.kavishdevar.librepods.presentation.components.LiquidSegments
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -74,6 +81,7 @@ fun HearingProtectionScreen(viewModel: AirPodsViewModel, navigateToPurchase: () 
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .layerBackdrop(backdrop)
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
     ) {
         Spacer(modifier = Modifier.height(topPadding))
@@ -111,7 +119,8 @@ fun HearingProtectionScreen(viewModel: AirPodsViewModel, navigateToPurchase: () 
 
             Spacer(modifier = Modifier.height(12.dp))
         }
-        StyledToggle(
+        val hasPPE = state.capabilities.contains(me.kavishdevar.librepods.data.Capability.PPE)
+        if (hasPPE) StyledToggle(
             title = stringResource(R.string.workspace_use),
             label = stringResource(R.string.ppe),
             description = if (connected) stringResource(R.string.workspace_use_description) else offline,
@@ -125,6 +134,8 @@ fun HearingProtectionScreen(viewModel: AirPodsViewModel, navigateToPurchase: () 
             },
             enabled = state.isPremium && connected
         )
+        Spacer(modifier = Modifier.height(if (hasPPE) 16.dp else 0.dp))
+        VolumeLimitSection()
         Row(Modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 if (state.vendorIdHook) "What these do" else "Loud Sound Reduction needs a rooted phone to change",
@@ -137,7 +148,9 @@ fun HearingProtectionScreen(viewModel: AirPodsViewModel, navigateToPurchase: () 
                 "Loud Sound Reduction softens sudden loud sounds around you while you're in Transparency or Adaptive. " +
                     "Changing it on Android needs a rooted phone, so it only appears here when Glint can change it. " +
                     "Workspace Use (EN 352) is for loud workplaces: it limits your media to 82 dBA, in line with the European hearing-protector standard. " +
-                    "Each switch is sent to your AirPods straight away; if it can't be sent, a notice at the bottom says so."
+                    "Volume limit works on any phone: while music plays through your AirPods, Glint turns it back down whenever it goes above the level you pick. " +
+                    "The level is a share of your phone's volume steps, not decibels (Glint can't measure how loud it is in your ears). " +
+                    "Each AirPods switch is sent to your AirPods straight away; if it can't be sent, a notice at the bottom says so."
             )
         }
         Spacer(modifier = Modifier.height(bottomPadding))
@@ -147,5 +160,47 @@ fun HearingProtectionScreen(viewModel: AirPodsViewModel, navigateToPurchase: () 
         onReconnect = viewModel::reconnectFromSavedMac,
         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomPadding + 16.dp)
     )
+    }
+}
+
+/**
+ * Volume limit: on/off, the level as liquid segments (50–85% of the phone's media volume),
+ * and when Glint last turned the volume down.
+ */
+@Composable
+private fun VolumeLimitSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = androidx.compose.runtime.remember { context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE) }
+    var on by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(prefs.getBoolean(PREF_VOLUME_LIMIT_ON, false)) }
+    var limit by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(prefs.getInt(PREF_VOLUME_LIMIT, VolumeGuard.DEFAULT_LIMIT)) }
+    val last by VolumeGuard.lastLimited.collectAsState()
+    val levels = listOf(50, 60, 70, 85)
+    StyledToggle(
+        title = "Volume limit",
+        label = "Limit media volume",
+        description = when {
+            !on -> "Keeps music from going above a level you choose. Works without root."
+            last != null -> "Turned down to $limit% at " + java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(last!!.atMs))
+            else -> "Media through your AirPods stays at or below $limit%"
+        },
+        checked = on,
+        onCheckedChange = {
+            on = it
+            prefs.edit().putBoolean(PREF_VOLUME_LIMIT_ON, it).apply()
+            VolumeGuard.check()
+        },
+    )
+    androidx.compose.animation.AnimatedVisibility(on) {
+        Column(Modifier.padding(top = 10.dp)) {
+            LiquidSegments(
+                levels.map { "$it%" },
+                levels.indexOf(limit).coerceAtLeast(0),
+                {
+                    limit = levels[it]
+                    prefs.edit().putInt(PREF_VOLUME_LIMIT, limit).apply()
+                    VolumeGuard.check()
+                },
+            )
+        }
     }
 }

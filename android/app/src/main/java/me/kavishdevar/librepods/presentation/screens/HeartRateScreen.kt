@@ -208,7 +208,7 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
                     )
                 }
                 Spacer(Modifier.height(10.dp))
-                HeartChart(state.samples, accent, ink, card, dark)
+                HeartChart(state.samples, accent, ink, card, dark, zoneAge = age, average = state.average)
                 Spacer(Modifier.height(14.dp))
                 Row(Modifier.fillMaxWidth()) {
                     Stat("Lowest", state.min, ink, muted, Modifier.weight(1f))
@@ -243,6 +243,9 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
                 }
             }
         }
+
+        // Today.
+        TodayCard(history, state, usual, card, ink, muted, accent, Modifier.riseIn(index++))
 
         // History.
         HistoryCard(history, card, ink, muted, accent, dark, Modifier.riseIn(index++), navigateToHistory)
@@ -521,3 +524,56 @@ internal fun backupLine(s: HeartBackup.Status): String = when (s) {
     is HeartBackup.Status.Done -> if (s.atMs > 0) "Backed up " + android.text.format.DateUtils.getRelativeTimeSpanString(s.atMs, System.currentTimeMillis(), 60_000L) else "GitHub backup on"
     is HeartBackup.Status.Problem -> s.message
 }
+
+/**
+ * Today at a glance: time measured, lowest to highest, the day's average, and today's resting
+ * estimate against your usual. Counts saved sessions plus the one being measured now.
+ */
+@Composable
+private fun TodayCard(
+    history: List<HeartInsights.Session>,
+    state: HeartRate.State,
+    usual: Int,
+    card: Color,
+    ink: Color,
+    muted: Color,
+    accent: Color,
+    modifier: Modifier,
+) {
+    val zone = java.time.ZoneId.systemDefault()
+    val today = java.time.LocalDate.now(zone)
+    val live = HeartInsights.summarize(state.samples)
+    val sessions = (history.filter { java.time.Instant.ofEpochMilli(it.startMs).atZone(zone).toLocalDate() == today } +
+        listOfNotNull(live?.takeIf { java.time.Instant.ofEpochMilli(it.startMs).atZone(zone).toLocalDate() == today }))
+        .distinctBy { it.startMs }
+    if (sessions.isEmpty()) return
+    val day = HeartInsights.days(sessions, zone).firstOrNull() ?: return
+    Column(modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(18.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Today", modifier = Modifier.weight(1f), style = heartText(17, ink, FontWeight.SemiBold))
+            Text("${durationWords(day.minutes.coerceAtLeast(1))} measured", style = heartText(13, muted))
+        }
+        Spacer(Modifier.height(12.dp))
+        RangeBar(day.min, day.max, day.average, 40, 200, accent, ink, Modifier.fillMaxWidth())
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth()) {
+            Stat("Lowest", day.min, ink, muted, Modifier.weight(1f))
+            Stat("Average", day.average, ink, muted, Modifier.weight(1f))
+            Stat("Highest", day.max, ink, muted, Modifier.weight(1f))
+        }
+        if (day.resting > 0) {
+            Spacer(Modifier.height(10.dp))
+            val d = if (usual > 0) day.resting - usual else 0
+            Text(
+                "Resting today ${day.resting} BPM" + when {
+                    usual <= 0 -> ""
+                    d >= 3 -> " · $d above your usual"
+                    d <= -3 -> " · ${-d} below your usual"
+                    else -> " · right around your usual"
+                },
+                style = heartText(13, muted).copy(lineHeight = 18.sp)
+            )
+        }
+    }
+}
+
