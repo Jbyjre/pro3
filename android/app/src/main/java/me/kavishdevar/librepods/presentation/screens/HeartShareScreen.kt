@@ -252,7 +252,7 @@ fun HeartShareScreen() {
                 Text(HeartLink.ACTION, modifier = Modifier.weight(1f), maxLines = 1, style = label.copy(fontSize = 11.sp))
                 InfoTip(
                     "Automation apps",
-                    "With every reading Glint sends an Android broadcast named ${HeartLink.ACTION}. " +
+                    "With every reading pro sends an Android broadcast named ${HeartLink.ACTION}. " +
                         "Its extras: bpm (number), time (milliseconds since 1970) and status (\"live\" or \"stopped\"). " +
                         "In Tasker use the Intent Received event with that action; in MacroDroid, the Intent Received trigger."
                 )

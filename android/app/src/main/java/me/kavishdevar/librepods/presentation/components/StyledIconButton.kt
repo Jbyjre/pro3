@@ -18,6 +18,7 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.glint.GlassBudget
 import me.kavishdevar.librepods.presentation.glint.GlintLight
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 
@@ -352,7 +353,7 @@ half4 main(float2 coord) {
                                 refractionHeight = 6f.dp.toPx(),
                                 refractionAmount = size.height / 2f,
                                 depthEffect = true,
-                                chromaticAberration = true
+                                chromaticAberration = !GlassBudget.light.value
                             )
                         },
                     )

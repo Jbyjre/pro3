@@ -18,6 +18,7 @@
 package me.kavishdevar.librepods.presentation.glint
 
 import android.os.SystemClock
+import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -41,6 +42,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 
 /**
@@ -90,17 +92,24 @@ fun Modifier.riseIn(index: Int? = null): Modifier {
     }
 }
 
-/** Clickable that squishes slightly under the finger and springs back, like Apple's glass. */
+/**
+ * Clickable that squishes slightly under the finger and springs back with a little
+ * overshoot, like Apple's glass, with a light tick on tap so it feels like a real button.
+ */
 @Composable
 fun Modifier.pressable(onClick: () -> Unit): Modifier {
     val context = LocalContext.current
+    val view = LocalView.current
     val reduce = remember { GlintComfort.reduceMotion(context) }
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
-    val s by animateFloatAsState(if (pressed && !reduce) 0.965f else 1f, spring(dampingRatio = 0.5f, stiffness = 700f), label = "press")
+    val s by animateFloatAsState(if (pressed && !reduce) 0.965f else 1f, spring(dampingRatio = 0.45f, stiffness = 600f), label = "press")
     return this
         .graphicsLayer { scaleX = s; scaleY = s }
-        .clickable(interactionSource = source, indication = LocalIndication.current, onClick = onClick)
+        .clickable(interactionSource = source, indication = LocalIndication.current) {
+            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+            onClick()
+        }
 }
 
 /**

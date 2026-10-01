@@ -88,44 +88,44 @@ fun supportVerdict(
         return if (isSamsung && sdkInt < 37) SupportVerdict(
             SupportLevel.NEEDS_ONE_UI_9,
             "Waiting for One UI 9",
-            "Your AirPods play audio, but this Samsung phone's Bluetooth is still blocking the extra channel Glint uses for battery, listening modes and ear detection. Samsung includes Google's fix starting with One UI 9 (Android 17). Once it reaches your phone (Settings, Software update), Glint will connect on its own.",
+            "Your AirPods play audio, but this Samsung phone's Bluetooth is still blocking the extra channel pro uses for battery, listening modes and ear detection. Samsung includes Google's fix starting with One UI 9 (Android 17). Once it reaches your phone (Settings, Software update), pro will connect on its own.",
         ) else SupportVerdict(
             SupportLevel.BLOCKED_ON_THIS_PHONE,
             "Your phone is blocking the connection",
-            "Your AirPods play audio, but the phone's Bluetooth keeps refusing the extra channel Glint needs. This can't be fixed from inside an app without root. A future system update may fix it; Glint keeps trying in the background and will pick it up automatically.",
+            "Your AirPods play audio, but the phone's Bluetooth keeps refusing the extra channel pro needs. This can't be fixed from inside an app without root. A future system update may fix it; pro keeps trying in the background and will pick it up automatically.",
         )
     }
     if (xposedHookActive || bypassed) {
         return SupportVerdict(
             SupportLevel.EXPECTED,
             "Should work",
-            if (xposedHookActive) "The root (Xposed) Bluetooth fix is active." else "You chose to try anyway. Glint will tell you if the phone blocks the connection.",
+            if (xposedHookActive) "The root (Xposed) Bluetooth fix is active." else "You chose to try anyway. pro will tell you if the phone blocks the connection.",
         )
     }
     if (sdkInt >= 37) {
         return SupportVerdict(
             SupportLevel.EXPECTED,
             "Should work",
-            "This phone runs Android 17 or newer, which should include Google's Bluetooth fix. Glint will confirm on the first connection" +
+            "This phone runs Android 17 or newer, which should include Google's Bluetooth fix. pro will confirm on the first connection" +
                 if (isSamsung) " (Samsung has not published whether One UI 9 includes it, so this is checked live)." else ".",
         )
     }
     val isPixel = maker == "google"
     val isOppoFamily = maker in listOf("oneplus", "oppo", "realme")
     if ((isPixel && sdkInt == 36 && buildId.startsWith("CP1A")) || (isOppoFamily && sdkInt >= 36)) {
-        return SupportVerdict(SupportLevel.EXPECTED, "Should work", "This phone's software includes the Bluetooth fix Glint needs.")
+        return SupportVerdict(SupportLevel.EXPECTED, "Should work", "This phone's software includes the Bluetooth fix pro needs.")
     }
     if (isSamsung) {
         return SupportVerdict(
             SupportLevel.NEEDS_ONE_UI_9,
             "Needs One UI 9",
-            "Glint needs One UI 9 (Android 17) to talk to AirPods without root; you're on Android $sdkInt. Your AirPods still work as normal headphones.",
+            "pro needs One UI 9 (Android 17) to talk to AirPods without root; you're on Android $sdkInt. Your AirPods still work as normal headphones.",
         )
     }
     return SupportVerdict(
         SupportLevel.NEEDS_UPDATE_OR_ROOT,
         "Needs an update or root",
-        "This phone's Bluetooth needs Android 17 for Glint's features. Your AirPods still work as normal headphones.",
+        "This phone's Bluetooth needs Android 17 for pro's features. Your AirPods still work as normal headphones.",
     )
 }
 

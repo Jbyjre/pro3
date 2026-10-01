@@ -1,15 +1,16 @@
-# Builds the Glint Android app on every push to any branch (including names with a
+# Builds the pro Android app on every push to any branch (including names with a
 # slash) and publishes a ready-to-install APK:
-#   - pushes to main   -> release "Glint":            .../releases/latest/download/Glint.apk
-#   - any other branch -> pre-release "Glint preview": .../releases/download/glint-preview/Glint-preview.apk
+#   - pushes to main   -> release "pro":              .../releases/latest/download/pro.apk
+#   - any other branch -> pre-release "pro preview":  .../releases/download/glint-preview/pro-preview.apk
 # No upstream signing secrets are used. The fork's own signing key is created on the
 # first run and kept in this repository's private GitHub Actions cache, never in the code.
 # A weekly run keeps that cache alive (GitHub drops caches unused for 7 days).
-name: Build Glint APK
+name: Build pro APK
 
 on:
   push:
-    branches: ['**']
+    # The app's heart-rate backup branch only holds data files: never build it.
+    branches: ['**', '!heart-backup']
     paths-ignore:
       - 'linux/**'
       - 'docs/**'
@@ -122,21 +123,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp out/app.apk out/Glint.apk
+          cp out/app.apk out/pro.apk
           gh release delete glint-latest --cleanup-tag -y || true
           gh release create glint-latest --latest --target "$GITHUB_SHA" \
-            --title "Glint ${{ steps.apk.outputs.version }} (build ${{ github.run_number }})" \
-            --notes "On your phone, tap **Glint.apk** below to download it, then open the download to install. Built from commit ${{ steps.apk.outputs.short_sha }}." \
-            out/Glint.apk
+            --title "pro ${{ steps.apk.outputs.version }} (build ${{ github.run_number }})" \
+            --notes "On your phone, tap **pro.apk** below to download it, then open the download to install. Built from commit ${{ steps.apk.outputs.short_sha }}." \
+            out/pro.apk
 
       - name: Publish preview pre-release (other branches)
         if: github.event_name != 'schedule' && github.ref != 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp out/app.apk out/Glint-preview.apk
+          cp out/app.apk out/pro-preview.apk
           gh release delete glint-preview --cleanup-tag -y || true
           gh release create glint-preview --prerelease --target "$GITHUB_SHA" \
-            --title "Glint preview (${{ github.ref_name }}, build ${{ github.run_number }})" \
-            --notes "Test build from branch ${{ github.ref_name }} (commit ${{ steps.apk.outputs.short_sha }}). Tap **Glint-preview.apk** to download and install." \
-            out/Glint-preview.apk
+            --title "pro preview (${{ github.ref_name }}, build ${{ github.run_number }})" \
+            --notes "Test build from branch ${{ github.ref_name }} (commit ${{ steps.apk.outputs.short_sha }}). Tap **pro-preview.apk** to download and install." \
+            out/pro-preview.apk

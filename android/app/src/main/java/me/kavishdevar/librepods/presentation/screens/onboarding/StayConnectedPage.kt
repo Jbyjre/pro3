@@ -88,7 +88,7 @@ fun StayConnectedPage(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                "Three steps so Glint reconnects on its own, even after a restart.",
+                "Three steps so pro reconnects on its own, even after a restart.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -130,7 +130,7 @@ fun StayConnectedSteps() {
     StepRow(
         number = 1,
         title = "Link your AirPods",
-        body = linkMessage ?: "Wakes Glint when your AirPods connect. Pick your AirPods, then Allow.",
+        body = linkMessage ?: "Wakes pro when your AirPods connect. Pick your AirPods, then Allow.",
         done = linked,
         action = if (linked) null else "Link" to {
             val saved = prefs.getString("mac_address", "")?.takeIf { it.isNotBlank() }
@@ -151,7 +151,7 @@ fun StayConnectedSteps() {
     StepRow(
         number = 2,
         title = "Allow unrestricted battery",
-        body = "Stops Android from pausing Glint. It uses very little battery.",
+        body = "Stops Android from pausing pro. It uses very little battery.",
         done = unrestricted,
         action = if (unrestricted) null else "Allow" to {
             try { context.startActivity(CompanionLink.batteryOptimizationIntent(context)) }
@@ -162,7 +162,7 @@ fun StayConnectedSteps() {
         StepRow(
             number = 3,
             title = "Samsung: never sleep",
-            body = "Battery > Background usage limits > Never sleeping apps: add Glint. Then tap Done.",
+            body = "Battery > Background usage limits > Never sleeping apps: add pro. Then tap Done.",
             done = samsungDone,
             action = if (samsungDone) null else "Open settings" to {
                 try { context.startActivity(CompanionLink.samsungBackgroundLimitsIntent()) }

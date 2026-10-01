@@ -156,7 +156,7 @@ object GlintOverlays {
     fun openApp(context: Context) {
         val intent = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-        try { context.startActivity(intent) } catch (e: Exception) { Log.w("GlintOverlays", "Couldn't open Glint", e) }
+        try { context.startActivity(intent) } catch (e: Exception) { Log.w("GlintOverlays", "Couldn't open pro", e) }
     }
 
     val isIslandShowing: Boolean get() = island?.isShowing == true

@@ -146,10 +146,10 @@ fun HearingProtectionScreen(viewModel: AirPodsViewModel, navigateToPurchase: () 
             InfoTip(
                 "Hearing protection",
                 "Loud Sound Reduction softens sudden loud sounds around you while you're in Transparency or Adaptive. " +
-                    "Changing it on Android needs a rooted phone, so it only appears here when Glint can change it. " +
+                    "Changing it on Android needs a rooted phone, so it only appears here when pro can change it. " +
                     "Workspace Use (EN 352) is for loud workplaces: it limits your media to 82 dBA, in line with the European hearing-protector standard. " +
-                    "Volume limit works on any phone: while music plays through your AirPods, Glint turns it back down whenever it goes above the level you pick. " +
-                    "The level is a share of your phone's volume steps, not decibels (Glint can't measure how loud it is in your ears). " +
+                    "Volume limit works on any phone: while music plays through your AirPods, pro turns it back down whenever it goes above the level you pick. " +
+                    "The level is a share of your phone's volume steps, not decibels (pro can't measure how loud it is in your ears). " +
                     "Each AirPods switch is sent to your AirPods straight away; if it can't be sent, a notice at the bottom says so."
             )
         }

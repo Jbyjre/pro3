@@ -49,4 +49,13 @@ class HeartBackupTest {
         assertFalse(HeartBackup.validRepoName(""))
         assertFalse(HeartBackup.validRepoName(".."))
     }
+
+    @Test fun repoInputAcceptsNameOwnerSlashNameOrLink() {
+        assertEquals(null to "pro3", HeartBackup.splitRepo("pro3"))
+        assertEquals("Jbyjre" to "pro3", HeartBackup.splitRepo("Jbyjre/pro3"))
+        assertEquals("Jbyjre" to "pro3", HeartBackup.splitRepo(" https://github.com/Jbyjre/pro3.git "))
+        assertEquals("Jbyjre" to "pro3", HeartBackup.splitRepo("github.com/Jbyjre/pro3/"))
+        assertEquals("pro3", HeartBackup.DEFAULT_REPO)
+        assertEquals("heart-backup", HeartBackup.BRANCH)
+    }
 }

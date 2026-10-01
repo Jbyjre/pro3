@@ -466,7 +466,7 @@ internal fun IslandHost(
                 onClick(label = if (phase == IslandPhase.Expanded) "Collapse" else "Expand") {
                     onPhase(if (phase == IslandPhase.Expanded) IslandPhase.Compact else IslandPhase.Expanded); true
                 }
-                onLongClick(label = "Open Glint") { GlintOverlays.openApp(context); onPhase(IslandPhase.Leaving); true }
+                onLongClick(label = "Open pro") { GlintOverlays.openApp(context); onPhase(IslandPhase.Leaving); true }
             }
             .drawBehind {
                 val f = frame(size.width)

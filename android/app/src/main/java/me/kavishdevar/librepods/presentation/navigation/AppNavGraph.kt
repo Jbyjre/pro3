@@ -2,7 +2,11 @@ package me.kavishdevar.librepods.presentation.navigation
 
 import androidx.activity.BackEventCompat.Companion.EDGE_LEFT
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.scaleIn
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleOut
@@ -298,11 +302,16 @@ fun AppNavGraph(
 
                 }
             },
+            // Physics, not a fixed timer: a critically damped spring starts fast and settles
+            // softly, and a swipe-back that's let go mid-way carries on smoothly from there.
+            // The screen underneath dims and sinks back a little, like a card being covered.
             transitionSpec = {
-                slideInHorizontally { it } togetherWith slideOutHorizontally { -it / 4 }
+                (slideInHorizontally(screenSlide) { it } + fadeIn(screenFade, 0.6f)) togetherWith
+                    (slideOutHorizontally(screenSlide) { -it / 4 } + fadeOut(screenFade, 0.55f) + scaleOut(screenScale, 0.96f))
             },
             popTransitionSpec = {
-                slideInHorizontally { -it / 4 } togetherWith slideOutHorizontally { it }
+                (slideInHorizontally(screenSlide) { -it / 4 } + fadeIn(screenFade, 0.55f) + scaleIn(screenScale, 0.96f)) togetherWith
+                    slideOutHorizontally(screenSlide) { it }
             },
             predictivePopTransitionSpec = { swipeEdge ->
                 if (m3eEnabled) {
@@ -340,9 +349,14 @@ fun AppNavGraph(
                             animationSpec = tween(250)
                         )
                 } else {
-                    slideInHorizontally { -it / 4 } togetherWith slideOutHorizontally { it }
+                    (slideInHorizontally(screenSlide) { -it / 4 } + fadeIn(screenFade, 0.55f) + scaleIn(screenScale, 0.96f)) togetherWith
+                        slideOutHorizontally(screenSlide) { it }
                 }
             },
         )
     }
 }
+
+private val screenSlide = spring(dampingRatio = 1f, stiffness = 420f, visibilityThreshold = IntOffset.VisibilityThreshold)
+private val screenFade = spring<Float>(dampingRatio = 1f, stiffness = 420f)
+private val screenScale = spring<Float>(dampingRatio = 1f, stiffness = 420f)

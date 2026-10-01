@@ -18,6 +18,14 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.vector.ImageVector
+import me.kavishdevar.librepods.presentation.glint.IconAction
+import me.kavishdevar.librepods.presentation.glint.RowIcons
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
@@ -271,10 +279,12 @@ private fun BackupCard(card: Color, ink: Color, muted: Color, accent: Color, dar
             }
             InfoTip(
                 "How the backup works",
-                "Each session is saved as a small spreadsheet file (CSV) in a private repository on your GitHub account, plus a summary of all sessions. " +
-                    "Glint uploads each session as soon as it ends, and a session that is still going every 10 minutes. On a new phone, connect the same repository and tap Restore. " +
+                "Each session is saved as a small spreadsheet file (CSV) in your pro3 repository on GitHub, on its own \"heart-backup\" shelf (a branch) " +
+                    "that holds only heart files and never mixes with the app's code. A summary of all sessions is saved too. " +
+                    "pro uploads each session as soon as it ends, and a session that is still going every 10 minutes. If you're offline, it uploads by itself once you're back online. " +
+                    "On a new phone, connect again and tap Restore. " +
                     "Your token is locked with a key in this phone's secure hardware and is only sent to GitHub. " +
-                    "Glint refuses public repositories, since heart data is health data."
+                    "pro refuses public repositories, since heart data is health data: make pro3 private first."
             )
         }
         Spacer(Modifier.height(10.dp))
@@ -282,31 +292,36 @@ private fun BackupCard(card: Color, ink: Color, muted: Color, accent: Color, dar
             Text(backupLine(status), style = heartText(14, if (status is HeartBackup.Status.Problem) accent else ink))
             message?.let { Text(it, modifier = Modifier.padding(top = 4.dp), style = heartText(13, muted)) }
             Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ActionPill("Back up now", ink, dark) { message = null; HeartBackup.backUpNow(context) }
-                ActionPill("Restore", ink, dark) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                IconAction(RowIcons.CloudUp, "Back up now", ink, dark, enabled = status !is HeartBackup.Status.Working) { message = null; HeartBackup.backUpNow(context) }
+                IconAction(RowIcons.CloudDown, "Restore from GitHub", ink, dark, enabled = status !is HeartBackup.Status.Working) {
                     message = "Restoring…"
                     HeartBackup.restore(context) { n, err -> message = err ?: if (n == 0) "Nothing new to restore" else "Restored $n sessions" }
                 }
-                ActionPill("Turn off", accent, dark) { HeartBackup.disconnect(context); message = null }
+                Spacer(Modifier.weight(1f))
+                IconAction(RowIcons.Power, "Turn backup off", ink, dark, tint = accent) { HeartBackup.disconnect(context); message = null }
             }
         } else {
             AnimatedVisibility(!setup) {
-                ActionPill("Set up", ink, dark) { setup = true }
+                ActionPill("Set up", ink, dark, RowIcons.Key) { setup = true }
             }
             AnimatedVisibility(setup, enter = fadeIn() + expandVertically(spring(0.85f, 300f)), exit = fadeOut() + shrinkVertically()) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("1. Create a token on GitHub. The page opens with the right box (\"repo\") ticked: scroll down and tap Generate token, then copy it.", style = heartText(14, ink).copy(lineHeight = 19.sp))
-                    ActionPill("Open GitHub", ink, dark) {
+                    Text(
+                        "1. Make a key on GitHub. The page opens already filled in. Under Repository access pick \"Only select repositories\" and choose pro3, " +
+                            "then tap Generate token and copy it.",
+                        style = heartText(14, ink).copy(lineHeight = 19.sp)
+                    )
+                    ActionPill("Open GitHub", ink, dark, RowIcons.Key) {
                         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(HeartBackup.TOKEN_PAGE)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                     }
                     Text("2. Paste it here.", style = heartText(14, ink))
-                    Field(token, "ghp_…", fieldBg, ink, muted, accent, secret = true) { token = it.trim() }
-                    Text("3. Name for the private repository (Glint creates it if needed).", style = heartText(14, ink))
+                    Field(token, "github_pat_…", fieldBg, ink, muted, accent, secret = true) { token = it.trim() }
+                    Text("3. Repository (already set to pro3; it must be private).", style = heartText(14, ink))
                     Field(name, HeartBackup.DEFAULT_REPO, fieldBg, ink, muted, accent) { name = it.trim() }
                     message?.let { Text(it, style = heartText(13, accent)) }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ActionPill(if (status is HeartBackup.Status.Working) "Connecting…" else "Connect", ink, dark) {
+                        ActionPill(if (status is HeartBackup.Status.Working) "Connecting…" else "Connect", ink, dark, RowIcons.Link) {
                             if (token.isBlank()) { message = "Paste your token first."; return@ActionPill }
                             message = null
                             HeartBackup.connect(context, token, name) { err ->
@@ -314,7 +329,7 @@ private fun BackupCard(card: Color, ink: Color, muted: Color, accent: Color, dar
                                 if (err == null) { setup = false; token = "" }
                             }
                         }
-                        ActionPill("Cancel", muted, dark) { setup = false; token = ""; message = null }
+                        ActionPill("Cancel", muted, dark, RowIcons.Close) { setup = false; token = ""; message = null }
                     }
                 }
             }
@@ -323,14 +338,19 @@ private fun BackupCard(card: Color, ink: Color, muted: Color, accent: Color, dar
 }
 
 @Composable
-private fun ActionPill(text: String, color: Color, dark: Boolean, onClick: () -> Unit) {
-    Box(
+private fun ActionPill(text: String, color: Color, dark: Boolean, icon: ImageVector? = null, onClick: () -> Unit) {
+    Row(
         Modifier
             .clip(RoundedCornerShape(18.dp))
             .background(if (dark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.06f))
             .pressable(onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(start = if (icon != null) 12.dp else 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        if (icon != null) {
+            Image(icon, contentDescription = null, colorFilter = ColorFilter.tint(color), modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+        }
         Text(text, style = heartText(15, color, FontWeight.Medium))
     }
 }
@@ -420,10 +440,13 @@ fun HeartSessionScreen(startMs: Long, onDeleted: () -> Unit = {}) {
                 }
             }
         }
-        Row(Modifier.riseIn(1), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            list?.takeIf { it.isNotEmpty() }?.let { s -> ActionPill("Export", ink, dark) { exportCsv(context, s) } }
-            ActionPill(if (confirm) "Tap again to delete" else "Delete", accent, dark) {
+        Row(Modifier.riseIn(1), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            list?.takeIf { it.isNotEmpty() }?.let { s -> IconAction(RowIcons.Share, "Export readings", ink, dark) { exportCsv(context, s) } }
+            IconAction(RowIcons.Trash, if (confirm) "Tap again to delete" else "Delete session", ink, dark, tint = accent) {
                 if (!confirm) confirm = true else { HeartHistory.delete(context, startMs); onDeleted() }
+            }
+            AnimatedVisibility(confirm, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
+                Text("Tap again to delete", style = heartText(14, accent, FontWeight.Medium))
             }
         }
         if (confirm) Text("Deleting removes it from this phone. A copy already backed up to GitHub stays there.", modifier = Modifier.padding(horizontal = 8.dp), style = heartText(13, muted))

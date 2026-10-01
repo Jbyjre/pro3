@@ -13,9 +13,10 @@
   don't wait or poll for it). Jake asked for this; no need to ask first.
 
 ## Project notes
-- Android app ("Glint", a fork of LibrePods) lives in `android/`. Local build:
+- Android app (shown to Jake as "pro", lowercase, his choice; code names still say Glint; app ID
+  `io.github.jbyjre.glint` must not change or updates stop installing over the old app) lives in `android/`. Local build:
   `./gradlew assembleFossDebug`. Cloud build: `.github/workflows/glint-apk.yml` runs on
-  every branch and publishes `Glint.apk` (main) or `Glint-preview.apk` (other branches)
+  every branch and publishes `pro.apk` (main) or `pro-preview.apk` (other branches)
   as GitHub Releases. It signs with a key the workflow creates and keeps in the Actions
   cache. Never commit signing keys to this public repo; never use upstream's keys.
 - Cloud sessions cannot reach dl.google.com / maven.google.com. `deps-snapshot.yml`
@@ -33,7 +34,7 @@
   res/raw*/connected.mp4, res/raw/island.mp4) over drawn artwork. Don't replace them with drawn art.
 - New Glint code lives in `presentation/glint` (glass, symbols, video, parts), `presentation/overlays`
   (island, card, overlay window), `services/GlintStatus.kt`, `bluetooth/AirPodsDetection.kt`,
-  `bluetooth/ReconnectPolicy.kt`, `utils/CompanionLink.kt`. Hidden Glint Lab: Settings >
+  `bluetooth/ReconnectPolicy.kt`, `utils/CompanionLink.kt`. Hidden Lab: Settings >
   About > tap "Version code" 7 times.
 - The foss build has no paywall: `FOSSBillingProvider` reports everything included; the purchase page is Play-only.
 - The island plays island.mp4 as video (a frame-blending spinner glitched; don't bring it back).
@@ -45,7 +46,9 @@
   change confirmation: `services/CommandFeedback.kt`. Live sharing: `services/HeartLink.kt` (BLE heart-rate sensor,
   https webhook, broadcast; screen `HeartShareScreen.kt`). A Wi-Fi local server was blocked by the session safety
   setting; only add it if Jake explicitly asks. History: `services/HeartHistory.kt` (one CSV per session in
-  files/heart); GitHub backup: `services/HeartBackup.kt` (classic token, private repo, Keystore-encrypted token);
+  files/heart); GitHub backup: `services/HeartBackup.kt` (into pro3 itself, orphan branch `heart-backup`
+  that the APK workflow skips; fine-grained token for pro3 with Contents: write; refuses public repos, so pro3 must be
+  private; Keystore-encrypted token; retries by itself when the internet returns);
   screens `HeartHistoryScreen.kt`. Readings in the first 3 s of each sensor start are dropped (`HR_WARMUP_MS`).
   Background pace `PREF_HR_PACE`. "Only in Adaptive" CA: `PREF_CA_ADAPTIVE_ONLY`. Motion helpers: `glint/GlintMotion.kt`.
   App icon (Jake's choice: no AirPods/case, no pink, black/white/gray, smooth and abstract): Glint's ring around a glass pearl, in
@@ -54,6 +57,8 @@
   (media keys always; song names via optional Notification access, `MediaAccessService`). Jake wants the opened island small: no song bar,
   no time-left line, batteries as L/R/case rings, just a play/pause button. Heart shows only inside the opened island as a small
   chip in the island's own white/graphite (never red); tapping it grows the island to the explanation page. It pops the island only for high-rate alerts. Heart beat: one steady loop (`rememberHeartBeat`), never restarted per reading. Ear packets are primary/secondary, not left/right.
+  Row pictures: `glint/RowIcons.kt` (picked from the row name; `RowIconTile`); icon buttons with press-and-hold label:
+  `glint/IconAction.kt`. Glass lightens on Battery Saver/heat: `glint/GlassBudget.kt`. Screen changes use springs (`AppNavGraph.kt`).
   Light/dark switch reveal: `theme/ThemeReveal.kt` (`ThemeReveal.change`). Don't `remember` theme colours (rows went white-on-white).
   Volume limit (hearing protection without root): `services/VolumeGuard.kt`. Always-on heart rate: `PREF_HR_ALWAYS`, `autoHeartRate()` in the service. The status notification is hidden unless
   `glint_status_notification` is on. Jake's app is personal: no visible LibrePods mentions.

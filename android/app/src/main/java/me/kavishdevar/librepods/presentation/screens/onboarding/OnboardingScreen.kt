@@ -350,7 +350,7 @@ private fun WelcomeStep(backdrop: LayerBackdrop, onStart: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            "Glint",
+            "pro",
             modifier = Modifier.semantics { heading() },
             style = TextStyle(
                 fontFamily = glintFontFamily, fontWeight = FontWeight.Bold,

@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-    <string name="app_name" translatable="false">Glint</string>
+    <string name="app_name" translatable="false">pro</string>
     <string name="app_description">讓你的 AirPods 擺脫 Apple 生態系統的束縛。</string>
     <string name="app_widget_description">直接從主畫面查看 AirPods 電池狀態！</string>
     <string name="accessibility">輔助使用</string>
@@ -183,7 +183,7 @@
     <string name="custom_camera_package">自訂相機應用程式 ID</string>
     <string name="custom_camera_package_set_success">自訂相機應用程式 ID 設定成功</string>
     <string name="app_listener_service_label">相機監聽器</string>
-    <string name="app_listener_service_description">Glint 的監聽器服務，用於偵測相機何時啟用，以啟動 AirPods 上的相機控制。</string>
+    <string name="app_listener_service_description">pro 的監聽器服務，用於偵測相機何時啟用，以啟動 AirPods 上的相機控制。</string>
     <string name="open_source_licenses">開放原始碼授權</string>
     <string name="hearing_test">更新聽力測試</string>
     <string name="update_hearing_test">更新聽力測試結果</string>

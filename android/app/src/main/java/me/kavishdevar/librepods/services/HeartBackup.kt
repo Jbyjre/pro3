@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -47,29 +48,45 @@ import javax.crypto.spec.GCMParameterSpec
 
 /**
  * Backs up heart-rate sessions to a **private** GitHub repository, so they survive a lost
- * or reset phone. Uses GitHub's REST API with a personal access token you create once:
- * - `GET /user` finds your username; `POST /user/repos` creates the private repository if
- *   it doesn't exist (a classic token needs the `repo` scope for both, per GitHub's API
- *   description); `PUT /repos/{owner}/{repo}/contents/{path}` uploads each session.
+ * or reset phone. By default that's the app's own repository (`pro3`), so there's no second
+ * repository to make: the files live on their own branch, [BRANCH], which holds nothing but
+ * heart data (it shares no history with the app's code, and the app's cloud build skips it).
+ * Uses GitHub's REST API with a personal access token you create once:
+ * - `GET /user` finds your username. A fine-grained token limited to that one repository
+ *   with "Contents: write" covers everything below (checked against GitHub's permission
+ *   tables); a classic `repo` token works too. `POST /user/repos` only runs when you name
+ *   a repository that doesn't exist yet (that needs a classic token).
+ * - The branch is made once from an empty start (`git/trees`, `git/commits` with no parent,
+ *   `git/refs`). `PUT /repos/{owner}/{repo}/contents/{path}` with `branch` uploads sessions.
  * - Each session is one CSV at `heart/YYYY-MM/<start, UTC>_<start ms>.csv`, plus a summary
- *   `heart/index.csv`. Restore reads the file list (`git/trees/HEAD?recursive=1`) and
+ *   `heart/index.csv`. Restore reads the file list (`git/trees/<branch>?recursive=1`) and
  *   downloads sessions this phone doesn't have.
  *
  * The token is encrypted with a key kept in Android's Keystore (it never leaves the phone's
  * secure hardware), and it is only ever sent to api.github.com. Uploads happen after a
- * session is saved: straight away when one ends, every 10 minutes for one that's still going. Public
+ * session is saved: straight away when one ends, every 10 minutes for one that's still going. If
+ * the phone is offline it waits for the internet to come back and then uploads on its own. Public
  * repositories are refused: heart data is health data.
  */
 object HeartBackup {
     private const val TAG = "HeartBackup"
     private const val API = "https://api.github.com"
-    const val DEFAULT_REPO = "glint-heart-backup"
-    /** Opens GitHub's "new token" page with the `repo` box ticked and a name filled in. */
-    const val TOKEN_PAGE = "https://github.com/settings/tokens/new?scopes=repo&description=Glint%20heart%20backup"
+    const val DEFAULT_REPO = "pro3"
+    /** The branch that holds the backup (only heart files, no app code). */
+    const val BRANCH = "heart-backup"
+    /**
+     * Opens GitHub's fine-grained token page pre-filled (GitHub's documented template
+     * parameters): a name, "Contents: write", and no expiry so backups never silently stop.
+     * The one thing GitHub can't pre-fill is which repository, so the steps say to pick it.
+     */
+    const val TOKEN_PAGE = "https://github.com/settings/personal-access-tokens/new" +
+        "?name=pro%20heart%20backup&description=Backs%20up%20heart%20rate%20sessions&expires_in=none&contents=write"
 
     private const val PREF_ON = "glint_backup_on"
     private const val PREF_TOKEN = "glint_backup_token"
     private const val PREF_REPO = "glint_backup_repo"
+    /** Set for backups made on [BRANCH]; older backups (their own repository) have none. */
+    private const val PREF_BRANCH = "glint_backup_branch"
     private const val PREF_LAST = "glint_backup_last"
     private const val PREF_SENT = "glint_backup_sent"
     private const val KEY_ALIAS = "glint_backup_key"
@@ -94,6 +111,7 @@ object HeartBackup {
 
     fun isOn(context: Context) = prefs(context).getBoolean(PREF_ON, false) && prefs(context).contains(PREF_TOKEN)
     fun repo(context: Context): String? = prefs(context).getString(PREF_REPO, null)
+    private fun branch(context: Context): String? = prefs(context).getString(PREF_BRANCH, null)
     fun lastBackup(context: Context): Long = prefs(context).getLong(PREF_LAST, 0L)
 
     /** Sets the status line from saved settings (call when a screen opens). */
@@ -143,16 +161,19 @@ object HeartBackup {
             _status.value = Status.Working("Checking your token…")
             val result = runCatching {
                 val t = token.trim()
-                val name = repoName.trim().ifEmpty { DEFAULT_REPO }
-                require(validRepoName(name)) { "Use only letters, numbers, - _ and . in the name." }
+                val (owner, name) = splitRepo(repoName.trim().ifEmpty { DEFAULT_REPO })
+                require(validRepoName(name) && (owner == null || validRepoName(owner))) { "Use only letters, numbers, - _ and . in the name." }
                 val (code, body) = call("GET", "/user", t)
                 if (code == 401) error("GitHub didn't accept that token. Check it was copied completely.")
                 if (code != 200) error("GitHub answered $code. Try again in a moment.")
-                val login = JSONObject(body).getString("login")
+                val login = owner ?: JSONObject(body).getString("login")
                 ensurePrivateRepo(t, login, name)
+                _status.value = Status.Working("Preparing the backup branch…")
+                ensureBranch(t, "$login/$name")
                 prefs(app).edit()
                     .putString(PREF_TOKEN, encrypt(t))
                     .putString(PREF_REPO, "$login/$name")
+                    .putString(PREF_BRANCH, BRANCH)
                     .putBoolean(PREF_ON, true)
                     .remove(PREF_SENT)
                     .apply()
@@ -174,7 +195,7 @@ object HeartBackup {
     /** Stops backing up and forgets the token (the repository and its files stay on GitHub). */
     fun disconnect(context: Context) {
         job?.cancel()
-        prefs(context).edit().remove(PREF_TOKEN).remove(PREF_ON).remove(PREF_SENT).remove(PREF_LAST).apply()
+        prefs(context).edit().remove(PREF_TOKEN).remove(PREF_ON).remove(PREF_SENT).remove(PREF_LAST).remove(PREF_BRANCH).apply()
         _status.value = Status.Off
     }
 
@@ -200,9 +221,11 @@ object HeartBackup {
         val token = token(app) ?: error("Connect GitHub again (the token couldn't be read on this phone).")
         val repo = repo(app) ?: error("No backup repository set.")
         _status.value = Status.Working("Looking for saved sessions…")
-        val (rc, rb) = call("GET", "/repos/$repo", token)
-        if (rc != 200) error("GitHub answered $rc while opening the backup.")
-        val branch = JSONObject(rb).optString("default_branch").ifEmpty { "main" }
+        val branch = branch(app) ?: run {
+            val (rc, rb) = call("GET", "/repos/$repo", token)
+            if (rc != 200) error("GitHub answered $rc while opening the backup.")
+            JSONObject(rb).optString("default_branch").ifEmpty { "main" }
+        }
         val (code, body) = call("GET", "/repos/$repo/git/trees/${encodePath(branch)}?recursive=1", token)
         if (code == 404 || code == 409) return 0 // empty repository
         if (code != 200) error("GitHub answered $code while listing the backup.")
@@ -215,7 +238,7 @@ object HeartBackup {
         var added = 0
         wanted.forEachIndexed { i, (start, path) ->
             _status.value = Status.Working("Restoring ${i + 1} of ${wanted.size}…")
-            val (c, csv) = call("GET", "/repos/$repo/contents/${encodePath(path)}", token, accept = "application/vnd.github.raw+json")
+            val (c, csv) = call("GET", "/repos/$repo/contents/${encodePath(path)}?ref=${encodePath(branch)}", token, accept = "application/vnd.github.raw+json")
             if (c == 200 && HeartHistory.restore(app, start, csv)) added++
         }
         return added
@@ -229,7 +252,8 @@ object HeartBackup {
             return
         }
         if (!online(context)) {
-            _status.value = Status.Problem("Waiting for internet. It'll try again after the next session.")
+            _status.value = Status.Problem("Waiting for internet. It'll back up as soon as you're online.")
+            retryWhenOnline(context)
             return
         }
         val sent = decodeSent(prefs(context).getString(PREF_SENT, "").orEmpty())
@@ -248,7 +272,7 @@ object HeartBackup {
                 _status.value = Status.Working("Backing up ${i + 1} of ${todo.size}…")
                 val file = HeartHistory.sessionFile(context, s.startMs)
                 val content = if (file.exists()) file.readText() else HeartInsights.compactCsv(emptyList())
-                val sha = upload(token, repo, remotePath(s.startMs), content, sent[s.startMs]?.sha, "Heart session ${isoStamp(s.startMs)}")
+                val sha = upload(token, repo, branch(context), remotePath(s.startMs), content, sent[s.startMs]?.sha, "Heart session ${isoStamp(s.startMs)}")
                 sent[s.startMs] = Sent(sha, now, s.readings)
                 prefs(context).edit().putString(PREF_SENT, encodeSent(sent)).apply()
                 count++
@@ -261,7 +285,7 @@ object HeartBackup {
                         .append(it.resting).append(',').append(it.readings).append('\n')
                 }
             }
-            upload(token, repo, "heart/index.csv", index, sent[INDEX_KEY]?.sha, "Update heart index").let {
+            upload(token, repo, branch(context), "heart/index.csv", index, sent[INDEX_KEY]?.sha, "Update heart index").let {
                 sent[INDEX_KEY] = Sent(it, now, 0)
             }
             prefs(context).edit().putString(PREF_SENT, encodeSent(sent)).putLong(PREF_LAST, now).apply()
@@ -269,22 +293,48 @@ object HeartBackup {
         } catch (e: Exception) {
             Log.w(TAG, "Backup failed", e)
             _status.value = Status.Problem(friendly(e))
+            // A dropped connection mid-upload: pick up where it stopped once the internet is back.
+            if (e is java.io.IOException) retryWhenOnline(context)
         }
     }
 
+    @Volatile private var waiting: ConnectivityManager.NetworkCallback? = null
+
+    /**
+     * Uploads by itself as soon as the phone has working internet again, instead of waiting
+     * for the next session to end. Listens once, then stops listening.
+     */
+    private fun retryWhenOnline(context: Context) {
+        val app = context.applicationContext
+        val cm = app.getSystemService(ConnectivityManager::class.java) ?: return
+        if (waiting != null) return
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onCapabilitiesChanged(network: android.net.Network, caps: NetworkCapabilities) {
+                if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) return
+                if (waiting !== this) return
+                waiting = null
+                runCatching { cm.unregisterNetworkCallback(this) }
+                onSessionSaved(app)
+            }
+        }
+        waiting = cb
+        runCatching { cm.registerDefaultNetworkCallback(cb) }.onFailure { waiting = null }
+    }
+
     /** Uploads one file, retrying once with the current file id if GitHub says it changed. */
-    private fun upload(token: String, repo: String, path: String, content: String, knownSha: String?, message: String): String {
+    private fun upload(token: String, repo: String, branch: String?, path: String, content: String, knownSha: String?, message: String): String {
         fun put(sha: String?): Pair<Int, String> {
             val body = JSONObject()
                 .put("message", message)
                 .put("content", Base64.getEncoder().encodeToString(content.toByteArray()))
             if (sha != null) body.put("sha", sha)
+            if (branch != null) body.put("branch", branch)
             return call("PUT", "/repos/$repo/contents/${encodePath(path)}", token, body.toString())
         }
         var (code, body) = put(knownSha)
         if (code == 409 || code == 422) {
             // The file exists but our id is missing or stale: look it up and try once more.
-            val (c, b) = call("GET", "/repos/$repo/contents/${encodePath(path)}", token)
+            val (c, b) = call("GET", "/repos/$repo/contents/${encodePath(path)}" + (branch?.let { "?ref=${encodePath(it)}" } ?: ""), token)
             val sha = if (c == 200) JSONObject(b).optString("sha").ifEmpty { null } else null
             val retry = put(sha)
             code = retry.first; body = retry.second
@@ -298,13 +348,16 @@ object HeartBackup {
     private fun ensurePrivateRepo(token: String, login: String, name: String) {
         val (code, body) = call("GET", "/repos/$login/$name", token)
         when (code) {
-            200 -> if (!JSONObject(body).optBoolean("private", false)) error("\"$name\" is a public repository. Heart data should stay private: pick another name.")
+            200 -> if (!JSONObject(body).optBoolean("private", false)) error(
+                "\"$name\" is public, so anyone could read your heart data. On GitHub, open $name > Settings, " +
+                    "scroll to Danger Zone > Change visibility > Private, then tap Connect again."
+            )
             404 -> {
                 val req = JSONObject()
                     .put("name", name)
                     .put("private", true)
                     .put("auto_init", true)
-                    .put("description", "Glint heart-rate backup (private)")
+                    .put("description", "pro heart-rate backup (private)")
                 val (c, _) = call("POST", "/user/repos", token, req.toString())
                 if (c == 403 || c == 404) error("This token can't create repositories. Make a classic token with the \"repo\" box ticked.")
                 if (c != 201) error("GitHub couldn't create the repository (answer $c).")
@@ -314,7 +367,57 @@ object HeartBackup {
         }
     }
 
+    /**
+     * Makes [BRANCH] if it isn't there yet, starting from nothing (no parent commit), so the
+     * branch only ever holds heart files. A brand-new empty repository gets a first file on
+     * its default branch first, since GitHub's git endpoints need a non-empty repository.
+     */
+    private fun ensureBranch(token: String, repo: String) {
+        val (code, _) = call("GET", "/repos/$repo/branches/${encodePath(BRANCH)}", token)
+        if (code == 200) return
+        if (code == 401) error("GitHub no longer accepts the token.")
+        fun tree(): Pair<Int, String> = call(
+            "POST", "/repos/$repo/git/trees", token,
+            JSONObject().put(
+                "tree", JSONArray().put(
+                    JSONObject().put("path", "README.md").put("mode", "100644").put("type", "blob")
+                        .put("content", "# Heart-rate backup\n\nSaved by the pro app: one CSV per session in `heart/`, plus `heart/index.csv`.\n")
+                )
+            ).toString()
+        )
+        var (tc, tb) = tree()
+        if (tc == 409) { // empty repository
+            call(
+                "PUT", "/repos/$repo/contents/README.md", token,
+                JSONObject().put("message", "Start repository")
+                    .put("content", Base64.getEncoder().encodeToString("# ${repo.substringAfter('/')}\n".toByteArray())).toString()
+            )
+            tree().let { tc = it.first; tb = it.second }
+        }
+        if (tc == 403 || tc == 404) error("This token can't write to $repo. Check it has Contents: Read and write, and that $repo is picked under Repository access.")
+        if (tc != 201) error("GitHub answered $tc while preparing the backup.")
+        val (cc, cb) = call(
+            "POST", "/repos/$repo/git/commits", token,
+            JSONObject().put("message", "Start heart-rate backup").put("tree", JSONObject(tb).getString("sha"))
+                .put("parents", JSONArray()).toString()
+        )
+        if (cc != 201) error("GitHub answered $cc while preparing the backup.")
+        val (rc, _) = call(
+            "POST", "/repos/$repo/git/refs", token,
+            JSONObject().put("ref", "refs/heads/$BRANCH").put("sha", JSONObject(cb).getString("sha")).toString()
+        )
+        if (rc != 201 && rc != 422) error("GitHub answered $rc while preparing the backup.") // 422: made meanwhile
+    }
+
     // ---- Pure helpers (unit-tested) ----
+
+    /** "pro3" -> (null, "pro3"); "Jbyjre/pro3" or a pasted github.com link -> ("Jbyjre", "pro3"). */
+    fun splitRepo(input: String): Pair<String?, String> {
+        val t = input.trim().removeSuffix("/").removeSuffix(".git")
+            .replace(Regex("""^(https?://)?(www\.)?github\.com/"""), "")
+        val parts = t.split('/').filter { it.isNotEmpty() }
+        return if (parts.size >= 2) parts[0] to parts[1] else null to t
+    }
 
     internal const val INDEX_KEY = -1L
 
@@ -370,7 +473,7 @@ object HeartBackup {
             conn.setRequestProperty("Authorization", "Bearer $token")
             conn.setRequestProperty("Accept", accept)
             conn.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
-            conn.setRequestProperty("User-Agent", "Glint")
+            conn.setRequestProperty("User-Agent", "pro-app")
             if (body != null) {
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")

@@ -18,6 +18,7 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.glint.GlassBudget
 import me.kavishdevar.librepods.presentation.glint.GlintLight
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 
@@ -685,7 +686,7 @@ fun StyledSlider(
                                                     refractionHeight = 6f.dp.toPx() * progress,
                                                     refractionAmount = size.height / 2f * progress,
                                                     depthEffect = true,
-                                                    chromaticAberration = true
+                                                    chromaticAberration = !GlassBudget.light.value
                                                 )
                                             }
                                         )

@@ -150,7 +150,7 @@ fun AppSettingsScreen(
             onCheckedChange = viewModel::setm3eEnabled,
         )
 
-        StyledList(title = "Glint") {
+        StyledList(title = "pro") {
             StyledListItem(
                 name = "Island",
                 description = "When it appears, music controls, how long it stays",
@@ -365,12 +365,12 @@ fun AppSettingsScreen(
         StyledList(title = stringResource(R.string.contact)) {
             // Problems go to Jake's own repository.
             StyledListItem(
-                name = "Report a Glint problem",
-                description = "Opens Glint's GitHub page",
+                name = "Report a pro problem",
+                description = "Opens pro's GitHub page",
                 orientation = ListItemOrientation.Vertical,
                 onClick = {
                     val body = Uri.encode(
-                        "Glint v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n" +
+                        "pro v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n" +
                             "Device: ${Build.MANUFACTURER} ${Build.MODEL}\nAndroid: ${Build.ID} (${Build.DISPLAY})\n\nWhat happened:\n"
                     )
                     context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/Jbyjre/pro3/issues/new?body=$body".toUri()))

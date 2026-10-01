@@ -18,6 +18,7 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.glint.GlassBudget
 import me.kavishdevar.librepods.presentation.glint.GlintLight
 import android.graphics.RuntimeShader
 import android.os.Build
@@ -213,7 +214,7 @@ half4 main(float2 coord) {
                                         refractionHeight = 12f.dp.toPx(),
                                         refractionAmount = 24f.dp.toPx(),
                                         depthEffect = true,
-                                        chromaticAberration = true
+                                        chromaticAberration = !GlassBudget.light.value
                                     )
                                 },
                                 layerBlock = {

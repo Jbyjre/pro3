@@ -118,12 +118,12 @@ fun ConnectionStatusPanel(
     val panel = when (val l = link) {
         LinkState.BluetoothOff -> Panel(
             "Bluetooth is off",
-            "Turn Bluetooth on and Glint will find your AirPods automatically.",
+            "Turn Bluetooth on and pro will find your AirPods automatically.",
             "Bluetooth settings" to { context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
         )
         LinkState.NoPermission -> Panel(
             "Allow Nearby devices",
-            "Glint needs the Nearby devices permission to talk to your AirPods.",
+            "pro needs the Nearby devices permission to talk to your AirPods.",
             "Open app settings" to {
                 context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
             }
@@ -143,7 +143,7 @@ fun ConnectionStatusPanel(
             verdict.title, verdict.message, null
         ) else Panel(
             "Waiting for your AirPods",
-            "Open the case near your phone or put your AirPods in. Glint connects on its own.",
+            "Open the case near your phone or put your AirPods in. pro connects on its own.",
             if (prefs.getBoolean("connection_successful", false)) "Reconnect" to { retry() } else null
         )
     }

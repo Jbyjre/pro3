@@ -69,7 +69,7 @@ import me.kavishdevar.librepods.services.LinkState
 import kotlin.math.roundToInt
 
 /**
- * Hidden "Glint Lab": fire every overlay state with made-up data so the visuals can be judged
+ * Hidden "pro Lab": fire every overlay state with made-up data so the visuals can be judged
  * without AirPods. Open it from Settings by tapping the version row seven times.
  */
 @Composable
@@ -179,7 +179,7 @@ fun GlintLabScreen() {
                 OutlinedButton(onClick = { island(IslandEvent.BothIn) }) { Text("Both in") }
                 OutlinedButton(onClick = { island(IslandEvent.Music) }) { Text("Music") }
                 OutlinedButton(onClick = {
-                    island(IslandEvent.Problem("Couldn't reach the controls", "Audio works. Open Glint for details."))
+                    island(IslandEvent.Problem("Couldn't reach the controls", "Audio works. Open pro for details."))
                 }) { Text("Problem") }
             }
             Text("Tip: tap the island to expand it, swipe it up to dismiss. Swipe the card down to dismiss.", style = MaterialTheme.typography.bodySmall)

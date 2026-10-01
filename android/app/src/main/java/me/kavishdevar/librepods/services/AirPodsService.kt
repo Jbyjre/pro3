@@ -1955,7 +1955,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
             NotificationChannel("heart_rate_alerts", "High heart rate", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "When your heart rate goes above the limit you set in Glint."
+                description = "When your heart rate goes above the limit you set in pro."
             }
         )
         val open = PendingIntent.getActivity(this, 5, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -2149,7 +2149,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 "Background connection (hidden)",
                 NotificationManager.IMPORTANCE_NONE
             ).apply {
-                description = "Android requires a notification to keep the AirPods connection alive. Glint keeps it on this hidden channel so it never shows in the shade."
+                description = "Android requires a notification to keep the AirPods connection alive. pro keeps it on this hidden channel so it never shows in the shade."
             }
         )
         notificationManager.createNotificationChannel(
@@ -2245,7 +2245,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 val verdict = currentSupportVerdict()
                 NotificationCompat.Builder(this, statusChannel)
                     .setContentTitle(if (verdict.canConnect) "Couldn't reach AirPods controls" else verdict.title)
-                    .setContentText(if (verdict.canConnect) "Audio works. Tap Try again, or open Glint for help." else "Audio works. Open Glint to see why.")
+                    .setContentText(if (verdict.canConnect) "Audio works. Tap Try again, or open pro for help." else "Audio works. Open pro to see why.")
                     .setStyle(NotificationCompat.BigTextStyle().bigText(verdict.message))
                     .setCategory(Notification.CATEGORY_STATUS)
                     .addAction(R.drawable.ic_bluetooth, "Try again", retry)
@@ -2253,11 +2253,11 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             }
             LinkState.BluetoothOff, LinkState.Idle, LinkState.NoPermission ->
                 NotificationCompat.Builder(this, "background_service_status")
-                    .setContentTitle("Glint is ready")
+                    .setContentTitle("pro is ready")
                     .setContentText(
                         when (GlintStatus.link.value) {
                             LinkState.BluetoothOff -> "Bluetooth is off"
-                            LinkState.NoPermission -> "Open Glint to allow Nearby devices"
+                            LinkState.NoPermission -> "Open pro to allow Nearby devices"
                             else -> "Waiting for your AirPods"
                         }
                     )
@@ -2336,9 +2336,9 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
         val notification = NotificationCompat.Builder(this, "socket_connection_failure")
             .setSmallIcon(R.drawable.airpods).setContentTitle("AirPods Connection Issue")
-            .setContentText("Glint couldn't reach the AirPods controls").setStyle(
+            .setContentText("pro couldn't reach the AirPods controls").setStyle(
                 NotificationCompat.BigTextStyle().bigText(
-                    "Your AirPods play audio, but Glint couldn't open its control connection to them. Glint will keep trying. (Details: $errorMessage)"
+                    "Your AirPods play audio, but pro couldn't open its control connection to them. pro will keep trying. (Details: $errorMessage)"
                 )
             ).setContentIntent(pendingIntent).setCategory(Notification.CATEGORY_ERROR)
             .setOnlyAlertOnce(true) // retries update it quietly instead of buzzing each time

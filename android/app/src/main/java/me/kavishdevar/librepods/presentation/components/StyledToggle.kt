@@ -20,6 +20,9 @@
 
 package me.kavishdevar.librepods.presentation.components
 
+import me.kavishdevar.librepods.presentation.glint.RowIconTile
+import me.kavishdevar.librepods.presentation.glint.RowIcons
+import androidx.compose.ui.graphics.luminance
 import me.kavishdevar.librepods.presentation.glint.touchGlow
 
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
@@ -33,6 +36,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -177,8 +181,8 @@ private fun StyledToggleContent(
 ) {
     val currentChecked by rememberUpdatedState(checked)
 
-    val isDarkTheme = isSystemInDarkTheme()
-    val textColor = if (isDarkTheme) Color.White else Color.Black
+    // The app's own light/dark choice (Settings > Appearance), not the phone's.
+    val textColor = MaterialTheme.colorScheme.onSurface
 
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -290,6 +294,10 @@ private fun StyledToggleContent(
                     },
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                RowIcons.forName(label)?.let { icon ->
+                    RowIconTile(icon, MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface.luminance() < 0.5f, isPressed.value)
+                    Spacer(Modifier.width(12.dp))
+                }
                 Column(
                     modifier = Modifier
                         .weight(1f)

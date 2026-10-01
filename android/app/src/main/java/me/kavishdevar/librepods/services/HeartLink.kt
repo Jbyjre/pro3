@@ -267,7 +267,7 @@ private object Beaconer {
     @Synchronized
     fun start(ctx: Context) {
         if (server != null) return
-        if (!allowed(ctx)) { HeartLink.beaconState(HeartLink.Beacon.Failed("Allow \"Nearby devices\" for Glint")); return }
+        if (!allowed(ctx)) { HeartLink.beaconState(HeartLink.Beacon.Failed("Allow \"Nearby devices\" for pro")); return }
         val bm = ctx.getSystemService(BluetoothManager::class.java) ?: return
         val adapter = bm.adapter
         if (adapter == null || !adapter.isEnabled) { HeartLink.beaconState(HeartLink.Beacon.Failed("Bluetooth is off")); return }

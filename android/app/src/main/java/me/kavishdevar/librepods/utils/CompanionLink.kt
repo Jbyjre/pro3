@@ -37,7 +37,7 @@ import java.util.regex.Pattern
 /**
  * Companion-device link between Glint and the AirPods.
  *
- * Once the user approves the system "Allow Glint to access your AirPods" dialog, Android:
+ * Once the user approves the system "Allow pro to access your AirPods" dialog, Android:
  *  - binds CompanionPresenceService whenever the AirPods connect, even if the app was killed
  *    (this is what survives Samsung's "sleeping apps" and a long idle phone), and
  *  - lets Glint start its foreground service from the background.
