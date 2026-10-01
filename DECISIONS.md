@@ -390,3 +390,19 @@ A new automated "screen tour" (`AppTourScreenshots`) renders 26 screens on every
 - **Notifications come out of it (your request).** When the island has something to show (connected, low battery, mode change, a tap), it now grows out of the pill: the black pill stretches down from the camera, turning into the glass island, and when it's done it shrinks back up into the pill, which carries on as if it never left. One shape instead of two separate things. Without the pill (turned off), the island appears as before.
   - It always settles below the camera, even on phones that report no status bar height.
 - **Checked:** tests for when it stays and what it shows; pictures of the AirPods view (normal, heart, low, charging) and of the island growing out of the pill frame by frame (found and fixed: a one-frame gap at the start, and the island could have settled over the camera); all tests, lint and the release build pass.
+
+## 27. New names, smoother handover, subtle idle look, smarter Conversation Awareness
+
+- **Names (your choice).** The pill around the camera is now the **Dynamic Island**; the pop-ups that appear when something changes (connected, music paused, low battery...) are the **mini island**. Settings > **Dynamic Island** (the row), page title "Islands", with a "Dynamic Island" section and a "Mini island" section. (Inside the code they keep their old names.)
+- **Appears as soon as the AirPods connect, and every pop-up grows out of it.** Even when the pill and the "Connected" pop-up start at the same moment, the pop-up now grows from the camera spot. Tapping the Dynamic Island expands it into the big view.
+- **Subtle look while idle (your request).** Connected with no music, it's a very dark graphite (a touch lighter than black) with a faint rim of light along the top, so it stands out slightly from dark wallpapers. With music it's pure black, at one with the camera. The change fades.
+- **Smarter extras.**
+  - While Conversation Awareness has your music down, the right side shows three soft "talking" dots instead of the bars or the mode symbol.
+  - At 10% battery and below the ring breathes gently so it catches your eye.
+- **Conversation Awareness gives your music back at the right moment (your request).**
+  - Before: the music came back the instant the AirPods said you stopped talking, so it cut in and out during a conversation (every breath or reply). If you started talking again while it was coming back, two volume changes could fight each other; and a volume change you made during the conversation was undone.
+  - Now: after you stop talking it waits for a short quiet spell: **2 seconds** before turning the volume back up, **3 seconds** before un-pausing (if you set it to pause). During a real back-and-forth (you started talking several times in the last 30 seconds) it waits a little longer each time, up to 5 s (volume) or 8 s (pause). Talking again before then cancels it, so the music stays down for the whole conversation.
+  - The volume swells back over about a second (eased), and goes down quickly when you start talking. If you changed the volume yourself during the conversation, it leaves your choice alone. Music you paused yourself is never restarted.
+  - These timings are my design choice (Apple doesn't publish theirs); tell me if it feels too quick or too slow and I'll adjust.
+- **Checked:** tests for the timing (`ConversationTimingTest`) and the island rules; pictures of the idle look on a dark wallpaper, the heart, the talking dots; all 181 tests, lint and the release build pass. **Not verified on your phone:** how the timing feels in a real conversation.
+- Code: `utils/ConversationTiming.kt`, `utils/MediaController.kt`, `overlays/MiniIsland.kt`, `overlays/Island.kt`, `overlays/GlintOverlays.kt`, `screens/IslandSettingsScreen.kt`.

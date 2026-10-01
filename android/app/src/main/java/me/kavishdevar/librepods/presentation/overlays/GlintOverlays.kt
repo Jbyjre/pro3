@@ -168,6 +168,9 @@ object GlintOverlays {
         c.start()
     }
 
+    /** Where a pop-up should grow from: the pill by the camera, now or about to appear. */
+    internal fun plannedMiniOrigin(): MiniOrigin? = miniOrigin ?: mini?.plannedOrigin()
+
     /** Re-checks whether the mini island should be up (after a settings change). */
     fun refreshMiniIsland(context: Context) = main.post { mini?.refresh() ?: startMiniIsland(context) }
 

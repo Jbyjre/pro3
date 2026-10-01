@@ -179,6 +179,7 @@ class GlintScreenshots {
         shape: String = "hole",
         airPods: PodsSnapshot? = null,
         heart: Int? = null,
+        talking: Boolean = false,
     ) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")
         rule.mainClock.autoAdvance = false
@@ -213,7 +214,7 @@ class GlintScreenshots {
                         me.kavishdevar.librepods.presentation.overlays.MiniIslandHost(
                             geometry = geo, track = track, leaving = false, hidden = false,
                             content = if (airPods != null) me.kavishdevar.librepods.services.MiniIslandRules.Content.AirPods else me.kavishdevar.librepods.services.MiniIslandRules.Content.Music,
-                            pods = airPods ?: PodsSnapshot(), heartBpm = heart,
+                            pods = airPods ?: PodsSnapshot(), heartBpm = heart, talking = talking,
                             onWindowSize = {}, onTouchable = {}, onGone = {}, onOpen = {}, onHold = {}, onSkip = {},
                             still = 1f, stillWide = wide,
                         )
@@ -241,6 +242,8 @@ class GlintScreenshots {
     @Test fun miniIslandPausedNoCover() = mini("mini_island_paused", playing = false, wide = 0f, art = false)
     @Test fun miniIslandAirPods() = mini("mini_island_airpods", playing = false, wide = 0f, art = false, airPods = demo)
     @Test fun miniIslandAirPodsHeart() = mini("mini_island_airpods_heart", playing = false, wide = 0f, art = false, airPods = demo, heart = 74, dark = true)
+    @Test fun miniIslandAirPodsDarkIdle() = mini("mini_island_airpods_dark_idle", playing = false, wide = 0f, art = false, airPods = demo, dark = true)
+    @Test fun miniIslandTalking() = mini("mini_island_talking", playing = true, wide = 0f, art = true, talking = true, dark = true)
     @Test fun miniIslandAirPodsLow() = mini("mini_island_airpods_low", playing = false, wide = 0f, art = false, airPods = demo.copy(left = 9, right = 12))
     @Test fun miniIslandAirPodsCharging() = mini("mini_island_airpods_charging", playing = false, wide = 0f, art = false, airPods = demo.copy(leftCharging = true, rightCharging = true))
 

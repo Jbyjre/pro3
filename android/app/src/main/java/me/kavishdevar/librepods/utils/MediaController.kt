@@ -325,9 +325,24 @@ object MediaController {
         }
     }
 
+    // Conversation Awareness: a pending "give the music back", the volume ramp in progress, the
+    // level we turned it down to (to notice if you changed it yourself meanwhile), and when you
+    // started talking recently (to tell a real conversation from one remark).
+    private var restoreTask: Runnable? = null
+    private var rampTask: Runnable? = null
+    private var duckedTo: Int? = null
+    private val talkStarts = ArrayDeque<Long>()
+
     @Synchronized
     fun startSpeaking() {
         Log.d("MediaController", "Starting speaking max vol: ${audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)}, current vol: ${audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)}, conversationalAwarenessVolume: $conversationalAwarenessVolume, relativeVolume: $relativeVolume")
+        // Talking again before the music came back: keep it down, don't bounce.
+        restoreTask?.let { handler.removeCallbacks(it) }
+        restoreTask = null
+        val now = SystemClock.uptimeMillis()
+        talkStarts.addLast(now)
+        while (talkStarts.isNotEmpty() && now - talkStarts.first() > ConversationTiming.WINDOW_MS) talkStarts.removeFirst()
+        ConversationTiming.setTalking(true)
 
         if (initialVolume == null) {
             initialVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
@@ -339,6 +354,7 @@ object MediaController {
             } else {
                 initialVolume!!
             }
+            duckedTo = targetVolume
             smoothVolumeTransition(initialVolume!!, targetVolume)
             if (conversationalAwarenessPauseMusic) {
                 sendPause(force = true)
@@ -347,32 +363,55 @@ object MediaController {
         Log.d("MediaController", "Initial Volume: $initialVolume")
     }
 
+    /**
+     * You stopped talking: give the music back after a short quiet spell (longer during a real
+     * back-and-forth), unless you start talking again first. See [ConversationTiming].
+     */
     @Synchronized
     fun stopSpeaking() {
         Log.d("MediaController", "Stopping speaking, initialVolume: $initialVolume")
-        if (initialVolume != null) {
-            smoothVolumeTransition(audioManager.getStreamVolume(AudioManager.STREAM_MUSIC), initialVolume!!)
-            if (conversationalAwarenessPauseMusic) {
-                sendPlay()
-            }
-            initialVolume = null
-        }
+        if (initialVolume == null) { ConversationTiming.setTalking(false); return }
+        restoreTask?.let { handler.removeCallbacks(it) }
+        val now = SystemClock.uptimeMillis()
+        val turns = talkStarts.count { now - it <= ConversationTiming.WINDOW_MS }
+        val wait = ConversationTiming.restoreDelayMs(conversationalAwarenessPauseMusic, turns)
+        val task = Runnable { restoreAfterConversation() }
+        restoreTask = task
+        handler.postDelayed(task, wait)
     }
 
+    @Synchronized
+    private fun restoreAfterConversation() {
+        restoreTask = null
+        val start = initialVolume ?: return
+        val now = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        // If you changed the volume yourself while talking, your choice wins.
+        val youChangedIt = rampTask == null && duckedTo != null && now != duckedTo
+        if (!youChangedIt) smoothVolumeTransition(now, start)
+        if (conversationalAwarenessPauseMusic) sendPlay()
+        initialVolume = null
+        duckedTo = null
+        ConversationTiming.setTalking(false)
+    }
+
+    /** One volume step at a time on [ConversationTiming.rampDelays]; a new ramp replaces one in progress. */
     private fun smoothVolumeTransition(fromVolume: Int, toVolume: Int) {
         Log.d("MediaController", "Smooth volume transition from $fromVolume to $toVolume")
+        rampTask?.let { handler.removeCallbacks(it) }
+        val delays = ConversationTiming.rampDelays(fromVolume, toVolume)
+        if (delays.isEmpty()) { rampTask = null; return }
         val step = if (fromVolume < toVolume) 1 else -1
-        val delay = 50L
         var currentVolume = fromVolume
-
-        handler.post(object : Runnable {
+        var i = 0
+        val task = object : Runnable {
             override fun run() {
-                if (currentVolume != toVolume) {
-                    currentVolume += step
-                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, currentVolume, 0)
-                    handler.postDelayed(this, delay)
-                }
+                if (currentVolume == toVolume || i >= delays.size) { rampTask = null; return }
+                currentVolume += step
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, currentVolume, 0)
+                handler.postDelayed(this, delays[i++])
             }
-        })
+        }
+        rampTask = task
+        handler.post(task)
     }
 }

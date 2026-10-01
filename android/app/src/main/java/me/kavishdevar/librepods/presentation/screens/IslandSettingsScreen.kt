@@ -68,7 +68,7 @@ import me.kavishdevar.librepods.services.IslandPrefs
 import me.kavishdevar.librepods.services.NowPlaying
 
 /**
- * Settings > Island: which moments make the island appear, music controls and song names,
+ * Settings > Islands: the Dynamic Island around the camera, which moments make the mini island appear, music controls and song names,
  * how long it stays, haptics, and buttons to try each look.
  */
 @Composable
@@ -119,27 +119,28 @@ fun IslandSettingsScreen() {
     ) {
         Spacer(Modifier.height(topPadding))
 
-        StyledList(title = "Island") {
+        StyledList(title = "Mini island") {
             StyledToggle(
-                label = "Show the island",
-                description = if (canDraw) "pro's pop-up at the top of the screen" else "Needs \"Display over other apps\" for pro",
+                label = "Show the mini island",
+                description = if (canDraw) "Pop-ups when something changes (connected, music paused, low battery), growing out of the Dynamic Island"
+                else "Needs \"Display over other apps\" for pro",
                 checked = master,
                 onCheckedChange = { master = it; prefs.edit { putBoolean(IslandPrefs.PREF_MASTER, it) } },
             )
         }
         if (!canDraw) {
             Hint(
-                "Android hasn't allowed pro to draw over other apps yet, so the island can't appear.",
+                "Android hasn't allowed pro to draw over other apps yet, so the islands can't appear.",
                 "Allow", ink, dark,
             ) { open(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).setData(android.net.Uri.fromParts("package", context.packageName, null))) }
         }
 
-        StyledList(title = "Mini island") {
+        StyledList(title = "Dynamic Island") {
             StyledToggle(
-                label = "Mini island around the camera",
+                label = "Dynamic Island around the camera",
                 description = "A small pill around the front camera. With music: the cover and moving bars (swipe to change song). " +
-                    "With AirPods: their battery and listening mode, or your heart rate. Tap it to open the island, hold it to open pro. " +
-                    "The island grows out of it and shrinks back into it.",
+                    "With AirPods: their battery and listening mode, or your heart rate. Tap it to expand it, hold it to open pro. " +
+                    "The mini island pop-ups grow out of it and shrink back into it.",
                 checked = mini,
                 onCheckedChange = {
                     mini = it
@@ -179,14 +180,14 @@ fun IslandSettingsScreen() {
             )
         }
 
-        StyledList(title = "When it appears") {
+        StyledList(title = "When the mini island appears") {
             IslandPrefs.Trigger.entries.forEach { t ->
-                // Music moments are the mini island's job while it's on.
+                // Music moments are the Dynamic Island's job while it's on.
                 val byMini = mini && (t == IslandPrefs.Trigger.MusicStarts || t == IslandPrefs.Trigger.SongChanges)
                 StyledToggle(
                     label = t.label,
                     description = when {
-                        byMini -> "Shown by the mini island instead"
+                        byMini -> "Shown by the Dynamic Island instead"
                         t == IslandPrefs.Trigger.SongChanges && songNames && !access -> "Needs Notification access (under Music)"
                         else -> t.description
                     },
@@ -270,13 +271,13 @@ fun IslandSettingsScreen() {
                     GlintOverlays.showIsland(context, event)
                 }
             }
-            GlassPillButton(text = "Mini island", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
+            GlassPillButton(text = "Dynamic Island", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
                 GlintOverlays.previewMiniIsland(context)
             }
         }
         Text(
-            "Tap the island to open it, hold it to open pro, swipe up to put it away. " +
-                "The mini island hides by itself in landscape, in full-screen apps, on the lock screen and 30 seconds after music stops. " +
+            "Tap a pop-up to open it, hold it to open pro, swipe it up to put it away. " +
+                "The Dynamic Island hides by itself in landscape, in full-screen apps, on the lock screen, and 30 seconds after music stops when your AirPods aren't connected. " +
                 "While you measure heart rate, the heart shows inside the opened island; tap it for what the number means.",
             style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = ink.copy(alpha = 0.55f)),
             modifier = Modifier.padding(horizontal = 16.dp),

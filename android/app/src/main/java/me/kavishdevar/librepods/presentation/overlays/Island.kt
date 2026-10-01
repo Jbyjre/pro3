@@ -177,7 +177,7 @@ internal class IslandController(private val context: Context) {
         phase.value = if (wantsExpanded) IslandPhase.Expanded else IslandPhase.Compact
         shownAt = android.os.SystemClock.elapsedRealtime()
         // Grow out of the mini island when it's up (one shape, like the Dynamic Island).
-        val geo = IslandGeometry(context, GlintOverlays.miniOrigin)
+        val geo = IslandGeometry(context, GlintOverlays.plannedMiniOrigin())
         geometry = geo
         window.show(if (wantsExpanded) geo.expandedWindow else geo.compactWindow, geo.windowTop) {
             IslandHost(
