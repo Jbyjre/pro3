@@ -143,6 +143,8 @@ internal class IslandController(private val context: Context) {
         // remove it so this event still appears instead of being swallowed.
         if (window.isShowing && android.os.SystemClock.elapsedRealtime() - shownAt > 25_000L) window.dismiss()
         if (window.isShowing) {
+            // Measured from the latest event, so a busy island isn't mistaken for a stuck one.
+            shownAt = android.os.SystemClock.elapsedRealtime()
             phase.value = if (wantsExpanded) IslandPhase.Expanded else
                 if (phase.value == IslandPhase.Leaving) IslandPhase.Compact else phase.value
             return

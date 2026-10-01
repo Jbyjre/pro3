@@ -50,6 +50,8 @@ object HeartRate {
         val lastReadingMs: Long = 0L,
         val sessionStartMs: Long = 0L,
         val samples: List<Sample> = emptyList(),
+        /** Measuring by itself because the buds are worn (always-on mode), about every 5 s. */
+        val background: Boolean = false,
     ) {
         val min: Int? get() = samples.minOfOrNull { it.bpm }
         val max: Int? get() = samples.maxOfOrNull { it.bpm }
@@ -61,18 +63,25 @@ object HeartRate {
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
-    internal fun starting(now: Long) = _state.update {
+    internal fun starting(now: Long, background: Boolean = false) = _state.update {
         when {
-            it.status == Status.Live -> it
-            // After a stop, starting again begins a new session (the old one is in the history).
-            it.status == Status.Off -> State(status = Status.Starting, sessionStartMs = now)
-            else -> it.copy(status = Status.Starting, sessionStartMs = if (it.samples.isEmpty()) now else it.sessionStartMs)
+            it.status == Status.Live -> it.copy(background = background)
+            // After a stop, or a long break, starting again begins a new session (the old one
+            // is in the history).
+            it.status == Status.Off || (it.lastReadingMs > 0 && now - it.lastReadingMs > NEW_SESSION_GAP_MS) ->
+                State(status = Status.Starting, sessionStartMs = now, background = background)
+            else -> it.copy(status = Status.Starting, background = background, sessionStartMs = if (it.samples.isEmpty()) now else it.sessionStartMs)
         }
     }
 
+    /** A break this long between readings starts a new session. */
+    const val NEW_SESSION_GAP_MS = 30 * 60_000L
+
     private const val PREF_SESSIONS = "glint_hr_sessions"
 
-    /** Earlier sessions, newest first (the last 20). */
+    const val MAX_HISTORY = 40
+
+    /** Earlier sessions, newest first (the last [MAX_HISTORY]). */
     fun history(context: android.content.Context): List<HeartInsights.Session> =
         context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
             .getString(PREF_SESSIONS, "").orEmpty().lines().mapNotNull { HeartInsights.Session.decode(it) }
@@ -82,7 +91,7 @@ object HeartRate {
         val summary = HeartInsights.summarize(state.value.samples) ?: return
         val prefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
         val old = history(context).filter { it.startMs != summary.startMs }
-        val lines = (listOf(summary) + old).take(20).joinToString("\n") { it.encode() }
+        val lines = (listOf(summary) + old).take(MAX_HISTORY).joinToString("\n") { it.encode() }
         prefs.edit().putString(PREF_SESSIONS, lines).apply()
     }
 
@@ -91,7 +100,9 @@ object HeartRate {
         it.copy(status = Status.Live, bpm = bpm, lastReadingMs = now, samples = samples, sessionStartMs = if (it.sessionStartMs == 0L) now else it.sessionStartMs)
     }
 
-    internal fun status(status: Status) = _state.update { it.copy(status = status, bpm = if (status == Status.Live) it.bpm else null) }
+    internal fun status(status: Status) = _state.update {
+        it.copy(status = status, bpm = if (status == Status.Live) it.bpm else null, background = it.background && status != Status.Off)
+    }
 
     /** Clears the session's readings (the Reset button). */
     fun clear() = _state.update { State(status = it.status) }
@@ -140,7 +151,7 @@ object HeartInsights {
     fun trend(samples: List<HeartRate.Sample>, now: Long): Trend? {
         val recent = samples.filter { now - it.timeMs <= 120_000 }
         val before = samples.filter { now - it.timeMs in 120_001..300_000 }
-        if (recent.size < 20 || before.size < 30) return null
+        if (recent.size < 15 || before.size < 20) return null
         val d = recent.map { it.bpm }.average() - before.map { it.bpm }.average()
         return when {
             d >= 5 -> Trend.Rising
@@ -172,7 +183,7 @@ object HeartInsights {
             while (s.timeMs - samples[start].timeMs > window) { sum -= samples[start].bpm; start++ }
             val count = end - start + 1
             // A full window with enough readings in it (some may be missing while a bud moves).
-            if (s.timeMs - samples[start].timeMs >= window - 10_000 && count >= 60) {
+            if (s.timeMs - samples[start].timeMs >= window - 10_000 && count >= 30) {
                 val avg = sum.toDouble() / count
                 if (best == null || avg < best!!) best = avg
             }
@@ -182,14 +193,14 @@ object HeartInsights {
 
     /**
      * Recovery: how far your heart rate fell in the minute after the session's highest point,
-     * using the readings 55–65 seconds after it. Null until that minute has passed, or when
+     * using the readings 52–68 seconds after it. Null until that minute has passed, or when
      * the peak wasn't an effort (below 100 BPM).
      */
     fun recovery(samples: List<HeartRate.Sample>): Int? {
         val peak = samples.maxByOrNull { it.bpm } ?: return null
         if (peak.bpm < 100) return null
-        val after = samples.filter { it.timeMs - peak.timeMs in 55_000..65_000 }
-        if (after.size < 3) return null
+        val after = samples.filter { it.timeMs - peak.timeMs in 52_000..68_000 }
+        if (after.size < 2) return null
         return peak.bpm - kotlin.math.round(after.map { it.bpm }.average()).toInt()
     }
 

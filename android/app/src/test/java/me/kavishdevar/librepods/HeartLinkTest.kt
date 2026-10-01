@@ -57,4 +57,22 @@ class HeartLinkTest {
         val csv = HeartInsights.csv(listOf(HeartRate.Sample(0L, 70), HeartRate.Sample(1000L, 71)))
         assertEquals("time_utc,time_ms,bpm\n1970-01-01T00:00:00Z,0,70\n1970-01-01T00:00:01Z,1000,71\n", csv)
     }
+
+    @Test fun aLongBreakStartsANewSession() {
+        HeartRate.status(HeartRate.Status.Off)
+        HeartRate.starting(0L)
+        HeartRate.reading(70, 1_000L)
+        HeartRate.status(HeartRate.Status.NotConnected)
+        // Back within half an hour: same session.
+        HeartRate.starting(10 * 60_000L, background = true)
+        assertEquals(1, HeartRate.state.value.samples.size)
+        assertTrue(HeartRate.state.value.background)
+        HeartRate.status(HeartRate.Status.NotConnected)
+        // After a longer break: a fresh one.
+        HeartRate.starting(1_000L + HeartRate.NEW_SESSION_GAP_MS + 1)
+        assertEquals(0, HeartRate.state.value.samples.size)
+        HeartRate.status(HeartRate.Status.Off)
+        assertFalse(HeartRate.state.value.background)
+        HeartRate.clear()
+    }
 }

@@ -39,6 +39,8 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 | Heart rate | Main screen > **Heart rate** > Start measuring (both buds in) | A number within a few seconds, a heart beating at that rate, and a line building up. Take a bud out: it says there's no reading |
 | Share heart rate | Heart rate > **Share live heart rate**: turn on Bluetooth sensor, start measuring, then in a fitness app or watch search for a heart-rate sensor | Your phone appears and shows the same BPM. Web address: paste an https webhook and tap Send a test: "It worked" |
 | Heart insights | Measure at least 3 minutes sitting, then exercise and stop | "Resting, est." appears; a minute after your peak, "1-min recovery". Export readings opens the share sheet with a CSV |
+| Background heart rate | Heart rate > turn on **Measure whenever worn**, close Glint, wear the buds 5+ minutes, take them out, wait a minute | No notification appears; reopening Glint shows the stretch under Earlier |
+| Glass tilt | Open the main screen and slowly tilt the phone left and right | The glass edges' shine drifts a little; it settles straight when the phone is upright |
 | Recorder | Main screen > **Recorder (experimental)** | Tap the red button, speak, stop. A recording appears you can play. If it says no audio is arriving, that firmware doesn't support it |
 | Head gestures | Main screen > Head gestures | The dot moves as you turn and tilt your head; Test Head Gestures reacts to a nod or shake |
 | Light/dark | Settings > Appearance: Light, then Dark | The app, its status bar and the island all switch |
