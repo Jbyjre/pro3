@@ -17,6 +17,13 @@
 */
 package me.kavishdevar.librepods.presentation.overlays
 
+import me.kavishdevar.librepods.presentation.glint.rememberHeartBeat
+import me.kavishdevar.librepods.presentation.glint.heartPath
+import me.kavishdevar.librepods.presentation.glint.listeningModeName
+import me.kavishdevar.librepods.presentation.glint.ListeningModeGlyph
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.layout.onSizeChanged
 import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.ComponentCallbacks
@@ -127,6 +134,8 @@ internal class MiniIslandController(private val context: Context) {
     private val leaving = mutableStateOf(false)
     /** Sample music for Settings > Island > Try it. */
     private val sample = mutableStateOf<NowPlaying.Track?>(null)
+    /** Music or the AirPods themselves. */
+    private val content = mutableStateOf(MiniIslandRules.Content.Music)
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) {
@@ -140,7 +149,7 @@ internal class MiniIslandController(private val context: Context) {
     }
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == IslandPrefs.PREF_MINI || key == IslandPrefs.PREF_MINI_AIRPODS_ONLY) refresh()
+        if (key == IslandPrefs.PREF_MINI || key == IslandPrefs.PREF_MINI_AIRPODS_ONLY || key == IslandPrefs.PREF_MINI_ALWAYS) refresh()
     }
 
     private val rotation = object : ComponentCallbacks {
@@ -209,8 +218,14 @@ internal class MiniIslandController(private val context: Context) {
                 airPodsOnly = !previewing && IslandPrefs.miniAirPodsOnly(prefs),
                 airPodsUp = GlintStatus.link.value is LinkState.Connected,
                 screenUnlocked = previewing || unlocked,
+                alwaysWithAirPods = !previewing && IslandPrefs.miniAlways(prefs),
             )
         ) && portrait()
+        content.value = if (previewing) MiniIslandRules.Content.Music else MiniIslandRules.content(
+            playing = playing, pausedForMs = pausedFor, playedRecently = playedRecently,
+            airPodsUp = GlintStatus.link.value is LinkState.Connected,
+        )
+        if (!want) GlintOverlays.miniOrigin = null
         if (want) {
             leaving.value = false
             if (!window.isShowing) show()
@@ -230,19 +245,39 @@ internal class MiniIslandController(private val context: Context) {
     private fun show() {
         val geo = MiniGeometry(context)
         shownFor = geo.key
+        window.onShownChanged = { if (!it) GlintOverlays.miniOrigin = null }
         window.show(geo.compactWindow, geo.windowTop, geo.offsetX) {
             val live by NowPlaying.state.collectAsState()
+            val pods by GlintOverlays.snapshot.collectAsState()
+            val heart by me.kavishdevar.librepods.services.HeartRate.state.collectAsState()
             MiniIslandHost(
                 geometry = geo,
                 track = sample.value ?: live,
+                content = content.value,
+                pods = pods,
+                heartBpm = heart.bpm.takeIf { heartShowsOnIsland(heart, System.currentTimeMillis()) },
                 leaving = leaving.value,
-                hidden = GlintOverlays.islandVisible.value || !window.statusBarVisible.value,
+                hidden = !window.statusBarVisible.value,
+                handOff = GlintOverlays.islandVisible.value,
+                onVisible = { up ->
+                    // Tells the big island where to grow from while the pill is up.
+                    GlintOverlays.miniOrigin = if (up) GlintOverlays.MiniOrigin(
+                        dx = geo.offsetX.toFloat(),
+                        top = geo.centerY - geo.size.height / 2f,
+                        width = geo.size.compactWidth,
+                        height = geo.size.height,
+                    ) else null
+                },
                 onWindowSize = { window.resize(it) },
                 onTouchable = { window.setTouchable(it) },
                 onGone = { window.dismiss() },
                 onOpen = {
                     val airPods = GlintStatus.link.value is LinkState.Connected
-                    GlintOverlays.showIsland(context, IslandEvent.Music, expand = airPods)
+                    if (content.value == MiniIslandRules.Content.AirPods) {
+                        GlintOverlays.showIsland(context, IslandEvent.Connected, expand = true)
+                    } else {
+                        GlintOverlays.showIsland(context, IslandEvent.Music, expand = airPods)
+                    }
                 },
                 onHold = { GlintOverlays.openApp(context) },
                 onSkip = { next -> if (sample.value == null) NowPlaying.skip(context, next) },
@@ -302,6 +337,13 @@ internal fun MiniIslandHost(
     leaving: Boolean,
     hidden: Boolean,
     onWindowSize: (IntSize) -> Unit,
+    /** What it shows: the music, or the AirPods (battery, listening mode, heart). */
+    content: MiniIslandRules.Content = MiniIslandRules.Content.Music,
+    pods: PodsSnapshot = PodsSnapshot(),
+    heartBpm: Int? = null,
+    /** The big island is up: it grew out of this pill, so this one steps aside at once. */
+    handOff: Boolean = false,
+    onVisible: (Boolean) -> Unit = {},
     onTouchable: (Boolean) -> Unit,
     onGone: () -> Unit,
     onOpen: () -> Unit,
@@ -318,7 +360,7 @@ internal fun MiniIslandHost(
     val prefs = remember { IslandPrefs.prefs(context) }
     val buzz = remember { IslandBuzz(GlintHaptics(view), IslandPrefs.haptics(prefs)) }
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val visible = !leaving && !hidden && !landscape
+    val visible = !leaving && !hidden && !handOff && !landscape
 
     val appear = remember { Animatable(still ?: 0f) }
     val wide = remember { Animatable(stillWide) }
@@ -330,11 +372,16 @@ internal fun MiniIslandHost(
         if (still != null) return@LaunchedEffect
         onTouchable(visible)
         if (visible) {
-            if (reduce) appear.snapTo(1f) else appear.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = 320f))
+            val handedBack = SystemClock.elapsedRealtime() - GlintOverlays.returnToMiniAt < 800L
+            // The big island just shrank back into this spot: carry on as if it never left.
+            if (reduce || handedBack) appear.snapTo(1f) else appear.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = 320f))
+            onVisible(true)
         } else {
+            onVisible(false)
             if (wide.value > 0f) wide.snapTo(0f)
             onWindowSize(geometry.compactWindow)
-            if (reduce) appear.snapTo(0f) else appear.animateTo(0f, spring(dampingRatio = 1f, stiffness = 520f))
+            // Handing over to the big island: it starts exactly here, so vanish at once.
+            if (reduce || handOff) appear.snapTo(0f) else appear.animateTo(0f, spring(dampingRatio = 1f, stiffness = 520f))
             if (leaving) onGone()
         }
     }
@@ -373,21 +420,38 @@ internal fun MiniIslandHost(
         a.animateTo(if (track.playing) 1f else 0f, tween(if (reduce) 0 else 260)) { level.floatValue = value }
     }
 
+    // Music and AirPods views cross-fade into each other.
+    val music = remember { Animatable(if (content == MiniIslandRules.Content.Music) 1f else 0f) }
+    LaunchedEffect(content) {
+        val to = if (content == MiniIslandRules.Content.Music) 1f else 0f
+        if (reduce || still != null) music.snapTo(to) else music.animateTo(to, tween(320))
+    }
+    val beat = rememberHeartBeat(heartBpm, reduce || still != null, peak = 1.18f)
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
     val accent = remember(track.art) { track.art?.let { accentOf(it) } ?: Color.White }
     val paused = remember { ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) }
     val m = geometry.margin
     val s = geometry.size
-    val describe = buildString {
+    val describe = if (content == MiniIslandRules.Content.AirPods) buildString {
+        append(pods.name)
+        pods.budsLevel?.let { append(", battery ").append(it).append("%") }
+        if (pods.listeningMode in 1..4) append(", ").append(listeningModeName(pods.listeningMode))
+        heartBpm?.let { append(", heart rate ").append(it) }
+        append(". Tap to open, hold to open pro.")
+    } else buildString {
         append(if (track.playing) "Now playing" else "Paused")
         track.title?.let { append(": ").append(it) }
         track.artist?.let { append(" by ").append(it) }
         append(". Tap to open, swipe to change song, hold to open pro.")
     }
+    val swipeOn by androidx.compose.runtime.rememberUpdatedState(content == MiniIslandRules.Content.Music)
     val textLine = listOfNotNull(track.title, track.artist).joinToString("  ·  ")
 
+    var boxW by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     Box(
         Modifier
             .fillMaxSize()
+            .onSizeChanged { boxW = it.width }
             .semantics { role = Role.Button; contentDescription = describe }
             .pointerInput(Unit) {
                 detectTapGestures(
@@ -401,7 +465,7 @@ internal fun MiniIslandHost(
                     onDragStart = { dx = 0f },
                     onDragEnd = {
                         val far = abs(dx) > 34f * density
-                        if (far) {
+                        if (far && swipeOn) {
                             buzz.tick()
                             onSkip(dx < 0f) // swipe left = next song
                         }
@@ -433,16 +497,51 @@ internal fun MiniIslandHost(
             drawRoundRect(Color.Black, Offset(left, top), Size(pillW, pillH), CornerRadius(r, r))
 
             // Contents fade in once the pill is mostly formed.
-            val c = ((a - 0.55f) / 0.45f).coerceIn(0f, 1f)
-            if (c <= 0f) return@Canvas
+            val c0 = ((a - 0.55f) / 0.45f).coerceIn(0f, 1f)
+            if (c0 <= 0f) return@Canvas
+            val c = c0 * music.value // the music view
+            val pc = c0 * (1f - music.value) // the AirPods view
             val side = s.height - 8f * density
             val lineY = m + s.height / 2f
             val artC = Offset(left + 4f * density + side / 2f, lineY)
             val barsC = Offset(left + pillW - 4f * density - side / 2f, lineY)
 
+            // AirPods view: the buds' battery as a ring with the number (green while charging,
+            // amber at 20% and below, red at 10%), and on the right the heart while measuring
+            // or else the listening mode.
+            if (pc > 0.001f) {
+                val lvl = pods.budsLevel
+                val ringC = when {
+                    pods.budsCharging -> Color(0xFF30D158)
+                    lvl != null && lvl <= 10 -> Color(0xFFFF453A)
+                    lvl != null && lvl <= 20 -> Color(0xFFFFB340)
+                    else -> Color.White
+                }
+                val rr = side / 2f - 1.5f * density
+                val tl = Offset(artC.x - rr, artC.y - rr)
+                val st = androidx.compose.ui.graphics.drawscope.Stroke(2.2f * density, cap = StrokeCap.Round)
+                drawArc(Color.White.copy(alpha = 0.18f * pc), 0f, 360f, false, tl, Size(rr * 2, rr * 2), style = st)
+                if (lvl != null) drawArc(ringC.copy(alpha = pc), -90f, 360f * lvl / 100f, false, tl, Size(rr * 2, rr * 2), style = st)
+                val num = measurer.measure(
+                    lvl?.toString() ?: "–",
+                    TextStyle(fontFamily = glintFontFamily, fontSize = (side * 0.34f / density / fontScale).sp, fontWeight = FontWeight.SemiBold, color = Color.White),
+                )
+                drawText(num, alpha = pc, topLeft = Offset(artC.x - num.size.width / 2f, artC.y - num.size.height / 2f))
+                if (heartBpm != null) {
+                    val hs = side * 0.36f * beat.value
+                    val hp = heartPath(Size(hs, hs))
+                    translate(barsC.x - hs / 2f, barsC.y - side * 0.30f - hs / 2f + side * 0.08f) { drawPath(hp, Color.White.copy(alpha = pc)) }
+                    val bpmText = measurer.measure(
+                        "$heartBpm",
+                        TextStyle(fontFamily = glintFontFamily, fontSize = (side * 0.32f / density / fontScale).sp, fontWeight = FontWeight.SemiBold, color = Color.White),
+                    )
+                    drawText(bpmText, alpha = pc, topLeft = Offset(barsC.x - bpmText.size.width / 2f, barsC.y + side * 0.02f))
+                }
+            }
+
             // The cover (or a note when there's no picture), greyed and dimmed while paused.
             val circle = Path().apply { addOval(androidx.compose.ui.geometry.Rect(artC, side / 2f)) }
-            clipPath(circle) {
+            if (c > 0.001f) clipPath(circle) {
                 val art = track.art
                 if (art != null) {
                     drawImage(
@@ -460,7 +559,7 @@ internal fun MiniIslandHost(
             }
 
             // How far through the song: a thin ring round the cover (when the app says).
-            track.progress(if (moving) clock.longValue else SystemClock.elapsedRealtime())?.let { p ->
+            if (c > 0.001f) track.progress(if (moving) clock.longValue else SystemClock.elapsedRealtime())?.let { p ->
                 val ringR = side / 2f + 2f * density
                 val tl = Offset(artC.x - ringR, artC.y - ringR)
                 val ring = Size(ringR * 2f, ringR * 2f)
@@ -475,13 +574,32 @@ internal fun MiniIslandHost(
             val gap = 2.4f * density
             val maxH = side * 0.62f
             val startX = barsC.x - (4 * barW + 3 * gap) / 2f + barW / 2f
-            for (i in 0 until 4) {
+            if (c > 0.001f) for (i in 0 until 4) {
                 val wiggle = 0.35f + 0.65f * abs(sin(t * (2.3f + i * 0.73f) + i * 1.7f))
                 val rest = if (i % 2 == 0) 0.62f else 0.42f // Reduce motion: steady bars
                 val hgt = lerp(barW, maxH * (if (moving) wiggle else rest), level.floatValue)
                 val x = startX + i * (barW + gap)
                 drawLine(accent.copy(alpha = c), Offset(x, barsC.y - hgt / 2f), Offset(x, barsC.y + hgt / 2f), barW, StrokeCap.Round)
             }
+        }
+        // AirPods view, right side: the listening mode symbol (when not measuring heart rate).
+        if (music.value < 0.999f && heartBpm == null && pods.listeningMode in 1..4) {
+            val side = s.height - 8f * density
+            val glyph = side * 0.7f
+            ListeningModeGlyph(
+                pods.listeningMode, Color.White,
+                modifier = Modifier
+                    .offset {
+                        // Centre of the pill's right-hand spot (where the bars go for music).
+                        val pillW = lerp(s.compactWidth, s.wideWidth, wide.value)
+                        val barsX = boxW / 2f + pillW / 2f - 4f * density - side / 2f
+                        IntOffset((barsX - glyph / 2f + nudge.value).roundToInt(), (m + s.height / 2f - glyph / 2f).roundToInt())
+                    }
+                    .graphicsLayer {
+                        alpha = ((appear.value - 0.55f) / 0.45f).coerceIn(0f, 1f) * (1f - music.value)
+                    },
+                size = androidx.compose.ui.unit.Dp(glyph / density),
+            )
         }
         // The song's name under the camera line while wide.
         if (wide.value > 0.05f && textLine.isNotEmpty()) {

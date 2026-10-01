@@ -145,9 +145,15 @@ internal class IslandController(private val context: Context) {
     private val generation = mutableIntStateOf(0)
     val isShowing: Boolean get() = window.isShowing
 
+    private var geometry: IslandGeometry? = null
+
     init {
-        // The mini island around the camera steps aside while this one is up.
-        window.onShownChanged = { GlintOverlays.islandVisible.value = it }
+        // The mini island around the camera steps aside while this one is up; if this one grew
+        // out of it, it takes over again in the same spot the moment this one is gone.
+        window.onShownChanged = { shown ->
+            if (!shown && geometry?.origin != null) GlintOverlays.returnToMiniAt = android.os.SystemClock.elapsedRealtime()
+            GlintOverlays.islandVisible.value = shown
+        }
     }
 
     private var shownAt = 0L
@@ -170,7 +176,9 @@ internal class IslandController(private val context: Context) {
         }
         phase.value = if (wantsExpanded) IslandPhase.Expanded else IslandPhase.Compact
         shownAt = android.os.SystemClock.elapsedRealtime()
-        val geo = IslandGeometry(context)
+        // Grow out of the mini island when it's up (one shape, like the Dynamic Island).
+        val geo = IslandGeometry(context, GlintOverlays.miniOrigin)
+        geometry = geo
         window.show(if (wantsExpanded) geo.expandedWindow else geo.compactWindow, geo.windowTop) {
             IslandHost(
                 geometry = geo,
@@ -192,7 +200,7 @@ internal class IslandController(private val context: Context) {
 }
 
 /** All island sizes in pixels, computed once per show from the screen and density. */
-internal class IslandGeometry(context: Context) {
+internal class IslandGeometry(context: Context, val origin: GlintOverlays.MiniOrigin? = null) {
     private val density = context.resources.displayMetrics.density
     private fun dp(v: Float) = v * density
     private val screen = GlintOverlays.screenSize(context)
@@ -217,18 +225,37 @@ internal class IslandGeometry(context: Context) {
     // The heart's explanation needs more room: tapping the heart grows the island to this.
     val detailH = dp(292f)
     val expandedRadius = dp(40f)
-    val windowTop = GlintOverlays.statusBarHeight(context) + dp(6f).roundToInt() - margin.roundToInt()
+    // Rests just under the status bar, and never over the camera (some phones report no status
+    // bar height, for example while a full-screen app is open).
+    private val restWindowTop = maxOf(
+        GlintOverlays.statusBarHeight(context).toFloat(),
+        origin?.let { it.top + it.height } ?: 0f,
+    ).roundToInt() + dp(6f).roundToInt() - margin.roundToInt()
+    /**
+     * Growing out of the mini island: the window reaches up far enough to include the mini
+     * island's spot by the camera (plus a little room), and everything else moves down by the
+     * same amount so the island still settles in its usual place.
+     */
+    val lift: Float = origin?.let { max(0f, restWindowTop - (it.top - dp(8f))) } ?: 0f
+    val windowTop = (restWindowTop - lift).roundToInt()
+    /** The pill's top edge at rest, inside the window. */
+    val restTop = margin + lift
+    // Where the shape starts (and ends when it leaves): the mini island, or a small dot.
+    val seedW = origin?.width ?: tiny
+    val seedH = origin?.height ?: tiny
+    val seedTop = origin?.let { it.top - windowTop } ?: restTop
+    val seedDx = origin?.dx ?: 0f
     val compactWindow = IntSize(
         (compactMainW + satGap + satD + margin * 2).roundToInt(),
-        (compactH + margin * 2 + shadowDrop).roundToInt()
+        (compactH + margin * 2 + shadowDrop + lift).roundToInt()
     )
     val expandedWindow = IntSize(
         (expandedW + margin * 2).roundToInt(),
-        (expandedH + margin * 2 + shadowDrop).roundToInt()
+        (expandedH + margin * 2 + shadowDrop + lift).roundToInt()
     )
     val detailWindow = IntSize(
         (expandedW + margin * 2).roundToInt(),
-        (detailH + margin * 2 + shadowDrop).roundToInt()
+        (detailH + margin * 2 + shadowDrop + lift).roundToInt()
     )
 }
 
@@ -405,8 +432,8 @@ private fun IslandHostContent(
         val e = expand.value
         val eh = expandH.value
         val s = split.value
-        val mainW0 = lerp(geometry.tiny, geometry.compactMainW, a)
-        val mainH0 = lerp(geometry.tiny, geometry.compactH, a)
+        val mainW0 = lerp(geometry.seedW, geometry.compactMainW, a)
+        val mainH0 = lerp(geometry.seedH, geometry.compactH, a)
         val sq = squish.value
         val p = pull.value
         // Pulling down stretches the glass (with resistance), keeping its volume roughly constant.
@@ -420,8 +447,9 @@ private fun IslandHostContent(
         val tucked = -geometry.satD
         val protrude = lerp(tucked, geometry.satGap + geometry.satD, s) * (1f - e)
         val groupW = w + max(0f, protrude)
-        val left = (windowWidth - groupW) / 2f
-        val top = geometry.margin + p.coerceAtMost(0f) * 0.35f + (1f - sq) * lerp(geometry.compactH, fullH, eh) / 2f
+        // From the seed (the mini island by the camera, or a dot) down to the resting place.
+        val left = (windowWidth - groupW) / 2f + geometry.seedDx * (1f - a).coerceIn(0f, 1f)
+        val top = lerp(geometry.seedTop, geometry.restTop, a) + p.coerceAtMost(0f) * 0.35f + (1f - sq) * lerp(geometry.compactH, fullH, eh) / 2f
         val main = Rect(left, top, left + w, top + h)
         val satCenter = Offset(main.right - geometry.satD / 2f + protrude, main.top + minOf(h, geometry.compactH) / 2f)
         return IslandFrame(main, radius, satCenter, satR, a, e, s)
@@ -494,7 +522,9 @@ private fun IslandHostContent(
             }
             .drawBehind {
                 val f = frame(size.width)
-                if (f.appear <= 0.001f) return@drawBehind
+                // Grown from the mini island: the black pill is there from the very first frame,
+                // so the handover never shows a gap.
+                if (f.appear <= 0.001f && geometry.origin == null) return@drawBehind
                 val alpha = (f.appear * 1.4f).coerceAtMost(1f)
                 val mainPath = roundRectPath(f.main, f.radius)
                 val satRect = Rect(f.satCenter.x - f.satR, f.satCenter.y - f.satR, f.satCenter.x + f.satR, f.satCenter.y + f.satR)
@@ -526,6 +556,12 @@ private fun IslandHostContent(
                     alpha = alpha,
                     blurredElsewhere = mainBlur != null,
                 )
+                // Grown out of the mini island: it starts as that black pill and turns to glass
+                // as it grows (and back to black as it shrinks home), so it reads as one shape.
+                if (geometry.origin != null) {
+                    val ink = ((1f - f.appear) * 1.7f).coerceIn(0f, 1f)
+                    if (ink > 0.001f) drawPath(outline, Color.Black, alpha = ink)
+                }
             }
     ) {
         // Compact content: tiny buds on the left, title/subtitle; satellite glyph on the right.

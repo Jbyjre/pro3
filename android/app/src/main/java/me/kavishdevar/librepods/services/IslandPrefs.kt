@@ -36,6 +36,8 @@ object IslandPrefs {
     const val PREF_MINI_NAMES = "glint_mini_song_names"
     /** Only show the mini island while the AirPods are connected (off: for any audio). */
     const val PREF_MINI_AIRPODS_ONLY = "glint_mini_airpods_only"
+    /** Keep the mini island up the whole time the AirPods are connected (not only for music). */
+    const val PREF_MINI_ALWAYS = "glint_mini_always"
 
     enum class Trigger(val key: String, val default: Boolean, val label: String, val description: String) {
         Connected("glint_island_connect", true, "AirPods connect", "Once each time they connect."),
@@ -73,4 +75,5 @@ object IslandPrefs {
     fun mini(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI, true)
     fun miniNames(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_NAMES, true)
     fun miniAirPodsOnly(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_AIRPODS_ONLY, false)
+    fun miniAlways(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ALWAYS, true)
 }

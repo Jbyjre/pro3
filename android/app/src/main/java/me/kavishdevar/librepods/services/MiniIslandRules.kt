@@ -38,6 +38,8 @@ object MiniIslandRules {
         val airPodsOnly: Boolean,
         val airPodsUp: Boolean,
         val screenUnlocked: Boolean,
+        /** Stay up the whole time the AirPods are connected, music or not. */
+        val alwaysWithAirPods: Boolean = false,
     )
 
     /** Whether the pill should exist at all. */
@@ -45,7 +47,22 @@ object MiniIslandRules {
         if (!i.enabled || !i.canDraw || !i.screenUnlocked) return false
         if (i.airPodsOnly && !i.airPodsUp) return false
         if (i.playing) return true
+        if (i.alwaysWithAirPods && i.airPodsUp) return true
         return i.playedRecently && i.pausedForMs < PAUSED_LINGER_MS
+    }
+
+    /** What the pill shows: the music, or the AirPods themselves (battery, mode, heart). */
+    enum class Content { Music, AirPods }
+
+    /**
+     * Music while something plays, and for a while after it pauses (so you can see what's
+     * paused); otherwise the AirPods. Without AirPods connected it can only be music.
+     */
+    fun content(playing: Boolean, pausedForMs: Long, playedRecently: Boolean, airPodsUp: Boolean): Content = when {
+        playing -> Content.Music
+        playedRecently && pausedForMs < PAUSED_LINGER_MS -> Content.Music
+        airPodsUp -> Content.AirPods
+        else -> Content.Music
     }
 
     /**
