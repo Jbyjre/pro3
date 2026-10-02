@@ -119,7 +119,9 @@ object HeadphoneLink {
     }
 
     /** Re-reads who is chosen, whether it's connected, and its battery. Call after any change. */
-    fun refresh(context: Context? = appContext) {
+    fun refresh() = refresh(appContext)
+
+    fun refresh(context: Context?) {
         val app = (context ?: return).applicationContext
         appContext = app
         val chosen = DeviceChoice.current(app)
