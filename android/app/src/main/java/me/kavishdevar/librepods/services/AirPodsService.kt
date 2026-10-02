@@ -1424,48 +1424,49 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 sharedPreferences.getString(
                     "left_single_press_action", "PLAY_PAUSE"
                 ) ?: "PLAY_PAUSE"
-            )!!,
+            ) ?: StemAction.PLAY_PAUSE,
             rightSinglePressAction = StemAction.fromString(
                 sharedPreferences.getString(
                     "right_single_press_action", "PLAY_PAUSE"
                 ) ?: "PLAY_PAUSE"
-            )!!,
+            ) ?: StemAction.PLAY_PAUSE,
 
             leftDoublePressAction = StemAction.fromString(
                 sharedPreferences.getString(
                     "left_double_press_action", "PREVIOUS_TRACK"
                 ) ?: "NEXT_TRACK"
-            )!!,
+            ) ?: StemAction.PREVIOUS_TRACK,
             rightDoublePressAction = StemAction.fromString(
                 sharedPreferences.getString(
                     "right_double_press_action", "NEXT_TRACK"
                 ) ?: "NEXT_TRACK"
-            )!!,
+            ) ?: StemAction.NEXT_TRACK,
 
             leftTriplePressAction = StemAction.fromString(
                 sharedPreferences.getString(
                     "left_triple_press_action", "PREVIOUS_TRACK"
                 ) ?: "PREVIOUS_TRACK"
-            )!!,
+            ) ?: StemAction.PREVIOUS_TRACK,
             rightTriplePressAction = StemAction.fromString(
                 sharedPreferences.getString(
                     "right_triple_press_action", "PREVIOUS_TRACK"
                 ) ?: "PREVIOUS_TRACK"
-            )!!,
+            ) ?: StemAction.PREVIOUS_TRACK,
 
             leftLongPressAction = StemAction.fromString(
                 sharedPreferences.getString(
                     "left_long_press_action", "CYCLE_NOISE_CONTROL_MODES"
                 ) ?: "CYCLE_NOISE_CONTROL_MODES"
-            )!!,
+            ) ?: StemAction.CYCLE_NOISE_CONTROL_MODES,
             rightLongPressAction = StemAction.fromString(
                 sharedPreferences.getString(
                     "right_long_press_action", "DIGITAL_ASSISTANT"
                 ) ?: "DIGITAL_ASSISTANT"
-            )!!,
+            ) ?: StemAction.DIGITAL_ASSISTANT,
 
+            // A stored value this version doesn't know is ignored instead of crashing the service.
             cameraAction = sharedPreferences.getString("camera_action", null)
-                ?.let { StemPressType.valueOf(it) },
+                ?.let { runCatching { StemPressType.valueOf(it) }.getOrNull() },
 
             // AirPods device information
             airpodsName = sharedPreferences.getString("airpods_name", "") ?: "",
@@ -1538,42 +1539,42 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             "left_single_press_action" -> {
                 config.leftSinglePressAction = StemAction.fromString(
                     preferences.getString(key, "PLAY_PAUSE") ?: "PLAY_PAUSE"
-                )!!
+                ) ?: StemAction.PLAY_PAUSE
                 setupStemActions()
             }
 
             "right_single_press_action" -> {
                 config.rightSinglePressAction = StemAction.fromString(
                     preferences.getString(key, "PLAY_PAUSE") ?: "PLAY_PAUSE"
-                )!!
+                ) ?: StemAction.PLAY_PAUSE
                 setupStemActions()
             }
 
             "left_double_press_action" -> {
                 config.leftDoublePressAction = StemAction.fromString(
                     preferences.getString(key, "PREVIOUS_TRACK") ?: "PREVIOUS_TRACK"
-                )!!
+                ) ?: StemAction.PREVIOUS_TRACK
                 setupStemActions()
             }
 
             "right_double_press_action" -> {
                 config.rightDoublePressAction = StemAction.fromString(
                     preferences.getString(key, "NEXT_TRACK") ?: "NEXT_TRACK"
-                )!!
+                ) ?: StemAction.NEXT_TRACK
                 setupStemActions()
             }
 
             "left_triple_press_action" -> {
                 config.leftTriplePressAction = StemAction.fromString(
                     preferences.getString(key, "PREVIOUS_TRACK") ?: "PREVIOUS_TRACK"
-                )!!
+                ) ?: StemAction.PREVIOUS_TRACK
                 setupStemActions()
             }
 
             "right_triple_press_action" -> {
                 config.rightTriplePressAction = StemAction.fromString(
                     preferences.getString(key, "PREVIOUS_TRACK") ?: "PREVIOUS_TRACK"
-                )!!
+                ) ?: StemAction.PREVIOUS_TRACK
                 setupStemActions()
             }
 
@@ -1581,19 +1582,19 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 config.leftLongPressAction = StemAction.fromString(
                     preferences.getString(key, "CYCLE_NOISE_CONTROL_MODES")
                         ?: "CYCLE_NOISE_CONTROL_MODES"
-                )!!
+                ) ?: StemAction.CYCLE_NOISE_CONTROL_MODES
                 setupStemActions()
             }
 
             "right_long_press_action" -> {
                 config.rightLongPressAction = StemAction.fromString(
                     preferences.getString(key, "DIGITAL_ASSISTANT") ?: "DIGITAL_ASSISTANT"
-                )!!
+                ) ?: StemAction.DIGITAL_ASSISTANT
                 setupStemActions()
             }
 
             "camera_action" -> config.cameraAction =
-                preferences.getString(key, null)?.let { StemPressType.valueOf(it) }
+                preferences.getString(key, null)?.let { runCatching { StemPressType.valueOf(it) }.getOrNull() }
 
             // AirPods device information
             "airpods_name" -> config.airpodsName = preferences.getString(key, "") ?: ""

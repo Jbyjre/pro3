@@ -518,18 +518,13 @@ class AirPodsViewModel(
         val automaticConnectionEnabled =
             sharedPreferences.getBoolean("automatic_connection_ctrl_cmd", true)
         val headGesturesEnabled = sharedPreferences.getBoolean("head_gestures", true)
-        val leftAction = StemAction.valueOf(
-            sharedPreferences.getString(
-                "left_long_press_action",
-                "CYCLE_NOISE_CONTROL_MODES"
-            ) ?: "CYCLE_NOISE_CONTROL_MODES"
-        )
-        val rightAction = StemAction.valueOf(
-            sharedPreferences.getString(
-                "right_long_press_action",
-                "CYCLE_NOISE_CONTROL_MODES"
-            ) ?: "CYCLE_NOISE_CONTROL_MODES"
-        )
+        // A stored action this version doesn't know falls back to the default instead of crashing.
+        val leftAction = StemAction.fromString(
+            sharedPreferences.getString("left_long_press_action", "CYCLE_NOISE_CONTROL_MODES") ?: ""
+        ) ?: StemAction.CYCLE_NOISE_CONTROL_MODES
+        val rightAction = StemAction.fromString(
+            sharedPreferences.getString("right_long_press_action", "CYCLE_NOISE_CONTROL_MODES") ?: ""
+        ) ?: StemAction.CYCLE_NOISE_CONTROL_MODES
         val vendorIdHook = xposedRemotePref.getBoolean("vendor_id_hook", false)
         val dynamicEndOfCharge = sharedPreferences.getBoolean("dynamic_end_of_charge", false)
 
