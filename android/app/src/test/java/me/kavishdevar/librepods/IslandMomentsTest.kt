@@ -2,7 +2,6 @@ package me.kavishdevar.librepods
 
 import me.kavishdevar.librepods.presentation.overlays.IslandEvent
 import me.kavishdevar.librepods.presentation.overlays.PodsSnapshot
-import me.kavishdevar.librepods.presentation.overlays.heartShowsOnIsland
 import me.kavishdevar.librepods.presentation.overlays.islandText
 import me.kavishdevar.librepods.services.HeartRate
 import me.kavishdevar.librepods.services.IslandPrefs
@@ -43,13 +42,16 @@ class IslandMomentsTest {
 
     @Test fun heartOnlyWithACurrentReading() {
         val now = 1_000_000_000L
+        val up = me.kavishdevar.librepods.services.LinkState.Connected("AirPods")
+        fun pill(st: HeartRate.State) = me.kavishdevar.librepods.services.HeartView.of(st, up, true, now).worthAPill
         val live = HeartRate.State(status = HeartRate.Status.Live, bpm = 72, lastReadingMs = now - 2_000)
-        assertTrue(heartShowsOnIsland(live, now))
-        assertTrue(heartShowsOnIsland(live.copy(status = HeartRate.Status.Resting), now))
-        assertFalse(heartShowsOnIsland(live.copy(status = HeartRate.Status.Off), now))
-        assertFalse(heartShowsOnIsland(live.copy(status = HeartRate.Status.NotConnected), now))
-        assertFalse(heartShowsOnIsland(live.copy(bpm = null), now))
-        assertFalse(heartShowsOnIsland(live.copy(lastReadingMs = now - 11 * 60_000L), now))
+        assertTrue(pill(live))
+        assertTrue(pill(live.copy(status = HeartRate.Status.Resting)))
+        assertFalse(pill(live.copy(status = HeartRate.Status.Off)))
+        assertFalse(pill(live.copy(status = HeartRate.Status.NotConnected)))
+        assertFalse(pill(live.copy(bpm = null)))
+        assertFalse(pill(live.copy(lastReadingMs = now - 60_000L)))
+        assertFalse(pill(live.copy(status = HeartRate.Status.Resting, lastReadingMs = now - 21 * 60_000L)))
     }
 
     @Test fun settingsDefaults() {

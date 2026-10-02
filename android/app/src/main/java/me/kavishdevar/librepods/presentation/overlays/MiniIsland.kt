@@ -148,16 +148,7 @@ internal class MiniIslandController(private val context: Context) {
     private val audio = context.getSystemService(android.media.AudioManager::class.java)
 
     /** AirPods among Android's current audio outputs (by the saved address or the name). */
-    private fun airPodsAudio(): Boolean = runCatching {
-        val mac = prefs.getString("mac_address", null)?.takeIf { it.isNotBlank() }
-        audio?.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS).orEmpty().any { d ->
-            val bt = d.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                d.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                d.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO
-            bt && ((mac != null && d.address.equals(mac, ignoreCase = true)) ||
-                d.productName?.toString()?.contains("AirPods", ignoreCase = true) == true)
-        }
-    }.getOrDefault(false)
+    private fun airPodsAudio(): Boolean = GlintOverlays.airPodsAudio(context)
 
     private val audioDevices = object : android.media.AudioDeviceCallback() {
         override fun onAudioDevicesAdded(added: Array<out android.media.AudioDeviceInfo>?) = refresh()
@@ -335,12 +326,15 @@ internal class MiniIslandController(private val context: Context) {
             val heart by me.kavishdevar.librepods.services.HeartRate.state.collectAsState()
             val talking by me.kavishdevar.librepods.utils.ConversationTiming.talking.collectAsState()
             val panel by IslandAccess.panelOpen.collectAsState()
+            val link by GlintStatus.link.collectAsState()
             MiniIslandHost(
                 geometry = geo,
                 track = sample.value ?: live,
                 content = content.value,
                 pods = pods,
-                heartBpm = heart.bpm.takeIf { heartShowsOnIsland(heart, System.currentTimeMillis()) },
+                // On the small pill the heart only shows with a real number to show.
+                heartBpm = me.kavishdevar.librepods.services.HeartView.of(heart, link, airPodsUp(), System.currentTimeMillis())
+                    .takeIf { it.worthAPill }?.bpm,
                 leaving = leaving.value,
                 hidden = !window.statusBarVisible.value,
                 handOff = GlintOverlays.islandVisible.value,

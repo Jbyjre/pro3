@@ -201,6 +201,22 @@ object GlintOverlays {
         try { context.startActivity(intent) } catch (e: Exception) { Log.w("GlintOverlays", "Couldn't open pro", e) }
     }
 
+    /**
+     * AirPods among Android's current audio outputs (by the saved address or the name): they're
+     * there for sound even when the phone refuses pro's control link.
+     */
+    fun airPodsAudio(context: Context): Boolean = runCatching {
+        val mac = context.getSharedPreferences("settings", Context.MODE_PRIVATE).getString("mac_address", null)?.takeIf { it.isNotBlank() }
+        val audio = context.getSystemService(android.media.AudioManager::class.java)
+        audio?.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS).orEmpty().any { d ->
+            val bt = d.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                d.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                d.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+            bt && ((mac != null && d.address.equals(mac, ignoreCase = true)) ||
+                d.productName?.toString()?.contains("AirPods", ignoreCase = true) == true)
+        }
+    }.getOrDefault(false)
+
     /** Switches the AirPods to the next listening mode, in the same order as the Quick Settings tile. */
     fun cycleListeningMode(context: Context) {
         val service = me.kavishdevar.librepods.services.ServiceManager.getService() ?: return

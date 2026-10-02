@@ -62,6 +62,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -105,6 +107,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.animateContentSize
+import me.kavishdevar.librepods.services.HeartView
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -134,6 +138,11 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 internal enum class IslandPhase { Compact, Expanded, Leaving }
+
+/** Screenshots only: start the opened island with the heart's note open. */
+internal object IslandTestHooks {
+    @Volatile var heartNoteOpen = false
+}
 
 private const val LONG_PRESS_MS = 450L
 /** The longest a closing island may take before its window is removed regardless. */
@@ -769,9 +778,57 @@ private fun ExpandedIslandContent(
     val context = LocalContext.current
     val link by GlintStatus.link.collectAsState()
     val heart by HeartRate.state.collectAsState()
-    val heartBpm = heart.bpm.takeIf { heartShowsOnIsland(heart, System.currentTimeMillis()) }
+    // Readings go stale with time even when nothing else changes: look again every few seconds.
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { delay(5_000); now = System.currentTimeMillis() } }
+    val heartView = remember(heart, link, now) { HeartView.of(heart, link, GlintOverlays.airPodsAudio(context), maxOf(now, System.currentTimeMillis())) }
+    val heartBpm = heartView.bpm
+    val islandPrefs = remember { IslandPrefs.prefs(context) }
+    // The heart can be hidden altogether (Settings > Heart rate); with no AirPods there's nothing to show.
+    val chipOn = remember { islandPrefs.getBoolean(me.kavishdevar.librepods.services.PREF_HR_CHIP, true) } && heartView.kind != HeartView.Kind.Away
     // A reading that stops while the explanation is open closes it.
     LaunchedEffect(heartBpm == null) { if (heartBpm == null) onHeartOpen(false) }
+    // Opening the island measures for a moment (unless turned off), so the heart has something
+    // real to say instead of waiting forever.
+    LaunchedEffect(active) {
+        if (active && chipOn && islandPrefs.getBoolean(me.kavishdevar.librepods.services.PREF_HR_GLANCE, true) &&
+            HeartRate.state.value.status == HeartRate.Status.Off
+        ) me.kavishdevar.librepods.services.ServiceManager.getService()?.glanceHeartRate()
+    }
+    // The heart's one-line note (what's wrong and the one-tap fix) in place of the controls.
+    var note by remember { mutableStateOf(IslandTestHooks.heartNoteOpen) }
+    LaunchedEffect(note, heartView.kind) {
+        if (!note) return@LaunchedEffect
+        // Fixed, or left alone for a while: back to the controls.
+        if (heartView.kind == HeartView.Kind.Live) { note = false; return@LaunchedEffect }
+        delay(7_000)
+        note = false
+    }
+    LaunchedEffect(active) { if (!active) note = false }
+    val noteK by androidx.compose.animation.core.animateFloatAsState(
+        if (note) 1f else 0f, if (reduceMotion) tween(150) else spring(dampingRatio = 0.8f, stiffness = 380f), label = "heartNote",
+    )
+    fun heartTap() {
+        onTouch()
+        val service = me.kavishdevar.librepods.services.ServiceManager.getService()
+        when (heartView.tap) {
+            HeartView.Tap.Explain -> onHeartOpen(true)
+            HeartView.Tap.Start -> service?.glanceHeartRate(me.kavishdevar.librepods.services.HR_GLANCE_TAP_MS)
+                ?: GlintOverlays.openApp(context, me.kavishdevar.librepods.presentation.navigation.AppLinks.HEART)
+            HeartView.Tap.Retry, HeartView.Tap.Reconnect, HeartView.Tap.None -> note = true
+        }
+    }
+    fun heartFix() {
+        onTouch()
+        val service = me.kavishdevar.librepods.services.ServiceManager.getService()
+        when (heartView.tap) {
+            HeartView.Tap.Retry -> service?.retryHeartRate()
+            HeartView.Tap.Reconnect -> service?.retryConnectionNow()
+            HeartView.Tap.Start -> service?.glanceHeartRate(me.kavishdevar.librepods.services.HR_GLANCE_TAP_MS)
+            else -> {}
+        }
+        note = false
+    }
     // The turning AirPods start once the opening has settled (the still frame shows until then).
     var podsVideo by remember { mutableStateOf(false) }
     LaunchedEffect(active) {
@@ -851,25 +908,34 @@ private fun ExpandedIslandContent(
                 }
             }
             Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
-                // The heart chip, in the island's own colours: the live reading (tap for what it
-                // means), or "--" when nothing is measuring (tap to open pro). It morphs out of
-                // the play/pause button on the right, so it starts at this slot's right edge.
+                // The heart chip, in the island's own colours: what the heart is honestly doing
+                // (a live number, starting, resting, no signal, blocked, or "Measure"). It morphs
+                // out of the play/pause button on the right, so it starts at this slot's right
+                // edge. Tapped when something's wrong, it widens into a one-line note with the fix.
                 var slotW by remember { mutableIntStateOf(0) }
                 Box(
                     Modifier.weight(1f).fillMaxHeight().onSizeChanged { slotW = it.width },
                     contentAlignment = Alignment.CenterStart,
                 ) {
-                    HeartChip(
-                        bpm = heartBpm, content = content, secondary = secondary, dark = dark, reduceMotion = reduceMotion,
-                        enabled = active && chipIn.value > 0.9f,
-                        morph = chipIn.value,
-                        bud = chipBud.value,
-                        fromX = slotW + with(androidx.compose.ui.platform.LocalDensity.current) { 80.dp.toPx() },
-                        onClick = {
-                            onTouch()
-                            if (heartBpm != null) onHeartOpen(true) else GlintOverlays.openApp(context)
+                    if (chipOn) androidx.compose.animation.AnimatedContent(
+                        targetState = note,
+                        transitionSpec = {
+                            val spec = if (reduceMotion) tween<Float>(120) else spring(0.82f, 420f)
+                            (androidx.compose.animation.fadeIn(spec) + androidx.compose.animation.scaleIn(spec, initialScale = 0.92f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f))) togetherWith
+                                (androidx.compose.animation.fadeOut(tween(100)) + androidx.compose.animation.scaleOut(tween(100), targetScale = 0.96f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)))
                         },
-                    )
+                        label = "heartChipNote",
+                    ) { showNote ->
+                        if (showNote) HeartNote(heartView, content, secondary, dark, reduceMotion, onFix = { heartFix() }, onClose = { onTouch(); note = false })
+                        else HeartChip(
+                            view = heartView, content = content, secondary = secondary, dark = dark, reduceMotion = reduceMotion,
+                            enabled = active && chipIn.value > 0.9f,
+                            morph = chipIn.value,
+                            bud = chipBud.value,
+                            fromX = slotW + with(androidx.compose.ui.platform.LocalDensity.current) { 80.dp.toPx() },
+                            onClick = { heartTap() },
+                        )
+                    }
                 }
                 if (actionText != null) {
                     GlassPillButton(text = actionText, textColor = content, dark = dark, height = 32.dp, fontSize = 14.sp, onClick = onAction)
@@ -877,11 +943,17 @@ private fun ExpandedIslandContent(
                 }
                 // Music controls, no song bar (the opened island stays small). At first there's
                 // only play/pause, at the right edge; with the heart chip, back and skip bud out
-                // from under it and spread apart as play/pause glides into the middle.
+                // from under it and spread apart as play/pause glides into the middle. While the
+                // heart's note is open they step aside to give it the row.
                 val m = chipIn.value
                 val bud = chipBud.value
-                val ready = active && m > 0.9f
-                Box(Modifier.width(CONTROLS_W).height(40.dp)) {
+                val ready = active && m > 0.9f && !note
+                Box(
+                    Modifier
+                        .width(CONTROLS_W * (1f - noteK))
+                        .height(40.dp)
+                        .graphicsLayer { alpha = 1f - noteK; val sc = 1f - 0.15f * noteK; scaleX = sc; scaleY = sc }
+                ) {
                     val travel = with(androidx.compose.ui.platform.LocalDensity.current) { 40.dp.toPx() }
                     SkipButton(
                         next = false, color = content, dark = dark, enabled = ready,
@@ -914,10 +986,6 @@ private fun ExpandedIslandContent(
     }
 }
 
-/** The heart shows while a reading is current: measuring now, or resting between bursts. */
-internal fun heartShowsOnIsland(state: HeartRate.State, now: Long): Boolean =
-    state.bpm != null && state.status != HeartRate.Status.Off && state.status != HeartRate.Status.NotConnected &&
-        now - state.lastReadingMs < 10 * 60_000L
 
 @Composable
 private fun CoverArt(art: androidx.compose.ui.graphics.ImageBitmap, size: Dp, corner: Dp) {
@@ -1316,7 +1384,7 @@ private fun PartRing(mark: PartMark, level: Int?, charging: Boolean, content: Co
  */
 @Composable
 private fun HeartChip(
-    bpm: Int?,
+    view: HeartView.View,
     content: Color,
     secondary: Color,
     dark: Boolean,
@@ -1330,13 +1398,26 @@ private fun HeartChip(
     bud: Float = 1f,
     onClick: () -> Unit,
 ) {
-    val beat = rememberHeartBeat(bpm, reduceMotion, peak = 1.16f)
+    val live = view.kind == HeartView.Kind.Live
+    val beat = rememberHeartBeat(view.bpm.takeIf { live }, reduceMotion, peak = 1.16f)
     val currentOnClick by rememberUpdatedState(onClick)
     var pressed by remember { mutableStateOf(false) }
     val press by androidx.compose.animation.core.animateFloatAsState(if (pressed) 1f else 0f, spring(0.62f, 620f), label = "chipPress")
     val m = morph.coerceAtLeast(0f)
     // Words show once the bubble has mostly become a chip.
     val inside = ((m - 0.45f) / 0.55f).coerceIn(0f, 1f)
+    // Only "starting" and "linking" move on their own: something is really happening then.
+    val busy = (view.kind == HeartView.Kind.Starting || (view.kind == HeartView.Kind.Blocked && view.tap == HeartView.Tap.None)) && !reduceMotion
+    val spin = if (busy) {
+        androidx.compose.animation.core.rememberInfiniteTransition(label = "heartBusy")
+            .animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(tween(1100, easing = androidx.compose.animation.core.LinearEasing)), label = "orbit")
+    } else remember { mutableFloatStateOf(0f) }
+    val spoken = when (view.kind) {
+        HeartView.Kind.Live -> "Heart rate ${view.bpm} beats per minute. Tap for what it means"
+        HeartView.Kind.Resting -> "Last heart rate ${view.bpm}, resting the sensor to save battery. Tap for what it means"
+        HeartView.Kind.Off -> "Heart rate not measuring. Tap to measure"
+        else -> "Heart rate: ${view.short}. ${view.line}"
+    }
     Row(
         Modifier
             .graphicsLayer {
@@ -1352,11 +1433,7 @@ private fun HeartChip(
             }
             // Drawn and touched at the growing size, not the full one.
             .drawBehind { drawGlassCapsule(dark) }
-            .islandPress(
-                enabled,
-                if (bpm != null) "Heart rate $bpm beats per minute. Tap for what it means" else "No heart reading. Tap to open pro",
-                { currentOnClick() }, { pressed = it },
-            )
+            .islandPress(enabled, spoken, { currentOnClick() }, { pressed = it })
             .layout { measurable, constraints ->
                 // Measured at its full size, shown at a width growing from a circle the size of
                 // the play/pause button (40) to the full chip, and a height easing from 40 to 34.
@@ -1368,7 +1445,8 @@ private fun HeartChip(
             }
             .height(34.dp)
             .padding(start = 11.dp, end = 13.dp)
-            .graphicsLayer { alpha = inside },
+            .graphicsLayer { alpha = inside }
+            .animateContentSize(if (reduceMotion) tween(0) else spring(dampingRatio = 0.85f, stiffness = 500f)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(
@@ -1377,28 +1455,117 @@ private fun HeartChip(
                 .graphicsLayer { scaleX = beat.value; scaleY = beat.value }
                 .drawWithCache {
                     val heart = heartPath(size)
-                    onDrawBehind { drawPath(heart, content.copy(alpha = if (bpm != null) 0.92f else 0.4f)) }
+                    val stroke = androidx.compose.ui.graphics.drawscope.Stroke(1.4.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round)
+                    val dashed = androidx.compose.ui.graphics.drawscope.Stroke(
+                        1.4.dp.toPx(), cap = StrokeCap.Round,
+                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(2.2.dp.toPx(), 2.dp.toPx())),
+                    )
+                    onDrawBehind {
+                        when (view.kind) {
+                            HeartView.Kind.Live -> drawPath(heart, content.copy(alpha = 0.92f))
+                            HeartView.Kind.Resting -> drawPath(heart, content.copy(alpha = 0.42f))
+                            HeartView.Kind.NoSignal -> drawPath(heart, secondary, style = dashed)
+                            HeartView.Kind.Blocked -> {
+                                drawPath(heart, secondary, style = stroke)
+                                if (view.tap != HeartView.Tap.None) drawLine(
+                                    secondary, Offset(size.width * 0.05f, size.height * 0.95f), Offset(size.width * 0.95f, size.height * 0.05f),
+                                    1.5.dp.toPx(), StrokeCap.Round,
+                                )
+                            }
+                            else -> drawPath(heart, if (view.kind == HeartView.Kind.Off) content.copy(alpha = 0.75f) else secondary, style = stroke)
+                        }
+                        if (busy) {
+                            // A small dot circling the heart while the sensor (or link) starts.
+                            val a = spin.value * 2f * Math.PI.toFloat()
+                            val r = size.minDimension * 0.62f
+                            drawCircle(content, 1.6.dp.toPx(), Offset(center.x + kotlin.math.cos(a) * r, center.y + kotlin.math.sin(a) * r))
+                        }
+                    }
                 }
         )
         Spacer(Modifier.width(7.dp))
         androidx.compose.animation.AnimatedContent(
-            targetState = bpm ?: 0,
+            targetState = view.kind to (view.bpm ?: 0),
             transitionSpec = {
-                val up = targetState > initialState
+                val (fromKind, from) = initialState
+                val (toKind, to) = targetState
+                val up = to > from
                 val spec = if (reduceMotion) tween<androidx.compose.ui.unit.IntOffset>(0) else spring(0.86f, 500f)
-                (androidx.compose.animation.slideInVertically(spec) { if (up) it / 2 else -it / 2 } + androidx.compose.animation.fadeIn(tween(160))) togetherWith
-                    (androidx.compose.animation.slideOutVertically(spec) { if (up) -it / 2 else it / 2 } + androidx.compose.animation.fadeOut(tween(120)))
+                if (fromKind == toKind) {
+                    (androidx.compose.animation.slideInVertically(spec) { if (up) it / 2 else -it / 2 } + androidx.compose.animation.fadeIn(tween(160))) togetherWith
+                        (androidx.compose.animation.slideOutVertically(spec) { if (up) -it / 2 else it / 2 } + androidx.compose.animation.fadeOut(tween(120)))
+                } else {
+                    androidx.compose.animation.fadeIn(tween(200, 60)) togetherWith androidx.compose.animation.fadeOut(tween(120))
+                }
             },
-            label = "chipBpm",
-        ) { value ->
-            // No reading: two dashes, quieter, so it's clear nothing is measuring.
-            Text(
-                if (value > 0) "$value" else "--",
-                style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = if (value > 0) content else secondary, fontFeatureSettings = "tnum")
-            )
+            label = "chipWords",
+        ) { (kind, value) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                when (kind) {
+                    HeartView.Kind.Live, HeartView.Kind.Resting -> {
+                        Text(
+                            "$value",
+                            style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = if (kind == HeartView.Kind.Live) content else secondary, fontFeatureSettings = "tnum")
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("BPM", style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.4.sp, color = secondary))
+                        if (kind == HeartView.Kind.Resting) {
+                            // Resting between battery-saving bursts: a small moon.
+                            Spacer(Modifier.width(5.dp))
+                            androidx.compose.foundation.Canvas(Modifier.size(9.dp)) {
+                                val moon = Path.combine(
+                                    PathOperation.Difference,
+                                    Path().apply { addOval(Rect(Offset.Zero, size)) },
+                                    Path().apply { addOval(Rect(Offset(size.width * 0.38f, -size.height * 0.18f), size)) },
+                                )
+                                drawPath(moon, secondary)
+                            }
+                        }
+                    }
+                    else -> Text(
+                        view.short,
+                        maxLines = 1,
+                        style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = if (kind == HeartView.Kind.Off) content else secondary)
+                    )
+                }
+            }
         }
-        Spacer(Modifier.width(4.dp))
-        Text("BPM", style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.4.sp, color = secondary))
+    }
+}
+
+/**
+ * The heart chip widened into one plain line about what's wrong, with the one-tap fix (when
+ * there is one). Tapping outside the button closes it.
+ */
+@Composable
+private fun HeartNote(view: HeartView.View, content: Color, secondary: Color, dark: Boolean, reduceMotion: Boolean, onFix: () -> Unit, onClose: () -> Unit) {
+    val fix = when (view.tap) {
+        HeartView.Tap.Retry, HeartView.Tap.Reconnect -> "Try again"
+        HeartView.Tap.Start -> "Measure"
+        else -> null
+    }
+    var pressed by remember { mutableStateOf(false) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(percent = 50))
+            .drawBehind { drawGlassCapsule(dark) }
+            .islandPress(true, view.line + ". Tap to close", onClose, { pressed = it })
+            .padding(start = 12.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            view.line,
+            modifier = Modifier.weight(1f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            style = TextStyle(fontFamily = glintFontFamily, fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.Medium, color = secondary),
+        )
+        if (fix != null) {
+            Spacer(Modifier.width(6.dp))
+            GlassPillButton(text = fix, textColor = content, dark = dark, height = 28.dp, fontSize = 12.sp, onClick = onFix)
+        }
     }
 }
 

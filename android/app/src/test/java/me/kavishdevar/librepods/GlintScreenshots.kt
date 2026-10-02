@@ -377,6 +377,36 @@ class GlintScreenshots {
         try { block() } finally { BatteryTimeLeft.publish(null); GlintStatus.set(LinkState.Idle) }
     }
 
+    /** The opened island's heart in each honest state (rendered after the chip has settled). */
+    private fun heartState(name: String, link: LinkState = LinkState.Connected("AirPods Pro"), note: Boolean = false, dark: Boolean = true, setup: () -> Unit) {
+        GlintStatus.set(link)
+        me.kavishdevar.librepods.presentation.overlays.IslandTestHooks.heartNoteOpen = note
+        setup()
+        try {
+            withMusic { island(name, IslandEvent.Connected, IslandPhase.Expanded, dark = dark) { rule.mainClock.advanceTimeBy(2_400) } }
+        } finally {
+            me.kavishdevar.librepods.presentation.overlays.IslandTestHooks.heartNoteOpen = false
+            HeartRate.status(HeartRate.Status.Off)
+            GlintStatus.set(LinkState.Idle)
+        }
+    }
+
+    @Test fun heartLive() = heartState("heart_live") {
+        val now = System.currentTimeMillis()
+        listOf(70, 72, 71, 73).forEachIndexed { i, b -> HeartRate.reading(b, now - (3 - i) * 1_000L) }
+    }
+    @Test fun heartStarting() = heartState("heart_starting") { HeartRate.starting(System.currentTimeMillis()) }
+    @Test fun heartResting() = heartState("heart_resting", dark = false) {
+        val now = System.currentTimeMillis()
+        HeartRate.reading(64, now - 20_000)
+        HeartRate.resting(now + 180_000)
+    }
+    @Test fun heartNoSignal() = heartState("heart_no_signal") { HeartRate.status(HeartRate.Status.NoSignal) }
+    @Test fun heartNoSignalNote() = heartState("heart_no_signal_note", note = true) { HeartRate.status(HeartRate.Status.NoSignal) }
+    @Test fun heartBlocked() = heartState("heart_blocked", link = LinkState.GaveUp("AirPods Pro", "refused")) { HeartRate.status(HeartRate.Status.Off) }
+    @Test fun heartBlockedNote() = heartState("heart_blocked_note", link = LinkState.GaveUp("AirPods Pro", "refused"), note = true, dark = false) { HeartRate.status(HeartRate.Status.Off) }
+    @Test fun heartOff() = heartState("heart_off", dark = false) { HeartRate.status(HeartRate.Status.Off) }
+
     @Test fun islandBudOut() = withMusic(playing = false) { island("island_bud_out", IslandEvent.BudOut(remaining = 1, paused = true), IslandPhase.Compact) }
     @Test fun islandBothOutLight() = island("island_both_out_light", IslandEvent.BudOut(remaining = 0, paused = false), IslandPhase.Compact, dark = false)
     @Test fun islandMusic() = withMusic { island("island_music", IslandEvent.Music, IslandPhase.Compact) }

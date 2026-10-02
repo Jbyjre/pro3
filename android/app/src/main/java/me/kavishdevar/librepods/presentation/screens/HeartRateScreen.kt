@@ -164,12 +164,23 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
     ) {
         Spacer(Modifier.height(topPadding - 14.dp))
 
+        // The AirPods are there for sound but the phone refuses the link the sensor needs: say so
+        // (not "connect your AirPods") and offer to try again.
+        val heartView = remember(state, link, now) {
+            me.kavishdevar.librepods.services.HeartView.of(state, link, me.kavishdevar.librepods.presentation.overlays.GlintOverlays.airPodsAudio(context), now)
+        }
+        val blocked = !measuring && heartView.kind == me.kavishdevar.librepods.services.HeartView.Kind.Blocked
         LiveCard(
             state = state, connected = connected, measuring = measuring, dark = dark, card = card, ink = ink, muted = muted, accent = accent,
             modifier = Modifier.riseIn(index++),
+            blockedLine = heartView.line.takeIf { blocked },
             onToggle = {
                 val service = ServiceManager.getService()
-                if (measuring) service?.stopHeartRate() else service?.startHeartRate()
+                when {
+                    measuring -> service?.stopHeartRate()
+                    blocked -> service?.retryConnectionNow()
+                    else -> service?.startHeartRate()
+                }
             },
         )
 
@@ -299,6 +310,8 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
         var always by remember { mutableStateOf(prefs.getBoolean(PREF_HR_ALWAYS, false)) }
         var pace by remember { mutableIntStateOf(prefs.getInt(PREF_HR_PACE, 0)) }
         var island by remember { mutableStateOf(prefs.getBoolean(PREF_HR_ISLAND, true)) }
+        var glance by remember { mutableStateOf(prefs.getBoolean(me.kavishdevar.librepods.services.PREF_HR_GLANCE, true)) }
+        var chip by remember { mutableStateOf(prefs.getBoolean(me.kavishdevar.librepods.services.PREF_HR_CHIP, true)) }
         Column(Modifier.riseIn(index++).fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(horizontal = 4.dp)) {
             StyledToggle(
                 label = "Measure whenever worn",
@@ -335,6 +348,20 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
                     )
                     Text(paceWords(HeartPace.of(pace)), modifier = Modifier.padding(top = 6.dp, start = 4.dp), style = heartText(13, muted))
                 }
+            }
+            StyledToggle(
+                label = "Heart in the island",
+                description = if (chip) "In the opened island, next to the music controls" else "Hidden: the opened island shows only music controls",
+                checked = chip,
+                onCheckedChange = { chip = it; prefs.edit { putBoolean(me.kavishdevar.librepods.services.PREF_HR_CHIP, it) } }
+            )
+            AnimatedVisibility(chip && !always, enter = fadeIn() + expandVertically(spring(0.85f, 300f)), exit = fadeOut() + shrinkVertically()) {
+                StyledToggle(
+                    label = "Measure when the island opens",
+                    description = if (glance) "About 90 seconds each time, so it shows a real reading" else "Off: tap the heart in the island to measure",
+                    checked = glance,
+                    onCheckedChange = { glance = it; prefs.edit { putBoolean(me.kavishdevar.librepods.services.PREF_HR_GLANCE, it) } }
+                )
             }
             StyledToggle(
                 label = "High heart rate on the island",
@@ -403,6 +430,8 @@ private fun LiveCard(
     muted: Color,
     accent: Color,
     modifier: Modifier,
+    /** Set when the phone blocks the sensor's link: shown instead of the status, and the button retries. */
+    blockedLine: String? = null,
     onToggle: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -424,7 +453,7 @@ private fun LiveCard(
             // swells and lights up under your finger, then settles back with a soft bounce.
             val orbSource = remember { MutableInteractionSource() }
             val orbPressed by orbSource.collectIsPressedAsState()
-            val orbEnabled = connected || measuring
+            val orbEnabled = connected || measuring || blockedLine != null
             val swell by animateFloatAsState(if (orbPressed && !reduceMotion && orbEnabled) 1.1f else 1f, spring(dampingRatio = 0.42f, stiffness = 420f), label = "orbSwell")
             val view = LocalView.current
             Box(
@@ -465,31 +494,32 @@ private fun LiveCard(
                 Spacer(Modifier.width(6.dp))
                 Text("BPM", modifier = Modifier.alignByBaseline(), style = heartText(17, muted, FontWeight.Medium))
             }
-            Text(statusLine(state, connected), style = heartText(14, muted).copy(textAlign = TextAlign.Center))
+            Text(blockedLine ?: statusLine(state, connected), style = heartText(14, muted).copy(textAlign = TextAlign.Center))
             Spacer(Modifier.height(10.dp))
             EkgTrace(bpm, accent, time)
             Spacer(Modifier.height(14.dp))
-            val enabled = connected || measuring
+            val enabled = connected || measuring || blockedLine != null
             Box(
                 Modifier
                     .glintGlass(backdrop, dark, solid, CapsuleShape, GlassTier.Inline, tint = if (dark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.5f))
                     .clip(CapsuleShape)
                     .graphicsLayer { alpha = if (enabled) 1f else 0.45f }
-                    .semantics { role = Role.Button; contentDescription = if (measuring) "Stop measuring" else "Start measuring" }
+                    .semantics { role = Role.Button; contentDescription = if (measuring) "Stop measuring" else if (blockedLine != null) "Try again" else "Start measuring" }
                     .then(if (enabled) Modifier.pressable(onToggle) else Modifier)
                     .padding(horizontal = 30.dp, vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
                 // A play or stop symbol instead of words; it spins and swaps like a morph.
                 AnimatedContent(
-                    measuring,
+                    if (measuring) 1 else if (blockedLine != null) 2 else 0,
                     transitionSpec = {
                         (fadeIn(tween(160)) + scaleIn(spring(0.55f, 600f), 0.4f)) togetherWith (fadeOut(tween(100)) + scaleOut(tween(120), 0.4f))
                     },
                     label = "toggle"
-                ) { m ->
+                ) { mode ->
+                    val m = mode == 1
                     Image(
-                        if (m) RowIcons.Stop else RowIcons.Play,
+                        when (mode) { 1 -> RowIcons.Stop; 2 -> RowIcons.History; else -> RowIcons.Play },
                         contentDescription = null,
                         colorFilter = ColorFilter.tint(if (m) accent else ink),
                         modifier = Modifier.size(26.dp)
