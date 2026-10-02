@@ -41,5 +41,9 @@ layers 13, 14, 15, 18, 20; NDK 29 / cmake 4.1.2 flags).
   swell + finger glow on island buttons/heart chip; pill finger glow; metaball neck on bud-out;
   budget-aware blur; solid border on reduce transparency. No overlay refraction of other apps (stated).
 - Proof: GlassLightTest, island_rim_swing_*, island_button_pressed, island_chip_morph_* frames.
-## 5. Island bug history: TODO
+## 5. Island bug history: DONE (session 2026-10-02)
+- OverlayWindow detects system removal (attach listener -> lost()); pill re-shows; pill leave safety
+  1.5 s; resize waits for real window size (pill wide, island expand/detail); island ignores margin
+  taps; island closes on rotation/fold; pill taps accepted from appear > 0.15.
+- Proof: IslandHandoverTest (shapes x looks), IslandGestureUiTest (mid-animation taps), island_from_mini frames.
 ## 6. Rest of app: TODO

@@ -152,6 +152,50 @@ class IslandGestureUiTest {
         assertEquals(listOf(Action.PlayPause), done)
     }
 
+    @Test fun aTapWhileItsStillGrowingCounts() {
+        rule.mainClock.autoAdvance = false
+        val app = RuntimeEnvironment.getApplication()
+        val d = app.resources.displayMetrics.density
+        val w = app.resources.displayMetrics.widthPixels
+        geo = MiniGeometry(app, listOf(android.graphics.Rect((w / 2 - 13 * d).toInt(), (10 * d).toInt(), (w / 2 + 13 * d).toInt(), (36 * d).toInt())))
+        rule.setContent {
+            val dens = LocalDensity.current
+            Box(Modifier.size(with(dens) { DpSize(geo.compactWindow.width.toDp(), geo.compactWindow.height.toDp()) })) {
+                MiniIslandHost(
+                    geometry = geo, track = NowPlaying.Track(playing = true), leaving = false, hidden = false,
+                    onWindowSize = {}, onTouchable = {}, onGone = {}, onAction = { done += it },
+                )
+            }
+        }
+        // 120 ms in: still springing out of the camera.
+        rule.mainClock.advanceTimeBy(120)
+        rule.onRoot().performTouchInput { click(centre) }
+        rule.mainClock.advanceTimeBy(500)
+        assertEquals(listOf(Action.Expand), done)
+    }
+
+    @Test fun anIslandTapMidAnimationIsNeverIgnored() {
+        rule.mainClock.autoAdvance = false
+        val app = RuntimeEnvironment.getApplication()
+        var asked: me.kavishdevar.librepods.presentation.overlays.IslandPhase? = null
+        val island = me.kavishdevar.librepods.presentation.overlays.IslandGeometry(app)
+        rule.setContent {
+            val dens = LocalDensity.current
+            Box(Modifier.size(with(dens) { DpSize(island.expandedWindow.width.toDp(), island.expandedWindow.height.toDp()) })) {
+                me.kavishdevar.librepods.presentation.overlays.IslandHost(
+                    island, me.kavishdevar.librepods.presentation.overlays.IslandEvent.Connected,
+                    me.kavishdevar.librepods.presentation.overlays.IslandPhase.Expanded, 0, blurAllowed = false,
+                    onPhase = { asked = it }, onWindowSize = {}, onGone = {},
+                )
+            }
+        }
+        // Mid-opening, tap the middle of where it's growing: it turns around (to the pill).
+        rule.mainClock.advanceTimeBy(140)
+        rule.onRoot().performTouchInput { click(androidx.compose.ui.geometry.Offset(island.expandedWindow.width / 2f, island.restTop + 20f * app.resources.displayMetrics.density)) }
+        rule.mainClock.advanceTimeBy(100)
+        assertEquals(me.kavishdevar.librepods.presentation.overlays.IslandPhase.Compact, asked)
+    }
+
     @Test fun aGestureSetToNothingDoesNothing() {
         setUp(IslandGestures.defaults + (Gesture.SwipeLeft to Action.Nothing))
         val c = centre

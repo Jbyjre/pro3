@@ -115,6 +115,7 @@ internal class OverlayWindow(
 
     /** For tests: the window's and the status-bar probe's settings. */
     internal val windowParams: WindowManager.LayoutParams? get() = params
+    internal val windowView: View? get() = view
     internal val probeParams: WindowManager.LayoutParams? get() = probe?.layoutParams as? WindowManager.LayoutParams
 
     fun show(initialSize: IntSize, offsetY: Int, content: @Composable () -> Unit): Boolean = show(initialSize, offsetY, 0, content)
@@ -174,6 +175,16 @@ internal class OverlayWindow(
         }
         return try {
             wm.addView(composeView, lp)
+            // If Android takes the window away by itself (the overlay permission revoked, the
+            // accessibility service stopped), let go of it so the next show() works again,
+            // instead of believing it's still there.
+            composeView.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(v: View) {}
+                override fun onViewDetachedFromWindow(v: View) {
+                    v.removeOnAttachStateChangeListener(this)
+                    if (view === v) lost()
+                }
+            })
             view = composeView
             params = lp
             windowManager = wm
@@ -256,6 +267,22 @@ internal class OverlayWindow(
         lp.alpha = alpha
         lp.flags = flags
         try { windowManager.updateViewLayout(v, lp) } catch (e: Exception) { Log.w(tag, "present: ${e.message}") }
+    }
+
+    /** The window went away without [dismiss] (see above): tidy up the same way. */
+    private fun lost() {
+        Log.w(tag, "window removed by the system")
+        view = null
+        params = null
+        onShownChanged?.invoke(false)
+        try { windowManager.removeCrossWindowBlurEnabledListener(blurListener) } catch (_: Throwable) {}
+        lifecycleRegistry.currentState = Lifecycle.State.CREATED
+        probe?.let { p -> try { appWindowManager.removeViewImmediate(p) } catch (_: Exception) {} }
+        probe = null
+        host = null
+        shownWith = null
+        windowManager = appWindowManager
+        statusBarVisible.value = true
     }
 
     fun dismiss() {

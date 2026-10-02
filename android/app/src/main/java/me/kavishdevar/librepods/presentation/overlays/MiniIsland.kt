@@ -96,6 +96,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import me.kavishdevar.librepods.presentation.glint.GlintComfort
 import me.kavishdevar.librepods.presentation.glint.GlintHaptics
 import me.kavishdevar.librepods.presentation.glint.lerp
@@ -298,7 +299,15 @@ internal class MiniIslandController(private val context: Context) {
             leaving.value = false
             if (!window.isShowing) show()
         } else if (window.isShowing) {
-            leaving.value = true
+            if (!leaving.value) {
+                leaving.value = true
+                // Leaving always ends with the window gone, even if its animation stalls (screen
+                // off mid-way, phone busy): an invisible window must never linger at the top.
+                scope.launch {
+                    delay(LEAVE_SAFETY_MS)
+                    if (leaving.value && window.isShowing) window.dismiss()
+                }
+            }
         }
         // Paused: check again when the 30 seconds are up.
         lingerJob?.cancel()
@@ -331,7 +340,14 @@ internal class MiniIslandController(private val context: Context) {
     private fun show() {
         val geo = MiniGeometry(context, look = look.value)
         shownFor = geo.key
-        window.onShownChanged = { if (!it) GlintOverlays.miniOrigin = null }
+        window.onShownChanged = { shown ->
+            if (!shown) {
+                GlintOverlays.miniOrigin = null
+                // Taken away by the system while still wanted (permission or service change):
+                // look again in a moment, so it comes back by itself when it can.
+                if (lastWant) scope.launch { delay(1_000); refresh() }
+            }
+        }
         window.show(geo.compactWindow, geo.windowTop, geo.offsetX) {
             val live by NowPlaying.state.collectAsState()
             val pods by GlintOverlays.snapshot.collectAsState()
@@ -560,6 +576,8 @@ internal fun MiniIslandHost(
     }
     val nudge = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
+    /** The window's real width (it changes when the pill widens for a song's name). */
+    var boxW by remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
     // Grow out of the camera, or shrink back into it.
     val currentWidth by androidx.compose.runtime.rememberUpdatedState(targetW)
@@ -598,7 +616,10 @@ internal fun MiniIslandHost(
         announced = songKey
         delay(if (appear.value < 0.9f) 380 else 0)
         onWindowSize(geometry.wideWindow)
-        // Let the bigger window reach the screen before growing into it (no flicker).
+        // Grow only once the bigger window is really there (no flicker, nothing cut off).
+        kotlinx.coroutines.withTimeoutOrNull(250) {
+            androidx.compose.runtime.snapshotFlow { boxW }.first { it >= geometry.wideWindow.width }
+        }
         androidx.compose.runtime.withFrameNanos { }
         if (reduce) wide.snapTo(1f) else wide.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = 300f))
         delay(MiniIslandRules.NAME_SHOW_MS)
@@ -653,7 +674,6 @@ internal fun MiniIslandHost(
     val playingNow by androidx.compose.runtime.rememberUpdatedState(track.playing)
     val modeNow by androidx.compose.runtime.rememberUpdatedState(pods.listeningMode)
     val offAllowed = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("off_listening_mode", true) }
-    var boxW by remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
     // Touch feedback: the pill squishes under the finger and brightens a little where it's held,
     // springs back on release, and stretches a touch when pulled. While touched (and a few
@@ -725,7 +745,8 @@ internal fun MiniIslandHost(
                 val swipe = 30f * density
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    val inside = appear.value > 0.5f && pillBounds().inflate(6f * density).contains(down.position)
+                    // Taps count as soon as the pill is there at all, even while it's still growing.
+                    val inside = appear.value > 0.15f && pillBounds().inflate(6f * density).contains(down.position)
                     var dx = 0f
                     var dy = 0f
                     var last = down.uptimeMillis
@@ -1197,6 +1218,8 @@ internal fun accentOfPixels(pixels: IntArray): Color {
 
 /** The status bar must be gone this long before it counts as a full-screen app. */
 private const val FULL_SCREEN_MS = 1_200L
+/** The longest the Dynamic Island's leaving may take before its window is removed regardless. */
+private const val LEAVE_SAFETY_MS = 1_500L
 /** How long a dropped connection may last before the Dynamic Island leaves. */
 private const val AIRPODS_GRACE_MS = 5_000L
 
