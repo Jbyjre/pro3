@@ -309,6 +309,9 @@ fun AirPodsSettingsScreen(
                     Text(text, style = TextStyle(fontSize = 13.sp, fontFamily = glintFontFamily, color = if (isSystemInDarkTheme()) Color.White.copy(alpha = 0.7f) else Color.Black.copy(alpha = 0.65f)))
                 }
             }
+            item(key = "tap_setup") {
+                me.kavishdevar.librepods.presentation.components.TapSetupBanner(Modifier.padding(top = 18.dp))
+            }
             item(key = "spacer_battery") {
                 Spacer(modifier = Modifier.height(28.dp))
             }
@@ -671,6 +674,9 @@ fun AirPodsSettingsScreen(
                 .padding(start = 8.dp, end = 8.dp, bottom = bottomPadding),
             contentAlignment = Alignment.Center
         ) {
+            me.kavishdevar.librepods.presentation.components.TapSetupBanner(
+                Modifier.align(Alignment.TopCenter).padding(top = topPadding, start = 8.dp, end = 8.dp)
+            )
             val tapCount = remember { mutableIntStateOf(0) }
             val lastTapTime = remember { mutableLongStateOf(0L) }
 
