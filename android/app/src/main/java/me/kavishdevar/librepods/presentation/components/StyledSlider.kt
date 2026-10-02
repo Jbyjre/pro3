@@ -650,9 +650,12 @@ fun StyledSlider(
                                                 GlintLight.rim(progress)
                                             },
                                             shadow = {
+                                                // A small knob floating above the track: a close, soft
+                                                // shadow so it stays visible on white in light mode.
                                                 Shadow(
-                                                    radius = 4f.dp,
-                                                    color = Color.Black.copy(0.05f)
+                                                    radius = 6f.dp,
+                                                    offset = androidx.compose.ui.unit.DpOffset(0.dp, 1.5f.dp),
+                                                    color = Color.Black.copy(if (isDarkTheme) 0.4f else 0.2f)
                                                 )
                                             },
                                             innerShadow = {

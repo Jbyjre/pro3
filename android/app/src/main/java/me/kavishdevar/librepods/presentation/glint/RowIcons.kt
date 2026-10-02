@@ -119,6 +119,10 @@ object RowIcons {
         P("M3.2 14.6a1.4 1.4 0 0 1 1.4-1.4h1.8a1.2 1.2 0 0 1 1.2 1.2v5a1.2 1.2 0 0 1-1.2 1.2H5a1.8 1.8 0 0 1-1.8-1.8z", true),
         P("M20.8 14.6a1.4 1.4 0 0 0-1.4-1.4h-1.8a1.2 1.2 0 0 0-1.2 1.2v5a1.2 1.2 0 0 0 1.2 1.2H19a1.8 1.8 0 0 0 1.8-1.8z", true),
     )
+    val Sun = icon("sun", P(circle(12f, 12f, 3.6f)), P("M12 3.2v2M12 18.8v2M3.2 12h2M18.8 12h2M5.8 5.8l1.4 1.4M16.8 16.8l1.4 1.4M5.8 18.2l1.4-1.4M16.8 7.2l1.4-1.4"))
+    val Motion = icon("motion", P("M3.6 8.4h6.2M2.8 12h6.4M3.6 15.6h6.2"), P(circle(15.6f, 12f, 4.6f)))
+    val Globe = icon("globe", P(circle(12f, 12f, 8.4f)), P("M3.6 12h16.8"), P("M12 3.6c2.3 2.4 3.4 5.2 3.4 8.4s-1.1 6-3.4 8.4c-2.3-2.4-3.4-5.2-3.4-8.4s1.1-6 3.4-8.4z"))
+    val Bolt = icon("bolt", P("M13.2 3.2L5.6 13.4h5.6l-1 7.4 7.6-10.2h-5.6z"))
     val History = icon("history", P("M4.6 12a7.4 7.4 0 1 0 2.2-5.2"), P("M4.4 4.4v3.6H8"), P("M12 8.2V12l2.6 1.8"))
 
     /**
@@ -128,6 +132,10 @@ object RowIcons {
     private val rules: List<Pair<List<String>, ImageVector>> = listOf(
         listOf("heart") to Heart,
         listOf("always on") to Power,
+        listOf("light follows") to Sun,
+        listOf("reduce motion") to Motion,
+        listOf("web address") to Globe,
+        listOf("automation") to Bolt,
         listOf("sound bars") to Waves,
         listOf("airpods are connected") to Link,
         listOf("devices", "headphone", "beats") to Headphones,

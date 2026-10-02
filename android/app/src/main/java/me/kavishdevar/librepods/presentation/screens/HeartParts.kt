@@ -360,8 +360,6 @@ internal fun HeartChart(
             val ay = y(avg)
             drawLine(ink.copy(alpha = 0.35f), Offset(left, ay), Offset(right, ay), 1.dp.toPx(),
                 pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx())))
-            val t = measurer.measure("avg $avg", label)
-            drawText(t, topLeft = Offset(left + 4.dp.toPx(), ay - t.size.height - 1.dp.toPx()))
         }
         val lineBrush: Brush = if (zoneAge > 0) {
             // Hard colour bands at the zone edges (50%, 70%, 85% of the estimated maximum),
@@ -381,6 +379,18 @@ internal fun HeartChart(
         clipRect(right = left + (right - left) * reveal.value + 8.dp.toPx()) {
             drawPath(fill, Brush.verticalGradient(listOf(line.copy(alpha = if (dark) 0.28f else 0.18f), line.copy(alpha = 0f)), top, bottom))
             drawPath(path, lineBrush, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        }
+        // The average's label on a small chip in the card's colour, above the line it names.
+        average?.takeIf { it in lo..hi }?.let { avg ->
+            val t = measurer.measure("avg $avg", label)
+            val pad = 4.dp.toPx()
+            val tl = Offset(left + 4.dp.toPx(), (y(avg) - t.size.height / 2f).coerceIn(top - t.size.height / 2f, bottom - t.size.height))
+            drawRoundRect(
+                surface.copy(alpha = 0.92f), Offset(tl.x - pad, tl.y - 1.dp.toPx()),
+                androidx.compose.ui.geometry.Size(t.size.width + pad * 2, t.size.height + 2.dp.toPx()),
+                androidx.compose.ui.geometry.CornerRadius(t.size.height.toFloat()),
+            )
+            drawText(t, topLeft = tl)
         }
         if (reveal.value >= 1f) {
             val lastP = Offset(x(samples.last().timeMs), y(samples.last().bpm))
