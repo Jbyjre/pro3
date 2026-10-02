@@ -2,6 +2,30 @@
 
 A short checklist. Tick things off, and for anything that looks wrong, take a screenshot and use **Settings > Report a pro problem** (or just tell Claude what you saw).
 
+## Start here: this update (October 2026), in order of importance
+
+Install the new `pro.apk` (section A), open pro once, then:
+
+**1. Taps on the Dynamic Island (most important)**
+1. Open pro. A card at the top says "Make the Dynamic Island tappable". Tap it (or go to Settings > Islands).
+2. Tap **Turn on**. Android's Accessibility page opens: find **pro Dynamic Island** (Samsung: under *Installed apps*), switch it on and allow it.
+   - If it says **"Restricted setting"**: go back to pro, tap **App info**, tap **⋮** (top right) > **Allow restricted settings**, then Turn on again.
+3. Back in pro, the card's dot is green and says **On**.
+4. Connect your AirPods. On the Dynamic Island around the camera: **tap once** (it opens), **twice** (music pauses or plays; a ⏸/▶ sign flashes), **three times** (next song; ⏭ flashes). You should feel a light tap the moment your finger lands, and a firmer click when something happens.
+5. **Hold** it: pro opens. **Swipe** left or right: the song changes. **Pull down** on it: it opens. Pull down right next to it: notifications open.
+6. Pull down notifications anywhere: the Dynamic Island should get out of the way. Lock the phone and turn the screen on: it should be on the lock screen.
+
+**2. The heart**
+1. Open the Dynamic Island (tap). The heart chip at the bottom left should say **Starting** (a small dot circles it), then show your **number**. If it says **Blocked** (crossed-out heart), your phone isn't letting pro reach the sensor: tap it and try **Try again**; tell Claude if it stays Blocked.
+2. Take an AirPod out for a while: it should say **No signal** (dashed heart), not keep loading.
+3. Settings > Heart rate: "Heart in the island" hides it; "Measure when the island opens" turns the quick reading off.
+
+**3. Make it yours**
+1. Settings > Islands > **Look**: the preview at the top is the real Dynamic Island; touch it to try your gestures.
+2. Pick **Playing**, set **Left** to *Song title*: the real one around your camera changes at once. Try *Large* and *Bright*.
+3. **Gestures**: tap a row (for example *Double tap*) and pick another action; try it on the real one.
+4. **Reset** puts everything back as it came.
+
 ## A. Install it
 
 1. On your phone, open **https://github.com/Jbyjre/pro3/releases/latest** and tap **pro.apk** (after the pull request is merged; until then, the newest test build is at https://github.com/Jbyjre/pro3/releases/tag/glint-preview as **pro-preview.apk**).

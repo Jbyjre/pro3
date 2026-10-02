@@ -46,4 +46,9 @@ layers 13, 14, 15, 18, 20; NDK 29 / cmake 4.1.2 flags).
   1.5 s; resize waits for real window size (pill wide, island expand/detail); island ignores margin
   taps; island closes on rotation/fold; pill taps accepted from appear > 0.15.
 - Proof: IslandHandoverTest (shapes x looks), IslandGestureUiTest (mid-animation taps), island_from_mini frames.
-## 6. Rest of app: TODO
+## 6. Rest of app: DONE for this session (2026-10-02)
+- Crash-proof stem/camera action parsing (service + ViewModel); TapSetupBanner on main page (both
+  connected and disconnected layouts); TESTING.md "Start here" checklist; lint clean.
+- Ideas for a later session (need the phone first): tune gesture/heart timings from Jake's feedback;
+  two-window touch region for pop-ups in the accessibility layer (margins still take touches);
+  lock-screen shade detection on One UI.
