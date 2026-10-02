@@ -28,7 +28,13 @@ layers 13, 14, 15, 18, 20; NDK 29 / cmake 4.1.2 flags).
   when `worthAPill`. Heart page honest when link refused.
 - Proof: HeartViewTest, IslandMomentsTest, screenshots heart_* (8 states/notes).
 - Needs phone: whether the sensor link works at all on the S25 FE.
-## 3. Dynamic Island customisation: TODO (gesture prefs already exist from 1; UI still to build)
+## 3. Dynamic Island customisation: DONE (session 2026-10-02)
+- `IslandLook` (situations Music/Paused/Idle/Charging/Talking; slots Cover/Bars/Battery/Buds/Mode/
+  Heart/Title/Talk/Same/Nothing; Size/Width/Glow; prefs `glint_di_*`), `MiniIslandRules.size(look)`,
+  slot-based drawing with cross-fade + width spring in `MiniIslandHost`, live re-measure in controller.
+  `IslandStudio.kt`: live interactive preview, situation/slot chips, segments, gestures list, reset.
+- Proof: IslandLookTest, screenshots mini_island_custom_*, island_studio_*, tour 38.
+- Needs phone: looks around the real camera.
 ## 4. Glass: TODO
 ## 5. Island bug history: TODO
 ## 6. Rest of app: TODO

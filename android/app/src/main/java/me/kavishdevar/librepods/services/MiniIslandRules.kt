@@ -77,16 +77,49 @@ object MiniIslandRules {
      * none): tall enough to ring the camera with a margin, and wide enough for the cover on
      * one side and the sound bars on the other without touching it.
      */
-    data class Size(val height: Float, val compactWidth: Float, val wideWidth: Float, val wideHeight: Float)
+    data class Size(
+        val height: Float,
+        /** The widest compact pill over every situation (the window is sized for it). */
+        val compactWidth: Float,
+        val wideWidth: Float,
+        val wideHeight: Float,
+        /** How wide the round things beside the camera are (cover, rings, heart). */
+        val side: Float = height - 8f,
+        /** Space between the pill's end and its slot, and between a slot and the camera. */
+        val inset: Float = 4f,
+        val gap: Float = 3f,
+        /** The camera's clear zone in the middle. */
+        val center: Float = height,
+        /** The compact width in each situation (the pill morphs between them). */
+        val widths: Map<IslandLook.Situation, Float> = emptyMap(),
+    ) {
+        fun compactFor(s: IslandLook.Situation): Float = widths[s] ?: compactWidth
+    }
 
-    fun size(holeW: Float, holeH: Float, density: Float, screenW: Float): Size {
-        val h = (holeH + 10f * density).coerceIn(28f * density, 40f * density)
-        val side = h - 8f * density // the cover is a circle this wide
-        val compact = maxOf(holeW, h) + 2f * (side + 7f * density)
+    /**
+     * Pill sizes in pixels around a camera hole of [holeW] x [holeH] (0 when the phone has none):
+     * tall enough to ring the camera with a margin, and wide enough for what [look] puts on each
+     * side of it in every situation. With the default look this is exactly the original size: a
+     * round cover on one side, the sound bars on the other.
+     */
+    fun size(holeW: Float, holeH: Float, density: Float, screenW: Float, look: IslandLook.Look = IslandLook.Look()): Size {
+        val f = look.size.factor
+        val floor = holeH + 4f * density
+        val h = ((holeH + 10f * density) * f).coerceIn(maxOf(28f * density * f, floor), maxOf(40f * density * f, floor))
+        val side = h - 8f * density * f
+        val inset = 4f * density * f
+        val gap = look.width.gapDp * density * f
+        val center = maxOf(holeW, h)
         val fit = screenW - 16f * density
-        val c = compact.coerceAtMost(fit)
+        val widths = IslandLook.Situation.entries.associateWith { sit ->
+            val (l, r) = look.slots(sit, if (sit == IslandLook.Situation.Talking) IslandLook.Situation.Music else sit)
+            val half = maxOf(IslandLook.slotWidth(l, side, density, f), IslandLook.slotWidth(r, side, density, f))
+            (center + 2f * (inset + if (half > 0f) half + gap else 0f)).coerceAtMost(fit)
+        }
+        // Talking keeps the other situations' left side: make room for the widest of them.
+        val c = widths.values.max().coerceAtMost(fit)
         val wide = minOf(screenW - 24f * density, 280f * density).coerceIn(c, fit)
-        return Size(h, c, wide, h + 26f * density)
+        return Size(h, c, wide, h + 26f * density * f, side, inset, gap, center, widths)
     }
 
     /** A rectangle in screen pixels (Android's Rect, without needing Android in tests). */

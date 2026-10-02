@@ -130,28 +130,10 @@ fun IslandSettingsScreen() {
 
         if (tapsAvailable) TapAccessCard(enabled = tapsEnabled, running = tapsService != null, ink = ink, dark = dark)
 
-        StyledList(title = "Mini island") {
-            StyledToggle(
-                label = "Show the mini island",
-                description = if (canDraw) "Pop-ups when something changes (connected, music paused, low battery), growing out of the Dynamic Island"
-                else "Needs \"Display over other apps\" for pro",
-                checked = master,
-                onCheckedChange = { master = it; prefs.edit { putBoolean(IslandPrefs.PREF_MASTER, it) } },
-            )
-        }
-        if (!canDraw) {
-            Hint(
-                "Android hasn't allowed pro to draw over other apps yet, so the islands can't appear.",
-                "Allow", ink, dark,
-            ) { open(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).setData(android.net.Uri.fromParts("package", context.packageName, null))) }
-        }
-
         StyledList(title = "Dynamic Island") {
             StyledToggle(
                 label = "Dynamic Island around the camera",
-                description = "A small pill around the front camera. With music: the cover and moving bars (swipe to change song). " +
-                    "With AirPods: their battery and listening mode, or your heart rate. Tap once to expand, twice to play/pause, three times to skip; hold to open pro. " +
-                    "The mini island pop-ups grow out of it and shrink back into it.",
+                description = "Cover and bars with music, battery and mode with AirPods",
                 checked = mini,
                 onCheckedChange = {
                     mini = it
@@ -163,7 +145,6 @@ fun IslandSettingsScreen() {
                 label = "Always while AirPods are connected",
                 description = "Off: only while music plays",
                 checked = miniAlways,
-
                 onCheckedChange = {
                     miniAlways = it
                     prefs.edit { putBoolean(IslandPrefs.PREF_MINI_ALWAYS, it) }
@@ -172,16 +153,14 @@ fun IslandSettingsScreen() {
             )
             StyledToggle(
                 label = "Show each new song's name",
-                description = if (songNames && access) "It widens for a moment when a song starts or changes"
-                else "Needs \"Show song names\" and Notification access (under Music)",
+                description = if (songNames && access) "Widens for a moment" else "Needs Notification access (under Music)",
                 checked = miniNames,
                 onCheckedChange = { miniNames = it; prefs.edit { putBoolean(IslandPrefs.PREF_MINI_NAMES, it) } },
             )
             StyledToggle(
                 label = "Only with AirPods connected",
-                description = "Off: shows for music on any speaker or headphones",
+                description = "Off: for any speaker or headphones",
                 checked = miniAirPodsOnly,
-
                 onCheckedChange = {
                     miniAirPodsOnly = it
                     prefs.edit { putBoolean(IslandPrefs.PREF_MINI_AIRPODS_ONLY, it) }
@@ -190,7 +169,28 @@ fun IslandSettingsScreen() {
             )
         }
 
-        StyledList(title = "When the mini island appears") {
+        SectionLabel("Look", ink)
+        DynamicIslandStudio(ink, dark)
+
+        SectionLabel("Gestures", ink)
+        IslandGestureSettings(ink, dark)
+
+        StyledList(title = "Mini island") {
+            StyledToggle(
+                label = "Show the mini island",
+                description = if (canDraw) "Pop-ups that grow out of the Dynamic Island" else "Needs \"Display over other apps\"",
+                checked = master,
+                onCheckedChange = { master = it; prefs.edit { putBoolean(IslandPrefs.PREF_MASTER, it) } },
+            )
+        }
+        if (!canDraw) {
+            Hint(
+                "pro isn't allowed to draw over other apps yet.",
+                "Allow", ink, dark,
+            ) { open(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).setData(android.net.Uri.fromParts("package", context.packageName, null))) }
+        }
+
+        StyledList(title = "Pops up when") {
             IslandPrefs.Trigger.entries.forEach { t ->
                 // Every switch can always be changed (greyed-out switches looked stuck); a note says
                 // when one also needs something else to work.
@@ -225,8 +225,7 @@ fun IslandSettingsScreen() {
         }
         if (songNames && !access) {
             Hint(
-                "To show what's playing, Android needs you to give pro Notification access. " +
-                    "pro only uses it to read the song and use your music app's controls.",
+                "Song names need Notification access. pro only reads the song and uses your music app's controls.",
                 "Allow", ink, dark,
             ) {
                 if (!open(context, NowPlaying.accessSettingsIntent(context))) {
@@ -234,8 +233,7 @@ fun IslandSettingsScreen() {
                 }
             }
             Hint(
-                "If Android says it's a \"Restricted setting\": open App info, tap the ⋮ menu, " +
-                    "choose \"Allow restricted settings\", then tap Allow above again.",
+                "\"Restricted setting\"? App info › ⋮ › Allow restricted settings, then Allow again.",
                 "App info", ink, dark,
             ) { open(context, NowPlaying.appInfoIntent(context)) }
         }
@@ -246,7 +244,7 @@ fun IslandSettingsScreen() {
             { duration = it; prefs.edit { putInt(IslandPrefs.PREF_DURATION, it) } },
         )
         Text(
-            IslandPrefs.Duration.entries[duration].let { "About ${it.compactMs / 1000.0} s, or ${it.expandedMs / 1000} s when opened. Touching it keeps it up." }
+            IslandPrefs.Duration.entries[duration].let { "${it.compactMs / 1000.0} s, or ${it.expandedMs / 1000} s when opened" }
                 .replace(".0 s", " s"),
             style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = ink.copy(alpha = 0.55f)),
             modifier = Modifier.padding(horizontal = 16.dp),
@@ -285,10 +283,7 @@ fun IslandSettingsScreen() {
             }
         }
         Text(
-            "Tap a pop-up to open it, hold it to open pro, swipe it up to put it away. " +
-                "The Dynamic Island stays while your AirPods are connected (also sideways and on the lock screen, if your phone allows it there); it only steps aside in full-screen videos and games. " +
-                "Tap it once to expand, twice to play or pause, three times for the next song. " +
-                "While you measure heart rate, the heart shows inside the opened island; tap it for what the number means.",
+            "Pop-ups: tap to open, hold for pro, swipe up to put away.",
             style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = ink.copy(alpha = 0.55f)),
             modifier = Modifier.padding(horizontal = 16.dp),
         )

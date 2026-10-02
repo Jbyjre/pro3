@@ -182,6 +182,8 @@ class GlintScreenshots {
         talking: Boolean = false,
         press: Float = 0f,
         ack: me.kavishdevar.librepods.presentation.overlays.MiniAck? = null,
+        look: me.kavishdevar.librepods.services.IslandLook.Look = me.kavishdevar.librepods.services.IslandLook.Look(),
+        situation: me.kavishdevar.librepods.services.IslandLook.Situation? = null,
     ) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")
         rule.mainClock.autoAdvance = false
@@ -205,7 +207,7 @@ class GlintScreenshots {
             durationMs = 243_000L, positionMs = 90_000L, positionAtMs = android.os.SystemClock.elapsedRealtime().coerceAtLeast(1L),
         )
         rule.setContent {
-            val geo = me.kavishdevar.librepods.presentation.overlays.MiniGeometry(app, listOfNotNull(hole))
+            val geo = me.kavishdevar.librepods.presentation.overlays.MiniGeometry(app, listOfNotNull(hole), look)
             Wallpaper(dark) {
                 val dens = androidx.compose.ui.platform.LocalDensity.current
                 Box(Modifier.fillMaxWidth().height(with(dens) { (geo.wideWindow.height + geo.windowTop.coerceAtLeast(0)).toDp() + 40.dp })) {
@@ -219,6 +221,7 @@ class GlintScreenshots {
                             pods = airPods ?: PodsSnapshot(), heartBpm = heart, talking = talking,
                             onWindowSize = {}, onTouchable = {}, onGone = {}, onAction = {},
                             still = 1f, stillWide = wide, stillPress = press, stillAck = ack,
+                            look = look, forceSituation = situation,
                         )
                     }
                     // The camera, on top, where the real one would be.
@@ -257,6 +260,68 @@ class GlintScreenshots {
         ack = me.kavishdevar.librepods.presentation.overlays.MiniAck(me.kavishdevar.librepods.services.IslandGestures.Action.Next))
     @Test fun miniIslandAckMode() = mini("mini_island_ack_mode", playing = false, wide = 0f, art = false, airPods = demo,
         ack = me.kavishdevar.librepods.presentation.overlays.MiniAck(me.kavishdevar.librepods.services.IslandGestures.Action.ListeningMode, mode = 2))
+    // Customised: a few words of the title on the left, L/R/case on the right, large, roomy, bright.
+    @Test fun miniIslandCustomTitleBuds() = mini(
+        "mini_island_custom_title_buds", playing = true, wide = 0f, art = true, dark = true, airPods = demo,
+        look = me.kavishdevar.librepods.services.IslandLook.Look(
+            slots = me.kavishdevar.librepods.services.IslandLook.DEFAULT_SLOTS + (me.kavishdevar.librepods.services.IslandLook.Situation.Music to
+                (me.kavishdevar.librepods.services.IslandLook.Slot.Title to me.kavishdevar.librepods.services.IslandLook.Slot.Buds)),
+            size = me.kavishdevar.librepods.services.IslandLook.Size.Large,
+            width = me.kavishdevar.librepods.services.IslandLook.Width.Roomy,
+            glow = me.kavishdevar.librepods.services.IslandLook.Glow.Bright,
+        ),
+        situation = me.kavishdevar.librepods.services.IslandLook.Situation.Music,
+    )
+    // Nothing either side: just a slim black ring around the camera.
+    @Test fun miniIslandCustomNothing() = mini(
+        "mini_island_custom_nothing", playing = true, wide = 0f, art = true,
+        look = me.kavishdevar.librepods.services.IslandLook.Look(
+            slots = me.kavishdevar.librepods.services.IslandLook.DEFAULT_SLOTS + (me.kavishdevar.librepods.services.IslandLook.Situation.Music to
+                (me.kavishdevar.librepods.services.IslandLook.Slot.Nothing to me.kavishdevar.librepods.services.IslandLook.Slot.Nothing)),
+            size = me.kavishdevar.librepods.services.IslandLook.Size.Small,
+            width = me.kavishdevar.librepods.services.IslandLook.Width.Snug,
+            glow = me.kavishdevar.librepods.services.IslandLook.Glow.Off,
+        ),
+        situation = me.kavishdevar.librepods.services.IslandLook.Situation.Music,
+    )
+    // Idle with the heart and mode swapped round, and the battery on the right.
+    @Test fun miniIslandCustomIdle() = mini(
+        "mini_island_custom_idle", playing = false, wide = 0f, art = false, airPods = demo, heart = 66,
+        look = me.kavishdevar.librepods.services.IslandLook.Look(
+            slots = me.kavishdevar.librepods.services.IslandLook.DEFAULT_SLOTS + (me.kavishdevar.librepods.services.IslandLook.Situation.Idle to
+                (me.kavishdevar.librepods.services.IslandLook.Slot.Heart to me.kavishdevar.librepods.services.IslandLook.Slot.Battery)),
+        ),
+    )
+
+    /** Settings > Islands' look editor, light and dark. */
+    @Test fun islandStudioLight() {
+        GlintOverlays.updateSnapshot(demo)
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            Box(Modifier.fillMaxSize().background(Color(0xFFF2F2F7)).padding(16.dp)) {
+                Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)) {
+                    me.kavishdevar.librepods.presentation.screens.DynamicIslandStudio(Color.Black, dark = false)
+                    me.kavishdevar.librepods.presentation.screens.IslandGestureSettings(Color.Black, dark = false)
+                }
+            }
+        }
+        rule.mainClock.advanceTimeBy(1_500)
+        rule.onRoot().captureRoboImage("$out/island_studio_light.png")
+    }
+
+    @Test fun islandStudioDarkAirPods() {
+        RuntimeEnvironment.setQualifiers("+night")
+        GlintOverlays.updateSnapshot(demo)
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            Box(Modifier.fillMaxSize().background(Color.Black).padding(16.dp)) {
+                me.kavishdevar.librepods.presentation.screens.DynamicIslandStudio(Color.White, dark = true, preview = me.kavishdevar.librepods.services.IslandLook.Situation.Idle)
+            }
+        }
+        rule.mainClock.advanceTimeBy(1_500)
+        rule.onRoot().captureRoboImage("$out/island_studio_dark_airpods.png")
+    }
+
     @Test fun miniIslandAirPodsCharging() = mini("mini_island_airpods_charging", playing = false, wide = 0f, art = false, airPods = demo.copy(leftCharging = true, rightCharging = true))
 
     /** The big island growing out of the mini island by the camera, frame by frame. */
