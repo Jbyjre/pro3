@@ -34,6 +34,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Row
@@ -160,6 +161,8 @@ fun AirPodsSettingsRoute(
     navigateToMicrophoneSettings: () -> Unit,
     navigateToHeartRate: () -> Unit = {},
     navigateToRecorder: () -> Unit = {},
+    navigateToDevices: () -> Unit = {},
+    navigateToIsland: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val timeLeft by BatteryTimeLeftFlow.estimate.collectAsState()
@@ -167,6 +170,35 @@ fun AirPodsSettingsRoute(
     val m3eEnabled = LocalDesignSystem.current == DesignSystem.Material
     val topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + if (m3eEnabled) 0.dp else 84.dp
     val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 12.dp
+
+    // Which headphones pro follows (Settings > Your devices). Switching cross-fades between the
+    // AirPods page and the headphones page on a spring, so it reads as one page changing.
+    val context = LocalContext.current
+    val chosen by me.kavishdevar.librepods.services.DeviceChoice.chosen.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(Unit) { me.kavishdevar.librepods.services.DeviceChoice.load(context) }
+    val reduceMotion = remember { me.kavishdevar.librepods.presentation.glint.GlintComfort.reduceMotion(context) }
+    androidx.compose.animation.AnimatedContent(
+        targetState = chosen.isAirPods,
+        transitionSpec = {
+            if (reduceMotion) {
+                androidx.compose.animation.fadeIn(tween(0)) togetherWith androidx.compose.animation.fadeOut(tween(0))
+            } else {
+                (androidx.compose.animation.fadeIn(spring(dampingRatio = 1f, stiffness = 380f)) +
+                    androidx.compose.animation.scaleIn(spring(dampingRatio = 0.9f, stiffness = 380f), initialScale = 0.97f)) togetherWith
+                    androidx.compose.animation.fadeOut(spring(dampingRatio = 1f, stiffness = 600f))
+            }
+        },
+        label = "devicePage",
+    ) { airPods ->
+        if (!airPods) {
+            HeadphonesRoute(
+                topPadding = topPadding,
+                bottomPadding = bottomPadding,
+                navigateToDevices = navigateToDevices,
+                navigateToIsland = navigateToIsland,
+            )
+            return@AnimatedContent
+        }
 
     val noticeBackdrop = rememberLayerBackdrop()
     Box (
@@ -221,6 +253,7 @@ fun AirPodsSettingsRoute(
             onReconnect = viewModel::reconnectFromSavedMac,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomPadding + 16.dp)
         )
+    }
     }
 }
 

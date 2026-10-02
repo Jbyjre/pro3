@@ -94,5 +94,7 @@ sealed interface Screen: NavKey {
     data class HeartSession(val startMs: Long): Screen
     @Serializable
     data object IslandSettings: Screen
+    @Serializable
+    data object Devices: Screen
 
 }

@@ -6,6 +6,16 @@ A short checklist. Tick things off, and for anything that looks wrong, take a sc
 
 Install the new `pro.apk` (section A), open pro once, then:
 
+**0. Your Beats Solo 4 (newest)**
+1. Make sure the Solo 4 is paired with the phone in Bluetooth settings and turned on.
+2. In pro, tap the **headphones button** at the top of the main page (next to the gear), or Settings > **Your devices**. Tap **Beats Solo 4**: a tick moves to it and you're back on the main page, which now shows the Solo 4 (a glass circle with headphones, the battery ring and %, music controls, volume, and a guide to the Solo 4's own buttons).
+3. Check the battery % matches the one in Android's Bluetooth settings. If it says "battery not reported yet", wait a minute with music playing; tell Claude if it never shows.
+4. Play music: play/pause/next on the page work. Press the **b** button once/twice/three times: pause, next, previous (that's the headphones themselves).
+5. The Dynamic Island around the camera shows the headphones and their battery (one ring, no L/R/case). Open it: headphones, one ring, play/pause, no heart chip.
+6. Close pro, restart the phone: pro should still be on the Solo 4. Turn on your AirPods nearby or open their case: **nothing** should pop up or change on the Solo 4 page.
+7. Switch back: headphones button > your AirPods. The AirPods page and all their controls come back (it may take a few seconds to reconnect the controls).
+8. Smoothness: on a 90/120 Hz phone, scrolling pro and the pop-up islands should feel smoother (not on Battery Saver, on purpose).
+
 **1. Taps on the Dynamic Island (most important)**
 1. Open pro. A card at the top says "Make the Dynamic Island tappable". Tap it (or go to Settings > Islands).
 2. Tap **Turn on**. Android's Accessibility page opens: find **pro Dynamic Island** (Samsung: under *Installed apps*), switch it on and allow it.

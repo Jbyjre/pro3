@@ -113,6 +113,12 @@ object RowIcons {
     val LetterL = icon("letter.l", P("M9.2 6v12h6"))
     val LetterR = icon("letter.r", P("M8.8 18V6h4.2a3.3 3.3 0 0 1 0 6.6H8.8M12.6 12.6l3.4 5.4"))
     val Note = icon("note", P("M9.4 17.2V5.6l9.4-2v11.4"), P(circle(7.2f, 17.2f, 2.3f), true), P(circle(16.6f, 15.0f, 2.3f), true), P("M9.4 9l9.4-2"))
+    val Headphones = icon(
+        "headphones",
+        P("M4.6 14.2v-2.4a7.4 7.4 0 0 1 14.8 0v2.4"),
+        P("M3.2 14.6a1.4 1.4 0 0 1 1.4-1.4h1.8a1.2 1.2 0 0 1 1.2 1.2v5a1.2 1.2 0 0 1-1.2 1.2H5a1.8 1.8 0 0 1-1.8-1.8z", true),
+        P("M20.8 14.6a1.4 1.4 0 0 0-1.4-1.4h-1.8a1.2 1.2 0 0 0-1.2 1.2v5a1.2 1.2 0 0 0 1.2 1.2H19a1.8 1.8 0 0 0 1.8-1.8z", true),
+    )
     val History = icon("history", P("M4.6 12a7.4 7.4 0 1 0 2.2-5.2"), P("M4.4 4.4v3.6H8"), P("M12 8.2V12l2.6 1.8"))
 
     /**
@@ -121,6 +127,7 @@ object RowIcons {
      */
     private val rules: List<Pair<List<String>, ImageVector>> = listOf(
         listOf("heart") to Heart,
+        listOf("devices", "headphone", "beats") to Headphones,
         listOf("island") to Island,
         listOf("report") to Report,
         listOf("troubleshoot") to Wrench,

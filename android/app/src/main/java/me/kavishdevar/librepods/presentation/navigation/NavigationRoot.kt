@@ -66,12 +66,18 @@ fun NavigationRoot(
     androidx.compose.runtime.remember(currentScreen) { me.kavishdevar.librepods.presentation.glint.GlintEnter.screenOpened(); 0 }
 
     val state by airPodsViewModel.uiState.collectAsState()
+    val chosenDevice by me.kavishdevar.librepods.services.DeviceChoice.chosen.collectAsState()
 
     val m3eEnabled = LocalDesignSystem.current == DesignSystem.Material
 
     val title = when (currentScreen) {
         Screen.Onboarding -> ""
-        Screen.AirPodsSettings -> if (state.isLocallyConnected) state.deviceName else stringResource(R.string.app_name)
+        Screen.AirPodsSettings -> when {
+            !chosenDevice.isAirPods -> chosenDevice.name
+            state.isLocallyConnected -> state.deviceName
+            else -> stringResource(R.string.app_name)
+        }
+        Screen.Devices -> "Your devices"
         Screen.Accessibility -> stringResource(R.string.accessibility)
         Screen.AdaptiveStrength -> stringResource(R.string.customize_adaptive_audio)
         Screen.AppSettings -> stringResource(R.string.settings)
@@ -104,6 +110,29 @@ fun NavigationRoot(
     // is this a bad idea? probably. I can't think of a better way without having to pass around a shouldShowBackButton to each screen to pass to each scaffold
     val actionButtons = when (currentScreen) {
         Screen.AirPodsSettings -> listOf<@Composable (backdrop: LayerBackdrop) -> Unit>(
+                { scaffoldBackdrop ->
+                    // Your devices: which headphones pro follows (AirPods, Beats Solo 4, others).
+                    if (m3eEnabled) {
+                        FilledTonalIconButton(
+                            onClick = { backStack.add(Screen.Devices) },
+                            modifier = Modifier
+                                .minimumInteractiveComponentSize()
+                                .size(IconButtonDefaults.mediumContainerSize(IconButtonDefaults.IconButtonWidthOption.Uniform)),
+                        ) {
+                            Icon(
+                                imageVector = me.kavishdevar.librepods.presentation.glint.GlintSymbols.Headphones,
+                                contentDescription = "Your devices",
+                                modifier = Modifier.size(IconButtonDefaults.mediumIconSize)
+                            )
+                        }
+                    } else {
+                        StyledIconButton(
+                            onClick = { backStack.add(Screen.Devices) },
+                            icon = String(Character.toChars(me.kavishdevar.librepods.presentation.glint.GlintSymbols.HEADPHONES_CHAR)),
+                            backdrop = scaffoldBackdrop
+                        )
+                    }
+                },
                 { scaffoldBackdrop ->
                     if (m3eEnabled) {
                         FilledTonalIconButton(

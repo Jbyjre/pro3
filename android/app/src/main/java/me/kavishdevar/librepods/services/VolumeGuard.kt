@@ -88,7 +88,8 @@ object VolumeGuard {
         val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
         if (!prefs.getBoolean(PREF_VOLUME_LIMIT_ON, false)) return
         val am = context.getSystemService(AudioManager::class.java) ?: return
-        if (!mediaGoesToAirPods(am, prefs.getString("mac_address", "").orEmpty())) return
+        // The limit follows the chosen device (AirPods by default, or the chosen Beats/headphones).
+        if (!mediaGoesToAirPods(am, DeviceChoice.current(context).address)) return
         val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val cap = capSteps(max, prefs.getInt(PREF_VOLUME_LIMIT, DEFAULT_LIMIT))
         val now = am.getStreamVolume(AudioManager.STREAM_MUSIC)

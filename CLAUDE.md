@@ -71,6 +71,10 @@
   Row pictures: `glint/RowIcons.kt` (picked from the row name; `RowIconTile`); icon buttons with press-and-hold label:
   `glint/IconAction.kt`. Glass lightens on Battery Saver/heat: `glint/GlassBudget.kt`. Screen changes use springs (`AppNavGraph.kt`).
   Light/dark switch reveal: `theme/ThemeReveal.kt` (`ThemeReveal.change`). Don't `remember` theme colours (rows went white-on-white).
+  Other headphones (Jake's Beats Solo 4): the chosen device is `services/DeviceChoice.kt` (Settings > Your devices, kept until
+  changed; default AirPods). Only the chosen device's controls run: non-AirPods close the AirPods channel and go through
+  `services/HeadphoneLink.kt` (Android battery, Solo 4 beacon 0x2520 via `bluetooth/HeadphoneBeacon.kt`, media keys). Page:
+  `screens/HeadphonesScreen.kt`; `PodsSnapshot.headphones` = one ring in the islands. Fast refresh: `glint/FrameRate.kt`.
   Volume limit (hearing protection without root): `services/VolumeGuard.kt`. Always-on heart rate: `PREF_HR_ALWAYS`, `autoHeartRate()` in the service. The status notification is hidden unless
   `glint_status_notification` is on. Jake's app is personal: no visible LibrePods mentions.
 - See `DECISIONS.md` and `TESTING.md` at the repo root.

@@ -111,6 +111,7 @@ class GlintScreenshots {
 
     @Before
     fun stillFramesOnly() {
+        me.kavishdevar.librepods.services.DeviceChoice.reset()
         // No video decoder under Robolectric: overlays show the clips' still frames.
         PodsVideoConfig.enabled = false
     }
@@ -150,9 +151,9 @@ class GlintScreenshots {
         rule.onRoot().captureRoboImage("$out/symbols.png")
     }
 
-    private fun island(name: String, event: IslandEvent, phase: IslandPhase, dark: Boolean = true, tall: Boolean = false, then: () -> Unit = {}) {
+    private fun island(name: String, event: IslandEvent, phase: IslandPhase, dark: Boolean = true, tall: Boolean = false, snapshot: PodsSnapshot = demo, then: () -> Unit = {}) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")
-        GlintOverlays.updateSnapshot(demo)
+        GlintOverlays.updateSnapshot(snapshot)
         rule.mainClock.autoAdvance = false
         rule.setContent {
             val geo = IslandGeometry(RuntimeEnvironment.getApplication())
@@ -400,6 +401,34 @@ class GlintScreenshots {
     }
 
     @Test fun islandConnected() = island("island_connected", IslandEvent.Connected, IslandPhase.Compact)
+
+    // Beats Solo 4 (or any other headphones) chosen: drawn headphones and one battery ring,
+    // no heart chip, no listening mode.
+    private val solo4 = PodsSnapshot(name = "Beats Solo 4", left = 70, right = 70, case = null, headphones = true)
+    private fun withSolo4(block: () -> Unit) {
+        val app = RuntimeEnvironment.getApplication()
+        val device = me.kavishdevar.librepods.services.ChosenDevice(me.kavishdevar.librepods.services.DeviceKind.BEATS_SOLO_4, "00:11:22:33:44:55", "Beats Solo 4")
+        me.kavishdevar.librepods.services.DeviceChoice.choose(app, device)
+        me.kavishdevar.librepods.services.HeadphoneLink.preview(me.kavishdevar.librepods.services.HeadphoneState(device, connected = true, battery = 70))
+        try { block() } finally {
+            me.kavishdevar.librepods.services.DeviceChoice.choose(app, me.kavishdevar.librepods.services.ChosenDevice(me.kavishdevar.librepods.services.DeviceKind.AIRPODS, "", "AirPods"))
+            me.kavishdevar.librepods.services.HeadphoneLink.preview(me.kavishdevar.librepods.services.HeadphoneState())
+        }
+    }
+    @Test fun islandHeadphonesConnected() = withSolo4 { island("island_headphones_connected", IslandEvent.Connected, IslandPhase.Compact, snapshot = solo4) }
+    @Test fun islandHeadphonesExpandedDark() = withSolo4 { island("island_headphones_expanded_dark", IslandEvent.Connected, IslandPhase.Expanded, snapshot = solo4) }
+    @Test fun islandHeadphonesExpandedLight() = withSolo4 { island("island_headphones_expanded_light", IslandEvent.Connected, IslandPhase.Expanded, dark = false, snapshot = solo4) }
+    @Test fun islandHeadphonesLow() = withSolo4 { island("island_headphones_low", IslandEvent.LowBattery(10), IslandPhase.Compact, dark = false, snapshot = solo4.copy(left = 10, right = 10)) }
+    @Test fun miniIslandHeadphones() = withSolo4 { mini("mini_island_headphones", playing = false, wide = 0f, art = false, airPods = solo4, dark = true) }
+    @Test fun miniIslandHeadphonesBuds() = withSolo4 {
+        mini(
+            "mini_island_headphones_buds", playing = false, wide = 0f, art = false, airPods = solo4,
+            look = me.kavishdevar.librepods.services.IslandLook.Look().let { l ->
+                l.copy(slots = l.slots + (me.kavishdevar.librepods.services.IslandLook.Situation.Idle to (me.kavishdevar.librepods.services.IslandLook.Slot.Buds to me.kavishdevar.librepods.services.IslandLook.Slot.Mode)))
+            },
+            situation = me.kavishdevar.librepods.services.IslandLook.Situation.Idle,
+        )
+    }
     @Test fun islandLowBattery() = island("island_low_battery", IslandEvent.LowBattery(9), IslandPhase.Compact, dark = false)
     @Test fun islandMode() = island("island_mode", IslandEvent.ListeningMode(2), IslandPhase.Compact)
     @Test fun islandExpanded() = island("island_expanded", IslandEvent.MovedToDevice("iPad", canTakeBack = true), IslandPhase.Expanded, dark = false)

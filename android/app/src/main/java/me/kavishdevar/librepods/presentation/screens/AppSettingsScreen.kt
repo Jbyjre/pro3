@@ -114,6 +114,7 @@ fun AppSettingsScreen(
     navigateToIsland: () -> Unit = {},
     navigateToGlintLab: () -> Unit = {},
     navigateToRename: () -> Unit = {},
+    navigateToDevices: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -154,7 +155,14 @@ fun AppSettingsScreen(
         // Your AirPods' name (moved here from the main page). Read fresh each time this screen
         // opens, so a rename shows straight away when you come back.
         val podsName = remember { context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).getString("name", null) }
+        val followed by me.kavishdevar.librepods.services.DeviceChoice.chosen.collectAsState()
+        androidx.compose.runtime.LaunchedEffect(Unit) { me.kavishdevar.librepods.services.DeviceChoice.load(context) }
         StyledList(title = "pro") {
+            StyledListItem(
+                name = "Your devices",
+                description = "Following ${followed.name}",
+                onClick = navigateToDevices,
+            )
             StyledListItem(
                 name = stringResource(R.string.name),
                 description = podsName?.takeIf { it.isNotBlank() } ?: "AirPods",

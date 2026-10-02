@@ -51,6 +51,11 @@ data class PodsSnapshot(
     val lidOpen: Boolean = false,
     /** 1 off, 2 noise cancellation, 3 transparency, 4 adaptive, 0 unknown. */
     val listeningMode: Int = 0,
+    /**
+     * Headphones (Beats Solo 4 or others) instead of AirPods: one battery (in [left] and
+     * [right] alike), no case, no ears, no listening mode. The islands draw one ring for it.
+     */
+    val headphones: Boolean = false,
 ) {
     /** The number people care about: the lower of the two buds that report. */
     val budsLevel: Int? get() = listOfNotNull(left, right).minOrNull()
@@ -206,6 +211,8 @@ object GlintOverlays {
      * there for sound even when the phone refuses pro's control link.
      */
     fun airPodsAudio(context: Context): Boolean = runCatching {
+        // Other headphones chosen: the AirPods (and their heart chip) are out of the picture.
+        if (!me.kavishdevar.librepods.services.DeviceChoice.followsAirPods(context)) return false
         val mac = context.getSharedPreferences("settings", Context.MODE_PRIVATE).getString("mac_address", null)?.takeIf { it.isNotBlank() }
         val audio = context.getSystemService(android.media.AudioManager::class.java)
         audio?.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS).orEmpty().any { d ->
@@ -217,8 +224,21 @@ object GlintOverlays {
         }
     }.getOrDefault(false)
 
+    /**
+     * The chosen device among Android's audio outputs: the AirPods check above, or for other
+     * headphones their own address only (never "anything Bluetooth", so a car or speaker
+     * doesn't bring the islands up).
+     */
+    fun chosenAudio(context: Context): Boolean {
+        val chosen = me.kavishdevar.librepods.services.DeviceChoice.current(context)
+        return if (chosen.isAirPods) airPodsAudio(context)
+        else me.kavishdevar.librepods.services.HeadphoneLink.audioOutputHas(context, chosen.address)
+    }
+
     /** Switches the AirPods to the next listening mode, in the same order as the Quick Settings tile. */
     fun cycleListeningMode(context: Context) {
+        // Listening modes are an AirPods control: never sent while other headphones are chosen.
+        if (!me.kavishdevar.librepods.services.DeviceChoice.followsAirPods(context)) return
         val service = me.kavishdevar.librepods.services.ServiceManager.getService() ?: return
         val offAllowed = context.getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("off_listening_mode", true)
         val next = me.kavishdevar.librepods.services.ListeningModes.next(service.getANC(), offAllowed)

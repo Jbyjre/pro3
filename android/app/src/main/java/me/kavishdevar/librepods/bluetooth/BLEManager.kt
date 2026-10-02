@@ -119,6 +119,9 @@ class BLEManager(private val context: Context) {
         }
     }
 
+    /** Beacons from non-AirPods headphones (model codes AirPods don't use), before any AirPods checks. */
+    @Volatile var headphoneBeaconListener: ((HeadphoneBeacon.Reading) -> Unit)? = null
+
     fun setAirPodsStatusListener(listener: AirPodsStatusListener) {
         airPodsStatusListener = listener
     }
@@ -260,6 +263,14 @@ class BLEManager(private val context: Context) {
 
             val manufacturerData = scanRecord.getManufacturerSpecificData(76) ?: return
             if (manufacturerData.size <= 20) return
+
+            // Glint: other headphones that send Apple's beacon (Beats Solo 4). They have no key
+            // to verify, so they go to their own gate (HeadphoneLink), never into the AirPods state.
+            headphoneBeaconListener?.let { listener ->
+                HeadphoneBeacon.decode(address, manufacturerData, result.rssi, System.currentTimeMillis())
+                    ?.takeIf { it.model !in modelNames }
+                    ?.let(listener)
+            }
 
             if (!verifiedAddresses.contains(address)) {
                 val irk = getIrkFromPreferences()

@@ -58,6 +58,8 @@ internal class OverlayWindow(
     private val tag: String,
     private val anchorTop: Boolean,
     private val aboveStatusBar: Boolean = false,
+    /** Ask for the screen's fastest refresh rate while shown (short-lived pop-ups only, see [FrameRate]). */
+    private val fastFrames: Boolean = false,
 ) : LifecycleOwner, SavedStateRegistryOwner {
 
     private val appWindowManager = context.getSystemService(WindowManager::class.java)
@@ -172,6 +174,7 @@ internal class OverlayWindow(
             windowAnimations = 0
             fitInsetsTypes = 0
             layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            if (fastFrames) me.kavishdevar.librepods.presentation.glint.FrameRate.applyTo(this, context)
         }
         return try {
             wm.addView(composeView, lp)
