@@ -154,7 +154,9 @@ fun roundRectPath(rect: Rect, radius: Float): Path = Path().apply {
  */
 fun DrawScope.drawSystemBlur(blur: SystemBlur, rect: Rect, cornerRadius: Float, look: GlassLook, alpha: Float = 1f) {
     if (rect.width < 1f || rect.height < 1f) return
-    blur.update(look.blurRadiusPx, cornerRadius, look.blurTint.copy(alpha = look.blurTint.alpha * alpha).toArgb())
+    // Battery Saver or a hot phone: a lighter blur (the same rule as the app's glass).
+    val radius = if (GlassBudget.light.value) (look.blurRadiusPx * 0.6f).roundToInt() else look.blurRadiusPx
+    blur.update(radius, cornerRadius, look.blurTint.copy(alpha = look.blurTint.alpha * alpha).toArgb())
     drawIntoCanvas {
         blur.draw(it.nativeCanvas, rect.left.roundToInt(), rect.top.roundToInt(), rect.width.roundToInt(), rect.height.roundToInt())
     }
@@ -176,6 +178,8 @@ fun DrawScope.drawGlass(
     alpha: Float = 1f,
     /** True when the caller already drew blur regions for this shape (multi-part shapes). */
     blurredElsewhere: Boolean = false,
+    /** Reduce transparency: solid, with a clear border so the edge reads without the light. */
+    solid: Boolean = false,
 ) {
     if (bounds.width <= 1f || bounds.height <= 1f || alpha <= 0.001f) return
     if (blur != null) drawSystemBlur(blur, bounds, cornerRadius, look, alpha)
@@ -229,24 +233,77 @@ fun DrawScope.drawGlass(
         )
     }
 
-    // Rim: lit from straight above (bright top edge, soft caustic along the bottom, quiet
-    // sides). It used to run corner to corner, which made the glass look tilted.
+    // Rim: lit from above (bright top edge, soft caustic along the bottom, quiet sides), the
+    // same light as the app's glass: it swings with the phone's tilt exactly as theirs does
+    // (GlintLight.swing), so the island and the app read as one material.
     val stroke = max(1.2f * density, 1f)
     val shift = light.y.coerceIn(-1f, 1f) * 0.06f
+    val (from, to) = rimAxis(bounds, GlintLight.swing.floatValue)
     drawPath(
         outline,
-        Brush.verticalGradient(
+        Brush.linearGradient(
             0f to Color.White.copy(alpha = look.rim),
             (0.30f + shift) to Color.White.copy(alpha = look.rim * 0.14f),
             (0.70f + shift) to Color.White.copy(alpha = look.rim * 0.08f),
             1f to Color.White.copy(alpha = look.caustic),
-            startY = bounds.top,
-            endY = bounds.bottom,
+            start = from,
+            end = to,
         ),
         style = Stroke(stroke),
         alpha = alpha
     )
+    // Thickness: thick glass bends light just inside its edge, so a soft second band of light
+    // runs inside the rim along the lit side.
+    clipPath(outline) {
+        drawPath(
+            outline,
+            Brush.linearGradient(
+                0f to Color.White.copy(alpha = look.rim * 0.32f),
+                0.22f to Color.White.copy(alpha = 0f),
+                start = from,
+                end = to,
+            ),
+            style = Stroke(stroke * 4.5f),
+            alpha = alpha,
+        )
+    }
     drawPath(outline, look.edge, style = Stroke(stroke * 0.6f), alpha = alpha)
+    if (solid) drawPath(outline, look.content.copy(alpha = 0.45f), style = Stroke(1f * density), alpha = alpha)
+}
+
+/**
+ * How glass answers a finger, the same everywhere: it swells a little, lights up where it's
+ * held, and settles back with a soft bounce (Apple's interactive glass does the same).
+ */
+object GlassPress {
+    /** How much a pressed glass button grows. */
+    const val SWELL = 1.08f
+    fun spec(pressed: Boolean): androidx.compose.animation.core.AnimationSpec<Float> =
+        if (pressed) androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 700f)
+        else androidx.compose.animation.core.spring(dampingRatio = 0.42f, stiffness = 420f)
+
+    /** The glow under a finger at [at] (or the middle), [strength] 0..1. */
+    fun DrawScope.drawFingerGlow(at: Offset?, strength: Float, dark: Boolean) {
+        if (strength <= 0.01f) return
+        val c = at ?: center
+        val r = size.maxDimension * 0.75f
+        drawCircle(
+            Brush.radialGradient(listOf(Color.White.copy(alpha = (if (dark) 0.30f else 0.55f) * strength), Color.White.copy(alpha = 0f)), c, r),
+            radius = r, center = c, blendMode = if (dark) BlendMode.Plus else BlendMode.SrcOver,
+        )
+    }
+}
+
+/**
+ * The direction light falls across [bounds] for a light swung [swingDegrees] from straight
+ * overhead: from the lit edge to the opposite one. At 0 it runs straight down the middle.
+ */
+fun rimAxis(bounds: Rect, swingDegrees: Float): Pair<Offset, Offset> {
+    val a = Math.toRadians(swingDegrees.toDouble()).toFloat()
+    val c = bounds.center
+    val reach = bounds.height / 2f
+    return Offset(c.x - kotlin.math.sin(a) * reach, c.y - kotlin.math.cos(a) * reach) to
+        Offset(c.x + kotlin.math.sin(a) * reach, c.y + kotlin.math.cos(a) * reach)
 }
 
 /**

@@ -35,6 +35,11 @@ layers 13, 14, 15, 18, 20; NDK 29 / cmake 4.1.2 flags).
   `IslandStudio.kt`: live interactive preview, situation/slot chips, segments, gestures list, reset.
 - Proof: IslandLookTest, screenshots mini_island_custom_*, island_studio_*, tour 38.
 - Needs phone: looks around the real camera.
-## 4. Glass: TODO
+## 4. Glass: DONE (session 2026-10-02)
+- `GlassLight` shared ref-counted tilt source (app resume, island showing, pill touch + 3.5 s);
+  overlay rim swings with `rimAxis` (same as Kyant highlight angle); thickness band; `GlassPress`
+  swell + finger glow on island buttons/heart chip; pill finger glow; metaball neck on bud-out;
+  budget-aware blur; solid border on reduce transparency. No overlay refraction of other apps (stated).
+- Proof: GlassLightTest, island_rim_swing_*, island_button_pressed, island_chip_morph_* frames.
 ## 5. Island bug history: TODO
 ## 6. Rest of app: TODO

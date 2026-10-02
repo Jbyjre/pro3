@@ -19,10 +19,6 @@
 package me.kavishdevar.librepods.presentation.glint
 
 import android.content.Context
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -32,7 +28,6 @@ import android.view.View
 import android.view.accessibility.AccessibilityManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,39 +73,13 @@ object GlintComfort {
 @Composable
 fun rememberTiltLight(enabled: Boolean): State<Offset> {
     val context = LocalContext.current
-    val light = remember { mutableStateOf(Offset(0f, -0.2f)) }
+    // The same light as all other glass (app and islands), running while this is on screen.
     DisposableEffect(enabled) {
-        if (!enabled) return@DisposableEffect onDispose { }
-        val sm = context.getSystemService(SensorManager::class.java)
-        val sensor = sm?.getDefaultSensor(Sensor.TYPE_GRAVITY) ?: sm?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        val listener = TiltListener(light)
-        if (sensor != null) sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME)
-        onDispose { sm?.unregisterListener(listener) }
+        if (enabled) GlassLight.acquire(context)
+        onDispose { if (enabled) GlassLight.release() }
     }
-    return light
-}
-
-private class TiltListener(private val out: MutableState<Offset>) : SensorEventListener {
-    private var baseX = Float.NaN
-    private var baseY = 0f
-    private var fx = 0f
-    private var fy = -0.2f
-
-    override fun onSensorChanged(event: SensorEvent) {
-        val gx = event.values[0]
-        val gy = event.values[1]
-        if (baseX.isNaN()) { baseX = gx; baseY = gy }
-        // Tilting the right edge down makes gx negative; the light should slide the other way,
-        // like a reflection. Divide by ~4 m/s^2 so a modest tilt reaches the edge.
-        val tx = ((gx - baseX) / 4f).coerceIn(-1f, 1f)
-        val ty = (-0.2f + (baseY - gy) / 4f).coerceIn(-1f, 1f)
-        fx += (tx - fx) * 0.18f
-        fy += (ty - fy) * 0.18f
-        val cur = out.value
-        if (abs(cur.x - fx) > 0.004f || abs(cur.y - fy) > 0.004f) out.value = Offset(fx, fy)
-    }
-
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+    val still = remember { mutableStateOf(Offset(0f, GlassLight.REST_Y)) }
+    return if (enabled) GlassLight.tilt else still
 }
 
 /** Small, purposeful haptics. Respects the system "Touch feedback" setting via the View. */
