@@ -157,33 +157,34 @@ fun DrawScope.drawBolt(center: Offset, r: Float, color: Color) {
 /** Small monochrome symbols for the four listening modes. */
 @Composable
 fun ListeningModeGlyph(mode: Int, color: Color, modifier: Modifier = Modifier, size: Dp = 22.dp) {
-    Canvas(modifier.size(size)) {
-        val c = center
-        val r = this.size.minDimension / 2f
-        val sw = r * 0.14f
-        when (mode) {
-            2 -> { // noise cancellation: solid core, two rings
-                drawCircle(color, r * 0.3f, c)
-                drawCircle(color, r * 0.62f, c, style = Stroke(sw))
-                drawCircle(color, r * 0.92f, c, style = Stroke(sw))
-            }
-            3 -> { // transparency: dotted rings, open core
-                drawCircle(color, r * 0.3f, c, style = Stroke(sw))
-                for (i in 0 until 12) {
-                    val a = i * (2 * PI / 12).toFloat()
-                    drawCircle(color, sw * 0.75f, Offset(c.x + cos(a) * r * 0.72f, c.y + sin(a) * r * 0.72f))
-                }
-            }
-            4 -> { // adaptive: half filled, half outlined
-                drawCircle(color, r * 0.9f, c, style = Stroke(sw))
-                drawArc(color, 90f, 180f, true, Offset(c.x - r * 0.62f, c.y - r * 0.62f), Size(r * 1.24f, r * 1.24f))
-            }
-            1 -> { // off: ring with a slash
-                drawCircle(color, r * 0.8f, c, style = Stroke(sw))
-                drawLine(color, Offset(c.x - r * 0.57f, c.y + r * 0.57f), Offset(c.x + r * 0.57f, c.y - r * 0.57f), sw, StrokeCap.Round)
-            }
-            else -> drawCircle(color, r * 0.4f, c)
+    Canvas(modifier.size(size)) { drawListeningMode(mode, color, center, this.size.minDimension / 2f) }
+}
+
+/** The listening mode's symbol, drawn at [c] with radius [r] (so overlays can draw it directly). */
+fun androidx.compose.ui.graphics.drawscope.DrawScope.drawListeningMode(mode: Int, color: Color, c: Offset, r: Float) {
+    val sw = r * 0.14f
+    when (mode) {
+        2 -> { // noise cancellation: solid core, two rings
+            drawCircle(color, r * 0.3f, c)
+            drawCircle(color, r * 0.62f, c, style = Stroke(sw))
+            drawCircle(color, r * 0.92f, c, style = Stroke(sw))
         }
+        3 -> { // transparency: dotted rings, open core
+            drawCircle(color, r * 0.3f, c, style = Stroke(sw))
+            for (i in 0 until 12) {
+                val a = i * (2 * PI / 12).toFloat()
+                drawCircle(color, sw * 0.75f, Offset(c.x + cos(a) * r * 0.72f, c.y + sin(a) * r * 0.72f))
+            }
+        }
+        4 -> { // adaptive: half filled, half outlined
+            drawCircle(color, r * 0.9f, c, style = Stroke(sw))
+            drawArc(color, 90f, 180f, true, Offset(c.x - r * 0.62f, c.y - r * 0.62f), Size(r * 1.24f, r * 1.24f))
+        }
+        1 -> { // off: ring with a slash
+            drawCircle(color, r * 0.8f, c, style = Stroke(sw))
+            drawLine(color, Offset(c.x - r * 0.57f, c.y + r * 0.57f), Offset(c.x + r * 0.57f, c.y - r * 0.57f), sw, StrokeCap.Round)
+        }
+        else -> drawCircle(color, r * 0.4f, c)
     }
 }
 
