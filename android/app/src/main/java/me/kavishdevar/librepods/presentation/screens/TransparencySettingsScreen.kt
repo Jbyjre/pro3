@@ -63,6 +63,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import kotlin.math.roundToInt
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.width
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -290,11 +293,14 @@ fun TransparencySettingsScreen(viewModel: AirPodsViewModel) {
                             .fillMaxWidth()
                             .height(38.dp)
                     ) {
+                        // Whole numbers in a fixed-width column, centred on the slider line.
                         Text(
-                            text = String.format("%.2f", eqValue.floatValue),
+                            text = eqValue.floatValue.roundToInt().toString(),
                             fontSize = 12.sp,
-                            color = textColor,
-                            modifier = Modifier.padding(bottom = 4.dp)
+                            color = textColor.copy(alpha = 0.7f),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                            style = TextStyle(fontFeatureSettings = "tnum"),
+                            modifier = Modifier.width(26.dp)
                         )
 
                         Slider(
@@ -320,8 +326,9 @@ fun TransparencySettingsScreen(viewModel: AirPodsViewModel) {
                             thumb = {
                                 Box(
                                     modifier = Modifier
-                                        .size(24.dp)
-                                        .shadow(4.dp, CircleShape)
+                                        .size(22.dp)
+                                        .shadow(3.dp, CircleShape, ambientColor = Color.Black.copy(0.3f), spotColor = Color.Black.copy(0.3f))
+                                        .border(0.5.dp, Color.Black.copy(0.08f), CircleShape)
                                         .background(thumbColor, CircleShape)
                                 )
                             },
@@ -355,10 +362,9 @@ fun TransparencySettingsScreen(viewModel: AirPodsViewModel) {
                         Text(
                             text = stringResource(R.string.band_label, i + 1),
                             fontSize = 12.sp,
-                            color = textColor,
+                            color = textColor.copy(alpha = 0.7f),
                             maxLines = 1,
                             softWrap = false,
-                            modifier = Modifier.padding(top = 4.dp)
                         )
                     }
                 }

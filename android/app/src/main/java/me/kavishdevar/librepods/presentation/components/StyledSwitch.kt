@@ -214,9 +214,11 @@ fun StyledSwitch(
                         GlintLight.rim(progress)
                     },
                     shadow = {
+                        // The knob sits just above the track, like a real switch.
                         Shadow(
                             radius = 4f.dp,
-                            color = Color.Black.copy(0.05f)
+                            offset = androidx.compose.ui.unit.DpOffset(0.dp, 1f.dp),
+                            color = Color.Black.copy(0.16f)
                         )
                     },
                     layerBlock = {

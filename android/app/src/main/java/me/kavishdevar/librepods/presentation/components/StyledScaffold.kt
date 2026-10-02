@@ -264,7 +264,9 @@ fun StyledScaffold(
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 60.dp),
+                                            // Room for the buttons on the right (and the same on the
+                                            // left, so the title stays centred).
+                                            .padding(horizontal = maxOf(60, actionButtons.size * 54 + 12).dp),
                                         textAlign = TextAlign.Center
                                     )
                                 }

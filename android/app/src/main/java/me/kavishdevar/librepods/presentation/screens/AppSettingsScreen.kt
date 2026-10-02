@@ -343,8 +343,9 @@ fun AppSettingsScreen(
             ) {
                 Text(
                     text = stringResource(R.string.customizations_unavailable),
+                    // A note, not a link (blue read as tappable): the same quiet grey as other notes.
                     style = MaterialTypography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onBackground.copy(0.6f),
                     modifier = Modifier
                 )
             }

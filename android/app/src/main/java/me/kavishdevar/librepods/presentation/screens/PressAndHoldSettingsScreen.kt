@@ -158,9 +158,9 @@ fun LongPress(viewModel: AirPodsViewModel, name: String, navigateToPurchase: () 
                             Icon(
                                 painter = painterResource(R.drawable.noise_cancellation),
                                 contentDescription = "Icon",
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier
-                                    .height(42.dp)
+                                    .height(34.dp)
                                     .wrapContentWidth()
                             )
                         }
@@ -179,9 +179,9 @@ fun LongPress(viewModel: AirPodsViewModel, name: String, navigateToPurchase: () 
                         Icon(
                             painter = painterResource(R.drawable.transparency),
                             contentDescription = "Icon",
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier
-                                .height(42.dp)
+                                .height(34.dp)
                                 .wrapContentWidth()
                         )
                     }
@@ -199,9 +199,9 @@ fun LongPress(viewModel: AirPodsViewModel, name: String, navigateToPurchase: () 
                         Icon(
                             painter = painterResource(R.drawable.adaptive),
                             contentDescription = "Icon",
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier
-                                .height(42.dp)
+                                .height(34.dp)
                                 .wrapContentWidth()
                         )
                     }
@@ -219,9 +219,9 @@ fun LongPress(viewModel: AirPodsViewModel, name: String, navigateToPurchase: () 
                         Icon(
                             painter = painterResource(R.drawable.noise_cancellation),
                             contentDescription = "Icon",
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier
-                                .height(42.dp)
+                                .height(34.dp)
                                 .wrapContentWidth()
                         )
                     }

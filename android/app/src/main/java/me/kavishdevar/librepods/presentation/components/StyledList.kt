@@ -22,6 +22,7 @@ import androidx.compose.ui.tooling.preview.AndroidUiModes.UI_MODE_NIGHT_YES
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.Wallpapers.GREEN_DOMINATED_EXAMPLE
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
 import me.kavishdevar.librepods.presentation.theme.LibrePodsTheme
 import me.kavishdevar.librepods.presentation.theme.LocalDesignSystem
@@ -76,9 +77,14 @@ fun StyledList(
         }
     }
     if (!m3eEnabled && description != null) {
+        // The same gap and size as a single switch's note, so every page lines up.
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = description,
-            style = MaterialTheme.typography.bodySmallEmphasized,
+            style = androidx.compose.ui.text.TextStyle(
+                fontSize = 12.sp,
+                fontFamily = me.kavishdevar.librepods.presentation.theme.glintFontFamily,
+            ),
             color = MaterialTheme.colorScheme.onBackground.copy(0.6f),
             modifier = Modifier.padding(horizontal = 16.dp)
         )

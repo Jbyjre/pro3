@@ -88,7 +88,8 @@ fun StayConnectedPage(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                "Three steps so pro reconnects on its own, even after a restart.",
+                (if (me.kavishdevar.librepods.utils.CompanionLink.isSamsung) "Three steps" else "Two steps") +
+                    " so pro reconnects on its own, even after a restart.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

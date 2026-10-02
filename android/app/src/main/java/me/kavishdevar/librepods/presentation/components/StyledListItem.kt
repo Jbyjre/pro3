@@ -199,7 +199,7 @@ private fun StyledListItemContent(
     // surface after switching light/dark in the app (white rows with white text). Following
     // the theme here also makes the switch a smooth colour fade.
     var pressed by remember { mutableStateOf(false) }
-    val animatedBackgroundColor by animateColorAsState(targetValue = if (pressed) surfaceDimColor else surfaceColor, animationSpec = tween(durationMillis = 500))
+    val animatedBackgroundColor by animateColorAsState(targetValue = if (pressed) surfaceDimColor else surfaceColor, animationSpec = tween(durationMillis = if (pressed) 70 else 320)) // instant under the finger, soft on release
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     // The tap handler is set up once per row; read the latest action through these so a row
