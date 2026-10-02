@@ -111,6 +111,8 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.animateContentSize
 import me.kavishdevar.librepods.services.HeartView
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.requiredSize
@@ -175,6 +177,17 @@ internal class IslandController(private val context: Context) {
         scope.launch {
             me.kavishdevar.librepods.services.IslandAccess.service.collect { if (window.misplaced) window.dismiss() }
         }
+        // Turned or folded: it was measured for the old screen, so go (the next event shows a
+        // fresh one).
+        context.registerComponentCallbacks(object : android.content.ComponentCallbacks {
+            private var key = context.resources.configuration.let { Triple(it.orientation, it.screenWidthDp, it.screenHeightDp) }
+            override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+                val now = Triple(newConfig.orientation, newConfig.screenWidthDp, newConfig.screenHeightDp)
+                if (now != key) { key = now; dismiss(animated = false) }
+            }
+            @Deprecated("Deprecated in Java")
+            override fun onLowMemory() {}
+        })
         // Notifications pulled down over it: step aside (above the status bar it would float
         // over the shade).
         scope.launch {
@@ -351,6 +364,12 @@ private fun IslandHostContent(
     val satBlur = remember(useBlur) { if (useBlur) SystemBlur.create(view) else null }
     DisposableEffect(mainBlur, satBlur) { onDispose { mainBlur?.hide(); satBlur?.hide() } }
 
+    // The window's real height, to wait for a resize to land before growing into it.
+    var windowH by remember { mutableIntStateOf(0) }
+    suspend fun awaitWindow(height: Int) {
+        if (windowH >= height) return
+        withTimeoutOrNull(250) { androidx.compose.runtime.snapshotFlow { windowH }.first { it >= height } }
+    }
     val appear = remember { Animatable(0f) }
     // Width and height morph on slightly different springs (width leads, height follows with
     // a little more give), so growing and shrinking reads as one liquid drop, not a box scaling.
@@ -389,6 +408,8 @@ private fun IslandHostContent(
             IslandPhase.Expanded -> {
                 onWindowSize(geometry.expandedWindow)
                 if (appear.value < 0.01f) haptics.appear() else haptics.expand()
+                // Grow only once the bigger window is really there, so no frame is cut off.
+                awaitWindow(geometry.expandedWindow.height)
                 coroutineScope {
                     launch { appear.animateTo(1f, morph) }
                     launch { split.animateTo(0f, soft) }
@@ -414,6 +435,7 @@ private fun IslandHostContent(
     LaunchedEffect(heartOpen) {
         if (heartOpen) {
             onWindowSize(geometry.detailWindow)
+            awaitWindow(geometry.detailWindow.height)
             grow.animateTo(1f, morphH)
         } else if (grow.value > 0f) {
             grow.animateTo(0f, morphH)
@@ -505,9 +527,17 @@ private fun IslandHostContent(
     Box(
         Modifier
             .fillMaxSize()
+            .onSizeChanged { windowH = it.height }
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
+                    // Only the island itself counts: a touch in the see-through margin around it
+                    // (room for its shadow and springy overshoot) does nothing.
+                    val f = frame(size.width.toFloat())
+                    val slop = 10f * density
+                    val onMain = f.main.inflate(slop).contains(down.position)
+                    val onSat = f.satR > 1f && (down.position - f.satCenter).getDistance() <= f.satR + slop
+                    if (!onMain && !onSat) return@awaitEachGesture
                     touches++
                     touch = down.position
                     press = 1f
