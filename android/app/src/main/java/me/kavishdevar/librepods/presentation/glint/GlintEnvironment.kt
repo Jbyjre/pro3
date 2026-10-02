@@ -132,6 +132,21 @@ class GlintHaptics(private val view: View) {
         }
     }
 
+    /** A light, immediate tap the moment a finger lands. */
+    fun touch() = primitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.7f, HapticFeedbackConstants.VIRTUAL_KEY)
+
+    /** A firm click when a gesture does something. */
+    fun confirm() = primitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.85f, HapticFeedbackConstants.CONFIRM)
+
+    private fun primitive(id: Int, scale: Float, fallback: Int) {
+        val vibrator = view.context.getSystemService(Vibrator::class.java)
+        if (vibrator != null && vibrator.hasVibrator() && vibrator.areAllPrimitivesSupported(id) && hapticsEnabled()) {
+            runCatching { vibrator.vibrate(VibrationEffect.startComposition().addPrimitive(id, scale).compose()) }
+        } else {
+            view.performHapticFeedback(fallback)
+        }
+    }
+
     fun expand() = view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
     fun tick() = view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
     fun dismiss() = view.performHapticFeedback(HapticFeedbackConstants.GESTURE_END)

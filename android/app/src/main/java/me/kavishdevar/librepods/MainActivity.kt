@@ -69,6 +69,11 @@ lateinit var testReviewReceiver: BroadcastReceiver
 //@AndroidEntryPoint
 @ExperimentalMaterial3Api
 class MainActivity : ComponentActivity() {
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        me.kavishdevar.librepods.presentation.navigation.AppLinks.handle(intent)
+    }
+
     companion object {
         init {
             if (XposedState.isAvailable && XposedState.bluetoothScopeEnabled) {
@@ -81,6 +86,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState == null) me.kavishdevar.librepods.presentation.navigation.AppLinks.handle(intent)
 
         setContent {
             val sharedPreferences = LocalContext.current.getSharedPreferences("settings", MODE_PRIVATE)

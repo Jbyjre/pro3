@@ -21,6 +21,7 @@ package me.kavishdevar.librepods.presentation.screens
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +43,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -64,6 +68,7 @@ import me.kavishdevar.librepods.presentation.overlays.GlassPillButton
 import me.kavishdevar.librepods.presentation.overlays.GlintOverlays
 import me.kavishdevar.librepods.presentation.overlays.IslandEvent
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+import me.kavishdevar.librepods.services.IslandAccess
 import me.kavishdevar.librepods.services.IslandPrefs
 import me.kavishdevar.librepods.services.NowPlaying
 
@@ -95,6 +100,9 @@ fun IslandSettingsScreen() {
     var miniAirPodsOnly by remember { mutableStateOf(IslandPrefs.miniAirPodsOnly(prefs)) }
     var miniAlways by remember { mutableStateOf(IslandPrefs.miniAlways(prefs)) }
     var canDraw by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    val tapsAvailable = remember { IslandAccess.isAvailable(context) }
+    var tapsEnabled by remember { mutableStateOf(IslandAccess.isEnabled(context)) }
+    val tapsService by IslandAccess.service.collectAsState()
 
     // Picks up changes made on Android's settings pages while this screen is open or returning.
     LaunchedEffect(Unit) {
@@ -105,6 +113,7 @@ fun IslandSettingsScreen() {
             // Just allowed "Display over other apps": the mini island can appear now.
             if (draw && !canDraw) GlintOverlays.refreshMiniIsland(context)
             canDraw = draw
+            tapsEnabled = IslandAccess.isEnabled(context)
             delay(1_000)
         }
     }
@@ -118,6 +127,8 @@ fun IslandSettingsScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Spacer(Modifier.height(topPadding))
+
+        if (tapsAvailable) TapAccessCard(enabled = tapsEnabled, running = tapsService != null, ink = ink, dark = dark)
 
         StyledList(title = "Mini island") {
             StyledToggle(
@@ -282,6 +293,73 @@ fun IslandSettingsScreen() {
             modifier = Modifier.padding(horizontal = 16.dp),
         )
         Spacer(Modifier.height(bottomPadding))
+    }
+}
+
+/**
+ * Whether the Dynamic Island can be tapped, and the one switch that makes it so: Android gives
+ * every touch around the camera to its status bar unless the island sits above it, which only
+ * an accessibility service may do.
+ */
+@Composable
+private fun TapAccessCard(enabled: Boolean, running: Boolean, ink: Color, dark: Boolean) {
+    val context = LocalContext.current
+    val on = enabled && running
+    val dot by androidx.compose.animation.animateColorAsState(
+        when {
+            on -> Color(0xFF30D158)
+            enabled -> Color(0xFFFFB340)
+            else -> Color(0xFFFF9F0A)
+        },
+        label = "tapDot",
+    )
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(if (dark) Color(0xFF1C1C1E) else Color.White, RoundedCornerShape(24.dp))
+            .padding(16.dp)
+            .animateContentSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            me.kavishdevar.librepods.presentation.glint.RowIconTile(me.kavishdevar.librepods.presentation.glint.RowIcons.Press, ink, dark, size = 38.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Tap the Dynamic Island", style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = ink))
+                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    androidx.compose.foundation.layout.Box(Modifier.size(8.dp).background(dot, androidx.compose.foundation.shape.CircleShape))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        when {
+                            on -> "On"
+                            enabled -> "Starting…"
+                            else -> "Off"
+                        },
+                        style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = ink.copy(alpha = 0.6f)),
+                    )
+                }
+            }
+            if (!on) GlassPillButton(text = "Turn on", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
+                open(context, IslandAccess.settingsIntent(context))
+            }
+        }
+        if (!on) {
+            Text(
+                "Android gives taps around the camera to its status bar. Turn on \"pro Dynamic Island\" in Accessibility and they reach the island.",
+                style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, lineHeight = 18.sp, color = ink.copy(alpha = 0.7f)),
+            )
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(
+                    "\"Restricted setting\"? App info › ⋮ › Allow restricted settings, then Turn on again.",
+                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, lineHeight = 16.sp, color = ink.copy(alpha = 0.55f)),
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(10.dp))
+                GlassPillButton(text = "App info", textColor = ink, dark = dark, height = 34.dp, fontSize = 13.sp) {
+                    open(context, NowPlaying.appInfoIntent(context))
+                }
+            }
+        }
     }
 }
 

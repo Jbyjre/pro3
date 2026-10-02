@@ -112,6 +112,8 @@ sealed interface IslandEvent {
     data object BothIn : IslandEvent
     /** Something started playing on the AirPods, or a new song started. Words come live from NowPlaying. */
     data object Music : IslandEvent
+    /** The Dynamic Island can't be tapped yet: one switch in pro fixes it (tap opens that page). */
+    data object TapSetup : IslandEvent
 }
 
 /**
@@ -192,10 +194,23 @@ object GlintOverlays {
 
     /** Opens Glint from an overlay (allowed: the overlay is visible and was just tapped). */
     @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-    fun openApp(context: Context) {
+    fun openApp(context: Context, page: String? = null) {
         val intent = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        if (page != null) intent.putExtra(me.kavishdevar.librepods.presentation.navigation.AppLinks.EXTRA, page)
         try { context.startActivity(intent) } catch (e: Exception) { Log.w("GlintOverlays", "Couldn't open pro", e) }
+    }
+
+    /** Switches the AirPods to the next listening mode, in the same order as the Quick Settings tile. */
+    fun cycleListeningMode(context: Context) {
+        val service = me.kavishdevar.librepods.services.ServiceManager.getService() ?: return
+        val offAllowed = context.getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("off_listening_mode", true)
+        val next = me.kavishdevar.librepods.services.ListeningModes.next(service.getANC(), offAllowed)
+        runCatching {
+            service.aacpManager.sendControlCommand(
+                me.kavishdevar.librepods.bluetooth.AACPManager.Companion.ControlCommandIdentifiers.LISTENING_MODE.value, next
+            )
+        }.onFailure { Log.w("GlintOverlays", "Couldn't change listening mode", it) }
     }
 
     val isIslandShowing: Boolean get() = island?.isShowing == true
