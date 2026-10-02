@@ -127,6 +127,9 @@ object RowIcons {
      */
     private val rules: List<Pair<List<String>, ImageVector>> = listOf(
         listOf("heart") to Heart,
+        listOf("always on") to Power,
+        listOf("sound bars") to Waves,
+        listOf("airpods are connected") to Link,
         listOf("devices", "headphone", "beats") to Headphones,
         listOf("island") to Island,
         listOf("report") to Report,

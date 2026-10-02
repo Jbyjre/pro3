@@ -3,6 +3,7 @@ package me.kavishdevar.librepods
 import androidx.compose.ui.graphics.Color
 import me.kavishdevar.librepods.presentation.overlays.accentOfPixels
 import me.kavishdevar.librepods.services.MiniIslandRules
+import me.kavishdevar.librepods.services.MusicPulse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -116,5 +117,30 @@ class MiniIslandTest {
         assertEquals(MiniIslandRules.Content.Music, MiniIslandRules.content(playing = false, pausedForMs = 5_000, playedRecently = true, airPodsUp = true))
         assertEquals(MiniIslandRules.Content.AirPods, MiniIslandRules.content(playing = false, pausedForMs = 60_000, playedRecently = true, airPodsUp = true))
         assertEquals(MiniIslandRules.Content.AirPods, MiniIslandRules.content(playing = false, pausedForMs = Long.MAX_VALUE, playedRecently = false, airPodsUp = true))
+    }
+
+    @Test fun alwaysOnStaysWithNothingConnected() {
+        val nothing = base.copy(playing = false, pausedForMs = Long.MAX_VALUE, playedRecently = false, airPodsUp = false, airPodsOnly = true)
+        assertFalse(MiniIslandRules.wanted(nothing))
+        assertTrue(MiniIslandRules.wanted(nothing.copy(anytime = true)))
+        // Still steps aside with the screen off, the setting off or no overlay permission.
+        assertFalse(MiniIslandRules.wanted(nothing.copy(anytime = true, screenUnlocked = false)))
+        assertFalse(MiniIslandRules.wanted(nothing.copy(anytime = true, enabled = false)))
+        assertFalse(MiniIslandRules.wanted(nothing.copy(anytime = true, canDraw = false)))
+        assertEquals(MiniIslandRules.Content.Rest, MiniIslandRules.content(playing = false, pausedForMs = Long.MAX_VALUE, playedRecently = false, airPodsUp = false))
+        assertEquals(MiniIslandRules.Content.Music, MiniIslandRules.content(playing = true, pausedForMs = 0, playedRecently = true, airPodsUp = false))
+    }
+
+    @Test fun barsFollowTheMusicLevels() {
+        val peaks = FloatArray(MusicPulse.BANDS) { 1f }
+        // Silence: flat.
+        assertTrue(MusicPulse.levels(ByteArray(512), 44_100_000, peaks).all { it == 0f })
+        // A loud bass note (~86 Hz per bin at 44.1 kHz with 256 bins): the bass bar leads.
+        val fft = ByteArray(512)
+        for (k in 1..2) { fft[2 * k] = 100; fft[2 * k + 1] = 40 }
+        val l = MusicPulse.levels(fft, 44_100_000, peaks)
+        assertTrue(l[0] > 0.9f)
+        assertEquals(0f, l[3], 0f)
+        assertTrue(l.all { it in 0f..1f })
     }
 }

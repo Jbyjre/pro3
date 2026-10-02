@@ -6,7 +6,13 @@ A short checklist. Tick things off, and for anything that looks wrong, take a sc
 
 Install the new `pro.apk` (section A), open pro once, then:
 
-**0. Your Beats Solo 4 (newest)**
+**New: sound bars and an always-on Dynamic Island (newest)**
+1. Open pro once after updating. Android asks to use the **microphone**: tap **While using the app**. pro only measures how loud the music is; nothing is recorded. (Missed it? Settings > Island > "Sound bars follow the music".)
+2. Play music from any app (Spotify, YouTube, anything). The bars next to the camera should jump with the beat. A soft glow in the cover's colour swells with the bass. **Important check:** close pro (go to the home screen) and watch the bars for a few seconds. If they still follow the beat, great. If they go back to an even, regular wiggle that ignores the song, tell Claude: it means your phone only lets pro hear the music while pro is open, and that needs a different fix.
+3. Turn off Bluetooth and stop the music. The Dynamic Island should stay as a small black pill around the camera. Tap it: music controls open (play picks up your last song). Hold it: pro opens.
+4. Don't want it there all the time? Settings > Island > **Always on**, switch off.
+
+**0. Your Beats Solo 4**
 1. Make sure the Solo 4 is paired with the phone in Bluetooth settings and turned on.
 2. In pro, tap the **headphones button** at the top of the main page (next to the gear), or Settings > **Your devices**. Tap **Beats Solo 4**: a tick moves to it and you're back on the main page, which now shows the Solo 4 (a glass circle with headphones, the battery ring and %, music controls, volume, and a guide to the Solo 4's own buttons).
 3. Check the battery % matches the one in Android's Bluetooth settings. If it says "battery not reported yet", wait a minute with music playing; tell Claude if it never shows.

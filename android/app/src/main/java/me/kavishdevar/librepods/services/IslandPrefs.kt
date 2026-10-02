@@ -38,6 +38,8 @@ object IslandPrefs {
     const val PREF_MINI_AIRPODS_ONLY = "glint_mini_airpods_only"
     /** Keep the mini island up the whole time the AirPods are connected (not only for music). */
     const val PREF_MINI_ALWAYS = "glint_mini_always"
+    /** Keep the mini island up all the time, even with nothing playing and nothing connected. */
+    const val PREF_MINI_ANYTIME = "glint_mini_anytime"
     /** How many times (and when last) the "make it tappable" pop-up was shown. */
     const val PREF_TAP_NUDGES = "glint_tap_nudges"
     const val PREF_TAP_NUDGE_AT = "glint_tap_nudge_at"
@@ -79,4 +81,5 @@ object IslandPrefs {
     fun miniNames(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_NAMES, true)
     fun miniAirPodsOnly(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_AIRPODS_ONLY, false)
     fun miniAlways(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ALWAYS, true)
+    fun miniAnytime(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ANYTIME, true)
 }

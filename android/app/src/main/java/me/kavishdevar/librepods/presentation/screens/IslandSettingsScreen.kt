@@ -70,6 +70,7 @@ import me.kavishdevar.librepods.presentation.overlays.IslandEvent
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.services.IslandAccess
 import me.kavishdevar.librepods.services.IslandPrefs
+import me.kavishdevar.librepods.services.MusicPulse
 import me.kavishdevar.librepods.services.NowPlaying
 
 /**
@@ -99,6 +100,17 @@ fun IslandSettingsScreen() {
     var miniNames by remember { mutableStateOf(IslandPrefs.miniNames(prefs)) }
     var miniAirPodsOnly by remember { mutableStateOf(IslandPrefs.miniAirPodsOnly(prefs)) }
     var miniAlways by remember { mutableStateOf(IslandPrefs.miniAlways(prefs)) }
+    var miniAnytime by remember { mutableStateOf(IslandPrefs.miniAnytime(prefs)) }
+    var hearMusic by remember { mutableStateOf(MusicPulse.allowed(context)) }
+    var askedAt by remember { mutableStateOf(0L) }
+    val askHear = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { ok ->
+        hearMusic = ok
+        if (ok) MusicPulse.retry(context)
+        // Said no before, so Android answered at once without asking: open pro's page in Android's settings.
+        else if (android.os.SystemClock.elapsedRealtime() - askedAt < 500L) open(context, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null)))
+    }
     var canDraw by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     val tapsAvailable = remember { IslandAccess.isAvailable(context) }
     var tapsEnabled by remember { mutableStateOf(IslandAccess.isEnabled(context)) }
@@ -114,6 +126,9 @@ fun IslandSettingsScreen() {
             if (draw && !canDraw) GlintOverlays.refreshMiniIsland(context)
             canDraw = draw
             tapsEnabled = IslandAccess.isEnabled(context)
+            val hear = MusicPulse.allowed(context)
+            if (hear && !hearMusic) MusicPulse.retry(context)
+            hearMusic = hear
             delay(1_000)
         }
     }
@@ -139,6 +154,26 @@ fun IslandSettingsScreen() {
                     mini = it
                     prefs.edit { putBoolean(IslandPrefs.PREF_MINI, it) }
                     GlintOverlays.refreshMiniIsland(context)
+                },
+            )
+            StyledToggle(
+                label = "Always on",
+                description = "Stays round the camera even with nothing playing or connected",
+                checked = miniAnytime,
+                onCheckedChange = {
+                    miniAnytime = it
+                    prefs.edit { putBoolean(IslandPrefs.PREF_MINI_ANYTIME, it) }
+                    GlintOverlays.refreshMiniIsland(context)
+                },
+            )
+            StyledToggle(
+                label = "Sound bars follow the music",
+                description = if (hearMusic) "The bars move with what's playing, in any app"
+                    else "Tap to allow (Android calls it microphone). Nothing is recorded",
+                checked = hearMusic,
+                onCheckedChange = {
+                    if (it) { askedAt = android.os.SystemClock.elapsedRealtime(); askHear.launch(android.Manifest.permission.RECORD_AUDIO) }
+                    else open(context, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null)))
                 },
             )
             StyledToggle(

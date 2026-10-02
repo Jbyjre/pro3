@@ -75,6 +75,10 @@
   changed; default AirPods). Only the chosen device's controls run: non-AirPods close the AirPods channel and go through
   `services/HeadphoneLink.kt` (Android battery, Solo 4 beacon 0x2520 via `bluetooth/HeadphoneBeacon.kt`, media keys). Page:
   `screens/HeadphonesScreen.kt`; `PodsSnapshot.headphones` = one ring in the islands. Fast refresh: `glint/FrameRate.kt`.
+  Sound bars follow the real music: `services/MusicPulse.kt` (Android Visualizer on the whole output, 4 bands; needs
+  RECORD_AUDIO, asked once after setup and in Settings > Island; falls back to the old wiggle without it). Dynamic Island
+  "Always on" (`PREF_MINI_ANYTIME`, default on): stays even with nothing playing/connected as a plain black pill
+  (`Content.Rest` / `Situation.Rest`, tap = music controls).
   Volume limit (hearing protection without root): `services/VolumeGuard.kt`. Always-on heart rate: `PREF_HR_ALWAYS`, `autoHeartRate()` in the service. The status notification is hidden unless
   `glint_status_notification` is on. Jake's app is personal: no visible LibrePods mentions.
 - See `DECISIONS.md` and `TESTING.md` at the repo root.
