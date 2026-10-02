@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import me.kavishdevar.librepods.presentation.overlays.IslandGeometry
 import me.kavishdevar.librepods.presentation.overlays.IslandHost
 import me.kavishdevar.librepods.presentation.overlays.IslandPhase
@@ -471,6 +472,27 @@ class GlintScreenshots {
     @Test fun heartBlocked() = heartState("heart_blocked", link = LinkState.GaveUp("AirPods Pro", "refused")) { HeartRate.status(HeartRate.Status.Off) }
     @Test fun heartBlockedNote() = heartState("heart_blocked_note", link = LinkState.GaveUp("AirPods Pro", "refused"), note = true, dark = false) { HeartRate.status(HeartRate.Status.Off) }
     @Test fun heartOff() = heartState("heart_off", dark = false) { HeartRate.status(HeartRate.Status.Off) }
+
+    /** The rim light swung by tilting the phone (left, level, right): the same swing as the app's glass. */
+    private fun rimSwing(name: String, degrees: Float) {
+        me.kavishdevar.librepods.presentation.glint.GlintLight.swing.floatValue = degrees
+        try { island(name, IslandEvent.Connected, IslandPhase.Compact, dark = false) }
+        finally { me.kavishdevar.librepods.presentation.glint.GlintLight.swing.floatValue = 0f }
+    }
+    @Test fun islandRimSwingLeft() = rimSwing("island_rim_swing_left", -14f)
+    @Test fun islandRimSwingLevel() = rimSwing("island_rim_swing_level", 0f)
+    @Test fun islandRimSwingRight() = rimSwing("island_rim_swing_right", 14f)
+
+    /** A finger on the opened island's play button: it swells and lights up under the finger. */
+    @Test fun islandButtonPressed() = connectedLink {
+        withMusic {
+            island("island_button_pressed", IslandEvent.Connected, IslandPhase.Expanded) {
+                rule.mainClock.advanceTimeBy(2_400)
+                rule.onNodeWithContentDescription("Pause").performTouchInput { down(center) }
+                rule.mainClock.advanceTimeBy(180)
+            }
+        }
+    }
 
     @Test fun islandBudOut() = withMusic(playing = false) { island("island_bud_out", IslandEvent.BudOut(remaining = 1, paused = true), IslandPhase.Compact) }
     @Test fun islandBothOutLight() = island("island_both_out_light", IslandEvent.BudOut(remaining = 0, paused = false), IslandPhase.Compact, dark = false)

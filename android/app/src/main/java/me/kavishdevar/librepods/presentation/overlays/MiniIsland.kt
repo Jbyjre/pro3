@@ -655,9 +655,13 @@ internal fun MiniIslandHost(
     val offAllowed = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("off_listening_mode", true) }
     var boxW by remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
-    // Touch feedback: the pill squishes under the finger and brightens a little, springs back
-    // on release, and stretches a touch when pulled.
+    // Touch feedback: the pill squishes under the finger and brightens a little where it's held,
+    // springs back on release, and stretches a touch when pulled. While touched (and a few
+    // seconds after) its rim follows the phone's tilt like the rest of the glass.
     val press = remember { Animatable(stillPress) }
+    var pressAt by remember { mutableStateOf<Offset?>(null) }
+    val lightHold = remember { LightHold(context) }
+    androidx.compose.runtime.DisposableEffect(lightHold) { onDispose { lightHold.close() } }
     val pull = remember { Animatable(0f) }
     // What a gesture just did, shown for a moment in the right-hand spot (play, pause, skip, mode).
     var ack by remember { mutableStateOf(stillAck) }
@@ -728,6 +732,8 @@ internal fun MiniIslandHost(
                     var held = false
                     if (inside) {
                         buzz.touch()
+                        pressAt = down.position
+                        lightHold.touch(scope)
                         if (!reduce) scope.launch { press.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = 900f)) }
                     }
                     while (true) {
@@ -749,6 +755,7 @@ internal fun MiniIslandHost(
                         dx = ch.position.x - down.position.x
                         dy = ch.position.y - down.position.y
                         last = ch.uptimeMillis
+                        if (inside) pressAt = ch.position
                         if (inside && (abs(dx) > slop || abs(dy) > slop)) {
                             ch.consume()
                             if (!reduce) scope.launch {
@@ -816,13 +823,26 @@ internal fun MiniIslandHost(
             val idle = tone.value * minOf(1f, glow)
             val fill = androidx.compose.ui.graphics.lerp(Color.Black, Color(0xFF1D1D20), idle)
             drawRoundRect(fill, Offset(left, top), Size(pillW, pillH), CornerRadius(r, r))
-            // Pressed: the glass lights up a little where it's held.
-            if (press.value > 0.01f) drawRoundRect(
-                androidx.compose.ui.graphics.Brush.verticalGradient(
-                    listOf(Color.White.copy(alpha = 0.16f * press.value), Color.White.copy(alpha = 0.04f * press.value)), top, top + pillH
-                ),
-                Offset(left, top), Size(pillW, pillH), CornerRadius(r, r),
-            )
+            // Pressed: the glass lights up a little, most where it's held.
+            if (press.value > 0.01f) {
+                val p = press.value
+                drawRoundRect(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.10f * p), Color.White.copy(alpha = 0.03f * p)), top, top + pillH
+                    ),
+                    Offset(left, top), Size(pillW, pillH), CornerRadius(r, r),
+                )
+                val fx = ((pressAt?.x ?: (left + pillW / 2f)) - nudge.value).coerceIn(left + r, left + pillW - r)
+                val glowR = pillH * 1.4f
+                clipPath(Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(left, top, left + pillW, top + pillH, CornerRadius(r, r))) }) {
+                    drawCircle(
+                        androidx.compose.ui.graphics.Brush.radialGradient(
+                            listOf(Color.White.copy(alpha = 0.16f * p), Color.White.copy(alpha = 0f)), Offset(fx, top + pillH / 2f), glowR
+                        ),
+                        glowR, Offset(fx, top + pillH / 2f),
+                    )
+                }
+            }
             if (glow > 0f) {
                 // The rim catches the light from above and swings a little as you tilt the
                 // phone (the same light as the rest of the app's glass). Faint with music.
@@ -897,6 +917,30 @@ internal fun MiniIslandHost(
             }
         }
         }
+    }
+}
+
+/**
+ * Keeps the shared glass light ([GlassLight]) following the phone's tilt while the pill is
+ * touched and for a few seconds after, then lets it rest: not all day, for the battery.
+ */
+private class LightHold(private val context: Context) {
+    private var held = false
+    private var job: Job? = null
+
+    fun touch(scope: CoroutineScope) {
+        if (!held) { held = true; me.kavishdevar.librepods.presentation.glint.GlassLight.acquire(context) }
+        job?.cancel()
+        job = scope.launch {
+            delay(3_500)
+            close()
+        }
+    }
+
+    fun close() {
+        job?.cancel()
+        job = null
+        if (held) { held = false; me.kavishdevar.librepods.presentation.glint.GlassLight.release() }
     }
 }
 

@@ -83,6 +83,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -339,6 +340,8 @@ private fun IslandHostContent(
     val reduceMotion = remember { GlintComfort.reduceMotion(context) }
     val reduceTransparency = remember { GlintComfort.reduceTransparency(context) }
     val light by rememberTiltLight(GlintComfort.tiltLight(context))
+    // The same lighter glass as the app on Battery Saver or a hot phone (checked as it appears).
+    LaunchedEffect(Unit) { me.kavishdevar.librepods.presentation.glint.GlassBudget.update(context) }
     val dark = androidx.compose.foundation.isSystemInDarkTheme()
     val look = remember(dark) { GlassLooks.island(density, dark) }
     val ringTrack = if (dark) Color(0x33FFFFFF) else Color(0x1F000000)
@@ -604,6 +607,7 @@ private fun IslandHostContent(
                     touchStrength = press,
                     alpha = alpha,
                     blurredElsewhere = mainBlur != null,
+                    solid = reduceTransparency,
                 )
                 // Grown out of the mini island: it starts as that black pill and turns to glass
                 // as it grows (and back to black as it shrinks home), so it reads as one shape.
@@ -953,6 +957,28 @@ private fun ExpandedIslandContent(
                         .width(CONTROLS_W * (1f - noteK))
                         .height(40.dp)
                         .graphicsLayer { alpha = 1f - noteK; val sc = 1f - 0.15f * noteK; scaleX = sc; scaleY = sc }
+                        .drawBehind {
+                            // Liquid: while back and skip bud out of play/pause, a neck of the same
+                            // glass joins them, stretching thinner until it lets go.
+                            val mm = chipIn.value
+                            val bb = chipBud.value
+                            if (reduceMotion || bb <= 0.01f || mm >= 0.98f) return@drawBehind
+                            val dp1 = 1.dp.toPx()
+                            val play = Offset((60f + (1f - mm) * 40f) * dp1, 20f * dp1)
+                            val pr = 20f * dp1
+                            val sr = 17f * dp1 * (0.55f + 0.45f * bb)
+                            val back = Offset((17f + (1f - mm) * 83f) * dp1, 20f * dp1)
+                            val next = Offset((103f - (1f - mm) * 3f) * dp1, 20f * dp1)
+                            val fill = if (dark) Color.White.copy(alpha = 0.13f) else Color.Black.copy(alpha = 0.06f)
+                            val circles = Path().apply {
+                                addOval(Rect(play, pr)); addOval(Rect(back, sr)); addOval(Rect(next, sr))
+                            }
+                            listOf(back, next).forEach { c ->
+                                val neck = metaballNeck(play, pr, c, sr, v = 0.45f, reach = 1.6f) ?: return@forEach
+                                // Only the bridge itself: the buttons draw their own glass on top.
+                                drawPath(Path.combine(PathOperation.Difference, neck, circles), fill, alpha = bb)
+                            }
+                        }
                 ) {
                     val travel = with(androidx.compose.ui.platform.LocalDensity.current) { 40.dp.toPx() }
                     SkipButton(
@@ -1008,7 +1034,7 @@ internal fun PlayPauseButton(
     val morphTo by androidx.compose.animation.core.animateFloatAsState(
         if (playing) 0f else 1f, if (reduceMotion) tween(0) else spring(0.7f, 520f), label = "playPause"
     )
-    PressableGlyph(size = size, description = if (playing) "Pause" else "Play", onClick = onClick, enabled = enabled) {
+    PressableGlyph(size = size, description = if (playing) "Pause" else "Play", onClick = onClick, enabled = enabled, dark = dark) {
         if (glass) drawGlassCapsule(dark)
         val g = glyph.toPx()
         val o = Offset((this.size.width - g) / 2f, (this.size.height - g) / 2f)
@@ -1037,7 +1063,7 @@ internal fun PlayPauseButton(
  * also treat it as a tap or a hold), reports [onPressed] for the squish, and fires [onClick]
  * when the finger lifts inside.
  */
-private fun Modifier.islandPress(enabled: Boolean, description: String, onClick: () -> Unit, onPressed: (Boolean) -> Unit): Modifier {
+private fun Modifier.islandPress(enabled: Boolean, description: String, onClick: () -> Unit, onPressed: (Boolean) -> Unit, onAt: (Offset) -> Unit = {}): Modifier {
     if (!enabled) return this
     return this
         .semantics {
@@ -1047,11 +1073,14 @@ private fun Modifier.islandPress(enabled: Boolean, description: String, onClick:
         }
         .pointerInput(Unit) {
             awaitEachGesture {
-                awaitFirstDown().consume()
+                val down = awaitFirstDown()
+                down.consume()
+                onAt(down.position)
                 onPressed(true)
                 var inside = true
                 while (true) {
                     val ch = awaitPointerEvent().changes.firstOrNull() ?: break
+                    onAt(ch.position)
                     inside = ch.position.x in 0f..size.width.toFloat() && ch.position.y in 0f..size.height.toFloat()
                     ch.consume()
                     if (!ch.pressed) break
@@ -1067,7 +1096,7 @@ private fun Modifier.islandPress(enabled: Boolean, description: String, onClick:
 @Composable
 private fun SkipButton(next: Boolean, color: Color, dark: Boolean, enabled: Boolean, modifier: Modifier = Modifier, glyphAlpha: () -> Float = { 1f }, onClick: () -> Unit) {
     Box(modifier.padding(top = 3.dp).size(34.dp)) {
-        PressableGlyph(size = 34.dp, description = if (next) "Next song" else "Previous song", onClick = onClick, enabled = enabled) {
+        PressableGlyph(size = 34.dp, description = if (next) "Next song" else "Previous song", onClick = onClick, enabled = enabled, dark = dark) {
             drawGlassCapsule(dark)
             val g = 12.dp.toPx()
             val cy = size.height / 2f
@@ -1092,18 +1121,23 @@ private fun SkipButton(next: Boolean, color: Color, dark: Boolean, enabled: Bool
 }
 
 @Composable
-private fun PressableGlyph(size: Dp, description: String, onClick: () -> Unit, enabled: Boolean = true, draw: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit) {
+private fun PressableGlyph(size: Dp, description: String, onClick: () -> Unit, enabled: Boolean = true, dark: Boolean = true, draw: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit) {
     val currentOnClick by rememberUpdatedState(onClick)
     var pressed by remember { mutableStateOf(false) }
-    val press by androidx.compose.animation.core.animateFloatAsState(if (pressed) 1f else 0f, spring(0.62f, 620f), label = "press")
+    var at by remember { mutableStateOf<Offset?>(null) }
+    // Glass answers a finger: it swells a little and lights up where it's held, then settles
+    // back with a soft bounce (the same everywhere, see GlassPress).
+    val press by androidx.compose.animation.core.animateFloatAsState(if (pressed) 1f else 0f, me.kavishdevar.librepods.presentation.glint.GlassPress.spec(pressed), label = "press")
     androidx.compose.foundation.Canvas(
         Modifier
             .size(size)
-            .graphicsLayer { val sc = 1f - 0.1f * press; scaleX = sc; scaleY = sc }
-            .islandPress(enabled, description, { currentOnClick() }, { pressed = it })
+            .graphicsLayer { val sc = 1f + (me.kavishdevar.librepods.presentation.glint.GlassPress.SWELL - 1f) * press; scaleX = sc; scaleY = sc }
+            .islandPress(enabled, description, { currentOnClick() }, { pressed = it }, { at = it })
     ) {
-        if (press > 0.01f) drawCircle(Color.Gray.copy(alpha = 0.18f * press.coerceIn(0f, 1f)))
         draw()
+        if (press > 0.01f) clipPath(Path().apply { addOval(Rect(Offset.Zero, this@Canvas.size)) }) {
+            with(me.kavishdevar.librepods.presentation.glint.GlassPress) { drawFingerGlow(at, press.coerceIn(0f, 1f), dark) }
+        }
     }
 }
 
@@ -1402,7 +1436,8 @@ private fun HeartChip(
     val beat = rememberHeartBeat(view.bpm.takeIf { live }, reduceMotion, peak = 1.16f)
     val currentOnClick by rememberUpdatedState(onClick)
     var pressed by remember { mutableStateOf(false) }
-    val press by androidx.compose.animation.core.animateFloatAsState(if (pressed) 1f else 0f, spring(0.62f, 620f), label = "chipPress")
+    var at by remember { mutableStateOf<Offset?>(null) }
+    val press by androidx.compose.animation.core.animateFloatAsState(if (pressed) 1f else 0f, me.kavishdevar.librepods.presentation.glint.GlassPress.spec(pressed), label = "chipPress")
     val m = morph.coerceAtLeast(0f)
     // Words show once the bubble has mostly become a chip.
     val inside = ((m - 0.45f) / 0.55f).coerceIn(0f, 1f)
@@ -1425,15 +1460,18 @@ private fun HeartChip(
                 // spring's small overshoot is kept, so it settles like it has weight.
                 val far = 1f - m
                 translationX = far * (fromX - bud * 14.dp.toPx())
-                val sc = (1f - 0.05f * press) * (0.55f + 0.45f * bud)
+                val sc = (1f + 0.04f * press) * (0.55f + 0.45f * bud)
                 scaleX = sc; scaleY = sc
                 alpha = bud
                 clip = true
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(percent = 50)
             }
             // Drawn and touched at the growing size, not the full one.
-            .drawBehind { drawGlassCapsule(dark) }
-            .islandPress(enabled, spoken, { currentOnClick() }, { pressed = it })
+            .drawBehind {
+                drawGlassCapsule(dark)
+                with(me.kavishdevar.librepods.presentation.glint.GlassPress) { drawFingerGlow(at, press.coerceIn(0f, 1f), dark) }
+            }
+            .islandPress(enabled, spoken, { currentOnClick() }, { pressed = it }, { at = it })
             .layout { measurable, constraints ->
                 // Measured at its full size, shown at a width growing from a circle the size of
                 // the play/pause button (40) to the full chip, and a height easing from 40 to 34.
