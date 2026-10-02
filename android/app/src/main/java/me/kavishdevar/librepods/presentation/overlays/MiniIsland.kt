@@ -112,6 +112,7 @@ import me.kavishdevar.librepods.services.ListeningModes
 import me.kavishdevar.librepods.services.IslandPrefs
 import me.kavishdevar.librepods.services.LinkState
 import me.kavishdevar.librepods.services.MiniIslandRules
+import me.kavishdevar.librepods.services.MusicPulse
 import me.kavishdevar.librepods.services.NowPlaying
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -194,7 +195,8 @@ internal class MiniIslandController(private val context: Context) {
     }
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
-        if (key == IslandPrefs.PREF_MINI || key == IslandPrefs.PREF_MINI_AIRPODS_ONLY || key == IslandPrefs.PREF_MINI_ALWAYS) refresh()
+        if (key == IslandPrefs.PREF_MINI || key == IslandPrefs.PREF_MINI_AIRPODS_ONLY || key == IslandPrefs.PREF_MINI_ALWAYS ||
+            key == IslandPrefs.PREF_MINI_ANYTIME) refresh()
         if (IslandGestures.Gesture.entries.any { it.key == key }) actions.value = IslandGestures.all(p)
         if (key in IslandLook.keys) {
             look.value = IslandLook.read(p)
@@ -292,6 +294,7 @@ internal class MiniIslandController(private val context: Context) {
                 airPodsUp = airPodsUp(),
                 screenUnlocked = previewing || unlocked,
                 alwaysWithAirPods = !previewing && IslandPrefs.miniAlways(prefs),
+                anytime = !previewing && IslandPrefs.miniAnytime(prefs),
             )
         )
         content.value = if (previewing) MiniIslandRules.Content.Music else MiniIslandRules.content(
@@ -395,7 +398,10 @@ internal class MiniIslandController(private val context: Context) {
         val sampling = sample.value != null
         when (a) {
             IslandGestures.Action.Expand -> {
-                if (content.value == MiniIslandRules.Content.AirPods) {
+                if (content.value == MiniIslandRules.Content.Rest) {
+                    // Nothing on: open the music controls (play picks up where you left off).
+                    GlintOverlays.showIsland(context, IslandEvent.Music)
+                } else if (content.value == MiniIslandRules.Content.AirPods) {
                     GlintOverlays.showIsland(context, IslandEvent.Connected, expand = true)
                 } else {
                     GlintOverlays.showIsland(context, IslandEvent.Music, expand = airPodsUp())
@@ -531,13 +537,16 @@ internal fun MiniIslandHost(
 
     // ---- What it shows right now ----
     val musicContent = content == MiniIslandRules.Content.Music
-    val situation = forceSituation ?: IslandLook.situation(musicContent, track.playing, talking, pods.budsCharging)
+    val resting = content == MiniIslandRules.Content.Rest
+    val situation = forceSituation ?: IslandLook.situation(musicContent, track.playing, talking, pods.budsCharging, rest = resting)
     val under = if (situation == IslandLook.Situation.Talking) {
-        if (forceSituation != null) IslandLook.Situation.Music else IslandLook.underneath(musicContent, track.playing, pods.budsCharging)
+        if (forceSituation != null) IslandLook.Situation.Music
+        else if (resting) IslandLook.Situation.Rest
+        else IslandLook.underneath(musicContent, track.playing, pods.budsCharging)
     } else situation
     val (wantL, wantR) = look.slots(situation, under)
     // The music situations are black, at one with the camera; the AirPods ones a dark graphite.
-    val musicTone = under == IslandLook.Situation.Music || under == IslandLook.Situation.Paused
+    val musicTone = under == IslandLook.Situation.Music || under == IslandLook.Situation.Paused || under == IslandLook.Situation.Rest
 
     // Slots cross-fade when the situation (or a choice) changes, and the pill morphs to its new width.
     var shownL by remember { mutableStateOf(wantL) }
@@ -549,7 +558,7 @@ internal fun MiniIslandHost(
         if (wantL == shownL && wantR == shownR) return@LaunchedEffect
         fromL = shownL; fromR = shownR
         shownL = wantL; shownR = wantR
-        if (reduce || still != null) mix.snapTo(1f) else { mix.snapTo(0f); mix.animateTo(1f, tween(320)) }
+        if (reduce || still != null) mix.snapTo(1f) else { mix.snapTo(0f); mix.animateTo(1f, spring(dampingRatio = 1f, stiffness = 260f)) }
     }
     val targetW = geometry.widthFor(wantL, wantR)
     val bodyW = remember { Animatable(targetW) }
@@ -640,16 +649,44 @@ internal fun MiniIslandHost(
     val animated = (track.playing && (IslandLook.Slot.Bars in shows || IslandLook.Slot.Cover in shows)) ||
         IslandLook.Slot.Talk in shows || lowPulse
     val moving = visible && animated && !reduce && still == null
-    LaunchedEffect(moving) {
+    // The bars follow the real music (whatever app plays it) while they're on show.
+    val listening = visible && track.playing && IslandLook.Slot.Bars in shows && still == null
+    androidx.compose.runtime.DisposableEffect(listening) {
+        if (listening) MusicPulse.acquire(context)
+        onDispose { if (listening) MusicPulse.release() }
+    }
+    val pulseLive by MusicPulse.live.collectAsState()
+    val synced = listening && pulseLive && !reduce
+    /** What the bars show (eased toward the music so they glide rather than jump). */
+    val bars = remember { FloatArray(MusicPulse.BANDS) }
+    LaunchedEffect(moving, synced) {
+        var last = 0L
         while (moving) {
-            clock.longValue = SystemClock.elapsedRealtime()
-            delay(33)
+            // In step with the music: about 60 a second for smooth bars; otherwise about 30 a
+            // second, plenty for the rest.
+            delay(if (synced) 16L else 33L)
+            val now = SystemClock.elapsedRealtime()
+            val dt = if (last == 0L) 16f else (now - last).toFloat().coerceAtMost(100f)
+            last = now
+            if (synced) {
+                val target = MusicPulse.levels.value
+                for (i in bars.indices) {
+                    val to = target.getOrElse(i) { 0f }
+                    // Quick up on a beat, softer on the way down (like a real level meter).
+                    val rate = if (to > bars[i]) 0.045f else 0.012f
+                    bars[i] += (to - bars[i]) * (1f - kotlin.math.exp(-rate * dt))
+                }
+            }
+            clock.longValue = now
         }
     }
     val level = remember { mutableFloatStateOf(if (track.playing) 1f else 0f) }
     LaunchedEffect(track.playing) {
         val a = Animatable(level.floatValue)
-        a.animateTo(if (track.playing) 1f else 0f, tween(if (reduce) 0 else 260)) { level.floatValue = value }
+        // Bars rise from dots with a small springy lift, and settle back softly on pause.
+        if (reduce) a.snapTo(if (track.playing) 1f else 0f)
+        else a.animateTo(if (track.playing) 1f else 0f, spring(dampingRatio = if (track.playing) 0.7f else 1f, stiffness = 300f)) { level.floatValue = value }
+        level.floatValue = a.value
     }
 
     val beat = rememberHeartBeat(heartBpm, reduce || still != null, peak = 1.18f)
@@ -658,7 +695,7 @@ internal fun MiniIslandHost(
     val paused = remember { ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) }
     val m = geometry.margin
     val s = geometry.size
-    val describe = if (!musicContent) buildString {
+    val describe = if (resting) "Dynamic Island. Tap for music controls, hold to open pro." else if (!musicContent) buildString {
         append(pods.name)
         pods.budsLevel?.let { append(", battery ").append(it).append("%") }
         if (pods.listeningMode in 1..4) append(", ").append(listeningModeName(pods.listeningMode))
@@ -908,6 +945,7 @@ internal fun MiniIslandHost(
                         side = s.side, density = density, fontScale = fontScale, track = track, pods = pods, heartBpm = heartBpm, beat = beat.value,
                         level = level.floatValue, accent = accent, paused = paused, clock = clock.longValue, moving = moving,
                         lowPulse = lowPulse && !reduce, measurer = measurer, shortTitle = shortTitle,
+                        bars = if (synced) bars else null,
                         progressAt = if (moving) clock.longValue else SystemClock.elapsedRealtime(),
                     )
                 )
@@ -989,6 +1027,8 @@ private class SlotData(
     val measurer: androidx.compose.ui.text.TextMeasurer,
     val shortTitle: String?,
     val progressAt: Long,
+    /** The music's real levels (bass to treble), when pro can hear it; null: their own motion. */
+    val bars: FloatArray? = null,
 )
 
 /** One thing beside the camera, centred at [c] in a spot [w] wide. */
@@ -1002,6 +1042,16 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
     )
     when (slot) {
         IslandLook.Slot.Cover -> {
+            // The beat: a soft glow in the cover's colour that swells with the bass.
+            d.bars?.let { b ->
+                val kick = b[0].coerceIn(0f, 1f)
+                if (kick > 0.05f) drawCircle(
+                    androidx.compose.ui.graphics.Brush.radialGradient(
+                        listOf(d.accent.copy(alpha = 0.32f * kick * alpha), d.accent.copy(alpha = 0f)), c, side * 0.64f
+                    ),
+                    side * 0.64f, c,
+                )
+            }
             // The cover (or a note when there's no picture), greyed and dimmed while paused.
             val circle = Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, side / 2f)) }
             clipPath(circle) {
@@ -1012,7 +1062,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
                         srcOffset = IntOffset.Zero, srcSize = IntSize(art.width, art.height),
                         dstOffset = IntOffset((c.x - side / 2f).roundToInt(), (c.y - side / 2f).roundToInt()),
                         dstSize = IntSize(side.roundToInt(), side.roundToInt()),
-                        alpha = alpha * (0.55f + 0.45f * d.level),
+                        alpha = (alpha * (0.55f + 0.45f * d.level)).coerceIn(0f, 1f),
                         colorFilter = if (d.level < 0.5f) d.paused else null,
                     )
                 } else {
@@ -1037,10 +1087,13 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
             val gap = barW * 0.92f
             val maxH = side * 0.62f
             val startX = c.x - (4 * barW + 3 * gap) / 2f + barW / 2f
+            // Bass, low mids, high mids, treble, laid out so the middle bars lead like a real meter.
+            val order = intArrayOf(1, 0, 2, 3)
             for (i in 0 until 4) {
                 val wiggle = 0.35f + 0.65f * abs(sin(t * (2.3f + i * 0.73f) + i * 1.7f))
                 val rest = if (i % 2 == 0) 0.62f else 0.42f // Reduce motion: steady bars
-                val hgt = lerp(barW, maxH * (if (d.moving) wiggle else rest), d.level)
+                val live = d.bars?.let { 0.22f + 0.78f * it[order[i]] }
+                val hgt = lerp(barW, maxH * (live ?: if (d.moving) wiggle else rest), d.level)
                 val x = startX + i * (barW + gap)
                 drawLine(d.accent.copy(alpha = alpha), Offset(x, c.y - hgt / 2f), Offset(x, c.y + hgt / 2f), barW, StrokeCap.Round)
             }

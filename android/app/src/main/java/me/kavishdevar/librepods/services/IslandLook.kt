@@ -32,6 +32,8 @@ object IslandLook {
         Idle("idle", "AirPods"),
         Charging("charging", "Charging"),
         Talking("talking", "Talking"),
+        /** Nothing playing and nothing connected. */
+        Rest("rest", "Nothing on"),
     }
 
     enum class Slot(val key: String, val label: String) {
@@ -87,6 +89,7 @@ object IslandLook {
         Situation.Idle to (Slot.Battery to Slot.Heart),
         Situation.Charging to (Slot.Battery to Slot.Heart),
         Situation.Talking to (Slot.Same to Slot.Talk),
+        Situation.Rest to (Slot.Nothing to Slot.Nothing),
     )
 
     /** What can go on a side in a situation: "Keep" only while talking. */
@@ -96,8 +99,9 @@ object IslandLook {
      * The situation right now. Talking (Conversation Awareness has the music down) wins; then
      * music playing or paused; then the AirPods themselves, charging or not.
      */
-    fun situation(music: Boolean, playing: Boolean, talking: Boolean, charging: Boolean): Situation = when {
+    fun situation(music: Boolean, playing: Boolean, talking: Boolean, charging: Boolean, rest: Boolean = false): Situation = when {
         talking -> Situation.Talking
+        rest -> Situation.Rest
         music && playing -> Situation.Music
         music -> Situation.Paused
         charging -> Situation.Charging

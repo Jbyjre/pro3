@@ -139,6 +139,22 @@ class MainActivity : ComponentActivity() {
         // Smoother motion: the screen's fastest refresh rate while pro is open (not on Battery
         // Saver or a hot phone; checked again every time pro comes back).
         me.kavishdevar.librepods.presentation.glint.FrameRate.apply(window, this)
+        // Just allowed to hear the music (here or in Android's settings): the bars can follow it now.
+        me.kavishdevar.librepods.services.MusicPulse.retry(this)
+        askToHearMusicOnce()
+    }
+
+    /**
+     * Once, after setup: ask for what lets the sound bars follow the music (Android calls it the
+     * microphone; nothing is recorded). Settings > Island can ask again later.
+     */
+    private fun askToHearMusicOnce() {
+        val p = getSharedPreferences("settings", MODE_PRIVATE)
+        if (!p.getBoolean("onboarding_complete", false) || p.getBoolean("asked_hear_music", false)) return
+        if (me.kavishdevar.librepods.services.MusicPulse.allowed(this)) return
+        p.edit().putBoolean("asked_hear_music", true).apply()
+        // The answer needs no handling here: pro resumes after the prompt and onResume catches up.
+        requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 4107)
     }
 
     override fun onDestroy() {

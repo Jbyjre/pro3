@@ -217,7 +217,11 @@ private fun IslandPreview(look: IslandLook.Look, actions: Map<IslandGestures.Ges
         Box(Modifier.size(with(density) { geo.compactWindow.width.toDp() }, with(density) { geo.compactWindow.height.toDp() })) {
             MiniIslandHost(
                 geometry = geo, track = track, leaving = false, hidden = false,
-                content = if (situation == IslandLook.Situation.Idle || situation == IslandLook.Situation.Charging) MiniIslandRules.Content.AirPods else MiniIslandRules.Content.Music,
+                content = when (situation) {
+                    IslandLook.Situation.Idle, IslandLook.Situation.Charging -> MiniIslandRules.Content.AirPods
+                    IslandLook.Situation.Rest -> MiniIslandRules.Content.Rest
+                    else -> MiniIslandRules.Content.Music
+                },
                 pods = pods,
                 heartBpm = 72,
                 talking = situation == IslandLook.Situation.Talking,
@@ -433,6 +437,10 @@ private fun DrawScope.drawSituation(s: IslandLook.Situation, c: Color) {
             drawPath(p, c)
         }
         IslandLook.Situation.Talking -> for (i in 0 until 3) drawCircle(c, r * 0.17f, Offset(m.x + (i - 1) * r * 0.55f, m.y))
+        // A small empty pill: nothing on.
+        IslandLook.Situation.Rest -> drawRoundRect(
+            c, Offset(m.x - r * 0.75f, m.y - r * 0.32f), Size(r * 1.5f, r * 0.64f), CornerRadius(r * 0.32f), style = Stroke(r * 0.16f),
+        )
     }
 }
 

@@ -78,6 +78,8 @@ class IslandLookTest {
         assertEquals(Situation.Charging, IslandLook.situation(music = false, playing = false, talking = false, charging = true))
         assertEquals(Situation.Idle, IslandLook.situation(music = false, playing = false, talking = false, charging = false))
         assertEquals(Situation.Idle, IslandLook.underneath(music = false, playing = false, charging = false))
+        assertEquals(Situation.Rest, IslandLook.situation(music = false, playing = false, talking = false, charging = false, rest = true))
+        assertEquals(Situation.Talking, IslandLook.situation(music = false, playing = false, talking = true, charging = false, rest = true))
     }
 
     @Test fun widerChoicesMakeARoomierPillThatStillFits() {
