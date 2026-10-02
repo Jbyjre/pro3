@@ -56,6 +56,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -201,6 +202,10 @@ private fun StyledListItemContent(
     val animatedBackgroundColor by animateColorAsState(targetValue = if (pressed) surfaceDimColor else surfaceColor, animationSpec = tween(durationMillis = 500))
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
+    // The tap handler is set up once per row; read the latest action through these so a row
+    // reused for a different item (a list that reorders) never runs the old item's action.
+    val currentOnClick by rememberUpdatedState(onClick)
+    val currentEnabled by rememberUpdatedState(enabled)
 
     when (LocalDesignSystem.current) {
         DesignSystem.Apple -> {
@@ -272,20 +277,20 @@ private fun StyledListItemContent(
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onPress = {
-                                if (enabled) {
+                                if (currentEnabled) {
                                     pressed = true
                                     tryAwaitRelease()
                                     pressed = false
                                 }
                             },
                             onTap = {
-                                if (enabled) {
+                                if (currentEnabled) {
                                     scope.launch {
                                         haptics.performHapticFeedback(
                                             HapticFeedbackType.ContextClick
                                         )
                                     }
-                                    onClick?.invoke()
+                                    currentOnClick?.invoke()
                                 }
                             }
                         )

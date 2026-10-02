@@ -168,7 +168,7 @@ fun HearingProtectionScreen(viewModel: AirPodsViewModel, navigateToPurchase: () 
  * and when Glint last turned the volume down.
  */
 @Composable
-private fun VolumeLimitSection() {
+internal fun VolumeLimitSection(deviceLabel: String = "your AirPods") {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = androidx.compose.runtime.remember { context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE) }
     var on by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(prefs.getBoolean(PREF_VOLUME_LIMIT_ON, false)) }
@@ -181,7 +181,7 @@ private fun VolumeLimitSection() {
         description = when {
             !on -> "Keeps music from going above a level you choose. Works without root."
             last != null -> "Turned down to $limit% at " + java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(last!!.atMs))
-            else -> "Media through your AirPods stays at or below $limit%"
+            else -> "Media through $deviceLabel stays at or below $limit%"
         },
         checked = on,
         onCheckedChange = {

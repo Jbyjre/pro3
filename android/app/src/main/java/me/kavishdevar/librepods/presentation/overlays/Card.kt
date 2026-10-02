@@ -114,7 +114,7 @@ import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import kotlin.math.roundToInt
 
 internal class CardController(private val context: Context) {
-    private val window = OverlayWindow(context, "GlintCard", anchorTop = false)
+    private val window = OverlayWindow(context, "GlintCard", anchorTop = false, fastFrames = true)
     private val leaving = mutableStateOf(false)
     private val generation = mutableIntStateOf(0)
     val isShowing: Boolean get() = window.isShowing

@@ -43,6 +43,7 @@ import me.kavishdevar.librepods.presentation.screens.UpdateHearingTestRoute
 import me.kavishdevar.librepods.presentation.screens.VersionScreen
 import me.kavishdevar.librepods.presentation.screens.GlintLabScreen
 import me.kavishdevar.librepods.presentation.screens.IslandSettingsScreen
+import me.kavishdevar.librepods.presentation.screens.DevicesScreen
 import me.kavishdevar.librepods.presentation.screens.HeartRateScreen
 import me.kavishdevar.librepods.presentation.screens.HeartShareScreen
 import me.kavishdevar.librepods.presentation.screens.HeartHistoryScreen
@@ -123,6 +124,8 @@ fun AppNavGraph(
                                 navigateToMicrophoneSettings = { navigate(Screen.MicrophoneSettings) },
                                 navigateToHeartRate = { navigate(Screen.HeartRate) },
                                 navigateToRecorder = { navigate(Screen.Recorder) },
+                                navigateToDevices = { navigate(Screen.Devices) },
+                                navigateToIsland = { navigate(Screen.IslandSettings) },
                             )
                         }
 
@@ -142,11 +145,19 @@ fun AppNavGraph(
                                 navigateToOpenSourceLicenses = { navigate(Screen.OpenSourceLicenses) },
                                 navigateToStayConnected = { navigate(Screen.StayConnected) },
                                 navigateToIsland = { navigate(Screen.IslandSettings) },
+                                navigateToDevices = { navigate(Screen.Devices) },
                                 navigateToGlintLab = { navigate(Screen.GlintLab) },
                                 navigateToRename = { navigate(Screen.Rename) },
                             )
                         }
 
+                    Screen.Devices ->
+                        NavEntry(screen) {
+                            DevicesScreen(onChosen = {
+                                // Back to the main page, which now shows the chosen device.
+                                if (backStack.size > 1 && backStack.last() == Screen.Devices) backStack.removeAt(backStack.lastIndex)
+                            })
+                        }
                     Screen.StayConnected ->
                         NavEntry(screen) { StayConnectedScreen() }
 

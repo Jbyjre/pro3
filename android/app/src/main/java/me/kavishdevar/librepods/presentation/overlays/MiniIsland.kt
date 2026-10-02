@@ -106,6 +106,7 @@ import me.kavishdevar.librepods.services.IslandAccess
 import me.kavishdevar.librepods.services.IslandGestures
 import me.kavishdevar.librepods.services.IslandLook
 import me.kavishdevar.librepods.presentation.glint.drawListeningMode
+import me.kavishdevar.librepods.presentation.glint.drawHeadphones
 import androidx.compose.ui.graphics.drawscope.clipRect
 import me.kavishdevar.librepods.services.ListeningModes
 import me.kavishdevar.librepods.services.IslandPrefs
@@ -144,6 +145,10 @@ internal class MiniIslandController(private val context: Context) {
      * them as an audio output, or for a few seconds after a blip.
      */
     private fun airPodsUp(): Boolean {
+        // Other headphones chosen: they count when they're connected (by their own address only).
+        if (!me.kavishdevar.librepods.services.DeviceChoice.followsAirPods(context)) {
+            return me.kavishdevar.librepods.services.HeadphoneLink.state.value.connected || airPodsAudio()
+        }
         val link = GlintStatus.link.value
         return link is LinkState.Connected || link is LinkState.GaveUp || airPodsAudio() ||
             (lastConnectedAt > 0L && SystemClock.elapsedRealtime() - lastConnectedAt < AIRPODS_GRACE_MS)
@@ -152,7 +157,7 @@ internal class MiniIslandController(private val context: Context) {
     private val audio = context.getSystemService(android.media.AudioManager::class.java)
 
     /** AirPods among Android's current audio outputs (by the saved address or the name). */
-    private fun airPodsAudio(): Boolean = GlintOverlays.airPodsAudio(context)
+    private fun airPodsAudio(): Boolean = GlintOverlays.chosenAudio(context)
 
     private val audioDevices = object : android.media.AudioDeviceCallback() {
         override fun onAudioDevicesAdded(added: Array<out android.media.AudioDeviceInfo>?) = refresh()
@@ -1059,7 +1064,21 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
             val num = text(lvl?.toString() ?: "–", side * 0.34f)
             drawText(num, alpha = alpha, topLeft = Offset(c.x - num.size.width / 2f, c.y - num.size.height / 2f))
         }
-        IslandLook.Slot.Buds -> {
+        IslandLook.Slot.Buds -> if (d.pods.headphones) {
+            // Headphones have one battery: one ring with a small headphones mark inside.
+            val rr = side * 0.36f
+            val tl = Offset(c.x - rr, c.y - rr)
+            val st = androidx.compose.ui.graphics.drawscope.Stroke(1.9f * dp, cap = StrokeCap.Round)
+            val lvl = d.pods.budsLevel
+            drawArc(Color.White.copy(alpha = 0.18f * alpha), 0f, 360f, false, tl, Size(rr * 2, rr * 2), style = st)
+            val col = when {
+                lvl != null && lvl <= 10 -> Color(0xFFFF453A)
+                lvl != null && lvl <= 20 -> Color(0xFFFFB340)
+                else -> Color.White
+            }
+            if (lvl != null) drawArc(col.copy(alpha = alpha), -90f, 360f * lvl / 100f, false, tl, Size(rr * 2, rr * 2), style = st)
+            drawHeadphones(c, rr * 0.62f, Color.White.copy(alpha = alpha * (if (lvl == null) 0.45f else 1f)))
+        } else {
             // Left, right and case as three small rings.
             val rr = side * 0.3f
             val step = (w - rr * 2f) / 2f
@@ -1093,12 +1112,16 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
         }
         IslandLook.Slot.Mode -> if (d.pods.listeningMode in 1..4) {
             drawListeningMode(d.pods.listeningMode, Color.White.copy(alpha = alpha), c, side * 0.35f)
+        } else if (d.pods.headphones) {
+            drawHeadphones(c, side * 0.3f, Color.White.copy(alpha = alpha))
         }
         IslandLook.Slot.Heart -> {
             val bpm = d.heartBpm
             if (bpm == null) {
                 // No real reading: the listening mode instead (an empty heart would look like it's loading).
                 if (d.pods.listeningMode in 1..4) drawListeningMode(d.pods.listeningMode, Color.White.copy(alpha = alpha), c, side * 0.35f)
+                // Headphones have neither: their own mark, so the side isn't blank.
+                else if (d.pods.headphones) drawHeadphones(c, side * 0.3f, Color.White.copy(alpha = alpha))
             } else {
                 val hs = side * 0.36f * d.beat
                 val hp = heartPath(Size(hs, hs))

@@ -191,7 +191,25 @@ object GlintSymbols {
         }
     }
 
+    /** On-ear headphones: a headband and two cups (for Beats and other headphones). */
+    val Headphones = icon("headphones") {
+        stroke {
+            moveTo(4.2f, 14.2f)
+            lineTo(4.2f, 11.8f)
+            arcTo(7.8f, 7.8f, 0f, isMoreThanHalf = false, isPositiveArc = true, 19.8f, 11.8f)
+            lineTo(19.8f, 14.2f)
+        }
+        fill {
+            roundRect(2.6f, 13f, 7.4f, 20.6f, 2.1f)
+            roundRect(16.6f, 13f, 21.4f, 20.6f, 2.1f)
+        }
+    }
+
+    /** Glint's own private-use code point for [Headphones] (not an SF Symbols one). */
+    const val HEADPHONES_CHAR = 0x10F001
+
     private val byCodePoint: Map<Int, ImageVector> = mapOf(
+        HEADPHONES_CHAR to Headphones,
         0x100061 to XmarkCircleFill,
         0x100184 to Xmark,
         0x100185 to Checkmark,

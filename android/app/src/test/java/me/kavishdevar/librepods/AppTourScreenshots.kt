@@ -50,6 +50,7 @@ class AppTourScreenshots {
 
     @Before
     fun setUp() {
+        me.kavishdevar.librepods.services.DeviceChoice.reset()
         PodsVideoConfig.enabled = false
         context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().clear().commit()
         java.io.File(context.filesDir, "heart").deleteRecursively()
@@ -109,6 +110,64 @@ class AppTourScreenshots {
         rule.onRoot().captureRoboImage("$out/33_long_rows_dark.png")
     }
     @Test fun homeDark() = tour("01_home", dark = true, stack = emptyList())
+
+    // ---- Beats Solo 4 (or other headphones) chosen ----
+    private fun headphones(name: String, dark: Boolean, connected: Boolean, battery: Int? = 70, playing: Boolean = true) {
+        val device = me.kavishdevar.librepods.services.ChosenDevice(me.kavishdevar.librepods.services.DeviceKind.BEATS_SOLO_4, "00:11:22:33:44:55", "Beats Solo 4")
+        me.kavishdevar.librepods.services.DeviceChoice.reset()
+        me.kavishdevar.librepods.services.DeviceChoice.choose(context, device)
+        me.kavishdevar.librepods.services.HeadphoneLink.preview(
+            me.kavishdevar.librepods.services.HeadphoneState(device, connected, if (connected) battery else null,
+                if (connected && battery != null) me.kavishdevar.librepods.services.HeadphoneState.BatterySource.Android else me.kavishdevar.librepods.services.HeadphoneState.BatterySource.None)
+        )
+        me.kavishdevar.librepods.services.NowPlaying.preview(me.kavishdevar.librepods.services.NowPlaying.Track(playing = playing, title = "Midnight City", artist = "M83", app = "Spotify", fromSession = true))
+        try {
+            tour(name, dark = dark, stack = emptyList(), demo = false)
+        } finally {
+            me.kavishdevar.librepods.services.HeadphoneLink.preview(me.kavishdevar.librepods.services.HeadphoneState())
+            me.kavishdevar.librepods.services.NowPlaying.preview(me.kavishdevar.librepods.services.NowPlaying.Track())
+            me.kavishdevar.librepods.services.DeviceChoice.reset()
+        }
+    }
+    @Test fun headphonesHome() = headphones("40_headphones_home", dark = false, connected = true)
+    @Test fun headphonesHomeDark() = headphones("40_headphones_home", dark = true, connected = true, battery = 18)
+    @Test fun headphonesDisconnected() = headphones("41_headphones_disconnected", dark = false, connected = false)
+    @Test fun headphonesNoBattery() = headphones("42_headphones_no_battery", dark = true, connected = true, battery = null, playing = false)
+    /** The whole headphones page, top to bottom. */
+    @Test fun headphonesFull() {
+        RuntimeEnvironment.setQualifiers("w412dp-h2400dp-xxhdpi")
+        headphones("40b_headphones_full", dark = false, connected = true)
+    }
+
+    /** Your devices, with a made-up set of paired headphones (Robolectric has none). */
+    private fun devices(name: String, dark: Boolean, chosenKind: me.kavishdevar.librepods.services.DeviceKind) {
+        if (dark) RuntimeEnvironment.setQualifiers("+night")
+        val list = listOf(
+            me.kavishdevar.librepods.services.KnownDevice("00:11:22:33:44:55", "Beats Solo 4", me.kavishdevar.librepods.services.DeviceKind.BEATS_SOLO_4, connected = true),
+            me.kavishdevar.librepods.services.KnownDevice("AA:BB:CC:DD:EE:FF", "Jake's AirPods Pro", me.kavishdevar.librepods.services.DeviceKind.AIRPODS, connected = false),
+            me.kavishdevar.librepods.services.KnownDevice("12:34:56:78:9A:BC", "Car audio", me.kavishdevar.librepods.services.DeviceKind.HEADPHONES, connected = false),
+        )
+        val chosen = list.first { it.kind == chosenKind }.let { me.kavishdevar.librepods.services.ChosenDevice(it.kind, it.address, it.name) }
+        rule.setContent {
+            LibrePodsTheme(m3eEnabled = false) {
+                me.kavishdevar.librepods.presentation.screens.DevicesContent(list, chosen, onChoose = {}, onOpenBluetooth = {}, topPadding = 24.dp)
+            }
+        }
+        rule.mainClock.advanceTimeBy(1_500)
+        rule.onRoot().captureRoboImage("$out/${name}_${if (dark) "dark" else "light"}.png")
+    }
+    @Test fun devicesBeatsChosen() = devices("43_devices", dark = false, chosenKind = me.kavishdevar.librepods.services.DeviceKind.BEATS_SOLO_4)
+    @Test fun devicesAirPodsChosenDark() = devices("43_devices", dark = true, chosenKind = me.kavishdevar.librepods.services.DeviceKind.AIRPODS)
+    @Test fun devicesEmpty() {
+        rule.setContent {
+            LibrePodsTheme(m3eEnabled = false) {
+                me.kavishdevar.librepods.presentation.screens.DevicesContent(emptyList(), me.kavishdevar.librepods.services.ChosenDevice(me.kavishdevar.librepods.services.DeviceKind.AIRPODS, "", "AirPods"), onChoose = {}, onOpenBluetooth = {}, topPadding = 24.dp)
+            }
+        }
+        rule.mainClock.advanceTimeBy(1_500)
+        rule.onRoot().captureRoboImage("$out/44_devices_empty_light.png")
+    }
+    @Test fun devicesPageInApp() = both("45_devices_in_app", listOf(Screen.Devices))
     @Test fun homeDisconnected() = both("02_home_disconnected", emptyList(), demo = false)
     @Test fun homeDisconnectedDark() = tour("02_home_disconnected", dark = true, stack = emptyList(), demo = false)
     @Test fun appSettings() = both("03_app_settings", listOf(Screen.AppSettings))

@@ -189,6 +189,41 @@ fun androidx.compose.ui.graphics.drawscope.DrawScope.drawListeningMode(mode: Int
 }
 
 /**
+ * Headphones art for the islands, sized like the AirPods clip it stands in for: the drawn
+ * headphones with a soft light behind them (the studio glow the AirPods video has), so the
+ * pop-ups keep the same weight whichever device you chose.
+ */
+@Composable
+fun HeadphonesArt(width: Dp, color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(width, width * 0.56f)) {
+        val r = size.height * 0.48f
+        drawCircle(
+            androidx.compose.ui.graphics.Brush.radialGradient(
+                listOf(color.copy(alpha = 0.16f), Color.Transparent), center, r * 1.5f,
+            ),
+            r * 1.5f, center,
+        )
+        drawHeadphones(center, r, color)
+    }
+}
+
+/**
+ * On-ear headphones (a headband and two cups), drawn at [c] within radius [r]. Used wherever
+ * the islands would show AirPods for other headphones (Beats Solo 4 and the rest).
+ */
+fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHeadphones(c: Offset, r: Float, color: Color) {
+    val sw = r * 0.2f
+    val band = r * 0.78f
+    drawArc(color, 180f, 180f, false, Offset(c.x - band, c.y - band + r * 0.12f), Size(band * 2f, band * 2f), style = Stroke(sw, cap = StrokeCap.Round))
+    val cupW = r * 0.46f
+    val cupH = r * 0.78f
+    val top = c.y + r * 0.02f
+    val rad = androidx.compose.ui.geometry.CornerRadius(cupW * 0.45f)
+    drawRoundRect(color, Offset(c.x - band - cupW / 2f, top), Size(cupW, cupH), rad)
+    drawRoundRect(color, Offset(c.x + band - cupW / 2f, top), Size(cupW, cupH), rad)
+}
+
+/**
  * The liquid neck between two circles (metaball connector), so a bubble can bud off from the
  * pill and melt back into it. Returns null when the circles are too far apart to connect.
  * Based on the classic metaball construction (tangent points + cubic handles).

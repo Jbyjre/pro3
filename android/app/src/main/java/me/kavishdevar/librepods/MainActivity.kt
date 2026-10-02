@@ -136,6 +136,9 @@ class MainActivity : ComponentActivity() {
         // Permissions may have just been granted (setup, Android's settings): let the mini
         // island around the camera catch up.
         me.kavishdevar.librepods.presentation.overlays.GlintOverlays.refreshMiniIsland(this)
+        // Smoother motion: the screen's fastest refresh rate while pro is open (not on Battery
+        // Saver or a hot phone; checked again every time pro comes back).
+        me.kavishdevar.librepods.presentation.glint.FrameRate.apply(window, this)
     }
 
     override fun onDestroy() {

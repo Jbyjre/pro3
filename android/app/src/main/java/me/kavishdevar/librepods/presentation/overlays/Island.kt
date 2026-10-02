@@ -156,7 +156,7 @@ internal const val CHIP_DELAY_MS = 1_000L
 private val CONTROLS_W = 120.dp
 
 internal class IslandController(private val context: Context) {
-    private val window = OverlayWindow(context, "GlintIsland", anchorTop = true, aboveStatusBar = true)
+    private val window = OverlayWindow(context, "GlintIsland", anchorTop = true, aboveStatusBar = true, fastFrames = true)
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
     private val event = mutableStateOf<IslandEvent>(IslandEvent.Connected)
     private val phase = mutableStateOf(IslandPhase.Compact)
@@ -657,6 +657,8 @@ private fun IslandHostContent(
                     val art = playingNow.art
                     if (event == IslandEvent.Music && art != null) {
                         Box(Modifier.width(42.dp), contentAlignment = Alignment.Center) { CoverArt(art, 30.dp, 8.dp) }
+                    } else if (snapshot.headphones) {
+                        me.kavishdevar.librepods.presentation.glint.HeadphonesArt(42.dp, look.content)
                     } else {
                         IslandPods(budsWidth = 42.dp, play = pillVideo)
                     }
@@ -930,12 +932,16 @@ private fun ExpandedIslandContent(
                 }
             }
             Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                IslandPods(budsWidth = 104.dp, play = podsVideo)
+                if (snapshot.headphones) me.kavishdevar.librepods.presentation.glint.HeadphonesArt(104.dp, content)
+                else IslandPods(budsWidth = 104.dp, play = podsVideo)
                 Spacer(Modifier.weight(1f))
                 // Left, right and case as three rings marked L, R and a case symbol; % under each.
                 // Narrow phones get a little less space between the rings.
                 val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 360
-                Row(horizontalArrangement = Arrangement.spacedBy(if (narrow) 9.dp else 14.dp)) {
+                if (snapshot.headphones) {
+                    // Headphones: one battery, one ring.
+                    PartRing(PartMark.Headphones, snapshot.budsLevel, snapshot.budsCharging, content, secondary, track2)
+                } else Row(horizontalArrangement = Arrangement.spacedBy(if (narrow) 9.dp else 14.dp)) {
                     PartRing(PartMark.Left, snapshot.left, snapshot.leftCharging, content, secondary, track2)
                     PartRing(PartMark.Right, snapshot.right, snapshot.rightCharging, content, secondary, track2)
                     PartRing(PartMark.Case, snapshot.case, snapshot.caseCharging, content, secondary, track2)
@@ -1124,7 +1130,7 @@ private fun Modifier.islandPress(enabled: Boolean, description: String, onClick:
 /** A round button that squishes softly when pressed and draws [draw]. */
 /** Back or skip: two small rounded triangles, on the island's glass. */
 @Composable
-private fun SkipButton(next: Boolean, color: Color, dark: Boolean, enabled: Boolean, modifier: Modifier = Modifier, glyphAlpha: () -> Float = { 1f }, onClick: () -> Unit) {
+internal fun SkipButton(next: Boolean, color: Color, dark: Boolean, enabled: Boolean, modifier: Modifier = Modifier, glyphAlpha: () -> Float = { 1f }, onClick: () -> Unit) {
     Box(modifier.padding(top = 3.dp).size(34.dp)) {
         PressableGlyph(size = 34.dp, description = if (next) "Next song" else "Previous song", onClick = onClick, enabled = enabled, dark = dark) {
             drawGlassCapsule(dark)
@@ -1371,6 +1377,15 @@ private fun IslandEvent.isAlert() = this is IslandEvent.LowBattery || (this is I
 
 /** A coloured dot and a plain line saying what the connection can do right now. */
 private fun linkSummary(link: LinkState, s: PodsSnapshot, event: IslandEvent): Pair<Color, String> {
+    if (s.headphones) {
+        // Other headphones: only "connected or not" is known (pro has no control link to them).
+        val hp = me.kavishdevar.librepods.services.HeadphoneLink.state.value
+        return when {
+            hp.connected -> GlintColors.Green to "Connected"
+            event is IslandEvent.MovedToDevice -> GlintColors.Amber to "Playing on another device"
+            else -> GlintColors.Amber to "Not connected"
+        }
+    }
     val where = when {
         s.leftInEar && s.rightInEar -> "in your ears"
         s.leftInEar || s.rightInEar -> "one in your ear"
@@ -1397,7 +1412,7 @@ private fun shortModeName(mode: Int): String = when (mode) {
     else -> ""
 }
 
-internal enum class PartMark(val spoken: String) { Left("Left"), Right("Right"), Case("Case") }
+internal enum class PartMark(val spoken: String) { Left("Left"), Right("Right"), Case("Case"), Headphones("Battery") }
 
 /**
  * One battery as a ring with its part marked inside (L, R, or a small case), and the level
@@ -1415,8 +1430,9 @@ private fun PartRing(mark: PartMark, level: Int?, charging: Boolean, content: Co
         Box(contentAlignment = Alignment.Center) {
             BatteryRing(level, charging, size = 38.dp, stroke = 3.5.dp, track = track, showLabel = false, centerBolt = false)
             when (mark) {
-                PartMark.Case -> androidx.compose.foundation.Image(
-                    me.kavishdevar.librepods.presentation.glint.GlintSymbols.CaseFill, null,
+                PartMark.Case, PartMark.Headphones -> androidx.compose.foundation.Image(
+                    if (mark == PartMark.Case) me.kavishdevar.librepods.presentation.glint.GlintSymbols.CaseFill
+                    else me.kavishdevar.librepods.presentation.glint.GlintSymbols.Headphones, null,
                     colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(content.copy(alpha = if (level == null) 0.4f else 0.9f)),
                     modifier = Modifier.size(15.dp),
                 )
@@ -1670,7 +1686,7 @@ internal fun islandText(event: IslandEvent, s: PodsSnapshot): Pair<String, Strin
     is IslandEvent.MovedToDevice -> "Moved to ${event.deviceName}" to s.name
     IslandEvent.TakingOver -> "Switching to this phone" to s.name
     IslandEvent.Charging -> when {
-        s.budsCharging -> "Charging" to listOfNotNull(s.budsLevel?.let { "AirPods $it%" }, s.case?.let { "Case $it%" }).joinToString(" · ").ifEmpty { s.name }
+        s.budsCharging -> "Charging" to listOfNotNull(s.budsLevel?.let { "${if (s.headphones) s.name else "AirPods"} $it%" }, s.case?.let { "Case $it%" }).joinToString(" · ").ifEmpty { s.name }
         else -> "Case charging" to (s.case?.let { "Case $it%" } ?: s.name)
     }
     is IslandEvent.Problem -> event.title to event.message
