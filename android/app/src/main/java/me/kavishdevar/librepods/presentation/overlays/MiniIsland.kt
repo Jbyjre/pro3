@@ -41,8 +41,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -77,6 +77,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -99,6 +101,9 @@ import me.kavishdevar.librepods.presentation.glint.GlintHaptics
 import me.kavishdevar.librepods.presentation.glint.lerp
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.services.GlintStatus
+import me.kavishdevar.librepods.services.IslandAccess
+import me.kavishdevar.librepods.services.IslandGestures
+import me.kavishdevar.librepods.services.ListeningModes
 import me.kavishdevar.librepods.services.IslandPrefs
 import me.kavishdevar.librepods.services.LinkState
 import me.kavishdevar.librepods.services.MiniIslandRules
@@ -119,7 +124,7 @@ import kotlin.math.sin
  * full-screen apps, and otherwise leaves 30 seconds after the music stops.
  */
 internal class MiniIslandController(private val context: Context) {
-    private val window = OverlayWindow(context, "GlintMiniIsland", anchorTop = true)
+    private val window = OverlayWindow(context, "GlintMiniIsland", anchorTop = true, aboveStatusBar = true)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val prefs = IslandPrefs.prefs(context)
     private var started = false
@@ -188,9 +193,13 @@ internal class MiniIslandController(private val context: Context) {
         }
     }
 
-    private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+    private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
         if (key == IslandPrefs.PREF_MINI || key == IslandPrefs.PREF_MINI_AIRPODS_ONLY || key == IslandPrefs.PREF_MINI_ALWAYS) refresh()
+        if (IslandGestures.Gesture.entries.any { it.key == key }) actions.value = IslandGestures.all(p)
     }
+
+    /** What each gesture does (Settings > Islands), read live. */
+    private val actions = mutableStateOf(IslandGestures.all(prefs))
 
     private val rotation = object : ComponentCallbacks {
         override fun onConfigurationChanged(newConfig: Configuration) {
@@ -219,6 +228,14 @@ internal class MiniIslandController(private val context: Context) {
         runCatching { audio?.registerAudioDeviceCallback(audioDevices, android.os.Handler(android.os.Looper.getMainLooper())) }
         context.registerComponentCallbacks(rotation)
         scope.launch { NowPlaying.state.collect { onTrack(it) } }
+        // The accessibility service started or stopped: move the pill above or below the status
+        // bar (only above it can it be touched).
+        scope.launch {
+            IslandAccess.service.collect {
+                if (window.misplaced) window.dismiss()
+                refresh()
+            }
+        }
         scope.launch {
             GlintStatus.link.collect { link ->
                 if (link is LinkState.Connected) lastConnectedAt = SystemClock.elapsedRealtime()
@@ -258,7 +275,7 @@ internal class MiniIslandController(private val context: Context) {
         val want = MiniIslandRules.wanted(
             MiniIslandRules.Inputs(
                 enabled = previewing || IslandPrefs.mini(prefs),
-                canDraw = Settings.canDrawOverlays(context),
+                canDraw = window.canShow(),
                 playing = playing,
                 pausedForMs = pausedFor,
                 playedRecently = previewing || playedRecently,
@@ -290,6 +307,24 @@ internal class MiniIslandController(private val context: Context) {
         }
     }
 
+    /**
+     * The pill went up as a normal overlay, where the status bar takes its taps: now and then
+     * (at most 3 times, a day apart, never once it's switched on) a pop-up points to the one
+     * switch that fixes it.
+     */
+    private fun maybeSuggestTaps() {
+        if (window.aboveBar || sample.value != null || !prefs.getBoolean(IslandPrefs.PREF_MASTER, true)) return
+        if (!IslandAccess.isAvailable(context) || IslandAccess.isEnabled(context)) return
+        val count = prefs.getInt(IslandPrefs.PREF_TAP_NUDGES, 0)
+        val now = System.currentTimeMillis()
+        if (count >= 3 || now - prefs.getLong(IslandPrefs.PREF_TAP_NUDGE_AT, 0L) < 20 * 60 * 60 * 1000L) return
+        prefs.edit().putInt(IslandPrefs.PREF_TAP_NUDGES, count + 1).putLong(IslandPrefs.PREF_TAP_NUDGE_AT, now).apply()
+        scope.launch {
+            delay(2_000)
+            if (window.isShowing && !window.aboveBar) GlintOverlays.showIsland(context, IslandEvent.TapSetup)
+        }
+    }
+
     private fun show() {
         val geo = MiniGeometry(context)
         shownFor = geo.key
@@ -299,6 +334,7 @@ internal class MiniIslandController(private val context: Context) {
             val pods by GlintOverlays.snapshot.collectAsState()
             val heart by me.kavishdevar.librepods.services.HeartRate.state.collectAsState()
             val talking by me.kavishdevar.librepods.utils.ConversationTiming.talking.collectAsState()
+            val panel by IslandAccess.panelOpen.collectAsState()
             MiniIslandHost(
                 geometry = geo,
                 track = sample.value ?: live,
@@ -308,7 +344,6 @@ internal class MiniIslandController(private val context: Context) {
                 leaving = leaving.value,
                 hidden = !window.statusBarVisible.value,
                 handOff = GlintOverlays.islandVisible.value,
-                onPlayPause = { if (sample.value == null) NowPlaying.playPause(context) },
                 onVisible = { up ->
                     // Tells the big island where to grow from while the pill is up.
                     GlintOverlays.miniOrigin = if (up) geo.origin() else null
@@ -316,22 +351,37 @@ internal class MiniIslandController(private val context: Context) {
                 talking = talking,
                 onWindowSize = { window.resize(it) },
                 onTouchable = { window.setTouchable(it) },
+                onPresent = { window.setPresent(it) },
                 onGone = { window.dismiss() },
-                onOpen = {
-                    val airPods = GlintStatus.link.value is LinkState.Connected
-                    if (content.value == MiniIslandRules.Content.AirPods) {
-                        GlintOverlays.showIsland(context, IslandEvent.Connected, expand = true)
-                    } else {
-                        GlintOverlays.showIsland(context, IslandEvent.Music, expand = airPods)
-                    }
-                },
-                onHold = { GlintOverlays.openApp(context) },
-                onSkip = { next -> if (sample.value == null) NowPlaying.skip(context, next) },
+                actions = actions.value,
+                panelOpen = panel,
+                onAction = { perform(it) },
+                onPullOutside = { IslandAccess.openNotifications() },
             )
         }
+        maybeSuggestTaps()
     }
 
-
+    /** Does what a gesture on the pill is set to do. The Try-it sample never touches real music. */
+    private fun perform(a: IslandGestures.Action) {
+        val sampling = sample.value != null
+        when (a) {
+            IslandGestures.Action.Expand -> {
+                if (content.value == MiniIslandRules.Content.AirPods) {
+                    GlintOverlays.showIsland(context, IslandEvent.Connected, expand = true)
+                } else {
+                    GlintOverlays.showIsland(context, IslandEvent.Music, expand = airPodsUp())
+                }
+            }
+            IslandGestures.Action.PlayPause -> if (!sampling) NowPlaying.playPause(context)
+            IslandGestures.Action.Next -> if (!sampling) NowPlaying.skip(context, true)
+            IslandGestures.Action.Previous -> if (!sampling) NowPlaying.skip(context, false)
+            IslandGestures.Action.OpenApp -> GlintOverlays.openApp(context)
+            IslandGestures.Action.ListeningMode -> if (!sampling) GlintOverlays.cycleListeningMode(context)
+            IslandGestures.Action.Notifications -> IslandAccess.openNotifications()
+            IslandGestures.Action.Nothing -> {}
+        }
+    }
 }
 
 /** Where the front camera is, and the pill's sizes around it, in pixels. */
@@ -396,12 +446,24 @@ internal fun MiniIslandHost(
     talking: Boolean = false,
     onTouchable: (Boolean) -> Unit,
     onGone: () -> Unit,
-    onOpen: () -> Unit,
-    onHold: () -> Unit,
-    onSkip: (next: Boolean) -> Unit,
+    /** A gesture on the pill: do what it's set to do (Settings > Islands > Gestures). */
+    onAction: (IslandGestures.Action) -> Unit,
+    /** What each gesture does. */
+    actions: Map<IslandGestures.Gesture, IslandGestures.Action> = IslandGestures.defaults,
+    /**
+     * Out of sight but still there (true) or back (false): the window goes fully transparent
+     * and untouchable so it can't eat taps meant for the app below.
+     */
+    onPresent: (Boolean) -> Unit = {},
+    /** A pull down on the see-through edge around the pill (above the status bar): notifications. */
+    onPullOutside: () -> Unit = {},
+    /** The notification shade or another system panel covers the top: step aside at once. */
+    panelOpen: Boolean = false,
     /** Screenshots only: draw this state without animating. */
     still: Float? = null,
     stillWide: Float = 0f,
+    stillPress: Float = 0f,
+    stillAck: MiniAck? = null,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -410,12 +472,12 @@ internal fun MiniIslandHost(
     val prefs = remember { IslandPrefs.prefs(context) }
     // Settings are read live, so a change in Settings > Islands applies at once.
     val hapticsOn by rememberPref(prefs, IslandPrefs.PREF_HAPTICS, true)
-    val buzz = remember(hapticsOn) { IslandBuzz(GlintHaptics(view), hapticsOn) }
+    val buzz by androidx.compose.runtime.rememberUpdatedState(remember(hapticsOn) { IslandBuzz(GlintHaptics(view), hapticsOn) })
     // Full-screen apps hide it, but only after the status bar has been gone for a moment, so a
     // screen that briefly hides it (opening or closing an app) doesn't make it flicker.
     var fullScreen by remember { mutableStateOf(false) }
     LaunchedEffect(hidden) { if (hidden) { delay(FULL_SCREEN_MS); fullScreen = true } else fullScreen = false }
-    val visible = !leaving && !fullScreen
+    val visible = !leaving && !fullScreen && !panelOpen
 
     val appear = remember { Animatable(still ?: 0f) }
     val wide = remember { Animatable(stillWide) }
@@ -440,7 +502,7 @@ internal fun MiniIslandHost(
     // Grow out of the camera, or shrink back into it.
     LaunchedEffect(visible) {
         if (still != null) return@LaunchedEffect
-        onTouchable(visible)
+        if (visible) onPresent(true) else onTouchable(false)
         if (visible) {
             val handedBack = SystemClock.elapsedRealtime() - GlintOverlays.returnToMiniAt < 800L
             // The big island just shrank back into this spot: carry on as if it never left.
@@ -451,8 +513,8 @@ internal fun MiniIslandHost(
             if (wide.value > 0f) wide.snapTo(0f)
             onWindowSize(geometry.compactWindow)
             // Handing over to the big island: it starts exactly here, so vanish at once.
-            if (reduce || handOff) appear.snapTo(0f) else appear.animateTo(0f, spring(dampingRatio = 1f, stiffness = 520f))
-            if (leaving) onGone()
+            if (reduce || handOff || panelOpen) appear.snapTo(0f) else appear.animateTo(0f, spring(dampingRatio = 1f, stiffness = 520f))
+            if (leaving) onGone() else onPresent(false)
         }
     }
 
@@ -522,70 +584,158 @@ internal fun MiniIslandHost(
         track.artist?.let { append(" by ").append(it) }
         append(". Tap to open, swipe to change song, hold to open pro.")
     }
-    val swipeOn by androidx.compose.runtime.rememberUpdatedState(content == MiniIslandRules.Content.Music)
     val textLine = listOfNotNull(track.title, track.artist).joinToString("  ·  ")
 
-    val currentOpen by androidx.compose.runtime.rememberUpdatedState(onOpen)
-    val currentPlayPause by androidx.compose.runtime.rememberUpdatedState(onPlayPause)
-    val currentSkip by androidx.compose.runtime.rememberUpdatedState(onSkip)
+    val currentAction by androidx.compose.runtime.rememberUpdatedState(onAction)
+    val currentActions by androidx.compose.runtime.rememberUpdatedState(actions)
+    val currentPullOutside by androidx.compose.runtime.rememberUpdatedState(onPullOutside)
+    val playingNow by androidx.compose.runtime.rememberUpdatedState(track.playing)
+    val modeNow by androidx.compose.runtime.rememberUpdatedState(pods.listeningMode)
+    val offAllowed = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("off_listening_mode", true) }
     var boxW by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+
+    // Touch feedback: the pill squishes under the finger and brightens a little, springs back
+    // on release, and stretches a touch when pulled.
+    val press = remember { Animatable(stillPress) }
+    val pull = remember { Animatable(0f) }
+    // What a gesture just did, shown for a moment in the right-hand spot (play, pause, skip, mode).
+    var ack by remember { mutableStateOf(stillAck) }
+    val ackIn = remember { Animatable(if (stillAck != null) 1f else 0f) }
+    var ackJob by remember { mutableStateOf<Job?>(null) }
+
+    fun fire(g: IslandGestures.Gesture) {
+        val a = currentActions[g] ?: IslandGestures.defaults.getValue(g)
+        if (a == IslandGestures.Action.Nothing) {
+            // Nothing set for this gesture: a small shake says so.
+            if (!reduce) scope.launch {
+                nudge.animateTo(3f * density, tween(50)); nudge.animateTo(-3f * density, tween(70))
+                nudge.animateTo(0f, spring(dampingRatio = 0.4f, stiffness = 600f))
+            }
+            return
+        }
+        buzz.confirm()
+        val shown = MiniAck.of(a, playingNow, ListeningModes.next(modeNow, offAllowed))
+        if (shown != null) {
+            ack = shown
+            ackJob?.cancel()
+            ackJob = scope.launch {
+                if (reduce) ackIn.snapTo(1f) else { ackIn.snapTo(0f); ackIn.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 520f)) }
+                delay(ACK_SHOW_MS)
+                if (reduce) ackIn.snapTo(0f) else ackIn.animateTo(0f, tween(240))
+            }
+        }
+        currentAction(a)
+    }
+
+    /** Where the pill is drawn right now, in this window's pixels. */
+    fun pillBounds(): androidx.compose.ui.geometry.Rect {
+        val a = appear.value.coerceAtLeast(0f)
+        val compactW = lerp(geometry.seedW, s.compactWidth, a)
+        val compactH = lerp(geometry.seedH, s.height, a.coerceAtMost(1.15f))
+        val pillW = lerp(compactW, s.wideWidth, wide.value)
+        val pillH = lerp(compactH, s.wideHeight, wide.value)
+        val top = m + (s.height - compactH) / 2f
+        val left = boxW / 2f - pillW / 2f + nudge.value
+        return androidx.compose.ui.geometry.Rect(left, top, left + pillW, top + pillH)
+    }
+
     Box(
         Modifier
             .fillMaxSize()
             .onSizeChanged { boxW = it.width }
-            .semantics { role = Role.Button; contentDescription = describe }
-            .pointerInput(Unit) {
-                // Once: expand. Twice: play/pause. Three times: next song. Taps are counted
-                // for a moment before acting, so a double tap never expands first.
-                var taps = 0
-                var pending: kotlinx.coroutines.Job? = null
-                detectTapGestures(
-                    onTap = {
-                        taps++
-                        buzz.tick()
-                        pending?.cancel()
-                        pending = scope.launch {
-                            delay(if (taps >= 3) 0L else TAP_GAP_MS)
-                            when (taps) {
-                                1 -> currentOpen()
-                                2 -> currentPlayPause()
-                                else -> currentSkip(true)
-                            }
-                            taps = 0
-                        }
-                    },
-                    onLongPress = { buzz.expand(); onHold() },
-                )
+            .semantics {
+                role = Role.Button
+                contentDescription = describe
+                onClick(label = (actions[IslandGestures.Gesture.Tap1] ?: IslandGestures.Action.Expand).label) { fire(IslandGestures.Gesture.Tap1); true }
+                onLongClick(label = (actions[IslandGestures.Gesture.Hold] ?: IslandGestures.Action.OpenApp).label) { fire(IslandGestures.Gesture.Hold); true }
             }
             .pointerInput(Unit) {
-                var dx = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { dx = 0f },
-                    onDragEnd = {
-                        val far = abs(dx) > 34f * density
-                        if (far && swipeOn) {
-                            buzz.tick()
-                            onSkip(dx < 0f) // swipe left = next song
+                // Every touch is one gesture: taps (counted for a moment, so a double tap never
+                // fires the single-tap action first), a hold (fires while still held), a swipe
+                // left or right, or a pull down. Touches on the see-through edge around the pill
+                // only pass a pull on to the notification shade.
+                val counter = IslandGestures.TapCounter(IslandGestures.TAP_GAP_MS)
+                var pending: Job? = null
+                val slop = viewConfiguration.touchSlop
+                val swipe = 30f * density
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val inside = appear.value > 0.5f && pillBounds().inflate(6f * density).contains(down.position)
+                    var dx = 0f
+                    var dy = 0f
+                    var last = down.uptimeMillis
+                    var held = false
+                    if (inside) {
+                        buzz.touch()
+                        if (!reduce) scope.launch { press.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = 900f)) }
+                    }
+                    while (true) {
+                        val steady = abs(dx) <= slop && abs(dy) <= slop
+                        val ev = if (inside && !held && steady) {
+                            val left = IslandGestures.HOLD_MS - (last - down.uptimeMillis)
+                            if (left <= 0L) null else withTimeoutOrNull(left) { awaitPointerEvent() }
+                        } else awaitPointerEvent()
+                        if (ev == null) {
+                            // Held still long enough: it's a hold, acted on while still held.
+                            held = true
+                            pending?.cancel()
+                            counter.expire()
+                            scope.launch { press.animateTo(0f, spring(dampingRatio = 0.42f, stiffness = 420f)) }
+                            fire(IslandGestures.Gesture.Hold)
+                            continue
                         }
-                        scope.launch { nudge.animateTo(0f, spring(dampingRatio = 0.45f, stiffness = 500f)) }
-                    },
-                    onDragCancel = { scope.launch { nudge.animateTo(0f, spring(dampingRatio = 0.45f, stiffness = 500f)) } },
-                    onHorizontalDrag = { change, amount ->
-                        change.consume()
-                        dx += amount
-                        // Rubber band: follows the finger a little, never far.
-                        scope.launch { nudge.snapTo((dx / density).let { it / (1f + abs(it) / 40f) } * density * 0.5f) }
-                    },
-                )
+                        val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                        dx = ch.position.x - down.position.x
+                        dy = ch.position.y - down.position.y
+                        last = ch.uptimeMillis
+                        if (inside && (abs(dx) > slop || abs(dy) > slop)) {
+                            ch.consume()
+                            if (!reduce) scope.launch {
+                                // Rubber band: follows the finger a little, never far.
+                                val sideways = abs(dx) >= abs(dy)
+                                nudge.snapTo(if (sideways) (dx / density).let { it / (1f + abs(it) / 40f) } * density * 0.5f else 0f)
+                                pull.snapTo(if (!sideways) (dy.coerceAtLeast(0f) / density).let { it / (1f + it / 30f) } * density * 0.45f else 0f)
+                            }
+                        }
+                        if (!ch.pressed) break
+                    }
+                    if (!inside) {
+                        if (dy > swipe && dy > abs(dx)) currentPullOutside()
+                        return@awaitEachGesture
+                    }
+                    scope.launch { press.animateTo(0f, if (reduce) tween(100) else spring(dampingRatio = 0.42f, stiffness = 420f)) }
+                    scope.launch { nudge.animateTo(0f, spring(dampingRatio = 0.45f, stiffness = 500f)) }
+                    scope.launch { pull.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 420f)) }
+                    when (IslandGestures.classify(dx, dy, last - down.uptimeMillis, slop, swipe, held)) {
+                        IslandGestures.Kind.Tap -> {
+                            val r = counter.tap(last, IslandGestures.maxUsefulTaps(currentActions))
+                            pending?.cancel()
+                            if (r.final) fire(IslandGestures.taps(r.count))
+                            else pending = scope.launch {
+                                delay(counter.gapMs)
+                                val n = counter.expire()
+                                if (n > 0) fire(IslandGestures.taps(n))
+                            }
+                        }
+                        IslandGestures.Kind.Hold -> fire(IslandGestures.Gesture.Hold)
+                        IslandGestures.Kind.SwipeLeft -> fire(IslandGestures.Gesture.SwipeLeft)
+                        IslandGestures.Kind.SwipeRight -> fire(IslandGestures.Gesture.SwipeRight)
+                        IslandGestures.Kind.PullDown -> fire(IslandGestures.Gesture.PullDown)
+                        IslandGestures.Kind.None -> {}
+                    }
+                }
             }
     ) {
-        Canvas(Modifier.fillMaxSize().graphicsLayer {
+        // Everything moves together: the swipe nudge, the press squish, the soft blur during a pop-up.
+        Box(Modifier.fillMaxSize().graphicsLayer {
             translationX = nudge.value
-            scaleX = wave.value; scaleY = wave.value
+            val squeeze = 1f - 0.07f * press.value
+            scaleX = wave.value * squeeze; scaleY = wave.value * (1f - 0.04f * press.value)
             val b = soften.value * 5f * density
             renderEffect = if (b > 0.3f) androidx.compose.ui.graphics.BlurEffect(b, b, androidx.compose.ui.graphics.TileMode.Decal) else null
             alpha = 1f - 0.18f * soften.value
         }) {
+        Canvas(Modifier.fillMaxSize()) {
             val a = appear.value.coerceAtLeast(0f)
             val w = wide.value
             if (a <= 0.001f) return@Canvas
@@ -593,7 +743,7 @@ internal fun MiniIslandHost(
             val compactW = lerp(geometry.seedW, s.compactWidth, a)
             val compactH = lerp(geometry.seedH, s.height, a.coerceAtMost(1.15f))
             val pillW = lerp(compactW, s.wideWidth, w)
-            val pillH = lerp(compactH, s.wideHeight, w)
+            val pillH = lerp(compactH, s.wideHeight, w) + pull.value
             // The camera line stays put; the wide pill grows downward under it.
             val top = m + (s.height - compactH) / 2f
             val left = cx - pillW / 2f
@@ -604,6 +754,13 @@ internal fun MiniIslandHost(
             val idle = 1f - music.value
             val fill = androidx.compose.ui.graphics.lerp(Color.Black, Color(0xFF1D1D20), idle)
             drawRoundRect(fill, Offset(left, top), Size(pillW, pillH), CornerRadius(r, r))
+            // Pressed: the glass lights up a little where it's held.
+            if (press.value > 0.01f) drawRoundRect(
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    listOf(Color.White.copy(alpha = 0.16f * press.value), Color.White.copy(alpha = 0.04f * press.value)), top, top + pillH
+                ),
+                Offset(left, top), Size(pillW, pillH), CornerRadius(r, r),
+            )
             run {
                 // The rim catches the light from above and swings a little as you tilt the
                 // phone (the same light as the rest of the app's glass). Faint with music.
@@ -631,6 +788,9 @@ internal fun MiniIslandHost(
             val lineY = m + s.height / 2f
             val artC = Offset(left + 4f * density + side / 2f, lineY)
             val barsC = Offset(left + pillW - 4f * density - side / 2f, lineY)
+            // A gesture's result shows in the right-hand spot for a moment; what's there steps back.
+            val ak = if (ack != null) ackIn.value.coerceIn(0f, 1f) else 0f
+            val slot = 1f - ak
 
             // AirPods view: the buds' battery as a ring with the number (green while charging,
             // amber at 20% and below, red at 10%), and on the right the heart while measuring
@@ -658,12 +818,12 @@ internal fun MiniIslandHost(
                 if (heartBpm != null && talk.value < 0.5f) {
                     val hs = side * 0.36f * beat.value
                     val hp = heartPath(Size(hs, hs))
-                    translate(barsC.x - hs / 2f, barsC.y - side * 0.30f - hs / 2f + side * 0.08f) { drawPath(hp, Color.White.copy(alpha = pc)) }
+                    translate(barsC.x - hs / 2f, barsC.y - side * 0.30f - hs / 2f + side * 0.08f) { drawPath(hp, Color.White.copy(alpha = pc * slot)) }
                     val bpmText = measurer.measure(
                         "$heartBpm",
                         TextStyle(fontFamily = glintFontFamily, fontSize = (side * 0.32f / density / fontScale).sp, fontWeight = FontWeight.SemiBold, color = Color.White),
                     )
-                    drawText(bpmText, alpha = pc, topLeft = Offset(barsC.x - bpmText.size.width / 2f, barsC.y + side * 0.02f))
+                    drawText(bpmText, alpha = pc * slot, topLeft = Offset(barsC.x - bpmText.size.width / 2f, barsC.y + side * 0.02f))
                 }
             }
 
@@ -704,7 +864,7 @@ internal fun MiniIslandHost(
             val startX = barsC.x - (4 * barW + 3 * gap) / 2f + barW / 2f
             // Talking (Conversation Awareness turned the music down): three soft dots that
             // ripple like speech, in place of the bars or the mode symbol.
-            val tk = talk.value * c0
+            val tk = talk.value * c0 * slot
             if (tk > 0.01f) {
                 val dotR = 1.9f * density
                 for (i in 0 until 3) {
@@ -713,13 +873,14 @@ internal fun MiniIslandHost(
                         Offset(barsC.x + (i - 1) * 5.2f * density, barsC.y))
                 }
             }
-            if (c * (1f - talk.value) > 0.001f) for (i in 0 until 4) {
+            if (c * (1f - talk.value) * slot > 0.001f) for (i in 0 until 4) {
                 val wiggle = 0.35f + 0.65f * abs(sin(t * (2.3f + i * 0.73f) + i * 1.7f))
                 val rest = if (i % 2 == 0) 0.62f else 0.42f // Reduce motion: steady bars
                 val hgt = lerp(barW, maxH * (if (moving) wiggle else rest), level.floatValue)
                 val x = startX + i * (barW + gap)
-                drawLine(accent.copy(alpha = c * (1f - talk.value)), Offset(x, barsC.y - hgt / 2f), Offset(x, barsC.y + hgt / 2f), barW, StrokeCap.Round)
+                drawLine(accent.copy(alpha = c * (1f - talk.value) * slot), Offset(x, barsC.y - hgt / 2f), Offset(x, barsC.y + hgt / 2f), barW, StrokeCap.Round)
             }
+            if (ak > 0.01f) ack?.let { drawAck(it, barsC, side * (0.6f + 0.4f * ak), Color.White.copy(alpha = ak)) }
         }
         // AirPods view, right side: the listening mode symbol (when not measuring heart rate).
         if (music.value < 0.999f && heartBpm == null && pods.listeningMode in 1..4 && talk.value < 0.999f) {
@@ -732,10 +893,10 @@ internal fun MiniIslandHost(
                         // Centre of the pill's right-hand spot (where the bars go for music).
                         val pillW = lerp(s.compactWidth, s.wideWidth, wide.value)
                         val barsX = boxW / 2f + pillW / 2f - 4f * density - side / 2f
-                        IntOffset((barsX - glyph / 2f + nudge.value).roundToInt(), (m + s.height / 2f - glyph / 2f).roundToInt())
+                        IntOffset((barsX - glyph / 2f).roundToInt(), (m + s.height / 2f - glyph / 2f).roundToInt())
                     }
                     .graphicsLayer {
-                        alpha = ((appear.value - 0.55f) / 0.45f).coerceIn(0f, 1f) * (1f - music.value) * (1f - talk.value)
+                        alpha = ((appear.value - 0.55f) / 0.45f).coerceIn(0f, 1f) * (1f - music.value) * (1f - talk.value) * (1f - ackIn.value)
                     },
                 size = androidx.compose.ui.unit.Dp(glyph / density),
             )
@@ -755,15 +916,81 @@ internal fun MiniIslandHost(
                 textAlign = TextAlign.Center,
                 style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White),
                 modifier = Modifier
-                    .offset { IntOffset((m + 14f * density + nudge.value).roundToInt(), (m + s.height + 3f * density).roundToInt()) }
+                    .offset { IntOffset((m + 14f * density).roundToInt(), (m + s.height + 3f * density).roundToInt()) }
                     .width(androidx.compose.ui.unit.Dp(dpW))
                     .graphicsLayer { alpha = ((wide.value - 0.4f) / 0.6f).coerceIn(0f, 1f) }
                     .basicMarquee(iterations = 1, initialDelayMillis = 900),
             )
             }
         }
+        // What a gesture just did: the new listening mode, in the right-hand spot.
+        val shownAck = ack
+        if (shownAck?.action == IslandGestures.Action.ListeningMode && ackIn.value > 0.01f) {
+            val side = s.height - 8f * density
+            val glyph = side * 0.72f
+            ListeningModeGlyph(
+                shownAck.mode, Color.White,
+                modifier = Modifier
+                    .offset {
+                        val pillW = lerp(s.compactWidth, s.wideWidth, wide.value)
+                        val barsX = boxW / 2f + pillW / 2f - 4f * density - side / 2f
+                        IntOffset((barsX - glyph / 2f).roundToInt(), (m + s.height / 2f - glyph / 2f).roundToInt())
+                    }
+                    .graphicsLayer {
+                        val k = ackIn.value
+                        alpha = k.coerceIn(0f, 1f); scaleX = 0.6f + 0.4f * k; scaleY = 0.6f + 0.4f * k
+                    },
+                size = androidx.compose.ui.unit.Dp(glyph / density),
+            )
+        }
+        }
     }
 }
+
+/** What a gesture on the Dynamic Island just did, as shown for a moment in its right-hand spot. */
+internal data class MiniAck(val action: IslandGestures.Action, val playingAfter: Boolean = false, val mode: Int = 0) {
+    companion object {
+        /** The sign for [a] (null for actions that show themselves, like opening the island). */
+        fun of(a: IslandGestures.Action, playingBefore: Boolean, nextMode: Int): MiniAck? = when (a) {
+            IslandGestures.Action.PlayPause -> MiniAck(a, playingAfter = !playingBefore)
+            IslandGestures.Action.Next, IslandGestures.Action.Previous -> MiniAck(a)
+            IslandGestures.Action.ListeningMode -> MiniAck(a, mode = nextMode)
+            else -> null
+        }
+    }
+}
+
+/** Play, pause, next or previous, drawn small at [c] in a box [size] wide. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawAck(ack: MiniAck, c: Offset, size: Float, color: Color) {
+    val h = size * 0.5f
+    fun tri(x: Float, w: Float, pointRight: Boolean) = Path().apply {
+        if (pointRight) { moveTo(x, c.y - h / 2f); lineTo(x + w, c.y); lineTo(x, c.y + h / 2f) }
+        else { moveTo(x + w, c.y - h / 2f); lineTo(x, c.y); lineTo(x + w, c.y + h / 2f) }
+        close()
+    }
+    when (ack.action) {
+        IslandGestures.Action.PlayPause -> if (ack.playingAfter) {
+            drawPath(tri(c.x - h * 0.32f, h * 0.76f, true), color)
+        } else {
+            val bw = h * 0.26f
+            drawRoundRect(color, Offset(c.x - h * 0.34f, c.y - h / 2f), Size(bw, h), CornerRadius(bw / 3f))
+            drawRoundRect(color, Offset(c.x + h * 0.08f, c.y - h / 2f), Size(bw, h), CornerRadius(bw / 3f))
+        }
+        IslandGestures.Action.Next, IslandGestures.Action.Previous -> {
+            val next = ack.action == IslandGestures.Action.Next
+            val w = h * 0.5f
+            val x0 = c.x - w
+            drawPath(tri(x0, w, next), color)
+            drawPath(tri(x0 + w * 0.9f, w, next), color)
+            val barX = if (next) x0 + w * 1.9f + h * 0.05f else x0 - h * 0.14f
+            drawRoundRect(color, Offset(barX, c.y - h / 2f), Size(h * 0.12f, h), CornerRadius(h * 0.06f))
+        }
+        else -> {}
+    }
+}
+
+/** How long a gesture's sign stays in the pill. */
+private const val ACK_SHOW_MS = 650L
 
 /** A small music note: a stem with a flag and a round head. */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawNote(c: Offset, size: Float, color: Color) {
@@ -804,8 +1031,6 @@ internal fun accentOfPixels(pixels: IntArray): Color {
 
 /** The status bar must be gone this long before it counts as a full-screen app. */
 private const val FULL_SCREEN_MS = 1_200L
-/** Waits this long after a tap for a second or third one. */
-private const val TAP_GAP_MS = 300L
 /** How long a dropped connection may last before the Dynamic Island leaves. */
 private const val AIRPODS_GRACE_MS = 5_000L
 

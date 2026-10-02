@@ -104,6 +104,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.animateFloat
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -143,7 +144,8 @@ internal const val CHIP_DELAY_MS = 1_000L
 private val CONTROLS_W = 120.dp
 
 internal class IslandController(private val context: Context) {
-    private val window = OverlayWindow(context, "GlintIsland", anchorTop = true)
+    private val window = OverlayWindow(context, "GlintIsland", anchorTop = true, aboveStatusBar = true)
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
     private val event = mutableStateOf<IslandEvent>(IslandEvent.Connected)
     private val phase = mutableStateOf(IslandPhase.Compact)
     private val generation = mutableIntStateOf(0)
@@ -157,6 +159,16 @@ internal class IslandController(private val context: Context) {
         window.onShownChanged = { shown ->
             if (!shown && geometry?.origin != null) GlintOverlays.returnToMiniAt = android.os.SystemClock.elapsedRealtime()
             GlintOverlays.islandVisible.value = shown
+        }
+        // Moved above or below the status bar (pro's accessibility service started or stopped):
+        // a window placed through a stopped service is gone, so let go of it.
+        scope.launch {
+            me.kavishdevar.librepods.services.IslandAccess.service.collect { if (window.misplaced) window.dismiss() }
+        }
+        // Notifications pulled down over it: step aside (above the status bar it would float
+        // over the shade).
+        scope.launch {
+            me.kavishdevar.librepods.services.IslandAccess.panelOpen.collect { open -> if (open) dismiss(animated = true) }
         }
     }
 
@@ -420,6 +432,7 @@ private fun IslandHostContent(
             is IslandEvent.ListeningMode -> ListeningModeGlyph(event.mode, look.content, size = 22.dp)
             is IslandEvent.MovedToDevice, IslandEvent.TakingOver -> Text("⇄", style = TextStyle(color = look.content, fontSize = 17.sp, fontFamily = glintFontFamily))
             is IslandEvent.Problem -> Text("!", style = TextStyle(color = GlintColors.Amber, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = glintFontFamily))
+            IslandEvent.TapSetup -> TapGlyph(look.content, reduceMotion)
             is IslandEvent.Charging -> BatteryRing(if (snapshot.budsCharging) snapshot.budsLevel else snapshot.case, true, size = 30.dp, stroke = 3.dp, track = ringTrack, label = look.content, labelSize = 10.sp)
             is IslandEvent.LowBattery -> BatteryRing(event.level, false, size = 30.dp, stroke = 3.dp, track = ringTrack, label = look.content, labelSize = 10.sp)
             is IslandEvent.Heart -> {
@@ -526,6 +539,11 @@ private fun IslandHostContent(
                     } else if (dragY > 36f * density && currentPhase == IslandPhase.Compact) {
                         // Pulling the island down opens it, like pulling a drop of glass.
                         onPhase(IslandPhase.Expanded)
+                    } else if (!moved && event == IslandEvent.TapSetup) {
+                        // "Turn it on in pro": straight to that page.
+                        haptics.expand()
+                        GlintOverlays.openApp(context, me.kavishdevar.librepods.presentation.navigation.AppLinks.ISLANDS)
+                        onPhase(IslandPhase.Leaving)
                     } else if (!moved && currentPhase != IslandPhase.Leaving) {
                         onPhase(if (currentPhase == IslandPhase.Expanded) IslandPhase.Compact else IslandPhase.Expanded)
                     }
@@ -1192,9 +1210,31 @@ internal class IslandBuzz(private val h: GlintHaptics, private val on: Boolean) 
     fun expand() { if (on) h.expand() }
     fun dismiss() { if (on) h.dismiss() }
     fun tick() { if (on) h.tick() }
+    /** A finger landed on it: a light, immediate tap so you feel it registered. */
+    fun touch() { if (on) h.touch() }
+    /** A gesture did something: a firmer click. */
+    fun confirm() { if (on) h.confirm() }
 }
 
 /** Alerts stay a little longer. */
+/** A fingertip with two rings rippling out: "tap here". */
+@Composable
+private fun TapGlyph(color: Color, reduceMotion: Boolean) {
+    val t = if (reduceMotion) remember { mutableFloatStateOf(0.5f) } else {
+        androidx.compose.animation.core.rememberInfiniteTransition(label = "tap")
+            .animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(tween(1400)), label = "ripple")
+    }
+    androidx.compose.foundation.Canvas(Modifier.size(24.dp)) {
+        val c = center
+        val r = size.minDimension / 2f
+        drawCircle(color, r * 0.22f, c)
+        for (i in 0 until 2) {
+            val k = (t.value + i * 0.5f) % 1f
+            drawCircle(color.copy(alpha = (1f - k) * 0.8f), r * (0.35f + 0.6f * k), c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.6.dp.toPx()))
+        }
+    }
+}
+
 private fun IslandEvent.isAlert() = this is IslandEvent.LowBattery || (this is IslandEvent.Heart && alert) || this is IslandEvent.Problem
 
 /** A coloured dot and a plain line saying what the connection can do right now. */
@@ -1407,6 +1447,7 @@ internal fun islandText(event: IslandEvent, s: PodsSnapshot): Pair<String, Strin
     }
     IslandEvent.BothIn -> "Both AirPods in" to s.name
     IslandEvent.Music -> "Now playing" to s.name
+    IslandEvent.TapSetup -> "Tap the Dynamic Island" to "Turn it on in pro"
 }
 
 /** Clips expanded content to the island's current (growing) shape, anchored top-left. */

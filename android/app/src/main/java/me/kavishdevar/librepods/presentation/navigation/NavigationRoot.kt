@@ -43,6 +43,24 @@ fun NavigationRoot(
         ).apply { addAll(initialStack) }
     }
 
+    // A pop-up asked for a page (for example "turn on taps" opens Settings > Islands).
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        AppLinks.pending.collect { target ->
+            if (target == null) return@collect
+            AppLinks.pending.value = null
+            if (backStack.firstOrNull() == Screen.Onboarding) return@collect
+            val page = when (target) {
+                AppLinks.ISLANDS -> listOf(Screen.AppSettings, Screen.IslandSettings)
+                AppLinks.HEART -> listOf(Screen.HeartRate)
+                else -> emptyList()
+            }
+            if (page.isNotEmpty() && backStack.last() != page.last()) {
+                while (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+                backStack.addAll(page)
+            }
+        }
+    }
+
     val currentScreen = backStack.last()
     // Mark the moment a screen opens (before its content composes) so its cards rise in.
     androidx.compose.runtime.remember(currentScreen) { me.kavishdevar.librepods.presentation.glint.GlintEnter.screenOpened(); 0 }

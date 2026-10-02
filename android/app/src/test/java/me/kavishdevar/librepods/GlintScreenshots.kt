@@ -180,6 +180,8 @@ class GlintScreenshots {
         airPods: PodsSnapshot? = null,
         heart: Int? = null,
         talking: Boolean = false,
+        press: Float = 0f,
+        ack: me.kavishdevar.librepods.presentation.overlays.MiniAck? = null,
     ) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")
         rule.mainClock.autoAdvance = false
@@ -215,8 +217,8 @@ class GlintScreenshots {
                             geometry = geo, track = track, leaving = false, hidden = false,
                             content = if (airPods != null) me.kavishdevar.librepods.services.MiniIslandRules.Content.AirPods else me.kavishdevar.librepods.services.MiniIslandRules.Content.Music,
                             pods = airPods ?: PodsSnapshot(), heartBpm = heart, talking = talking,
-                            onWindowSize = {}, onTouchable = {}, onGone = {}, onOpen = {}, onHold = {}, onSkip = {},
-                            still = 1f, stillWide = wide,
+                            onWindowSize = {}, onTouchable = {}, onGone = {}, onAction = {},
+                            still = 1f, stillWide = wide, stillPress = press, stillAck = ack,
                         )
                     }
                     // The camera, on top, where the real one would be.
@@ -245,6 +247,16 @@ class GlintScreenshots {
     @Test fun miniIslandAirPodsDarkIdle() = mini("mini_island_airpods_dark_idle", playing = false, wide = 0f, art = false, airPods = demo, dark = true)
     @Test fun miniIslandTalking() = mini("mini_island_talking", playing = true, wide = 0f, art = true, talking = true, dark = true)
     @Test fun miniIslandAirPodsLow() = mini("mini_island_airpods_low", playing = false, wide = 0f, art = false, airPods = demo.copy(left = 9, right = 12))
+    // Touch feedback: pressed (squished and lit), and the sign a gesture leaves for a moment.
+    @Test fun miniIslandPressed() = mini("mini_island_pressed", playing = true, wide = 0f, art = true, press = 1f)
+    @Test fun miniIslandAckPause() = mini("mini_island_ack_pause", playing = true, wide = 0f, art = true,
+        ack = me.kavishdevar.librepods.presentation.overlays.MiniAck(me.kavishdevar.librepods.services.IslandGestures.Action.PlayPause, playingAfter = false))
+    @Test fun miniIslandAckPlay() = mini("mini_island_ack_play", playing = false, wide = 0f, art = true,
+        ack = me.kavishdevar.librepods.presentation.overlays.MiniAck(me.kavishdevar.librepods.services.IslandGestures.Action.PlayPause, playingAfter = true))
+    @Test fun miniIslandAckNext() = mini("mini_island_ack_next", playing = true, wide = 0f, art = true, dark = true,
+        ack = me.kavishdevar.librepods.presentation.overlays.MiniAck(me.kavishdevar.librepods.services.IslandGestures.Action.Next))
+    @Test fun miniIslandAckMode() = mini("mini_island_ack_mode", playing = false, wide = 0f, art = false, airPods = demo,
+        ack = me.kavishdevar.librepods.presentation.overlays.MiniAck(me.kavishdevar.librepods.services.IslandGestures.Action.ListeningMode, mode = 2))
     @Test fun miniIslandAirPodsCharging() = mini("mini_island_airpods_charging", playing = false, wide = 0f, art = false, airPods = demo.copy(leftCharging = true, rightCharging = true))
 
     /** The big island growing out of the mini island by the camera, frame by frame. */

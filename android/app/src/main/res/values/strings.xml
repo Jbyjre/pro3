@@ -290,4 +290,6 @@
     <string name="privacy_policy">Privacy Policy</string>
     <string name="i_agree">I agree</string>
     <string name="compatibility_check_bypassed">Compatibility check bypassed. Are you sure your device is compatible?</string>
+    <string name="island_access_label">pro Dynamic Island</string>
+    <string name="island_access_description">Lets pro place the Dynamic Island above the status bar, the only spot around the camera where it can be tapped (Android gives every other touch there to the status bar). pro uses this only to show its islands and to notice when you pull down notifications, so they step aside. It doesn\'t read or collect anything on your screen.</string>
 </resources>

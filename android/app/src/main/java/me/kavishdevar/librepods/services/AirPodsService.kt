@@ -164,6 +164,13 @@ const val PREF_HR_PACE = "glint_hr_pace"
 const val PREF_HR_AGE = "glint_hr_age"
 /** Show the island when background measuring starts and for high-rate alerts. */
 const val PREF_HR_ISLAND = "glint_hr_island"
+/** Measure for a moment each time the island opens (on by default). */
+const val PREF_HR_GLANCE = "glint_hr_glance"
+/** Show the heart in the opened island at all (on by default). */
+const val PREF_HR_CHIP = "glint_hr_chip"
+/** How long a glance measurement runs: opening the island, or tapping "Measure" there. */
+const val HR_GLANCE_MS = 90_000L
+const val HR_GLANCE_TAP_MS = 120_000L
 /** Readings in the first 3 seconds after the sensor starts are dropped (they start high). */
 const val HR_WARMUP_MS = 3_000L
 /** Turn Conversation Awareness on only while the AirPods are in Adaptive. */
@@ -495,9 +502,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     "conversational_awareness_pause_music", false
                 )
                 if (!contains("personalized_volume")) putBoolean("personalized_volume", false)
-                if (!contains("automatic_ear_detection")) putBoolean(
-                    "automatic_ear_detection", true
-                )
+                if (!contains("automatic_ear_detection")) putBoolean("automatic_ear_detection", true)
                 if (!contains("long_press_nc")) putBoolean("long_press_nc", true)
                 if (!contains("show_phone_battery_in_widget")) putBoolean(
                     "show_phone_battery_in_widget", true
@@ -1743,8 +1748,14 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
      * every 5 seconds (less radio traffic), falling back to one a second if the AirPods won't
      * send at that rate. The firmware's request variant that worked is remembered.
      */
-    fun startHeartRate(background: Boolean = false) {
-        if (!background) {
+    fun startHeartRate(background: Boolean = false, glance: Boolean = false) {
+        if (!glance) {
+            // A real session (or always-on) takes over from a glance: it no longer stops by itself.
+            hrGlance = false
+            hrGlanceJob?.cancel()
+            hrGlanceJob = null
+        }
+        if (!background && !glance) {
             sharedPreferences.edit { putBoolean(PREF_HR_ACTIVE, true) }
             hrSnoozed = false
         }
@@ -1821,6 +1832,60 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
+    /** The stream is a glance: it ends by itself (see [glanceHeartRate]). */
+    private var hrGlance = false
+    private var hrGlanceJob: Job? = null
+
+    /**
+     * A short measurement for the islands: opening the island, or tapping "Measure" on its
+     * heart. Does nothing while something already measures (or extends a glance), and ends by
+     * itself after [ms] unless a session is started in pro meanwhile.
+     */
+    fun glanceHeartRate(ms: Long = HR_GLANCE_MS) {
+        if (BluetoothConnectionManager.aacpSocket?.isConnected != true) return
+        if (hrService != 0 && !hrGlance) return
+        if (hrService == 0) {
+            hrGlance = true
+            startHeartRate(background = false, glance = true)
+        }
+        hrGlanceJob?.cancel()
+        hrGlanceJob = serviceScope.launch {
+            delay(ms)
+            if (hrGlance) endGlance()
+        }
+    }
+
+    /** The glance is over: stop quietly (the readings go to the history), then let always-on decide. */
+    private fun endGlance() {
+        hrGlance = false
+        hrGlanceJob = null
+        hrWatchdog?.cancel()
+        hrWatchdog = null
+        if (hrService != 0 && BluetoothConnectionManager.aacpSocket?.isConnected == true) aacpManager.sendSensorInterval(hrService, 0L)
+        hrService = 0
+        HeartRate.status(HeartRate.Status.Off)
+        HeartRate.saveSession(this)
+        autoHeartRate()
+    }
+
+    /**
+     * "No signal": ask the sensor again, the same kind of measuring as before (a session in
+     * pro, always-on, or a glance).
+     */
+    fun retryHeartRate() {
+        val manual = sharedPreferences.getBoolean(PREF_HR_ACTIVE, false)
+        val background = hrBackground
+        hrWatchdog?.cancel()
+        hrWatchdog = null
+        if (hrService != 0 && BluetoothConnectionManager.aacpSocket?.isConnected == true) aacpManager.sendSensorInterval(hrService, 0L)
+        hrService = 0
+        when {
+            manual -> startHeartRate()
+            background -> startHeartRate(background = true)
+            else -> { hrGlance = false; glanceHeartRate(HR_GLANCE_TAP_MS) }
+        }
+    }
+
     /** When the current stream's first reading arrived, and the latest one (kept or not). */
     private var hrFirstRawAt = 0L
     private var hrLastRawAt = 0L
@@ -1880,6 +1945,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         hrPauseJob?.cancel()
         hrPauseJob = null
         hrSnoozed = false
+        if (hrGlance) { hrGlanceJob?.cancel(); endGlance(); return }
         if (hrBackground) { pauseHeartRate(); return }
         hrWatchdog?.cancel()
         hrWatchdog = null
@@ -1914,6 +1980,9 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     fun stopHeartRate() {
+        hrGlance = false
+        hrGlanceJob?.cancel()
+        hrGlanceJob = null
         sharedPreferences.edit { putBoolean(PREF_HR_ACTIVE, false) }
         // In always-on mode, Stop holds off until the buds next come out and go back in.
         if (sharedPreferences.getBoolean(PREF_HR_ALWAYS, false) && budsWorn()) hrSnoozed = true
@@ -2230,9 +2299,9 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                         if (disconnectedBecauseReversed) {
                             it.addAction(
                                 R.drawable.ic_bluetooth, "Reconnect", PendingIntent.getService(
-                                    this, 0, Intent(this, AirPodsService::class.java).apply {
-                                        action = "me.kavishdevar.librepods.RECONNECT_AFTER_REVERSE"
-                                    }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                                    this, 0,
+                                    Intent(this, AirPodsService::class.java).setAction("me.kavishdevar.librepods.RECONNECT_AFTER_REVERSE"),
+                                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                                 )
                             )
                         }
