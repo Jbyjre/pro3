@@ -20,7 +20,14 @@ layers 13, 14, 15, 18, 20; NDK 29 / cmake 4.1.2 flags).
   OverlayLayerTest, screenshots mini_island_pressed / mini_island_ack_*.
 - Needs phone: One UI layer order, restricted-settings step, lock-screen shade case.
 
-## 2. Heart truthful: TODO
+## 2. Heart truthful: DONE (session 2026-10-02)
+- `HeartView` (pure): Live / Starting / Resting / NoSignal / Blocked / Off / Away, short words, one
+  line, tap action. Chip draws each differently (only Starting/Linking animate). `HeartNote` widens
+  the chip with the line + Try again. Glance measuring (`glanceHeartRate`, 90 s on island open,
+  120 s on tap; PREF_HR_GLANCE default on), `retryHeartRate`, PREF_HR_CHIP to hide. Pill heart only
+  when `worthAPill`. Heart page honest when link refused.
+- Proof: HeartViewTest, IslandMomentsTest, screenshots heart_* (8 states/notes).
+- Needs phone: whether the sensor link works at all on the S25 FE.
 ## 3. Dynamic Island customisation: TODO (gesture prefs already exist from 1; UI still to build)
 ## 4. Glass: TODO
 ## 5. Island bug history: TODO
