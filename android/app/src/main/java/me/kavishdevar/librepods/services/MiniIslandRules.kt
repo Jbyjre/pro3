@@ -148,6 +148,27 @@ object MiniIslandRules {
     }
 
     /**
+     * A safety net against a check that keeps asking for another check without end: at most
+     * [maxPerWindow] refreshes per [windowMs]; the rest are skipped (the caller makes one more,
+     * a moment later). Pure; the main thread can never be kept from handling touches by it.
+     */
+    class RefreshGuard(private val maxPerWindow: Int = 30, private val windowMs: Long = 1_000L) {
+        private val stamps = LongArray(maxPerWindow)
+        private var count = 0
+        private var next = 0
+
+        fun allow(now: Long): Boolean {
+            if (count == maxPerWindow) {
+                val oldest = stamps[next]
+                if (now - oldest < windowMs) return false
+            } else count++
+            stamps[next] = now
+            next = (next + 1) % maxPerWindow
+            return true
+        }
+    }
+
+    /**
      * A different song is playing (so the pill may show its name). Needs real song names
      * (Notification access) on both sides; the same title by a different artist counts.
      */

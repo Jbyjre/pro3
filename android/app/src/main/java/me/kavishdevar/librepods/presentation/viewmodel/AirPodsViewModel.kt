@@ -697,18 +697,23 @@ class AirPodsViewModel(
     }
 
     fun loadATT() {
-        val loudSoundReduction = service.attManager.getCharacteristic(ATTHandles.LOUD_SOUND_REDUCTION) ?: byteArrayOf()
-        val loudSoundReductionEnabled = if (loudSoundReduction.isNotEmpty()) {
-            loudSoundReduction[0].toInt() == 1
-        } else false
-        val hearingAidData = service.attManager.getCharacteristic(ATTHandles.HEARING_AID) ?: byteArrayOf()
-        val transparencyData = service.attManager.getCharacteristic(ATTHandles.TRANSPARENCY) ?: byteArrayOf()
-        _uiState.update {
-            it.copy(
-                loudSoundReductionEnabled = loudSoundReductionEnabled,
-                transparencyData = transparencyData,
-                hearingAidData = hearingAidData
-            )
+        // Each read can wait up to 2 s for the AirPods to answer, three in a row: never on the main
+        // thread (this is called when the main page connects, and used to freeze the app for up to
+        // 6 s when the AirPods were slow: "pro isn't responding").
+        viewModelScope.launch(Dispatchers.IO) {
+            val loudSoundReduction = service.attManager.getCharacteristic(ATTHandles.LOUD_SOUND_REDUCTION) ?: byteArrayOf()
+            val loudSoundReductionEnabled = if (loudSoundReduction.isNotEmpty()) {
+                loudSoundReduction[0].toInt() == 1
+            } else false
+            val hearingAidData = service.attManager.getCharacteristic(ATTHandles.HEARING_AID) ?: byteArrayOf()
+            val transparencyData = service.attManager.getCharacteristic(ATTHandles.TRANSPARENCY) ?: byteArrayOf()
+            _uiState.update {
+                it.copy(
+                    loudSoundReductionEnabled = loudSoundReductionEnabled,
+                    transparencyData = transparencyData,
+                    hearingAidData = hearingAidData
+                )
+            }
         }
     }
 

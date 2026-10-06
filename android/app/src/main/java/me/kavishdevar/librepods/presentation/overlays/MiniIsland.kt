@@ -301,7 +301,19 @@ internal class MiniIslandController(private val context: Context) {
         }
     }
 
+    /** Never more than a few dozen checks a second, whatever asks: the main thread must stay free for touches. */
+    private val refreshGuard = MiniIslandRules.RefreshGuard()
+    private var trailingRefresh: Job? = null
+
     fun refresh() {
+        if (!refreshGuard.allow(SystemClock.elapsedRealtime())) {
+            // Too many at once (something is asking again and again): skip this one and look once more shortly.
+            if (trailingRefresh?.isActive != true) {
+                android.util.Log.w("MiniIsland", "Too many refreshes in a second; slowing down")
+                trailingRefresh = scope.launch { delay(250); refresh() }
+            }
+            return
+        }
         val previewingMusic = sample.value != null
         val previewing = previewingMusic || sampleSound.value != null
         val playing = previewingMusic || NowPlaying.state.value.playing

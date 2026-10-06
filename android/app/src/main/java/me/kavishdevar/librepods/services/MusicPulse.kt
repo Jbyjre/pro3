@@ -51,8 +51,14 @@ object MusicPulse {
     private val _live = MutableStateFlow(false)
     val live: StateFlow<Boolean> = _live
 
-    private var visualizer: Visualizer? = null
-    private var users = 0
+    // The Visualizer is created and reports on its own thread: creating it asks Android's audio
+    // system (which can be slow when it is busy) and it reports about 20 times a second. Doing
+    // that on the main thread could freeze the app.
+    private val thread by lazy { android.os.HandlerThread("pro-pulse").apply { start() } }
+    private val handler by lazy { android.os.Handler(thread.looper) }
+
+    private var visualizer: Visualizer? = null   // only touched on the pulse thread
+    @Volatile private var users = 0
     private val peaks = FloatArray(BANDS) { 1f }
     private var heardAt = 0L
     private const val SILENT_MS = 4_000L
@@ -63,17 +69,20 @@ object MusicPulse {
     /** Starts listening (counted: every [acquire] needs a [release]). Call on the main thread. */
     fun acquire(context: Context) {
         users++
-        if (visualizer == null) open(context)
+        val app = context.applicationContext
+        handler.post { if (users > 0 && visualizer == null) open(app) }
     }
 
     fun release() {
         users = (users - 1).coerceAtLeast(0)
-        if (users == 0) close()
+        if (users == 0) handler.post { if (users == 0) close() }
     }
 
     /** Permission just granted: try again for whoever is waiting. */
     fun retry(context: Context) {
-        if (users > 0 && visualizer == null) open(context)
+        if (users <= 0) return
+        val app = context.applicationContext
+        handler.post { if (users > 0 && visualizer == null) open(app) }
     }
 
     private fun open(context: Context) {
