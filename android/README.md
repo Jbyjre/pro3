@@ -1,3 +1,112 @@
+# pro for Android (the `android/` folder)
+
+pro is Jake's personal Android app, built on a Galaxy S25 FE with AirPods Pro 3 and Beats Solo 4. It began as a fork of LibrePods and is now a liquid-glass app with a **Dynamic Island** around the front camera and a growing set of phone features that need no headphones. It is shown to Jake as "pro" (lowercase, his choice). Code names still say Glint, and the app ID `io.github.jbyjre.glint` must never change, or updates stop installing over the old app.
+
+**Start with [`../docs/REQUESTS.md`](../docs/REQUESTS.md)**: what Jake asked for, where it lives, and how finished it is. Then [`../CLAUDE.md`](../CLAUDE.md) (standing rules), [`../DECISIONS.md`](../DECISIONS.md) (why things are the way they are, plain language) and [`../TESTING.md`](../TESTING.md) (what only Jake's phone can confirm).
+
+## Rules that shape how you work here
+
+- Jake has no coding experience: plain words, no terminal commands for him, do the build and release work yourself.
+- Verify before you state. Say "not verified" for anything only the phone can show.
+- Finished, checked work goes into `main` by you. Never subscribe to PR or CI updates or poll them.
+- Don't use sub-agents unless Jake asks.
+
+## Build and check (cloud session)
+
+Cloud sessions can't reach Google's servers and have no Docker daemon. One script fetches everything the build needs from places that are reachable (about 2 to 5 minutes the first time; safe to rerun):
+
+```
+android/tools/cloud-setup.sh              # default folder: ~/pro-build
+source ~/pro-build/env.sh
+cd android
+./gradlew $GRADLE_FLAGS :app:testFossDebugUnitTest     # all unit and screenshot tests
+./gradlew $GRADLE_FLAGS lintFossRelease                # CI runs this
+./gradlew $GRADLE_FLAGS assembleFossRelease            # and this
+```
+
+- `$GRADLE_FLAGS` carries `--offline` and the NDK 29 / CMake 4.1.2 versions that exist offline (NDK 30 does not).
+- One test class: `--tests '*SoundRulesTest*'`. One screenshot: `--tests '*GlintScreenshots.miniIslandRest*'`.
+- Screenshots land in `app/build/screenshots` (`/tour` for the whole-app tour). They are full-phone PNGs; to look at many pills at once, crop the top and tile them (Pillow is installed: `python3 -I`).
+- The Robolectric tests draw with a Compose test rule: no real blur, no video, no sensors. Real feel needs the phone.
+- CI (`.github/workflows/glint-apk.yml`) runs on every push to every branch: unit tests, `lintFossRelease`, `assembleFossRelease`, then publishes `pro.apk` (main) or `pro-preview.apk` (other branches) as a GitHub Release. It signs with a key it keeps in the Actions cache, never in the repository.
+
+## The app, by folder
+
+All code is under `app/src/main/java/me/kavishdevar/librepods/` (the old LibrePods package name stays on purpose).
+
+| Folder | What it holds | Read |
+|---|---|---|
+| `services/` | The brains: AirPods service, the Dynamic Island's rules, sound and music listening, heart rate, battery, gestures | [`services/README.md`](app/src/main/java/me/kavishdevar/librepods/services/README.md) |
+| `presentation/overlays/` | Everything drawn over other apps: the Dynamic Island, the pop-up islands, the case card | [`presentation/overlays/README.md`](app/src/main/java/me/kavishdevar/librepods/presentation/overlays/README.md) |
+| `presentation/glint/` | The glass material, motion, haptics, symbols, row icons | [`presentation/glint/README.md`](app/src/main/java/me/kavishdevar/librepods/presentation/glint/README.md) |
+| `presentation/screens/` | One file per page of the app | [`presentation/screens/README.md`](app/src/main/java/me/kavishdevar/librepods/presentation/screens/README.md) |
+| `presentation/components/` | Shared pieces: lists, toggles, buttons, banners, cards | |
+| `presentation/navigation/` | Routes (`Screen.kt`), the page switcher (`AppNavGraph.kt`), the top bar (`NavigationRoot.kt`), deep links from pop-ups (`AppLinks.kt`) | |
+| `presentation/theme/` | Colours, the Inter font, light/dark (`Appearance.kt`), the light/dark reveal, the home-screen icon choice | |
+| `bluetooth/` | Talking to the AirPods: the Apple accessory protocol (AACP), detection, reconnect timing, the heart sensor stream, the Beats beacon | |
+| `audio/` | The AirPods microphone recorder | |
+| `data/` | Protocol data classes and settings storage | |
+| `utils/` | Media-key control, Conversation Awareness timing, the companion-device link, "will this phone connect" wording | |
+| `billing/` | Stub: the FOSS build reports everything as included (there is no paywall) | |
+| `receivers/` | Boot and app-update receiver that starts the service | |
+| `src/foss/` | Pieces only in the version Jake installs: the accessibility service entry in the manifest and its config | |
+| `src/test/` | Tests and screenshot renderers | [`src/test/.../README.md`](app/src/test/java/me/kavishdevar/librepods/README.md) |
+
+## How the Dynamic Island works
+
+```
+inputs                                     rules (pure, tested)              drawing
+------                                     --------------------              -------
+NowPlaying      music: playing/paused,  -> MiniIslandRules.wanted/content -> MiniIslandController (overlays/MiniIsland.kt)
+                cover, title, controls     MiniIslandRules.showAsSound       decides, owns the window
+SoundSource     any other sound, and its   SoundRules (kinds, which app,      |
+                app (see below)            linger, recent list)               v
+GlintStatus /   AirPods or headphones   -> IslandLook (what goes left/right  MiniIslandHost (composable)
+HeadphoneLink   connected, battery, mode   per situation, size, colour)       draws the pill; slots drawn by drawSlot
+PhoneStatus     the phone's own battery                                       |
+HeartRate/View  heart rate (honest state)                                     v
+Conversation... talking (music is down)                                       OverlayWindow (layer: above the status bar
+                                                                              when the accessibility service is on)
+```
+
+- **Content** (what the pill is about): Music, Sound, AirPods, Rest. **Situation** (which left/right slots apply): Playing, Paused, Sounds, AirPods, Charging, Talking, Nothing on. The look maps each situation to two slots (Cover, App icon, Sound bars, Battery, L/R/case, Mode, Heart, Phone battery, Clock, Title, Talking dots, Keep, Nothing).
+- Taps, swipes and holds are one system (`services/IslandGestures.kt`). They only reach the pill when the accessibility service "pro Dynamic Island" is on, because Android's status bar otherwise takes every touch in the camera strip.
+- The pop-up islands (`Island.kt`) grow out of the pill and shrink back into it. The pill's window always starts above the pop-up's so both stay touchable.
+
+## The sound pipeline (any sound, with the app's icon)
+
+1. `SoundSource` registers an Android playback callback once, in the background service's `onCreate` (`AirPodsService`), so it runs with no headphones connected. Android hands apps only the sounds that are playing right now, each with only its type (verified in Android's source and the SDK; there is no app or uid in the public API).
+2. `SoundRules.summarize` turns the types into one kind (Call, Alarm, Alert, Voice, Media, Game, Other). Interface clicks and screen-reader speech are ignored.
+3. The app is guessed from three clues in `SoundRules.attribute`: the media session (`NowPlaying.playingSessionPackage`, needs Notification access), an app whose notification was posted in the last 3 s (`MediaAccessService.onNotificationPosted`, same access; only the app and time are kept), and the app on screen (`IslandAccessService`, the accessibility switch). Musical sounds trust the session first; alerts trust the notification first.
+4. `SoundSource.heard` publishes the sound (active, or ended with an end time). `MiniIslandController.refresh` shows it while it plays and for the "Short sounds stay for" time after, so even a half-second ding is seen. While music plays, an alert only pops its icon into the right-hand slot for a moment.
+5. Every app, name and icon lookup needs the `<queries>` entries in `AndroidManifest.xml` (Android hides other apps otherwise).
+
+Tests: `SoundRulesTest` (pure rules), `SoundSourceTest` (events in, sound out, via `SoundSource.usagesChanged` and the `roleOverride` seam), `MiniIslandTest` and `IslandLookTest` (when the pill shows, defaults, storage).
+
+## Gotchas learned the hard way
+
+- **`delay()` with a computed wait.** `delay(x)` with `x <= 0` returns at once. A recheck that reschedules itself with "time left" must only do so when time is left (`MiniIslandRules.nextCheck` exists for this; the old code looped forever after 30 s of paused music).
+- **Don't `remember` theme colours.** Rows went white on white. Read them each composition.
+- **Glass rim light:** always `GlintLight.rim()`. Kyant's default highlight is a 45 degree diagonal that looks tilted. Level phone means straight overhead.
+- **Overlay windows.** Android draws the status bar above app overlays and gives it every touch in its strip. Accessibility-layer windows sit above it. Hidden overlay windows must be fully transparent and untouchable or they eat taps (`OverlayWindow`).
+- **Status bar height** is the largest of the window insets, the `status_bar_height` resource and the cutout bottom: insets can be 0 from a service.
+- **A pop-up's window must not cover the pill.** It starts just below it.
+- **Package visibility.** Without `<queries>`, `getApplicationInfo`, `getLaunchIntentForPackage` and `queryIntentActivities` quietly find nothing for other apps.
+- **AirPods ear packets are primary and secondary, not left and right.**
+- **The pill is on screen for hours.** Nothing in it may animate or run sensors when it doesn't have to (glass tilt runs only while touched and 3.5 s after; the clock updates once a minute).
+- **Robolectric** needs its Android image jar offline (`cloud-setup.sh` fetches it). If a test fails with `MavenArtifactFetcher`, the error names the jar.
+- **Never commit signing keys.** This repository is public (the heart backup refuses a public repository, so pro3 must be made private by Jake).
+
+## Names (Jake's)
+
+The camera pill is the **Dynamic Island** (code: `MiniIsland*`). The pop-ups are the **mini island** (code: `Island*`, `IslandController`). Hidden Lab: Settings > About > tap "Version code" 7 times. Jake's app shows no visible LibrePods mentions.
+
+---
+
+# LibrePods original Android notes
+
+Kept as LibrePods wrote them, for reference. They describe LibrePods (the project pro was forked from), not pro's own setup.
+
 ## Root Requirement
 
 LibrePods *may* require root depending on your device/OS and what features you want access to:

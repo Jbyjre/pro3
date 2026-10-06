@@ -69,6 +69,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -114,6 +115,9 @@ import me.kavishdevar.librepods.services.LinkState
 import me.kavishdevar.librepods.services.MiniIslandRules
 import me.kavishdevar.librepods.services.MusicPulse
 import me.kavishdevar.librepods.services.NowPlaying
+import me.kavishdevar.librepods.services.PhoneStatus
+import me.kavishdevar.librepods.services.SoundRules
+import me.kavishdevar.librepods.services.SoundSource
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -134,9 +138,8 @@ internal class MiniIslandController(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val prefs = IslandPrefs.prefs(context)
     private var started = false
-    private var wasPlaying = false
-    private var stoppedAt = 0L
-    private var playedRecently = false
+    /** When music started and stopped, and whether it played long enough to count (not a half-second blip). */
+    private val play = MiniIslandRules.PlayTracker()
     private var unlocked = true
     /** A connection blip (a few seconds of "reconnecting") doesn't make it vanish and come back. */
     private var lastConnectedAt = 0L
@@ -182,6 +185,10 @@ internal class MiniIslandController(private val context: Context) {
     private val leaving = mutableStateOf(false)
     /** Sample music for Settings > Island > Try it. */
     private val sample = mutableStateOf<NowPlaying.Track?>(null)
+    /** Sample sound for Settings > Island > Try it. */
+    private val sampleSound = mutableStateOf<SoundSource.Heard?>(null)
+    /** The sound the pill is showing (a non-music sound, or an alert popping over music), else null. */
+    private val soundShown = mutableStateOf<SoundSource.Heard?>(null)
     /** Music or the AirPods themselves. */
     private val content = mutableStateOf(MiniIslandRules.Content.Music)
 
@@ -196,7 +203,8 @@ internal class MiniIslandController(private val context: Context) {
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
         if (key == IslandPrefs.PREF_MINI || key == IslandPrefs.PREF_MINI_AIRPODS_ONLY || key == IslandPrefs.PREF_MINI_ALWAYS ||
-            key == IslandPrefs.PREF_MINI_ANYTIME) refresh()
+            key == IslandPrefs.PREF_MINI_ANYTIME || key == IslandPrefs.PREF_MINI_ANY_SOUND || key == IslandPrefs.PREF_SOUND_LINGER ||
+            key == IslandPrefs.PREF_SOUND_IGNORED) refresh()
         if (IslandGestures.Gesture.entries.any { it.key == key }) actions.value = IslandGestures.all(p)
         if (key in IslandLook.keys) {
             look.value = IslandLook.read(p)
@@ -239,6 +247,8 @@ internal class MiniIslandController(private val context: Context) {
         runCatching { audio?.registerAudioDeviceCallback(audioDevices, android.os.Handler(android.os.Looper.getMainLooper())) }
         context.registerComponentCallbacks(rotation)
         scope.launch { NowPlaying.state.collect { onTrack(it) } }
+        // Any other sound (a message ding, a voice note, a call, an alarm): show it for a moment.
+        scope.launch { SoundSource.heard.collect { refresh() } }
         // The accessibility service started or stopped: move the pill above or below the status
         // bar (only above it can it be touched).
         scope.launch {
@@ -257,13 +267,8 @@ internal class MiniIslandController(private val context: Context) {
     }
 
     private fun onTrack(t: NowPlaying.Track) {
-        if (t.playing) {
-            playedRecently = true
-            stoppedAt = 0L
-        } else if (wasPlaying) {
-            stoppedAt = SystemClock.elapsedRealtime()
-        }
-        wasPlaying = t.playing
+        // Only music that played for a while leaves a "Paused" pill to tap and resume.
+        play.update(t.playing, SystemClock.elapsedRealtime())
         refresh()
     }
 
@@ -278,28 +283,57 @@ internal class MiniIslandController(private val context: Context) {
         }
     }
 
-    fun refresh() {
-        val previewing = sample.value != null
-        val playing = previewing || NowPlaying.state.value.playing
+    /** A pretend message ding for Settings > Island > Try it, so you can see the Sounds look. */
+    fun previewSound() {
         val now = SystemClock.elapsedRealtime()
-        val pausedFor = if (playing) 0L else if (stoppedAt == 0L) Long.MAX_VALUE else now - stoppedAt
+        sampleSound.value = SoundSource.Heard(
+            kind = SoundRules.Kind.Alert, pkg = null, app = "Messages", icon = sampleIcon(), startedAt = now, active = true,
+        )
+        unlocked = true
+        refresh()
+        scope.launch {
+            delay(3_000)
+            sampleSound.value = sampleSound.value?.copy(active = false, endedAt = SystemClock.elapsedRealtime())
+            refresh()
+            delay(IslandPrefs.soundLinger(prefs).ms + 200)
+            sampleSound.value = null
+            refresh()
+        }
+    }
+
+    fun refresh() {
+        val previewingMusic = sample.value != null
+        val previewing = previewingMusic || sampleSound.value != null
+        val playing = previewingMusic || NowPlaying.state.value.playing
+        val now = SystemClock.elapsedRealtime()
+        val pausedFor = if (playing) 0L else if (play.stoppedAt == 0L) Long.MAX_VALUE else now - play.stoppedAt
+        // Sounds that aren't music: while they play and for a moment after, even a half-second ding.
+        val linger = IslandPrefs.soundLinger(prefs).ms
+        val heard = sampleSound.value ?: SoundSource.heard.value
+        val heardOn = heard != null && (sampleSound.value != null || IslandPrefs.anySound(prefs)) &&
+            SoundRules.showing(heard.active, heard.endedAt, now, linger)
+        val soundOnly = !previewingMusic && MiniIslandRules.showAsSound(heardOn, heard?.musicLike == true, playing, play.counted)
+        // An alert popping over music: the app's icon shows in the right-hand spot for a moment.
+        val blip = heardOn && heard!!.kind.blip && playing
+        soundShown.value = if (soundOnly || blip) heard else null
         val want = MiniIslandRules.wanted(
             MiniIslandRules.Inputs(
                 enabled = previewing || IslandPrefs.mini(prefs),
                 canDraw = window.canShow(),
                 playing = playing,
                 pausedForMs = pausedFor,
-                playedRecently = previewing || playedRecently,
+                playedRecently = previewing || play.played,
                 airPodsOnly = !previewing && IslandPrefs.miniAirPodsOnly(prefs),
                 airPodsUp = airPodsUp(),
                 screenUnlocked = previewing || unlocked,
                 alwaysWithAirPods = !previewing && IslandPrefs.miniAlways(prefs),
                 anytime = !previewing && IslandPrefs.miniAnytime(prefs),
+                sound = soundOnly,
             )
         )
-        content.value = if (previewing) MiniIslandRules.Content.Music else MiniIslandRules.content(
-            playing = playing, pausedForMs = pausedFor, playedRecently = playedRecently,
-            airPodsUp = airPodsUp(),
+        content.value = if (previewingMusic) MiniIslandRules.Content.Music else MiniIslandRules.content(
+            playing = playing, pausedForMs = pausedFor, playedRecently = play.played,
+            airPodsUp = airPodsUp(), sound = soundOnly,
         )
         lastWant = want
         if (!want) GlintOverlays.miniOrigin = null
@@ -317,11 +351,12 @@ internal class MiniIslandController(private val context: Context) {
                 }
             }
         }
-        // Paused: check again when the 30 seconds are up.
+        // Something lingering (paused music, a sound that just ended): check again when it runs out.
         lingerJob?.cancel()
-        if (want && !playing && pausedFor != Long.MAX_VALUE) {
+        val soundLeft = if (heardOn && !heard!!.active) linger - (now - heard.endedAt) else null
+        MiniIslandRules.nextCheck(playing, pausedFor, soundLeft)?.let { wait ->
             lingerJob = scope.launch {
-                delay(MiniIslandRules.PAUSED_LINGER_MS - pausedFor + 100)
+                delay(wait)
                 refresh()
             }
         }
@@ -363,9 +398,11 @@ internal class MiniIslandController(private val context: Context) {
             val talking by me.kavishdevar.librepods.utils.ConversationTiming.talking.collectAsState()
             val panel by IslandAccess.panelOpen.collectAsState()
             val link by GlintStatus.link.collectAsState()
+            val heardLive by SoundSource.heard.collectAsState()
             MiniIslandHost(
                 geometry = geo,
-                track = sample.value ?: live,
+                track = sample.value ?: withSource(live, heardLive),
+                heard = soundShown.value,
                 content = content.value,
                 pods = pods,
                 // On the small pill the heart only shows with a real number to show.
@@ -398,7 +435,10 @@ internal class MiniIslandController(private val context: Context) {
         val sampling = sample.value != null
         when (a) {
             IslandGestures.Action.Expand -> {
-                if (content.value == MiniIslandRules.Content.Rest) {
+                if (content.value == MiniIslandRules.Content.Sound) {
+                    // A tap on a sound opens the app that made it (nothing when pro can't tell which).
+                    if (!sampling) SoundSource.openApp(context, soundShown.value?.pkg)
+                } else if (content.value == MiniIslandRules.Content.Rest) {
                     // Nothing on: open the music controls (play picks up where you left off).
                     GlintOverlays.showIsland(context, IslandEvent.Music)
                 } else if (content.value == MiniIslandRules.Content.AirPods) {
@@ -490,6 +530,8 @@ internal fun MiniIslandHost(
     content: MiniIslandRules.Content = MiniIslandRules.Content.Music,
     pods: PodsSnapshot = PodsSnapshot(),
     heartBpm: Int? = null,
+    /** The sound being shown: a non-music sound (Sounds look) or an alert popping over music. */
+    heard: SoundSource.Heard? = null,
     /** A mini island pop-up is up (it grew out of this pill): this one stays, softly blurred. */
     handOff: Boolean = false,
     /** Told when it's up (with its current width, for a pop-up to grow out of) or gone (null). */
@@ -537,16 +579,36 @@ internal fun MiniIslandHost(
 
     // ---- What it shows right now ----
     val musicContent = content == MiniIslandRules.Content.Music
+    val soundContent = content == MiniIslandRules.Content.Sound
     val resting = content == MiniIslandRules.Content.Rest
-    val situation = forceSituation ?: IslandLook.situation(musicContent, track.playing, talking, pods.budsCharging, rest = resting)
+    val situation = forceSituation ?: IslandLook.situation(musicContent, track.playing, talking, pods.budsCharging, rest = resting, sound = soundContent)
     val under = if (situation == IslandLook.Situation.Talking) {
         if (forceSituation != null) IslandLook.Situation.Music
         else if (resting) IslandLook.Situation.Rest
-        else IslandLook.underneath(musicContent, track.playing, pods.budsCharging)
+        else IslandLook.underneath(musicContent, track.playing, pods.budsCharging, sound = soundContent)
     } else situation
-    val (wantL, wantR) = look.slots(situation, under)
-    // The music situations are black, at one with the camera; the AirPods ones a dark graphite.
-    val musicTone = under == IslandLook.Situation.Music || under == IslandLook.Situation.Paused || under == IslandLook.Situation.Rest
+    val (baseL, baseR) = look.slots(situation, under)
+    // An alert popping over music (a message ding): the app's icon takes the right-hand spot for a
+    // moment, then the music's own slot comes back (the usual cross-fade and width spring).
+    val blipping = heard != null && heard.kind.blip && forceSituation == null &&
+        (situation == IslandLook.Situation.Music || situation == IslandLook.Situation.Paused)
+    val wantL = baseL
+    val wantR = if (blipping) IslandLook.Slot.App else baseR
+    // The music and sound situations are black, at one with the camera; the AirPods ones a dark graphite.
+    val musicTone = under == IslandLook.Situation.Music || under == IslandLook.Situation.Paused ||
+        under == IslandLook.Situation.Sound || under == IslandLook.Situation.Rest
+    val showIcons by rememberPref(prefs, IslandPrefs.PREF_SOUND_ICONS, true)
+    // The app behind the sound, when pro can tell (the music app's own icon during music).
+    val appIcon = if (!showIcons) null else if (soundContent || blipping) heard?.icon else track.icon
+    val appKind = if (soundContent || blipping) heard?.kind ?: SoundRules.Kind.Other else SoundRules.Kind.Media
+    val appActive = if (soundContent || blipping) heard?.active == true else track.playing
+    val phone by PhoneStatus.state.collectAsState()
+    // The App slot's ring takes the app icon's own colour (not the cover's).
+    val appAccent = remember(appIcon, look.accent) {
+        if (look.accent == IslandLook.Accent.White) Color.White else appIcon?.let { accentOf(it) } ?: Color.White
+    }
+    // What's playing, for the bars and the cover's brightness: music, or a sound that's still going.
+    val lively = track.playing || (soundContent && heard?.active == true)
 
     // Slots cross-fade when the situation (or a choice) changes, and the pill morphs to its new width.
     var shownL by remember { mutableStateOf(wantL) }
@@ -646,8 +708,8 @@ internal fun MiniIslandHost(
     val clock = remember { mutableLongStateOf(0L) }
     val shows = setOf(shownL, shownR)
     val lowPulse = IslandLook.Slot.Battery in shows && (pods.budsLevel ?: 100) <= 10 && !pods.budsCharging
-    val animated = (track.playing && (IslandLook.Slot.Bars in shows || IslandLook.Slot.Cover in shows)) ||
-        IslandLook.Slot.Talk in shows || lowPulse
+    val animated = (lively && (IslandLook.Slot.Bars in shows || IslandLook.Slot.Cover in shows)) ||
+        (appActive && IslandLook.Slot.App in shows) || IslandLook.Slot.Talk in shows || lowPulse
     val moving = visible && animated && !reduce && still == null
     // The bars follow the real music (whatever app plays it) while they're on show.
     val listening = visible && track.playing && IslandLook.Slot.Bars in shows && still == null
@@ -680,22 +742,39 @@ internal fun MiniIslandHost(
             clock.longValue = now
         }
     }
-    val level = remember { mutableFloatStateOf(if (track.playing) 1f else 0f) }
-    LaunchedEffect(track.playing) {
+    val level = remember { mutableFloatStateOf(if (lively) 1f else 0f) }
+    LaunchedEffect(lively) {
         val a = Animatable(level.floatValue)
         // Bars rise from dots with a small springy lift, and settle back softly on pause.
-        if (reduce) a.snapTo(if (track.playing) 1f else 0f)
-        else a.animateTo(if (track.playing) 1f else 0f, spring(dampingRatio = if (track.playing) 0.7f else 1f, stiffness = 300f)) { level.floatValue = value }
+        if (reduce) a.snapTo(if (lively) 1f else 0f)
+        else a.animateTo(if (lively) 1f else 0f, spring(dampingRatio = if (lively) 0.7f else 1f, stiffness = 300f)) { level.floatValue = value }
         level.floatValue = a.value
+    }
+
+    // The time for the Clock slot: kept to the minute, and only while it's on show.
+    val is24 = remember { android.text.format.DateFormat.is24HourFormat(context) }
+    var clockText by remember { mutableStateOf(clockNow(is24)) }
+    LaunchedEffect(visible, IslandLook.Slot.Clock in shows) {
+        if (still != null || !visible || IslandLook.Slot.Clock !in shows) return@LaunchedEffect
+        while (true) {
+            clockText = clockNow(is24)
+            delay(60_000L - System.currentTimeMillis() % 60_000L + 50L)
+        }
     }
 
     val beat = rememberHeartBeat(heartBpm, reduce || still != null, peak = 1.18f)
     val measurer = androidx.compose.ui.text.rememberTextMeasurer()
-    val accent = remember(track.art) { track.art?.let { accentOf(it) } ?: Color.White }
+    val accent = remember(track.art, appIcon, look.accent) {
+        if (look.accent == IslandLook.Accent.White) Color.White
+        else (track.art ?: appIcon)?.let { accentOf(it) } ?: Color.White
+    }
     val paused = remember { ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) }
     val m = geometry.margin
     val s = geometry.size
-    val describe = if (resting) "Dynamic Island. Tap for music controls, hold to open pro." else if (!musicContent) buildString {
+    val describe = if (resting) "Dynamic Island. Tap for music controls, hold to open pro." else if (soundContent) buildString {
+        append("Sound").append(heard?.app?.let { " from $it" } ?: "")
+        append(if (heard?.pkg != null) ". Tap to open it, hold to open pro." else ". Hold to open pro.")
+    } else if (!musicContent) buildString {
         append(pods.name)
         pods.budsLevel?.let { append(", battery ").append(it).append("%") }
         if (pods.listeningMode in 1..4) append(", ").append(listeningModeName(pods.listeningMode))
@@ -708,7 +787,8 @@ internal fun MiniIslandHost(
         append(". Tap to open, swipe to change song, hold to open pro.")
     }
     val textLine = listOfNotNull(track.title, track.artist).joinToString("  ·  ")
-    val shortTitle = remember(track.title) { track.title?.split(' ')?.filter { it.isNotBlank() }?.take(3)?.joinToString(" ") }
+    val titleSource = if (soundContent || blipping) heard?.app ?: heard?.kind?.label else track.title
+    val shortTitle = remember(titleSource) { titleSource?.split(' ')?.filter { it.isNotBlank() }?.take(3)?.joinToString(" ") }
 
     val currentAction by androidx.compose.runtime.rememberUpdatedState(onAction)
     val currentActions by androidx.compose.runtime.rememberUpdatedState(actions)
@@ -945,6 +1025,8 @@ internal fun MiniIslandHost(
                         side = s.side, density = density, fontScale = fontScale, track = track, pods = pods, heartBpm = heartBpm, beat = beat.value,
                         level = level.floatValue, accent = accent, paused = paused, clock = clock.longValue, moving = moving,
                         lowPulse = lowPulse && !reduce, measurer = measurer, shortTitle = shortTitle,
+                        appIcon = appIcon, appAccent = appAccent, coverIcon = if (showIcons) track.icon else null, appKind = appKind, appActive = appActive,
+                        phone = phone, clockText = clockText,
                         bars = if (synced) bars else null,
                         progressAt = if (moving) clock.longValue else SystemClock.elapsedRealtime(),
                     )
@@ -1027,6 +1109,16 @@ private class SlotData(
     val measurer: androidx.compose.ui.text.TextMeasurer,
     val shortTitle: String?,
     val progressAt: Long,
+    /** The icon of the app making the sound (null: a symbol for [appKind]). */
+    val appIcon: ImageBitmap? = null,
+    /** The music app's icon, standing in for a cover that has no picture. */
+    val coverIcon: ImageBitmap? = null,
+    val appKind: SoundRules.Kind = SoundRules.Kind.Other,
+    /** The colour of the App slot's ring: the icon's own most vivid colour (white when it has none). */
+    val appAccent: Color = Color.White,
+    val appActive: Boolean = false,
+    val phone: PhoneStatus.Info = PhoneStatus.Info(),
+    val clockText: String = "",
     /** The music's real levels (bass to treble), when pro can hear it; null: their own motion. */
     val bars: FloatArray? = null,
 )
@@ -1055,7 +1147,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
             // The cover (or a note when there's no picture), greyed and dimmed while paused.
             val circle = Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, side / 2f)) }
             clipPath(circle) {
-                val art = d.track.art
+                val art = d.track.art ?: d.coverIcon
                 if (art != null) {
                     drawImage(
                         art,
@@ -1098,24 +1190,35 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
                 drawLine(d.accent.copy(alpha = alpha), Offset(x, c.y - hgt / 2f), Offset(x, c.y + hgt / 2f), barW, StrokeCap.Round)
             }
         }
-        IslandLook.Slot.Battery -> {
-            // The buds' battery as a ring with the number: green while charging, amber at 20%
-            // and below, red at 10% (where it breathes gently so it catches your eye).
-            val lvl = d.pods.budsLevel
-            val ringC = when {
-                d.pods.budsCharging -> Color(0xFF30D158)
-                lvl != null && lvl <= 10 -> Color(0xFFFF453A)
-                lvl != null && lvl <= 20 -> Color(0xFFFFB340)
-                else -> Color.White
+        IslandLook.Slot.Battery -> batteryRing(d.pods.budsLevel, d.pods.budsCharging, d.lowPulse, c, side, alpha, d)
+        IslandLook.Slot.Phone -> batteryRing(d.phone.level.takeIf { d.phone.known }, d.phone.charging, d.lowPulse, c, side, alpha, d)
+        IslandLook.Slot.Clock -> {
+            val t = text(d.clockText, side * 0.36f)
+            drawText(t, alpha = alpha, topLeft = Offset(c.x - t.size.width / 2f, c.y - t.size.height / 2f))
+        }
+        IslandLook.Slot.App -> {
+            // The app making the sound: its icon in a circle (a symbol for the kind of sound when
+            // pro can't tell which app), with a soft ring that breathes while it's still playing.
+            val r = side / 2f
+            val circle = Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, r)) }
+            val icon = d.appIcon
+            clipPath(circle) {
+                if (icon != null) {
+                    drawImage(
+                        icon, srcOffset = IntOffset.Zero, srcSize = IntSize(icon.width, icon.height),
+                        dstOffset = IntOffset((c.x - r).roundToInt(), (c.y - r).roundToInt()), dstSize = IntSize(side.roundToInt(), side.roundToInt()),
+                        alpha = alpha,
+                    )
+                } else {
+                    drawCircle(Color(0xFF2C2C2E), r, c, alpha = alpha)
+                    drawKindGlyph(d.appKind, c, side * 0.54f, Color.White.copy(alpha = alpha * 0.92f))
+                }
             }
-            val rr = side / 2f - 1.5f * dp
-            val tl = Offset(c.x - rr, c.y - rr)
-            val st = androidx.compose.ui.graphics.drawscope.Stroke(2.2f * dp, cap = StrokeCap.Round)
-            drawArc(Color.White.copy(alpha = 0.18f * alpha), 0f, 360f, false, tl, Size(rr * 2, rr * 2), style = st)
-            val breathe = if (d.lowPulse) 0.55f + 0.45f * (0.5f + 0.5f * sin(d.clock / 1000f * 3.2f)) else 1f
-            if (lvl != null) drawArc(ringC.copy(alpha = alpha * breathe), -90f, 360f * lvl / 100f, false, tl, Size(rr * 2, rr * 2), style = st)
-            val num = text(lvl?.toString() ?: "–", side * 0.34f)
-            drawText(num, alpha = alpha, topLeft = Offset(c.x - num.size.width / 2f, c.y - num.size.height / 2f))
+            drawCircle(Color.White.copy(alpha = 0.14f * alpha), r, c, style = androidx.compose.ui.graphics.drawscope.Stroke(0.8f * dp))
+            if (d.appActive) {
+                val breathe = if (d.moving) 0.5f + 0.5f * sin(d.clock / 1000f * 4.2f) else 0.7f
+                drawCircle(d.appAccent.copy(alpha = alpha * (0.3f + 0.55f * breathe)), r + 2f * dp, c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.6f * dp))
+            }
         }
         IslandLook.Slot.Buds -> if (d.pods.headphones) {
             // Headphones have one battery: one ring with a small headphones mark inside.
@@ -1207,6 +1310,110 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
         }
         IslandLook.Slot.Same, IslandLook.Slot.Nothing -> {}
     }
+}
+
+/**
+ * A battery as a ring with the number: green while charging, amber at 20% and below, red at 10%
+ * (where it breathes gently so it catches your eye). For the AirPods and for the phone itself.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.batteryRing(
+    lvl: Int?, charging: Boolean, pulse: Boolean, c: Offset, side: Float, alpha: Float, d: SlotData,
+) {
+    val dp = d.density
+    val ringC = when {
+        charging -> Color(0xFF30D158)
+        lvl != null && lvl <= 10 -> Color(0xFFFF453A)
+        lvl != null && lvl <= 20 -> Color(0xFFFFB340)
+        else -> Color.White
+    }
+    val rr = side / 2f - 1.5f * dp
+    val tl = Offset(c.x - rr, c.y - rr)
+    val st = androidx.compose.ui.graphics.drawscope.Stroke(2.2f * dp, cap = StrokeCap.Round)
+    drawArc(Color.White.copy(alpha = 0.18f * alpha), 0f, 360f, false, tl, Size(rr * 2, rr * 2), style = st)
+    val breathe = if (pulse) 0.55f + 0.45f * (0.5f + 0.5f * sin(d.clock / 1000f * 3.2f)) else 1f
+    if (lvl != null) drawArc(ringC.copy(alpha = alpha * breathe), -90f, 360f * lvl / 100f, false, tl, Size(rr * 2, rr * 2), style = st)
+    val num = d.measurer.measure(
+        lvl?.toString() ?: "–",
+        TextStyle(fontFamily = glintFontFamily, fontSize = (side * 0.34f / dp / d.fontScale).sp, fontWeight = FontWeight.SemiBold, color = Color.White),
+    )
+    drawText(num, alpha = alpha, topLeft = Offset(c.x - num.size.width / 2f, c.y - num.size.height / 2f))
+}
+
+/**
+ * A small symbol for a kind of sound, drawn at [c] about [size] across: used when pro can't tell
+ * which app made it (or icons are switched off). A speaker, a bell, a handset, a clock, a microphone.
+ */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawKindGlyph(kind: SoundRules.Kind, c: Offset, size: Float, color: Color) {
+    val u = size / 2f
+    val sw = u * 0.2f
+    val line = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = StrokeCap.Round)
+    when (kind) {
+        SoundRules.Kind.Alert -> {
+            // A bell: a dome flaring at the rim, and its clapper.
+            drawPath(Path().apply {
+                moveTo(c.x - u * 0.62f, c.y + u * 0.38f)
+                cubicTo(c.x - u * 0.62f, c.y - u * 0.95f, c.x + u * 0.62f, c.y - u * 0.95f, c.x + u * 0.62f, c.y + u * 0.38f)
+                lineTo(c.x + u * 0.86f, c.y + u * 0.58f); lineTo(c.x - u * 0.86f, c.y + u * 0.58f); close()
+            }, color)
+            drawCircle(color, u * 0.17f, Offset(c.x, c.y + u * 0.86f))
+        }
+        SoundRules.Kind.Call -> {
+            // A handset: a curved bar with a heavier end on each side.
+            drawArc(color, 205f, 130f, false, Offset(c.x - u * 0.8f, c.y - u * 0.45f), Size(u * 1.6f, u * 1.6f), style = androidx.compose.ui.graphics.drawscope.Stroke(sw * 1.5f, cap = StrokeCap.Round))
+            drawCircle(color, u * 0.2f, Offset(c.x - u * 0.7f, c.y + u * 0.35f))
+            drawCircle(color, u * 0.2f, Offset(c.x + u * 0.7f, c.y + u * 0.35f))
+        }
+        SoundRules.Kind.Alarm -> {
+            // An alarm clock: a face with hands, and its two bells.
+            drawCircle(color, u * 0.7f, Offset(c.x, c.y + u * 0.1f), style = line)
+            drawLine(color, Offset(c.x, c.y + u * 0.1f), Offset(c.x, c.y - u * 0.3f), sw, StrokeCap.Round)
+            drawLine(color, Offset(c.x, c.y + u * 0.1f), Offset(c.x + u * 0.28f, c.y + u * 0.26f), sw, StrokeCap.Round)
+            drawCircle(color, u * 0.2f, Offset(c.x - u * 0.72f, c.y - u * 0.62f))
+            drawCircle(color, u * 0.2f, Offset(c.x + u * 0.72f, c.y - u * 0.62f))
+        }
+        SoundRules.Kind.Voice -> {
+            // A microphone: a capsule on a small stand.
+            drawRoundRect(color, Offset(c.x - u * 0.28f, c.y - u * 0.85f), Size(u * 0.56f, u * 1.05f), CornerRadius(u * 0.28f))
+            drawArc(color, 0f, 180f, false, Offset(c.x - u * 0.55f, c.y - u * 0.5f), Size(u * 1.1f, u * 1.1f), style = line)
+            drawLine(color, Offset(c.x, c.y + u * 0.6f), Offset(c.x, c.y + u * 0.88f), sw, StrokeCap.Round)
+        }
+        else -> {
+            // A speaker with two sound waves.
+            drawPath(Path().apply {
+                moveTo(c.x - u * 0.85f, c.y - u * 0.28f); lineTo(c.x - u * 0.45f, c.y - u * 0.28f)
+                lineTo(c.x - u * 0.02f, c.y - u * 0.7f); lineTo(c.x - u * 0.02f, c.y + u * 0.7f)
+                lineTo(c.x - u * 0.45f, c.y + u * 0.28f); lineTo(c.x - u * 0.85f, c.y + u * 0.28f); close()
+            }, color)
+            drawArc(color, -45f, 90f, false, Offset(c.x - u * 0.34f, c.y - u * 0.42f), Size(u * 0.84f, u * 0.84f), style = line)
+            drawArc(color, -45f, 90f, false, Offset(c.x - u * 0.34f - u * 0.26f, c.y - u * 0.42f - u * 0.26f), Size(u * 1.36f, u * 1.36f), style = line)
+        }
+    }
+}
+
+/** The time as the Clock slot shows it. */
+private fun clockNow(is24: Boolean): String = java.util.Calendar.getInstance().let {
+    IslandLook.clockText(it.get(java.util.Calendar.HOUR_OF_DAY), it.get(java.util.Calendar.MINUTE), is24)
+}
+
+/**
+ * The music with the music app's icon filled in when it has no cover picture of its own: the
+ * app came from the sound listener (the app on screen) rather than the media session.
+ */
+private fun withSource(t: NowPlaying.Track, h: SoundSource.Heard?): NowPlaying.Track =
+    if (h == null || !h.musicLike || !t.playing || (t.icon != null && t.pkg != null)) t
+    else t.copy(app = t.app ?: h.app, pkg = t.pkg ?: h.pkg, icon = t.icon ?: h.icon)
+
+/** A pretend app icon (a green speech bubble) for Settings' previews and screenshots. */
+internal fun sampleIcon(): ImageBitmap {
+    val b = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(b)
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    paint.color = 0xFF30D158.toInt()
+    canvas.drawRoundRect(0f, 0f, 96f, 96f, 28f, 28f, paint)
+    paint.color = android.graphics.Color.WHITE
+    canvas.drawRoundRect(22f, 24f, 74f, 62f, 16f, 16f, paint)
+    canvas.drawPath(android.graphics.Path().apply { moveTo(34f, 58f); lineTo(30f, 74f); lineTo(48f, 60f); close() }, paint)
+    return b.asImageBitmap()
 }
 
 /** What a gesture on the Dynamic Island just did, as shown for a moment in its right-hand spot. */

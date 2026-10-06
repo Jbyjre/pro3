@@ -181,10 +181,13 @@ object GlintOverlays {
     /** Re-checks whether the mini island should be up (after a settings change). */
     fun refreshMiniIsland(context: Context) = main.post { mini?.refresh() ?: startMiniIsland(context) }
 
-    /** Shows the mini island for a few seconds with sample music, for Settings > Island > Try it. */
-    fun previewMiniIsland(context: Context) = main.post {
+    /**
+     * Shows the mini island for a few seconds with sample music (or, with [sound], a pretend
+     * message ding with an app icon), for Settings > Island > Try it.
+     */
+    fun previewMiniIsland(context: Context, sound: Boolean = false) = main.post {
         val c = mini ?: MiniIslandController(context.applicationContext).also { mini = it }
-        c.preview()
+        if (sound) c.previewSound() else c.preview()
     }
 
     fun showCard(context: Context) = main.post {

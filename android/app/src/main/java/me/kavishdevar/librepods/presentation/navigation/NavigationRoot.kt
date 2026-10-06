@@ -99,6 +99,7 @@ fun NavigationRoot(
         Screen.MicrophoneSettings -> stringResource(R.string.microphone_mode)
         Screen.StayConnected -> "Stay connected"
         Screen.IslandSettings -> "Islands"
+        Screen.Phone -> "This phone"
         Screen.GlintLab -> "pro Lab"
         Screen.HeartRate -> "Heart rate"
         Screen.Recorder -> "Recorder"

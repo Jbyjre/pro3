@@ -6,7 +6,17 @@ A short checklist. Tick things off, and for anything that looks wrong, take a sc
 
 Install the new `pro.apk` (section A), open pro once, then:
 
-**New: sound bars and an always-on Dynamic Island (newest)**
+**New: any sound pops the Dynamic Island, with the app's icon (newest)**
+1. Open pro once after updating, then **Settings > Islands**. Under **Sounds** check "Pop for any sound" is on. Under "Which app made the sound?" turn on what it offers: **Allow** Notification access (if Samsung says "Restricted setting", use **App info** > ⋮ > Allow restricted settings, then Allow again). If "pro Dynamic Island" is already on from before, leave it.
+2. Have someone message you on WhatsApp (or message yourself from another account) with the screen on. The Dynamic Island should show **WhatsApp's icon** with a soft ring and bars for about 4 seconds, then settle. If it shows a bell instead, pro didn't match the app: open **Settings > Islands > Heard lately** and tell Claude what it lists and which switches are green.
+3. Open WhatsApp and play a voice note. The island should show the WhatsApp icon while it plays. Tap the island: WhatsApp should open (may not work on every phone: tell Claude if it doesn't).
+4. Play music, then get a message. The cover stays on the left; the right side shows the app's icon for a moment, then the bars return.
+5. Check **Heard lately** lists WhatsApp (and your music app). Turn WhatsApp's switch off and get another message: the island should stay quiet. Turn it back on.
+6. Stop everything and leave the phone alone: the island should show the **battery ring and the time** (not an empty pill). Plug in the charger: the ring turns green. Change it all in **Settings > Islands > Look** (pick "Nothing on", "Sounds" and the new App icon, Phone battery and Clock choices; "Colour of bars and rings").
+7. **No headphones:** turn Bluetooth off. Everything above should still work. The main page shows a **This phone** card at the bottom (also Settings > This phone).
+8. A short game or app sound should show briefly and then be gone, not leave a "Paused" island for 30 seconds. After pausing music for over 30 seconds nothing should hang or heat the phone (this was a bug).
+
+**Earlier: sound bars and an always-on Dynamic Island**
 1. Open pro once after updating. Android asks to use the **microphone**: tap **While using the app**. pro only measures how loud the music is; nothing is recorded. (Missed it? Settings > Island > "Sound bars follow the music".)
 2. Play music from any app (Spotify, YouTube, anything). The bars next to the camera should jump with the beat. A soft glow in the cover's colour swells with the bass. **Important check:** close pro (go to the home screen) and watch the bars for a few seconds. If they still follow the beat, great. If they go back to an even, regular wiggle that ignores the song, tell Claude: it means your phone only lets pro hear the music while pro is open, and that needs a different fix.
 3. Turn off Bluetooth and stop the music. The Dynamic Island should stay as a small black pill around the camera. Tap it: music controls open (play picks up your last song). Hold it: pro opens.

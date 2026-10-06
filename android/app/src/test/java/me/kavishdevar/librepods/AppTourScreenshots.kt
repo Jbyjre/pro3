@@ -174,6 +174,8 @@ class AppTourScreenshots {
     @Test fun appSettingsDark() = tour("03_app_settings", dark = true, stack = listOf(Screen.AppSettings))
     @Test fun stayConnected() = both("04_stay_connected", listOf(Screen.StayConnected))
     @Test fun islandSettings() = both("38_island_settings", listOf(Screen.IslandSettings))
+    @Test fun phonePageInApp() = both("46_phone", listOf(Screen.Phone))
+    @Test fun phonePageInAppDark() = tour("46_phone", dark = true, stack = listOf(Screen.Phone))
     @Test fun homeTimeLeft() {
         BatteryTimeLeft.publish(BatteryEstimate(197, BatteryEstimator.Confidence.MEASURED, worn = true, charging = false, caseCharges = 1.52))
         both("01b_home_time_left", emptyList())

@@ -186,9 +186,14 @@ class GlintScreenshots {
         ack: me.kavishdevar.librepods.presentation.overlays.MiniAck? = null,
         look: me.kavishdevar.librepods.services.IslandLook.Look = me.kavishdevar.librepods.services.IslandLook.Look(),
         situation: me.kavishdevar.librepods.services.IslandLook.Situation? = null,
+        /** A sound that isn't music (Sounds look), or an alert popping over the music. */
+        heard: me.kavishdevar.librepods.services.SoundSource.Heard? = null,
+        content: me.kavishdevar.librepods.services.MiniIslandRules.Content? = null,
+        phone: me.kavishdevar.librepods.services.PhoneStatus.Info? = null,
     ) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")
         rule.mainClock.autoAdvance = false
+        phone?.let { me.kavishdevar.librepods.services.PhoneStatus.preview(it) }
         val app = RuntimeEnvironment.getApplication()
         val d = app.resources.displayMetrics.density
         val screenW = app.resources.displayMetrics.widthPixels
@@ -219,7 +224,8 @@ class GlintScreenshots {
                     }).align(Alignment.TopCenter)) {
                         me.kavishdevar.librepods.presentation.overlays.MiniIslandHost(
                             geometry = geo, track = track, leaving = false, hidden = false,
-                            content = if (airPods != null) me.kavishdevar.librepods.services.MiniIslandRules.Content.AirPods else me.kavishdevar.librepods.services.MiniIslandRules.Content.Music,
+                            content = content ?: if (airPods != null) me.kavishdevar.librepods.services.MiniIslandRules.Content.AirPods else me.kavishdevar.librepods.services.MiniIslandRules.Content.Music,
+                            heard = heard,
                             pods = airPods ?: PodsSnapshot(), heartBpm = heart, talking = talking,
                             onWindowSize = {}, onTouchable = {}, onGone = {}, onAction = {},
                             still = 1f, stillWide = wide, stillPress = press, stillAck = ack,
@@ -631,4 +637,107 @@ class GlintScreenshots {
     private fun Modifier.androidx_clip() = this.clip(androidx.compose.foundation.shape.CircleShape)
 
     @Suppress("unused") private val keep = IntSize.Zero
+
+    // ---- Any sound, with the app's icon; nothing on shows the phone's battery and the time ----
+    private fun heard(kind: me.kavishdevar.librepods.services.SoundRules.Kind, icon: Boolean = true, active: Boolean = true, app: String = "Messages") =
+        me.kavishdevar.librepods.services.SoundSource.Heard(
+            kind = kind, pkg = if (icon) "com.example.chat" else null, app = if (icon) app else null,
+            icon = if (icon) me.kavishdevar.librepods.presentation.overlays.sampleIcon() else null,
+            startedAt = 1L, active = active, endedAt = if (active) 0L else 2L,
+        )
+    private val soundContent = me.kavishdevar.librepods.services.MiniIslandRules.Content.Sound
+    private val restContent = me.kavishdevar.librepods.services.MiniIslandRules.Content.Rest
+    private val alert = me.kavishdevar.librepods.services.SoundRules.Kind.Alert
+
+    @Test fun miniIslandSoundApp() = mini("mini_island_sound_app", playing = false, wide = 0f, art = false, content = soundContent, heard = heard(alert))
+    @Test fun miniIslandSoundAppDark() = mini("mini_island_sound_app_dark", playing = false, wide = 0f, art = false, dark = true, content = soundContent, heard = heard(alert))
+    @Test fun miniIslandSoundEnded() = mini("mini_island_sound_ended", playing = false, wide = 0f, art = false, dark = true, content = soundContent, heard = heard(alert, active = false))
+    @Test fun miniIslandSoundBell() = mini("mini_island_sound_bell", playing = false, wide = 0f, art = false, dark = true, content = soundContent, heard = heard(alert, icon = false))
+    @Test fun miniIslandSoundCall() = mini("mini_island_sound_call", playing = false, wide = 0f, art = false, dark = true, content = soundContent,
+        heard = heard(me.kavishdevar.librepods.services.SoundRules.Kind.Call, icon = false))
+    @Test fun miniIslandSoundAlarm() = mini("mini_island_sound_alarm", playing = false, wide = 0f, art = false, dark = true, content = soundContent,
+        heard = heard(me.kavishdevar.librepods.services.SoundRules.Kind.Alarm, icon = false))
+    @Test fun miniIslandSoundVoice() = mini("mini_island_sound_voice", playing = false, wide = 0f, art = false, dark = true, content = soundContent,
+        heard = heard(me.kavishdevar.librepods.services.SoundRules.Kind.Voice, icon = false))
+    @Test fun miniIslandSoundOther() = mini("mini_island_sound_other", playing = false, wide = 0f, art = false, dark = true, content = soundContent,
+        heard = heard(me.kavishdevar.librepods.services.SoundRules.Kind.Other, icon = false))
+    // A message ding while music plays: the app's icon takes the right-hand spot for a moment.
+    @Test fun miniIslandBlipOverMusic() = mini("mini_island_blip", playing = true, wide = 0f, art = true, dark = true, heard = heard(alert))
+    // Titles: the app's name for sounds.
+    @Test fun miniIslandSoundTitle() = mini(
+        "mini_island_sound_title", playing = false, wide = 0f, art = false, dark = true, content = soundContent, heard = heard(alert),
+        look = me.kavishdevar.librepods.services.IslandLook.Look(
+            slots = me.kavishdevar.librepods.services.IslandLook.DEFAULT_SLOTS + (me.kavishdevar.librepods.services.IslandLook.Situation.Sound to
+                (me.kavishdevar.librepods.services.IslandLook.Slot.App to me.kavishdevar.librepods.services.IslandLook.Slot.Title)),
+        ),
+    )
+    // The "Colour" choice: white bars and rings whatever the cover.
+    @Test fun miniIslandWhiteAccent() = mini(
+        "mini_island_white_accent", playing = true, wide = 0f, art = true, dark = true,
+        look = me.kavishdevar.librepods.services.IslandLook.Look(accent = me.kavishdevar.librepods.services.IslandLook.Accent.White),
+    )
+    // Nothing on: the phone's battery on one side and the time on the other.
+    @Test fun miniIslandRest() = mini("mini_island_rest", playing = false, wide = 0f, art = false, content = restContent,
+        phone = me.kavishdevar.librepods.services.PhoneStatus.Info(84, false))
+    @Test fun miniIslandRestDark() = mini("mini_island_rest_dark", playing = false, wide = 0f, art = false, dark = true, content = restContent,
+        phone = me.kavishdevar.librepods.services.PhoneStatus.Info(84, false))
+    @Test fun miniIslandRestCharging() = mini("mini_island_rest_charging", playing = false, wide = 0f, art = false, dark = true, content = restContent,
+        phone = me.kavishdevar.librepods.services.PhoneStatus.Info(57, true))
+    @Test fun miniIslandRestLow() = mini("mini_island_rest_low", playing = false, wide = 0f, art = false, dark = true, content = restContent,
+        phone = me.kavishdevar.librepods.services.PhoneStatus.Info(9, false))
+    @Test fun miniIslandRestNoBatteryYet() = mini("mini_island_rest_nobattery", playing = false, wide = 0f, art = false, dark = true, content = restContent,
+        phone = me.kavishdevar.librepods.services.PhoneStatus.Info())
+
+    /** The sound settings and the recent-sounds list, with a few apps heard. */
+    @Test fun soundsSettingsLight() = soundsPage("sounds_settings_light", dark = false)
+    @Test fun soundsSettingsDark() = soundsPage("sounds_settings_dark", dark = true)
+    @Test fun soundsSettingsEmpty() = soundsPage("sounds_settings_empty", dark = true, seeded = false)
+
+    private fun soundsPage(name: String, dark: Boolean, seeded: Boolean = true) {
+        if (dark) RuntimeEnvironment.setQualifiers("+night")
+        me.kavishdevar.librepods.services.SoundSource.resetForTest()
+        val icon = me.kavishdevar.librepods.presentation.overlays.sampleIcon()
+        val now = System.currentTimeMillis()
+        if (seeded) me.kavishdevar.librepods.services.SoundSource.previewRecent(
+            listOf(
+                me.kavishdevar.librepods.services.SoundRules.Seen("com.example.chat", alert, now - 40_000, 3),
+                me.kavishdevar.librepods.services.SoundRules.Seen("com.example.music", me.kavishdevar.librepods.services.SoundRules.Kind.Media, now - 6 * 60_000, 1),
+                me.kavishdevar.librepods.services.SoundRules.Seen(null, me.kavishdevar.librepods.services.SoundRules.Kind.Alarm, now - 3 * 3_600_000, 1),
+            ),
+            mapOf(
+                "com.example.chat" to me.kavishdevar.librepods.services.SoundSource.AppInfo("Messages", icon),
+                "com.example.music" to me.kavishdevar.librepods.services.SoundSource.AppInfo("Music player", null),
+            ),
+        )
+        val ink = if (dark) Color.White else Color.Black
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            Box(Modifier.fillMaxSize().background(if (dark) Color.Black else Color(0xFFF2F2F7)).padding(16.dp)) {
+                Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
+                    me.kavishdevar.librepods.presentation.screens.SoundsSection(ink, dark)
+                    me.kavishdevar.librepods.presentation.screens.RecentSounds(ink, dark)
+                }
+            }
+        }
+        rule.mainClock.advanceTimeBy(1_500)
+        rule.onRoot().captureRoboImage("$out/$name.png")
+        me.kavishdevar.librepods.services.SoundSource.resetForTest()
+    }
+
+    /** The This phone page, light and dark. */
+    @Test fun phonePageLight() = phonePage("phone_page_light", dark = false)
+    @Test fun phonePageDark() = phonePage("phone_page_dark", dark = true)
+
+    private fun phonePage(name: String, dark: Boolean) {
+        if (dark) RuntimeEnvironment.setQualifiers("+night")
+        me.kavishdevar.librepods.services.PhoneStatus.preview(me.kavishdevar.librepods.services.PhoneStatus.Info(72, false))
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            me.kavishdevar.librepods.presentation.theme.LibrePodsTheme(m3eEnabled = false) {
+                me.kavishdevar.librepods.presentation.screens.PhoneScreen(navigateToIsland = {})
+            }
+        }
+        rule.mainClock.advanceTimeBy(1_500)
+        rule.onRoot().captureRoboImage("$out/$name.png")
+    }
 }

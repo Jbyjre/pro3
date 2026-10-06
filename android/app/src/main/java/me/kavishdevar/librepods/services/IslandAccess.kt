@@ -44,7 +44,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * its taps (and can show on the lock screen).
  *
  * It only looks at where the phone's own panels are (so the island steps aside while you pull
- * down notifications); it never reads what's on the screen.
+ * down notifications) and at which app's window came to the front (so a sound can be matched to
+ * its app); it never reads what's on the screen.
  */
 class IslandAccessService : AccessibilityService() {
     private val main = Handler(Looper.getMainLooper())
@@ -57,6 +58,9 @@ class IslandAccessService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Which app just came to the front (the app's name only, nothing on the screen), so a
+        // sound can be matched to the app you're in.
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) SoundSource.windowChanged(event.packageName)
         // Windows come and go in bursts (an animation can send dozens): look once things settle.
         main.removeCallbacks(check)
         main.postDelayed(check, PANEL_CHECK_MS)

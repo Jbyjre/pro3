@@ -148,7 +148,7 @@ fun IslandSettingsScreen() {
         StyledList(title = "Dynamic Island") {
             StyledToggle(
                 label = "Dynamic Island around the camera",
-                description = "Cover and bars with music, battery and mode with AirPods",
+                description = "Music, any sound, your AirPods, or the phone's battery and time",
                 checked = mini,
                 onCheckedChange = {
                     mini = it
@@ -203,6 +203,9 @@ fun IslandSettingsScreen() {
                 },
             )
         }
+
+        SoundsSection(ink, dark)
+        RecentSounds(ink, dark)
 
         SectionLabel("Look", ink)
         DynamicIslandStudio(ink, dark)
@@ -316,6 +319,9 @@ fun IslandSettingsScreen() {
             GlassPillButton(text = "Dynamic Island", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
                 GlintOverlays.previewMiniIsland(context)
             }
+            GlassPillButton(text = "A message ding", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
+                GlintOverlays.previewMiniIsland(context, sound = true)
+            }
         }
         Text(
             "Pop-ups: tap to open, hold for pro, swipe up to put away.",
@@ -394,7 +400,7 @@ private fun TapAccessCard(enabled: Boolean, running: Boolean, ink: Color, dark: 
 }
 
 @Composable
-private fun SectionLabel(text: String, ink: Color) {
+internal fun SectionLabel(text: String, ink: Color) {
     Text(
         text,
         style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = ink.copy(alpha = 0.6f)),
@@ -404,7 +410,7 @@ private fun SectionLabel(text: String, ink: Color) {
 
 /** A short explanation on a soft card with one button. */
 @Composable
-private fun Hint(text: String, button: String, ink: Color, dark: Boolean, onClick: () -> Unit) {
+internal fun Hint(text: String, button: String, ink: Color, dark: Boolean, onClick: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -417,6 +423,6 @@ private fun Hint(text: String, button: String, ink: Color, dark: Boolean, onClic
     }
 }
 
-private fun open(context: Context, intent: Intent): Boolean = try {
+internal fun open(context: Context, intent: Intent): Boolean = try {
     context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true
 } catch (_: Exception) { false }

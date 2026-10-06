@@ -650,6 +650,10 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         )
         // What's playing, for the island's music controls and its "something started" moment.
         NowPlaying.attach(this)
+        // Any other sound (and which app made it), and the phone's own battery, for the Dynamic
+        // Island. Neither needs the AirPods, or anything else, to be connected.
+        SoundSource.attach(this)
+        PhoneStatus.attach(this)
         // The mini island around the camera follows the music by itself from here.
         GlintOverlays.startMiniIsland(this)
         serviceScope.launch(Dispatchers.Main) {

@@ -52,3 +52,15 @@ layers 13, 14, 15, 18, 20; NDK 29 / cmake 4.1.2 flags).
 - Ideas for a later session (need the phone first): tune gesture/heart timings from Jake's feedback;
   two-window touch region for pop-ups in the accessibility layer (margins still take touches);
   lock-screen shade detection on One UI.
+## 7. Any sound on the Dynamic Island, never empty, phone-first: DONE (session 2026-10-06)
+- `SoundRules` (pure) + `SoundSource` (Android playback callback, any usage; app from media session /
+  just-posted notification / app on screen). New Sounds situation, alert-over-music blip, App icon /
+  Phone battery / Clock slots, Colour option, Rest defaults to phone battery + clock, sound settings,
+  per-app switches, Heard lately, This phone page + main-page card, `<queries>` in the manifest.
+- Bugs: self-rescheduling timer with a zero/negative wait after 30 s of paused music
+  (`MiniIslandRules.nextCheck`); short blips leaving a Paused pill (`countsAsPlayed`); TalkBack speech.
+- Proof: SoundRulesTest, SoundSourceTest, MiniIslandTest/IslandLookTest additions, screenshots
+  mini_island_sound_*, mini_island_blip, mini_island_rest_*, sounds_settings_*, phone_page_*, tour 46.
+- Docs: docs/REQUESTS.md (request ledger), folder READMEs, android/tools/cloud-setup.sh.
+- Needs phone: which app each real sound is matched to (WhatsApp ding / voice note), tap-to-open
+  the source app, window layers, motion feel. See TESTING.md.

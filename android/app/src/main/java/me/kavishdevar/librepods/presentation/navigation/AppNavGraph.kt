@@ -43,6 +43,7 @@ import me.kavishdevar.librepods.presentation.screens.UpdateHearingTestRoute
 import me.kavishdevar.librepods.presentation.screens.VersionScreen
 import me.kavishdevar.librepods.presentation.screens.GlintLabScreen
 import me.kavishdevar.librepods.presentation.screens.IslandSettingsScreen
+import me.kavishdevar.librepods.presentation.screens.PhoneScreen
 import me.kavishdevar.librepods.presentation.screens.DevicesScreen
 import me.kavishdevar.librepods.presentation.screens.HeartRateScreen
 import me.kavishdevar.librepods.presentation.screens.HeartShareScreen
@@ -126,6 +127,7 @@ fun AppNavGraph(
                                 navigateToRecorder = { navigate(Screen.Recorder) },
                                 navigateToDevices = { navigate(Screen.Devices) },
                                 navigateToIsland = { navigate(Screen.IslandSettings) },
+                                navigateToPhone = { navigate(Screen.Phone) },
                             )
                         }
 
@@ -146,6 +148,7 @@ fun AppNavGraph(
                                 navigateToStayConnected = { navigate(Screen.StayConnected) },
                                 navigateToIsland = { navigate(Screen.IslandSettings) },
                                 navigateToDevices = { navigate(Screen.Devices) },
+                                navigateToPhone = { navigate(Screen.Phone) },
                                 navigateToGlintLab = { navigate(Screen.GlintLab) },
                                 navigateToRename = { navigate(Screen.Rename) },
                             )
@@ -163,6 +166,9 @@ fun AppNavGraph(
 
                     Screen.IslandSettings ->
                         NavEntry(screen) { IslandSettingsScreen() }
+
+                    Screen.Phone ->
+                        NavEntry(screen) { PhoneScreen(navigateToIsland = { navigate(Screen.IslandSettings) }) }
 
                     Screen.GlintLab ->
                         NavEntry(screen) { GlintLabScreen() }

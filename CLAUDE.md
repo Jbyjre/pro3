@@ -81,4 +81,13 @@
   (`Content.Rest` / `Situation.Rest`, tap = music controls).
   Volume limit (hearing protection without root): `services/VolumeGuard.kt`. Always-on heart rate: `PREF_HR_ALWAYS`, `autoHeartRate()` in the service. The status notification is hidden unless
   `glint_status_notification` is on. Jake's app is personal: no visible LibrePods mentions.
+- Any sound on the Dynamic Island (session 2026-10-06): `services/SoundRules.kt` (pure rules), `SoundSource.kt` (hears every
+  sound; app from media session, just-posted notification or app on screen; Android never says which app, only the kind),
+  `PhoneStatus.kt` (phone battery), Sounds situation + App icon / Phone battery / Clock slots in `IslandLook`, This phone page
+  (`screens/PhoneScreen.kt`, `SoundsSection.kt`, `components/ThisPhoneCard.kt`). Other apps' names and icons need the `<queries>` in the
+  manifest. Never schedule a recheck with a computed wait without making sure it is above zero (`MiniIslandRules.nextCheck`).
+- **`docs/REQUESTS.md` is the ledger of everything Jake has asked for and how finished each thing is: read it first and update it
+  whenever he asks for something or a status changes.** Folder READMEs (`android/`, `services/`, `overlays/`, `glint/`, `screens/`,
+  tests) map the code: update them with the code. Check a README doesn't already exist before writing one (`git ls-files | grep -i readme`).
+- Faster cloud build setup: `android/tools/cloud-setup.sh` (then `source <dir>/env.sh`); it does the steps in the two notes above.
 - See `DECISIONS.md` and `TESTING.md` at the repo root.
