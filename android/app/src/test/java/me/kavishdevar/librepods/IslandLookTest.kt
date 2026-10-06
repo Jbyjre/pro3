@@ -106,4 +106,71 @@ class IslandLookTest {
         IslandGestures.reset(prefs)
         assertEquals(IslandGestures.defaults, IslandGestures.all(prefs))
     }
+
+    @Test fun restIsNeverEmptyAndSoundsHaveTheirOwnLook() {
+        val look = IslandLook.read(prefs)
+        // Nothing on: the phone's battery and the time, so the pill doesn't look empty.
+        assertEquals(Slot.Phone to Slot.Clock, look.slots(Situation.Rest))
+        // A sound that isn't music: the app's icon and the bars.
+        assertEquals(Slot.App to Slot.Bars, look.slots(Situation.Sound))
+        assertEquals(Situation.Sound, IslandLook.situation(music = false, playing = false, talking = false, charging = false, sound = true))
+        // Talking still wins over a sound, and a sound wins over paused music.
+        assertEquals(Situation.Talking, IslandLook.situation(music = false, playing = false, talking = true, charging = false, sound = true))
+        assertEquals(Situation.Sound, IslandLook.situation(music = true, playing = false, talking = false, charging = false, sound = true))
+        assertEquals(Situation.Sound, IslandLook.underneath(music = false, playing = false, charging = false, sound = true))
+    }
+
+    @Test fun everySituationAndSlotHasAStableStorageKey() {
+        // Saved choices are found by key, so keys must be unique and never reuse an old meaning.
+        assertEquals(Situation.entries.size, Situation.entries.map { it.key }.toSet().size)
+        assertEquals(Slot.entries.size, Slot.entries.map { it.key }.toSet().size)
+        IslandLook.setSlot(prefs, Situation.Rest, true, Slot.Clock)
+        IslandLook.setSlot(prefs, Situation.Sound, false, Slot.Title)
+        val look = IslandLook.read(prefs)
+        assertEquals(Slot.Clock to Slot.Clock, look.slots(Situation.Rest))
+        assertEquals(Slot.App to Slot.Title, look.slots(Situation.Sound))
+        // The old Rest default (nothing either side) was never stored, so older installs pick up the new one.
+        IslandLook.reset(prefs)
+        assertEquals(Slot.Phone to Slot.Clock, IslandLook.read(prefs).slots(Situation.Rest))
+    }
+
+    @Test fun colourChoiceIsSavedAndResets() {
+        assertEquals(IslandLook.Accent.Auto, IslandLook.read(prefs).accent)
+        IslandLook.setAccent(prefs, IslandLook.Accent.White)
+        assertEquals(IslandLook.Accent.White, IslandLook.read(prefs).accent)
+        assertFalse(IslandLook.read(prefs).isDefault)
+        IslandLook.reset(prefs)
+        assertEquals(IslandLook.Accent.Auto, IslandLook.read(prefs).accent)
+        // A value from a future version falls back to the default instead of crashing.
+        prefs.edit().putString(IslandLook.PREF_ACCENT, "sparkly").apply()
+        assertEquals(IslandLook.Accent.Auto, IslandLook.read(prefs).accent)
+    }
+
+    @Test fun theClockFitsInAnOrdinarySlotAndReadsInYourStyle() {
+        val side = 84f
+        // Same width as a ring: the pill (and its window) keep their original size.
+        assertEquals(side, IslandLook.slotWidth(Slot.Clock, side, 3f, 1f), 0.01f)
+        assertEquals(side, IslandLook.slotWidth(Slot.Phone, side, 3f, 1f), 0.01f)
+        assertEquals(side, IslandLook.slotWidth(Slot.App, side, 3f, 1f), 0.01f)
+        assertEquals("9:41", IslandLook.clockText(9, 41, is24 = false))
+        assertEquals("9:41", IslandLook.clockText(9, 41, is24 = true))
+        assertEquals("21:05", IslandLook.clockText(21, 5, is24 = true))
+        assertEquals("9:05", IslandLook.clockText(21, 5, is24 = false))
+        assertEquals("12:00", IslandLook.clockText(0, 0, is24 = false))
+        assertEquals("12:30", IslandLook.clockText(12, 30, is24 = false))
+        assertEquals("0:00", IslandLook.clockText(0, 0, is24 = true))
+    }
+
+    @Test fun soundPreferencesDefaultToOnAndKeepAnIgnoreList() {
+        assertTrue(me.kavishdevar.librepods.services.IslandPrefs.anySound(prefs))
+        assertTrue(me.kavishdevar.librepods.services.IslandPrefs.soundIcons(prefs))
+        assertEquals(me.kavishdevar.librepods.services.SoundRules.Linger.Normal, me.kavishdevar.librepods.services.IslandPrefs.soundLinger(prefs))
+        me.kavishdevar.librepods.services.IslandPrefs.setSoundIgnored(prefs, "com.example.a", true)
+        me.kavishdevar.librepods.services.IslandPrefs.setSoundIgnored(prefs, "com.example.b", true)
+        me.kavishdevar.librepods.services.IslandPrefs.setSoundIgnored(prefs, "com.example.a", false)
+        assertEquals(setOf("com.example.b"), me.kavishdevar.librepods.services.IslandPrefs.soundIgnored(prefs))
+        // A bad stored linger index falls back instead of crashing.
+        prefs.edit().putInt(me.kavishdevar.librepods.services.IslandPrefs.PREF_SOUND_LINGER, 99).apply()
+        assertEquals(me.kavishdevar.librepods.services.SoundRules.Linger.Normal, me.kavishdevar.librepods.services.IslandPrefs.soundLinger(prefs))
+    }
 }

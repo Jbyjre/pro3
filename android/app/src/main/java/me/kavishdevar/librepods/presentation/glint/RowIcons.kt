@@ -93,6 +93,19 @@ object RowIcons {
     val Pencil = icon("pencil", P("M4.2 19.8l1-4.1L15.6 5.3a2 2 0 0 1 2.8 0l.3.3a2 2 0 0 1 0 2.8L8.3 18.8z"), P("M13.8 7.1l3.1 3.1"))
     val Press = icon("press", P(circle(12f, 12f, 2.6f), true), P(circle(12f, 12f, 5.8f)), P("M5.2 6.4a9 9 0 0 0 0 11.2M18.8 6.4a9 9 0 0 1 0 11.2"))
     val Sparkle = icon("sparkle", P("M11 3.4c.6 4.4 2.3 6.1 6.7 6.7-4.4.6-6.1 2.3-6.7 6.7-.6-4.4-2.3-6.1-6.7-6.7 4.4-.6 6.1-2.3 6.7-6.7z"), P("M18 15.2c.2 1.4.8 2 2.2 2.2-1.4.2-2 .8-2.2 2.2-.2-1.4-.8-2-2.2-2.2 1.4-.2 2-.8 2.2-2.2z", true))
+    val Smartphone = icon(
+        "smartphone",
+        P("M8.4 3.4h7.2a1.8 1.8 0 0 1 1.8 1.8v13.6a1.8 1.8 0 0 1-1.8 1.8H8.4a1.8 1.8 0 0 1-1.8-1.8V5.2a1.8 1.8 0 0 1 1.8-1.8z"),
+        P("M10.6 6.4h2.8"),
+        P("M10.8 17.6h2.4"),
+    )
+    val Apps = icon(
+        "apps",
+        P("M6.2 4.6h2.6a1.6 1.6 0 0 1 1.6 1.6v2.6a1.6 1.6 0 0 1-1.6 1.6H6.2a1.6 1.6 0 0 1-1.6-1.6V6.2a1.6 1.6 0 0 1 1.6-1.6z"),
+        P("M15.2 4.6h2.6a1.6 1.6 0 0 1 1.6 1.6v2.6a1.6 1.6 0 0 1-1.6 1.6h-2.6a1.6 1.6 0 0 1-1.6-1.6V6.2a1.6 1.6 0 0 1 1.6-1.6z"),
+        P("M6.2 13.6h2.6a1.6 1.6 0 0 1 1.6 1.6v2.6a1.6 1.6 0 0 1-1.6 1.6H6.2a1.6 1.6 0 0 1-1.6-1.6v-2.6a1.6 1.6 0 0 1 1.6-1.6z"),
+        P("M15.2 13.6h2.6a1.6 1.6 0 0 1 1.6 1.6v2.6a1.6 1.6 0 0 1-1.6 1.6h-2.6a1.6 1.6 0 0 1-1.6-1.6v-2.6a1.6 1.6 0 0 1 1.6-1.6z"),
+    )
     val Waves = icon("waves", P("M4 10.5v3M8 7v10M12 4.5v15M16 7v10M20 10.5v3"))
     val Display = icon("display", P("M5.2 4.6h13.6a2 2 0 0 1 2 2v8.6a2 2 0 0 1-2 2H5.2a2 2 0 0 1-2-2V6.6a2 2 0 0 1 2-2z"), P("M8.6 20.4h6.8M12 17.2v3.2"))
     val Speech = icon("speech", P("M12 4.2c4.9 0 8.8 3 8.8 6.8s-3.9 6.8-8.8 6.8c-1 0-1.9-.1-2.8-.4L5 19.4l1.1-3.5C4.3 14.6 3.2 12.9 3.2 11c0-3.8 3.9-6.8 8.8-6.8z"))
@@ -131,6 +144,8 @@ object RowIcons {
      */
     private val rules: List<Pair<List<String>, ImageVector>> = listOf(
         listOf("heart") to Heart,
+        listOf("app's icon") to Apps,
+        listOf("this phone") to Smartphone,
         listOf("always on") to Power,
         listOf("light follows") to Sun,
         listOf("reduce motion") to Motion,

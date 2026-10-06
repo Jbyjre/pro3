@@ -7,6 +7,7 @@ import me.kavishdevar.librepods.services.MusicPulse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -142,5 +143,81 @@ class MiniIslandTest {
         assertTrue(l[0] > 0.9f)
         assertEquals(0f, l[3], 0f)
         assertTrue(l.all { it in 0f..1f })
+    }
+
+    @Test fun anySoundPopsThePillEvenWithNothingElseGoingOn() {
+        // A message ding: no music, no AirPods, "anytime" off, nothing played before.
+        val quiet = base.copy(playing = false, pausedForMs = Long.MAX_VALUE, playedRecently = false)
+        assertFalse(MiniIslandRules.wanted(quiet))
+        assertTrue(MiniIslandRules.wanted(quiet.copy(sound = true)))
+        // Still respects the master switch, the permission, the lock screen and "AirPods only".
+        assertFalse(MiniIslandRules.wanted(quiet.copy(sound = true, enabled = false)))
+        assertFalse(MiniIslandRules.wanted(quiet.copy(sound = true, canDraw = false)))
+        assertFalse(MiniIslandRules.wanted(quiet.copy(sound = true, screenUnlocked = false)))
+        assertFalse(MiniIslandRules.wanted(quiet.copy(sound = true, airPodsOnly = true, airPodsUp = false)))
+    }
+
+    @Test fun contentPrefersMusicThenSoundsThenPausedMusic() {
+        // Music keeps the pill (a ding over it is a brief blip, not a different state).
+        assertEquals(MiniIslandRules.Content.Music, MiniIslandRules.content(playing = true, pausedForMs = 0, playedRecently = true, airPodsUp = true, sound = true))
+        // A sound beats paused music (the freshest news), then the pill returns to paused music.
+        assertEquals(MiniIslandRules.Content.Sound, MiniIslandRules.content(playing = false, pausedForMs = 5_000, playedRecently = true, airPodsUp = true, sound = true))
+        assertEquals(MiniIslandRules.Content.Music, MiniIslandRules.content(playing = false, pausedForMs = 5_000, playedRecently = true, airPodsUp = true, sound = false))
+        assertEquals(MiniIslandRules.Content.Sound, MiniIslandRules.content(playing = false, pausedForMs = Long.MAX_VALUE, playedRecently = false, airPodsUp = false, sound = true))
+        assertEquals(MiniIslandRules.Content.AirPods, MiniIslandRules.content(playing = false, pausedForMs = Long.MAX_VALUE, playedRecently = false, airPodsUp = true))
+        assertEquals(MiniIslandRules.Content.Rest, MiniIslandRules.content(playing = false, pausedForMs = Long.MAX_VALUE, playedRecently = false, airPodsUp = false))
+    }
+
+    /**
+     * Regression: the old check scheduled "look again when the pause runs out" with a wait of
+     * (30 s - paused for) + 0.1 s. Once the pause was over that wait was zero or negative, so the
+     * check ran again at once, scheduled itself again, and so on without end (with "always on"
+     * the pill stays wanted, so this began 30 s after any music paused).
+     */
+    @Test fun nextLookIsNeverZeroOrNegative() {
+        val linger = MiniIslandRules.PAUSED_LINGER_MS
+        // Not yet over: look just after it ends.
+        assertEquals(10_000L + 100L, MiniIslandRules.nextCheck(playing = false, pausedForMs = linger - 10_000, soundLeftMs = null))
+        // Over (exactly, and long ago), or nothing paused: nothing to schedule.
+        assertNull(MiniIslandRules.nextCheck(playing = false, pausedForMs = linger, soundLeftMs = null))
+        assertNull(MiniIslandRules.nextCheck(playing = false, pausedForMs = linger + 12_345, soundLeftMs = null))
+        assertNull(MiniIslandRules.nextCheck(playing = false, pausedForMs = Long.MAX_VALUE, soundLeftMs = null))
+        assertNull(MiniIslandRules.nextCheck(playing = true, pausedForMs = 0, soundLeftMs = null))
+        // A sound that just ended and paused music: the sooner of the two.
+        assertEquals(1_500L + 100L, MiniIslandRules.nextCheck(playing = false, pausedForMs = 1_000, soundLeftMs = 1_500))
+        assertNull(MiniIslandRules.nextCheck(playing = false, pausedForMs = Long.MAX_VALUE, soundLeftMs = 0))
+        assertNull(MiniIslandRules.nextCheck(playing = false, pausedForMs = Long.MAX_VALUE, soundLeftMs = -5))
+        // Every answer, for any input, is a real wait.
+        for (p in listOf(0L, 1L, linger - 1, linger, linger + 1, Long.MAX_VALUE)) for (s in listOf(null, -1L, 0L, 1L, 3_000L)) {
+            val r = MiniIslandRules.nextCheck(playing = false, pausedForMs = p, soundLeftMs = s)
+            assertTrue(r == null || r > 100L)
+        }
+    }
+
+    @Test fun aHalfSecondBlipLeavesNoPausedPillButIsStillSeenAsASound() {
+        assertFalse(MiniIslandRules.countsAsPlayed(300))
+        assertFalse(MiniIslandRules.countsAsPlayed(MiniIslandRules.SUSTAINED_MS - 1))
+        assertTrue(MiniIslandRules.countsAsPlayed(MiniIslandRules.SUSTAINED_MS))
+        // A short musical sound (a game effect) shows as a sound once it's over...
+        assertTrue(MiniIslandRules.showAsSound(heardOn = true, musicLike = true, playing = false, musicCounted = false))
+        // ...but real music that paused keeps the music look (Paused), not a sound.
+        assertFalse(MiniIslandRules.showAsSound(heardOn = true, musicLike = true, playing = false, musicCounted = true))
+        // An alert is always a sound while no music plays, and never while music does (that's a blip).
+        assertTrue(MiniIslandRules.showAsSound(heardOn = true, musicLike = false, playing = false, musicCounted = true))
+        assertFalse(MiniIslandRules.showAsSound(heardOn = true, musicLike = false, playing = true, musicCounted = true))
+        assertFalse(MiniIslandRules.showAsSound(heardOn = false, musicLike = false, playing = false, musicCounted = false))
+    }
+
+    @Test fun phoneBatteryNumbersBecomeAPercentAndAChargingFlag() {
+        val p = me.kavishdevar.librepods.services.PhoneStatus
+        val info = { level: Int, charging: Boolean -> me.kavishdevar.librepods.services.PhoneStatus.Info(level, charging) }
+        assertEquals(info(84, false), p.parse(level = 84, scale = 100, status = 3 /* discharging */, plugged = 0))
+        assertEquals(info(50, true), p.parse(level = 5, scale = 10, status = 2 /* charging */, plugged = 1))
+        // Full while plugged in counts as charging; full unplugged doesn't.
+        assertEquals(info(100, true), p.parse(level = 100, scale = 100, status = 5 /* full */, plugged = 2))
+        assertEquals(info(100, false), p.parse(level = 100, scale = 100, status = 5, plugged = 0))
+        // No reading yet.
+        assertFalse(p.parse(level = -1, scale = 100, status = 2, plugged = 1).known)
+        assertFalse(p.parse(level = 50, scale = 0, status = 2, plugged = 1).known)
     }
 }

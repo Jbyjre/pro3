@@ -115,6 +115,7 @@ fun AppSettingsScreen(
     navigateToGlintLab: () -> Unit = {},
     navigateToRename: () -> Unit = {},
     navigateToDevices: () -> Unit = {},
+    navigateToPhone: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -158,6 +159,12 @@ fun AppSettingsScreen(
         val followed by me.kavishdevar.librepods.services.DeviceChoice.chosen.collectAsState()
         androidx.compose.runtime.LaunchedEffect(Unit) { me.kavishdevar.librepods.services.DeviceChoice.load(context) }
         StyledList(title = "pro") {
+            StyledListItem(
+                name = "This phone",
+                description = "Battery, sounds and the Dynamic Island, no headphones needed",
+                orientation = ListItemOrientation.Vertical,
+                onClick = navigateToPhone,
+            )
             StyledListItem(
                 name = "Your devices",
                 description = "Following ${followed.name}",

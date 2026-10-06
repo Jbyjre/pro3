@@ -62,7 +62,11 @@ object NowPlaying {
         val title: String? = null,
         val artist: String? = null,
         val app: String? = null,
+        /** The music app's package, when its session is shared (Notification access). */
+        val pkg: String? = null,
         val art: ImageBitmap? = null,
+        /** The app's own icon: stands in for the cover when there's no picture. */
+        val icon: ImageBitmap? = null,
         /** True when the details come from the music app itself (Notification access). */
         val fromSession: Boolean = false,
         /** Song length, 0 when the app doesn't say (or without Notification access). */
@@ -175,7 +179,9 @@ object NowPlaying {
             title = title,
             artist = artist,
             app = appName(context, c.packageName),
+            pkg = c.packageName,
             art = art,
+            icon = SoundSource.appInfo(context, c.packageName).icon,
             fromSession = true,
             durationMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION)?.coerceAtLeast(0L) ?: 0L,
             positionMs = ps?.position?.takeIf { it >= 0L } ?: 0L,
@@ -202,6 +208,15 @@ object NowPlaying {
         if (current != null) return@post // the music app's own state is more precise
         if (_state.value.playing != active) _state.value = _state.value.copy(playing = active)
     }
+
+    /**
+     * The app whose session is playing right now (null without Notification access or when none
+     * plays): one of the clues [SoundSource] uses to say which app made a sound. Main thread only.
+     */
+    internal fun playingSessionPackage(): String? = current?.takeIf {
+        val st = it.playbackState?.state
+        st == PlaybackState.STATE_PLAYING || st == PlaybackState.STATE_BUFFERING
+    }?.packageName
 
     private fun audioActive(context: Context): Boolean =
         try { context.getSystemService(AudioManager::class.java).isMusicActive } catch (_: Exception) { false }
@@ -296,12 +311,20 @@ object NowPlaying {
 }
 
 /**
- * Exists only so Android can grant Glint access to media sessions (song names and the
- * music app's controls). It ignores the notifications themselves.
+ * Exists so Android can grant Glint access to media sessions (song names and the music app's
+ * controls). Of the notifications themselves it keeps only which app posted one and when, for a
+ * few seconds, so a sound that follows can be matched to its app ([SoundSource]); the contents
+ * are never read.
  */
 class MediaAccessService : NotificationListenerService() {
     override fun onListenerConnected() {
         NowPlaying.attach(this)
+        SoundSource.attach(this)
+    }
+
+    override fun onNotificationPosted(sbn: android.service.notification.StatusBarNotification?) {
+        sbn ?: return
+        SoundSource.notificationPosted(sbn.packageName, sbn.notification?.flags ?: 0)
     }
 
     override fun onListenerDisconnected() {

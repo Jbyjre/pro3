@@ -96,5 +96,7 @@ sealed interface Screen: NavKey {
     data object IslandSettings: Screen
     @Serializable
     data object Devices: Screen
+    @Serializable
+    data object Phone: Screen
 
 }

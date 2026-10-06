@@ -163,6 +163,7 @@ fun AirPodsSettingsRoute(
     navigateToRecorder: () -> Unit = {},
     navigateToDevices: () -> Unit = {},
     navigateToIsland: () -> Unit = {},
+    navigateToPhone: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val timeLeft by BatteryTimeLeftFlow.estimate.collectAsState()
@@ -242,6 +243,7 @@ fun AirPodsSettingsRoute(
             navigateToMicrophoneSettings = navigateToMicrophoneSettings,
             navigateToHeartRate = navigateToHeartRate,
             navigateToRecorder = navigateToRecorder,
+            navigateToPhone = navigateToPhone,
             timeLeft = timeLeft,
 
             activateDemoMode = viewModel::activateDemoMode,
@@ -294,6 +296,7 @@ fun AirPodsSettingsScreen(
         navigateToMicrophoneSettings: () -> Unit,
         navigateToHeartRate: () -> Unit = {},
         navigateToRecorder: () -> Unit = {},
+        navigateToPhone: () -> Unit = {},
         timeLeft: BatteryEstimate? = null,
 
         activateDemoMode: () -> Unit,
@@ -344,6 +347,9 @@ fun AirPodsSettingsScreen(
             }
             item(key = "tap_setup") {
                 me.kavishdevar.librepods.presentation.components.TapSetupBanner(Modifier.padding(top = 18.dp))
+            }
+            item(key = "this_phone") {
+                me.kavishdevar.librepods.presentation.components.ThisPhoneCard(Modifier.padding(top = 12.dp), onOpen = navigateToPhone)
             }
             item(key = "spacer_battery") {
                 Spacer(modifier = Modifier.height(28.dp))
@@ -709,6 +715,11 @@ fun AirPodsSettingsScreen(
         ) {
             me.kavishdevar.librepods.presentation.components.TapSetupBanner(
                 Modifier.align(Alignment.TopCenter).padding(top = topPadding, start = 8.dp, end = 8.dp)
+            )
+            // Nothing connected: the page still has something to open (the phone's own features).
+            me.kavishdevar.librepods.presentation.components.ThisPhoneCard(
+                Modifier.align(Alignment.BottomCenter).padding(horizontal = 8.dp),
+                onOpen = navigateToPhone,
             )
             val tapCount = remember { mutableIntStateOf(0) }
             val lastTapTime = remember { mutableLongStateOf(0L) }

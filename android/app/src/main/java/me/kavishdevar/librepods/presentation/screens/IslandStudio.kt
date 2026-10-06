@@ -87,11 +87,15 @@ import me.kavishdevar.librepods.presentation.overlays.GlintOverlays
 import me.kavishdevar.librepods.presentation.overlays.MiniGeometry
 import me.kavishdevar.librepods.presentation.overlays.MiniIslandHost
 import me.kavishdevar.librepods.presentation.overlays.PodsSnapshot
+import me.kavishdevar.librepods.presentation.overlays.drawKindGlyph
+import me.kavishdevar.librepods.presentation.overlays.sampleIcon
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.services.IslandGestures
 import me.kavishdevar.librepods.services.IslandLook
 import me.kavishdevar.librepods.services.MiniIslandRules
 import me.kavishdevar.librepods.services.NowPlaying
+import me.kavishdevar.librepods.services.SoundRules
+import me.kavishdevar.librepods.services.SoundSource
 
 /**
  * Settings > Islands: what the Dynamic Island shows and how it looks. A live preview (the real
@@ -158,6 +162,11 @@ fun DynamicIslandStudio(ink: Color, dark: Boolean, preview: IslandLook.Situation
                     IslandLook.setGlow(prefs, IslandLook.Glow.entries[it]); look = IslandLook.read(prefs)
                 }, track = ink.copy(alpha = if (dark) 0.08f else 0.05f))
             }
+            LookRow("Colour of bars and rings", ink) {
+                LiquidSegments(IslandLook.Accent.entries.map { it.label }, look.accent.ordinal, {
+                    IslandLook.setAccent(prefs, IslandLook.Accent.entries[it]); look = IslandLook.read(prefs)
+                }, track = ink.copy(alpha = if (dark) 0.08f else 0.05f))
+            }
         }
 
         AnimatedVisibility(
@@ -175,6 +184,24 @@ fun DynamicIslandStudio(ink: Color, dark: Boolean, preview: IslandLook.Situation
             }
         }
     }
+}
+
+/** The live Dynamic Island strip with your own look and gestures, kept up to date as they change. */
+@Composable
+internal fun LiveIslandStrip(situation: IslandLook.Situation, dark: Boolean) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE) }
+    var look by remember { mutableStateOf(IslandLook.read(prefs)) }
+    var actions by remember { mutableStateOf(IslandGestures.all(prefs)) }
+    DisposableEffect(prefs) {
+        val l = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
+            if (key == null || key in IslandLook.keys) look = IslandLook.read(p)
+            if (key == null || IslandGestures.Gesture.entries.any { it.key == key }) actions = IslandGestures.all(p)
+        }
+        prefs.registerOnSharedPreferenceChangeListener(l)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(l) }
+    }
+    IslandPreview(look, actions, situation, dark)
 }
 
 /**
@@ -199,6 +226,10 @@ private fun IslandPreview(look: IslandLook.Look, actions: Map<IslandGestures.Ges
         }.asImageBitmap()
     }
     val playing = situation == IslandLook.Situation.Music || situation == IslandLook.Situation.Talking
+    val icon = remember { sampleIcon() }
+    val heard = if (situation == IslandLook.Situation.Sound) SoundSource.Heard(
+        kind = SoundRules.Kind.Alert, pkg = null, app = "Messages", icon = icon, startedAt = 1L, active = true,
+    ) else null
     val track = NowPlaying.Track(
         playing = playing, title = "Midnight City", artist = "M83", app = "pro", art = art, fromSession = true,
         durationMs = 243_000L, positionMs = 90_000L, positionAtMs = android.os.SystemClock.elapsedRealtime().coerceAtLeast(1L),
@@ -220,8 +251,10 @@ private fun IslandPreview(look: IslandLook.Look, actions: Map<IslandGestures.Ges
                 content = when (situation) {
                     IslandLook.Situation.Idle, IslandLook.Situation.Charging -> MiniIslandRules.Content.AirPods
                     IslandLook.Situation.Rest -> MiniIslandRules.Content.Rest
+                    IslandLook.Situation.Sound -> MiniIslandRules.Content.Sound
                     else -> MiniIslandRules.Content.Music
                 },
+                heard = heard,
                 pods = pods,
                 heartBpm = 72,
                 talking = situation == IslandLook.Situation.Talking,
@@ -370,6 +403,24 @@ private fun DrawScope.drawSlotIcon(slot: IslandLook.Slot, c: Color) {
             drawCircle(Brush.linearGradient(listOf(Color(0xFFFF6A3D), Color(0xFF7B2CBF)), Offset(0f, 0f), Offset(size.width, size.height)), r * 0.72f, m)
             drawArc(c, -90f, 230f, false, Offset(m.x - r * 0.92f, m.y - r * 0.92f), Size(r * 1.84f, r * 1.84f), style = Stroke(r * 0.12f, cap = StrokeCap.Round))
         }
+        IslandLook.Slot.App -> {
+            // A round app icon: a green disc with a small speech bubble.
+            drawCircle(Color(0xFF30D158), r * 0.82f, m)
+            drawRoundRect(Color.White, Offset(m.x - r * 0.46f, m.y - r * 0.4f), Size(r * 0.92f, r * 0.62f), CornerRadius(r * 0.22f))
+            drawLine(Color.White, Offset(m.x - r * 0.2f, m.y + r * 0.2f), Offset(m.x - r * 0.3f, m.y + r * 0.5f), r * 0.2f, StrokeCap.Round)
+        }
+        IslandLook.Slot.Phone -> {
+            // The phone: a ring round a small rounded rectangle.
+            drawCircle(c.copy(alpha = c.alpha * 0.3f), r * 0.8f, m, style = st)
+            drawArc(c, -90f, 250f, false, Offset(m.x - r * 0.8f, m.y - r * 0.8f), Size(r * 1.6f, r * 1.6f), style = st)
+            drawRoundRect(c, Offset(m.x - r * 0.22f, m.y - r * 0.38f), Size(r * 0.44f, r * 0.76f), CornerRadius(r * 0.1f), style = Stroke(r * 0.12f))
+        }
+        IslandLook.Slot.Clock -> {
+            // A clock face with its two hands.
+            drawCircle(c, r * 0.78f, m, style = Stroke(r * 0.16f))
+            drawLine(c, m, Offset(m.x, m.y - r * 0.5f), r * 0.14f, StrokeCap.Round)
+            drawLine(c, m, Offset(m.x + r * 0.34f, m.y + r * 0.2f), r * 0.14f, StrokeCap.Round)
+        }
         IslandLook.Slot.Bars -> listOf(0.5f, 0.9f, 0.65f, 0.8f).forEachIndexed { i, h ->
             val x = m.x + (i - 1.5f) * r * 0.45f
             drawLine(c, Offset(x, m.y - r * h * 0.7f), Offset(x, m.y + r * h * 0.7f), r * 0.24f, StrokeCap.Round)
@@ -421,6 +472,8 @@ private fun DrawScope.drawSituation(s: IslandLook.Situation, c: Color) {
             drawRoundRect(c, Offset(m.x - r * 0.55f, m.y - r * 0.65f), Size(r * 0.38f, r * 1.3f), CornerRadius(r * 0.1f))
             drawRoundRect(c, Offset(m.x + r * 0.17f, m.y - r * 0.65f), Size(r * 0.38f, r * 1.3f), CornerRadius(r * 0.1f))
         }
+        // A speaker with sound waves: any other sound.
+        IslandLook.Situation.Sound -> drawKindGlyph(SoundRules.Kind.Other, m, r * 1.7f, c)
         IslandLook.Situation.Idle -> {
             // Two little buds.
             for (side in listOf(-1, 1)) {

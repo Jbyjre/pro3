@@ -40,6 +40,14 @@ object IslandPrefs {
     const val PREF_MINI_ALWAYS = "glint_mini_always"
     /** Keep the mini island up all the time, even with nothing playing and nothing connected. */
     const val PREF_MINI_ANYTIME = "glint_mini_anytime"
+    /** Pop the Dynamic Island for any sound (alerts, calls, voice notes), not only music. */
+    const val PREF_MINI_ANY_SOUND = "glint_mini_any_sound"
+    /** Show the app's icon for a sound (off: a symbol for the kind of sound instead). */
+    const val PREF_SOUND_ICONS = "glint_sound_icons"
+    /** How long a short sound keeps the Dynamic Island up after it ends. */
+    const val PREF_SOUND_LINGER = "glint_sound_linger"
+    /** Apps whose sounds never pop the Dynamic Island. */
+    const val PREF_SOUND_IGNORED = "glint_sound_ignored"
     /** How many times (and when last) the "make it tappable" pop-up was shown. */
     const val PREF_TAP_NUDGES = "glint_tap_nudges"
     const val PREF_TAP_NUDGE_AT = "glint_tap_nudge_at"
@@ -82,4 +90,17 @@ object IslandPrefs {
     fun miniAirPodsOnly(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_AIRPODS_ONLY, false)
     fun miniAlways(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ALWAYS, true)
     fun miniAnytime(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ANYTIME, true)
+    fun anySound(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ANY_SOUND, true)
+    fun soundIcons(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_SOUND_ICONS, true)
+
+    fun soundLinger(prefs: SharedPreferences): SoundRules.Linger =
+        SoundRules.Linger.entries.getOrNull(prefs.getInt(PREF_SOUND_LINGER, SoundRules.Linger.Normal.ordinal)) ?: SoundRules.Linger.Normal
+
+    /** Packages switched off in Settings (a copy: the stored set must never be edited in place). */
+    fun soundIgnored(prefs: SharedPreferences): Set<String> = prefs.getStringSet(PREF_SOUND_IGNORED, emptySet())?.toSet().orEmpty()
+
+    fun setSoundIgnored(prefs: SharedPreferences, pkg: String, ignored: Boolean) {
+        val now = soundIgnored(prefs)
+        prefs.edit().putStringSet(PREF_SOUND_IGNORED, if (ignored) now + pkg else now - pkg).apply()
+    }
 }

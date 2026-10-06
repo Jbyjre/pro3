@@ -26,6 +26,21 @@ object MiniIslandRules {
     const val PAUSED_LINGER_MS = 30_000L
     /** How long it stays wide showing a new song's name. */
     const val NAME_SHOW_MS = 3_200L
+    /**
+     * Music has to play this long before it counts as "played" (so a half-second blip from a game
+     * or an app leaves no "Paused" pill behind for 30 seconds).
+     */
+    const val SUSTAINED_MS = 1_500L
+
+    fun countsAsPlayed(playedForMs: Long): Boolean = playedForMs >= SUSTAINED_MS
+
+    /**
+     * Whether the pill shows a heard sound (the Sounds look) rather than music. Not while music
+     * plays (an alert then pops over it for a moment instead). A musical sound that ended without
+     * playing long enough to count as music (a short blip) shows as a sound too, so even that is seen.
+     */
+    fun showAsSound(heardOn: Boolean, musicLike: Boolean, playing: Boolean, musicCounted: Boolean): Boolean =
+        heardOn && !playing && (!musicLike || !musicCounted)
 
     data class Inputs(
         val enabled: Boolean,
@@ -42,6 +57,8 @@ object MiniIslandRules {
         val alwaysWithAirPods: Boolean = false,
         /** Stay up all the time, even with nothing playing and nothing connected. */
         val anytime: Boolean = false,
+        /** A sound that isn't music is playing, or ended a moment ago (an alert, a voice note, a call). */
+        val sound: Boolean = false,
     )
 
     /** Whether the pill should exist at all. */
@@ -49,26 +66,45 @@ object MiniIslandRules {
         if (!i.enabled || !i.canDraw || !i.screenUnlocked) return false
         if (i.anytime) return true
         if (i.airPodsOnly && !i.airPodsUp) return false
-        if (i.playing) return true
+        if (i.playing || i.sound) return true
         if (i.alwaysWithAirPods && i.airPodsUp) return true
         return i.playedRecently && i.pausedForMs < PAUSED_LINGER_MS
     }
 
     /**
-     * What the pill shows: the music, the AirPods themselves (battery, mode, heart), or nothing
-     * in particular (a quiet black pill round the camera, ready to tap).
+     * What the pill shows: the music, a sound that isn't music (with the app's icon), the
+     * AirPods themselves (battery, mode, heart), or nothing in particular (the phone's battery
+     * and the time, ready to tap).
      */
-    enum class Content { Music, AirPods, Rest }
+    enum class Content { Music, Sound, AirPods, Rest }
 
     /**
-     * Music while something plays, and for a while after it pauses (so you can see what's
+     * Music while something plays; then any other sound (it's the freshest news, and goes back to
+     * what was there when it fades); music for a while after it pauses (so you can see what's
      * paused); otherwise the AirPods; with nothing playing or connected, at rest.
      */
-    fun content(playing: Boolean, pausedForMs: Long, playedRecently: Boolean, airPodsUp: Boolean): Content = when {
+    fun content(
+        playing: Boolean, pausedForMs: Long, playedRecently: Boolean, airPodsUp: Boolean, sound: Boolean = false,
+    ): Content = when {
         playing -> Content.Music
+        sound -> Content.Sound
         playedRecently && pausedForMs < PAUSED_LINGER_MS -> Content.Music
         airPodsUp -> Content.AirPods
         else -> Content.Rest
+    }
+
+    /**
+     * When to look again, in milliseconds: just after the soonest thing that's lingering runs out
+     * (paused music, a sound that just ended), or null when nothing is. Never zero or negative: a
+     * wait that's already over must not schedule another look at once, or the check would repeat
+     * forever.
+     */
+    fun nextCheck(playing: Boolean, pausedForMs: Long, soundLeftMs: Long?): Long? {
+        val waits = listOfNotNull(
+            (PAUSED_LINGER_MS - pausedForMs).takeIf { !playing && pausedForMs != Long.MAX_VALUE && it > 0L },
+            soundLeftMs?.takeIf { it > 0L },
+        )
+        return waits.minOrNull()?.plus(100L)
     }
 
     /**
