@@ -18,6 +18,7 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -43,6 +44,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -65,6 +67,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
+import kotlinx.coroutines.delay
 import me.kavishdevar.librepods.presentation.components.LiquidSegments
 import me.kavishdevar.librepods.presentation.components.StyledList
 import me.kavishdevar.librepods.presentation.components.StyledToggle
@@ -95,7 +98,16 @@ fun PhoneScreen(navigateToIsland: () -> Unit) {
     var mini by remember { mutableStateOf(IslandPrefs.mini(prefs)) }
     var anytime by remember { mutableStateOf(IslandPrefs.miniAnytime(prefs)) }
     val phone by PhoneStatus.state.collectAsState()
-    val canDraw = remember { Settings.canDrawOverlays(context) }
+    var canDraw by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    // Picks up "Display over other apps" being allowed on Android's page, and brings the island up at once.
+    LaunchedEffect(Unit) {
+        while (true) {
+            val draw = Settings.canDrawOverlays(context)
+            if (draw && !canDraw) GlintOverlays.refreshMiniIsland(context)
+            canDraw = draw
+            delay(1_000)
+        }
+    }
 
     Column(
         Modifier
@@ -154,7 +166,7 @@ fun PhoneScreen(navigateToIsland: () -> Unit) {
         StyledList(title = "Dynamic Island") {
             StyledToggle(
                 label = "Dynamic Island around the camera",
-                description = if (canDraw) "On top of every app, no headphones needed" else "Needs \"Display over other apps\" (Settings > Islands)",
+                description = "On top of every app, no headphones needed",
                 checked = mini,
                 onCheckedChange = {
                     mini = it
@@ -172,6 +184,12 @@ fun PhoneScreen(navigateToIsland: () -> Unit) {
                     GlintOverlays.refreshMiniIsland(context)
                 },
             )
+        }
+
+        if (!canDraw) {
+            Hint("pro isn't allowed to draw over other apps yet, so the Dynamic Island can't show.", "Allow", ink, dark) {
+                open(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).setData(android.net.Uri.fromParts("package", context.packageName, null)))
+            }
         }
 
         SoundsSection(ink, dark)

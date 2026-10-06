@@ -138,12 +138,8 @@ internal class MiniIslandController(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val prefs = IslandPrefs.prefs(context)
     private var started = false
-    private var wasPlaying = false
-    private var stoppedAt = 0L
-    private var playStartedAt = 0L
-    /** The last music played long enough to count (not a half-second blip). */
-    private var musicCounted = false
-    private var playedRecently = false
+    /** When music started and stopped, and whether it played long enough to count (not a half-second blip). */
+    private val play = MiniIslandRules.PlayTracker()
     private var unlocked = true
     /** A connection blip (a few seconds of "reconnecting") doesn't make it vanish and come back. */
     private var lastConnectedAt = 0L
@@ -271,17 +267,8 @@ internal class MiniIslandController(private val context: Context) {
     }
 
     private fun onTrack(t: NowPlaying.Track) {
-        val now = SystemClock.elapsedRealtime()
-        if (t.playing) {
-            if (!wasPlaying) playStartedAt = now
-            stoppedAt = 0L
-        } else if (wasPlaying) {
-            stoppedAt = now
-            // Only music that played for a while leaves a "Paused" pill to tap and resume.
-            musicCounted = MiniIslandRules.countsAsPlayed(now - playStartedAt)
-            if (musicCounted) playedRecently = true
-        }
-        wasPlaying = t.playing
+        // Only music that played for a while leaves a "Paused" pill to tap and resume.
+        play.update(t.playing, SystemClock.elapsedRealtime())
         refresh()
     }
 
@@ -319,13 +306,13 @@ internal class MiniIslandController(private val context: Context) {
         val previewing = previewingMusic || sampleSound.value != null
         val playing = previewingMusic || NowPlaying.state.value.playing
         val now = SystemClock.elapsedRealtime()
-        val pausedFor = if (playing) 0L else if (stoppedAt == 0L) Long.MAX_VALUE else now - stoppedAt
+        val pausedFor = if (playing) 0L else if (play.stoppedAt == 0L) Long.MAX_VALUE else now - play.stoppedAt
         // Sounds that aren't music: while they play and for a moment after, even a half-second ding.
         val linger = IslandPrefs.soundLinger(prefs).ms
         val heard = sampleSound.value ?: SoundSource.heard.value
         val heardOn = heard != null && (sampleSound.value != null || IslandPrefs.anySound(prefs)) &&
             SoundRules.showing(heard.active, heard.endedAt, now, linger)
-        val soundOnly = !previewingMusic && MiniIslandRules.showAsSound(heardOn, heard?.musicLike == true, playing, musicCounted)
+        val soundOnly = !previewingMusic && MiniIslandRules.showAsSound(heardOn, heard?.musicLike == true, playing, play.counted)
         // An alert popping over music: the app's icon shows in the right-hand spot for a moment.
         val blip = heardOn && heard!!.kind.blip && playing
         soundShown.value = if (soundOnly || blip) heard else null
@@ -335,7 +322,7 @@ internal class MiniIslandController(private val context: Context) {
                 canDraw = window.canShow(),
                 playing = playing,
                 pausedForMs = pausedFor,
-                playedRecently = previewing || playedRecently,
+                playedRecently = previewing || play.played,
                 airPodsOnly = !previewing && IslandPrefs.miniAirPodsOnly(prefs),
                 airPodsUp = airPodsUp(),
                 screenUnlocked = previewing || unlocked,
@@ -345,7 +332,7 @@ internal class MiniIslandController(private val context: Context) {
             )
         )
         content.value = if (previewingMusic) MiniIslandRules.Content.Music else MiniIslandRules.content(
-            playing = playing, pausedForMs = pausedFor, playedRecently = playedRecently,
+            playing = playing, pausedForMs = pausedFor, playedRecently = play.played,
             airPodsUp = airPodsUp(), sound = soundOnly,
         )
         lastWant = want

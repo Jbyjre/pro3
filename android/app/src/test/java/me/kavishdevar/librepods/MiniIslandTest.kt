@@ -208,6 +208,29 @@ class MiniIslandTest {
         assertFalse(MiniIslandRules.showAsSound(heardOn = false, musicLike = false, playing = false, musicCounted = false))
     }
 
+    @Test fun aBlipNeverRestartsOrCreatesAPause() {
+        val t = MiniIslandRules.PlayTracker()
+        // Nothing has played: a half-second blip leaves nothing paused.
+        t.update(true, 1_000); assertTrue(t.playing)
+        t.update(false, 1_400)
+        assertFalse(t.played); assertFalse(t.counted); assertEquals(0L, t.stoppedAt)
+        // Real music for 5 s, then pause: it counts and the pause clock starts at the pause.
+        t.update(true, 10_000); t.update(false, 15_000)
+        assertTrue(t.played); assertTrue(t.counted); assertEquals(15_000L, t.stoppedAt)
+        // A blip during that pause: the pause clock keeps its time, and the blip is a sound, not music.
+        t.update(true, 20_000); assertEquals(0L, t.stoppedAt) // playing again (any sound counts while it plays)
+        t.update(false, 20_300)
+        assertEquals(15_000L, t.stoppedAt)
+        assertFalse(t.counted)
+        assertTrue(t.played) // the earlier music still happened
+        // Music again, long enough: a fresh pause.
+        t.update(true, 30_000); t.update(false, 40_000)
+        assertEquals(40_000L, t.stoppedAt); assertTrue(t.counted)
+        // Updating with no change does nothing.
+        t.update(false, 50_000)
+        assertEquals(40_000L, t.stoppedAt)
+    }
+
     @Test fun phoneBatteryNumbersBecomeAPercentAndAChargingFlag() {
         val p = me.kavishdevar.librepods.services.PhoneStatus
         val info = { level: Int, charging: Boolean -> me.kavishdevar.librepods.services.PhoneStatus.Info(level, charging) }

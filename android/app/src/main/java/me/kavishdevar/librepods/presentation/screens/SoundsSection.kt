@@ -214,7 +214,8 @@ fun RecentSounds(ink: Color, dark: Boolean) {
             }
         }
         recent.forEachIndexed { i, seen ->
-            val info = seen.pkg?.let { SoundSource.appInfo(context, it) }
+            // Looked up once per app, not on every redraw.
+            val info = remember(seen.pkg) { seen.pkg?.let { SoundSource.appInfo(context, it) } }
             val name = info?.label ?: seen.pkg ?: "${seen.kind.label} sound"
             val times = if (seen.count > 1) " · ${seen.count} times" else ""
             val sub = if (seen.pkg == null) "App unknown · ${SoundRules.ago(now - seen.at)}$times"

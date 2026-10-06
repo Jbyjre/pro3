@@ -35,6 +35,46 @@ object MiniIslandRules {
     fun countsAsPlayed(playedForMs: Long): Boolean = playedForMs >= SUSTAINED_MS
 
     /**
+     * Follows music starting and stopping to say when a "Paused" pill is worth showing. Music has
+     * to play for [SUSTAINED_MS] to count; a shorter blip (a game effect) is ignored: it doesn't
+     * make the pill "paused", doesn't restart the 30 seconds of an earlier real pause, and shows
+     * as a sound instead.
+     */
+    class PlayTracker {
+        var playing = false
+            private set
+        /** When the last music that counted stopped (elapsedRealtime); 0 while playing or if none has. */
+        var stoppedAt = 0L
+            private set
+        /** The music that just stopped played long enough to count as music. */
+        var counted = false
+            private set
+        /** Some music has counted since pro started. */
+        var played = false
+            private set
+        private var startedAt = 0L
+        private var stoppedBefore = 0L
+
+        fun update(nowPlaying: Boolean, now: Long) {
+            if (nowPlaying) {
+                if (!playing) { startedAt = now; stoppedBefore = stoppedAt }
+                stoppedAt = 0L
+            } else if (playing) {
+                if (countsAsPlayed(now - startedAt)) {
+                    stoppedAt = now
+                    counted = true
+                    played = true
+                } else {
+                    // A blip: whatever was true before it still is.
+                    stoppedAt = stoppedBefore
+                    counted = false
+                }
+            }
+            playing = nowPlaying
+        }
+    }
+
+    /**
      * Whether the pill shows a heard sound (the Sounds look) rather than music. Not while music
      * plays (an alert then pops over it for a moment instead). A musical sound that ended without
      * playing long enough to count as music (a short blip) shows as a sound too, so even that is seen.

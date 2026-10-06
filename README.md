@@ -2,6 +2,8 @@
 > **This is pro, a personal fork of LibrePods** for a Galaxy S25 FE and AirPods Pro 3, with liquid-glass pop-ups built around LibrePods' own 3D AirPods clips and stronger connection handling.
 > Download: [latest pro.apk](https://github.com/Jbyjre/pro3/releases/latest). What changed and why: [DECISIONS.md](DECISIONS.md). How to test: [TESTING.md](TESTING.md).
 > All credit for the underlying protocol work goes to [LibrePods](https://github.com/librepods-org/librepods) and its developer. pro is GPL-3.0 like LibrePods, and "LibrePods" is their name, not ours.
+>
+> **Working on pro (people and AI sessions), read in this order:** [docs/REQUESTS.md](docs/REQUESTS.md) (what Jake asked for and how finished each thing is), [CLAUDE.md](CLAUDE.md) (standing rules), [android/README.md](android/README.md) (map of the app, how to build and check it), then the README inside any folder you touch. [docs/README.md](docs/README.md) lists everything.
 
 > [!WARNING]
 > librepods.org is not an official website of the LibrePods project. It inaccurately claims to be the official website of the project by claiming copyrights and using the LibrePods logo in the footer. And at the same time, they say that the project is not affiliated with the LibrePods project or its developers.
