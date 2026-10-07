@@ -92,6 +92,11 @@ object IslandTimer {
         if (appContext != null) return
         val app = context.applicationContext
         appContext = app
+        restore(app)
+    }
+
+    /** Reads a saved timer back (pro was restarted, or Android woke it just for the alarm). */
+    private fun restore(app: Context) {
         val p = prefs(app)
         val total = p.getLong(PREF_TOTAL, 0L)
         if (total <= 0L) return
@@ -205,7 +210,9 @@ object IslandTimer {
     internal fun fired(context: Context) {
         val app = context.applicationContext
         appContext = appContext ?: app
-        if (_state.value == null) attach(app)
+        // Android may have closed pro and woken it only for this alarm: read the timer back first
+        // (calling attach here would do nothing, since the context is already set).
+        if (_state.value == null) restore(app)
         val s = _state.value ?: return
         if (s.ringing || !s.running) return
         if (TimerRules.left(s, SystemClock.elapsedRealtime()) > 500L) {
@@ -273,6 +280,14 @@ object IslandTimer {
     // ---- Screenshots and tests ----
 
     internal fun preview(s: State?) { _state.value = s }
+
+    /** Tests only: forget everything in memory, as if Android had closed pro (what's saved stays). */
+    internal fun forgetForTest() {
+        main.removeCallbacks(onTime)
+        stopSound()
+        _state.value = null
+        appContext = null
+    }
 }
 
 /** Gets the timer's alarm (and the notification's Stop button), even when pro isn't running. */
@@ -321,14 +336,18 @@ object TimerRules {
         else -> s.copy(endsAt = maxOf(s.endsAt, now) + 60_000L, total = s.total + 60_000L)
     }
 
+    /** A timer that ended this recently while pro wasn't running still rings (the alarm woke pro for it). */
+    const val LATE_RING_MS = 60_000L
+
     /**
      * A timer saved before pro restarted: still running if its wall-clock end is ahead, paused if it
-     * was paused, otherwise gone (it ended while pro wasn't running; a missed alarm isn't rung late).
+     * was paused, due now if it ended within [LATE_RING_MS] (Android's alarm starting pro for it lands
+     * right at or just after the end), otherwise gone (a timer missed long ago isn't rung late).
      */
     fun restore(total: Long, wallEnd: Long, pausedLeft: Long, wallNow: Long, elapsedNow: Long): IslandTimer.State? = when {
         total <= 0L -> null
         pausedLeft >= 0L -> IslandTimer.State(total = total, pausedLeft = pausedLeft)
-        wallEnd > wallNow -> IslandTimer.State(total = total, endsAt = elapsedNow + (wallEnd - wallNow))
+        wallEnd > 0L && wallEnd > wallNow - LATE_RING_MS -> IslandTimer.State(total = total, endsAt = elapsedNow + (wallEnd - wallNow).coerceAtLeast(0L))
         else -> null
     }
 }

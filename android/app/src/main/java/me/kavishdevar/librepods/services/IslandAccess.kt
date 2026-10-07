@@ -56,6 +56,8 @@ class IslandAccessService : AccessibilityService() {
         ScreenApp.attach(this)
         IslandAccess.connected(this)
         IslandAccess.updatePanels(this)
+        // Show the app that's open right away, not only after the next app switch.
+        ScreenApp.seed(this)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

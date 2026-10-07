@@ -131,6 +131,37 @@ object ScreenApp {
 
     private val settle = Runnable {
         if (_place.value is Place.Locked) _place.value = beforeLock
+        // Nothing was known before the lock: ask which app is in front now.
+        IslandAccess.service.value?.let { seed(it) }
+    }
+
+    /**
+     * Where you are right now, when nothing is known yet: just after the accessibility switch comes
+     * on, after pro restarts, or after unlocking. Window events only arrive when something changes,
+     * so without this the island would wait for your next app switch. Asks Android for the app
+     * window that's active and reads only which app it belongs to.
+     */
+    fun seed(s: android.accessibilityservice.AccessibilityService) {
+        val c = appContext ?: return
+        if (_place.value !is Place.Unknown) return
+        val pkg = runCatching {
+            s.windows.orEmpty()
+                .filter { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION }
+                .sortedByDescending { it.isActive || it.isFocused }
+                .firstOrNull()?.root?.packageName?.toString()
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: return
+        val own = pkg == c.packageName
+        val role = if (own) SoundRules.Role.App else SoundSource.roleOf(c, pkg)
+        // An application window is a real app screen, so it counts like an activity here.
+        when (val next = ScreenRules.next(Place.Unknown, pkg, role, isScreen = true, locked = isLocked(c))) {
+            is ScreenRules.Next.Home -> set(Place.Home)
+            is ScreenRules.Next.App -> {
+                val info = SoundSource.appInfo(c, next.pkg)
+                set(Place.App(next.pkg, info.label, info.icon))
+                _recent.value = ScreenRules.remember(_recent.value, next.pkg, own = c.packageName)
+            }
+            ScreenRules.Next.Stay -> {}
+        }
     }
 
     /**

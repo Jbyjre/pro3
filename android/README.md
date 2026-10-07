@@ -91,6 +91,7 @@ Tests: `SoundRulesTest` (pure rules), `SoundSourceTest` (events in, sound out, v
 
 - **`delay()` with a computed wait.** `delay(x)` with `x <= 0` returns at once. A recheck that reschedules itself with "time left" must only do so when time is left (`MiniIslandRules.nextCheck` exists for this; the old code looped forever after 30 s of paused music).
 - **Don't `remember` theme colours.** Rows went white on white. Read them each composition.
+- **A page's content in `AppNavGraph` is kept from when it was first made.** Pass anything that changes (like the selected tab) as a function or state that the content reads, never as a plain value, or the page stays stuck while everything around it changes. Test it by pressing the real buttons (`PhoneTabsUiTest`), not only with screenshots that start on the right page.
 - **Glass rim light:** always `GlintLight.rim()`. Kyant's default highlight is a 45 degree diagonal that looks tilted. Level phone means straight overhead.
 - **Overlay windows.** Android draws the status bar above app overlays and gives it every touch in its strip. Accessibility-layer windows sit above it. Hidden overlay windows must be fully transparent and untouchable or they eat taps (`OverlayWindow`).
 - **Status bar height** is the largest of the window insets, the `status_bar_height` resource and the cutout bottom: insets can be 0 from a service.

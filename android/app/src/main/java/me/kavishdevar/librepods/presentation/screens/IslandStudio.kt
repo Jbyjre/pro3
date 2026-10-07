@@ -239,6 +239,7 @@ private fun IslandPreview(look: IslandLook.Look, actions: Map<IslandGestures.Ges
     val geo = remember(look) { MiniGeometry(context, look = look) }
     val livePlace by me.kavishdevar.librepods.services.ScreenApp.place.collectAsState()
     val liveWallpaper by me.kavishdevar.librepods.services.ScreenApp.wallpaper.collectAsState()
+    val liveTimer by me.kavishdevar.librepods.services.IslandTimer.state.collectAsState()
     val wallpaper = if (dark) listOf(Color(0xFF0B1A33), Color(0xFF3A1446)) else listOf(Color(0xFFFFD6A5), Color(0xFFBDE0FE))
     Box(
         Modifier
@@ -268,6 +269,8 @@ private fun IslandPreview(look: IslandLook.Look, actions: Map<IslandGestures.Ges
                     else -> me.kavishdevar.librepods.services.ScreenApp.Place.Unknown
                 },
                 wallpaper = liveWallpaper.ifEmpty { wallpaper },
+                // A running timer shows in the preview as it does around the camera.
+                timer = liveTimer.takeIf { situation != IslandLook.Situation.Sound && situation != IslandLook.Situation.Talking },
                 budsUp = live.budsLevel != null,
                 heard = heard,
                 pods = pods,

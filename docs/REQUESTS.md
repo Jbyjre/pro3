@@ -123,6 +123,7 @@ Jake's words, in short: change the purpose of the app. The **Dynamic Island is t
 | Charging moment, hide in chosen apps, Capture without the island in the picture | DONE, PHONE CHECK | `MiniMoment`, `PREF_HIDE_IN`, `GlintOverlays.capturing` | Extras from `docs/ROADMAP_PHONE.md` and found while building. |
 | The island gets its own tab; the main tab is about the phone | DONE | `navigation/Tabs.kt`, `screens/PhoneScreen.kt`, `IslandSettingsScreen.kt` | Liquid Glass tab bar: Phone (opens first), Island, AirPods/Beats (named after the chosen device). Back on Island/AirPods goes to Phone. |
 | Find bugs, smarter behaviour | DONE | DECISIONS 38 | Sounds were credited to the wrong app after a toast from another app (fixed); an empty music player on tap (fixed); the island would have appeared in its own screenshots (fixed). |
+| Second pass: check every part and make sure it all works | DONE | `PhoneTabsUiTest`, DECISIONS 38 | Found and fixed: tabs that didn't change the page, a timer that could stay silent after Android closed pro, the app icon waiting for the next app switch. Tests now press the tabs, Back, the glance's Timer and Sound, and fire the timer's alarm on a closed pro. |
 | Use the three skills; no agents | DONE | | Context-efficient (checklist, verified facts, no agents or polling), frontend-design (one direction: calm black/white/graphite with orange only for timers and green only for charging), Liquid Glass (real refraction where Android allows it, honest about overlays). |
 
 ## Not done or not verifiable from the cloud

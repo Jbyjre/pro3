@@ -659,7 +659,8 @@ internal fun MiniIslandHost(
         (situation == IslandLook.Situation.Music || situation == IslandLook.Situation.Paused)
     // A running or ringing timer is always on show, like the iPhone's timer: it takes the
     // right-hand spot in every situation except a moment's sound or talking.
-    val timerHere = timer != null && forceSituation == null && situation != IslandLook.Situation.Talking &&
+    // (Previews pass a timer only when one really runs, so they show it too.)
+    val timerHere = timer != null && situation != IslandLook.Situation.Talking &&
         situation != IslandLook.Situation.Sound && baseL != IslandLook.Slot.Glance && baseR != IslandLook.Slot.Glance
     val wantL = baseL
     val wantR = if (blipping) IslandLook.Slot.App else if (timerHere) IslandLook.Slot.Glance else baseR

@@ -269,7 +269,7 @@ fun NavigationRoot(
                 onboardingComplete = onboardingComplete,
                 backStack = backStack,
                 airPodsViewModel = airPodsViewModel,
-                tab = tab,
+                tab = { tab },
                 onTab = { tab = it },
             )
         }

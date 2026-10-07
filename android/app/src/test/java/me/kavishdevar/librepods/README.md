@@ -19,6 +19,7 @@ Unit tests (plain JUnit and Robolectric) and the screenshot renderers. Run them 
 | `AirPodsProtocolTest`, `ConnectionLogicTest`, `CommandFeedbackTest`, `ConversationTimingTest` | Protocol decoding with real message formats, connection and retry rules, change confirmation, Conversation Awareness timing |
 | `DeviceChoiceTest` | Which device pro follows; each device's controls stay with it |
 | `BatteryTimeTest`, `FossUnlockTest` | Listening time left; nothing is locked in this build |
+| `PhoneTabsUiTest` | Presses the real buttons: tabs switch the page (not just the title), Back goes to Phone, the glance's Timer presets and Sound/Vibrate, a timer rings after Android closed pro, a long-missed timer doesn't |
 | `PhoneIslandTest` | The phone-first island: which app is on screen (only real screens count, the shade and toasts don't), what the pill shows and what a tap opens (never an empty music player), hide-in-apps vs the timer, new situations and defaults (never the time), the glance order, the timer's arithmetic, +1 min and restore after a restart, sound/vibrate order, plain-word times, tab names |
 
 ## Screenshots (to look at, not to assert on)

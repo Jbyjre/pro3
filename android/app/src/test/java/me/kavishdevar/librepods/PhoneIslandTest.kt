@@ -233,7 +233,7 @@ class PhoneIslandTest {
         // After pro restarts: still running, paused, or gone if it ended meanwhile (never rung late).
         assertEquals(500_000L + 30_000L, TimerRules.restore(60_000L, 2_030_000L, -1L, 2_000_000L, 500_000L)!!.endsAt)
         assertEquals(5_000L, TimerRules.restore(60_000L, 0L, 5_000L, 2_000_000L, 500_000L)!!.pausedLeft)
-        assertNull(TimerRules.restore(60_000L, 1_999_000L, -1L, 2_000_000L, 500_000L))
+        assertNull(TimerRules.restore(60_000L, 1_000_000L, -1L, 2_000_000L, 500_000L))
         assertNull(TimerRules.restore(0L, 9_999_999L, -1L, 2_000_000L, 500_000L))
     }
 

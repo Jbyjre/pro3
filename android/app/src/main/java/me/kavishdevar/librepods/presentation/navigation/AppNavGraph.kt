@@ -65,8 +65,12 @@ fun AppNavGraph(
     onboardingComplete: () -> Unit = {},
     backStack: SnapshotStateList<Screen>,
     airPodsViewModel: AirPodsViewModel,
-    /** The main page showing (Phone, Island, headphones) and how to switch it. */
-    tab: AppTab = AppTab.Headphones,
+    /**
+     * The main page showing (Phone, Island, headphones), read when needed, and how to switch it. A
+     * function, not a value: the navigation library keeps each page's content from when it was first
+     * made, so a plain value would stay stuck on the first tab while the tab bar moved on.
+     */
+    tab: () -> AppTab = { AppTab.Headphones },
     onTab: (AppTab) -> Unit = {},
 ) {
     val navigate: (Screen) -> Unit = { screen ->
@@ -108,7 +112,7 @@ fun AppNavGraph(
                             // spring rather than slide (sliding means going deeper, a tab is a peer).
                             val reduce = androidx.compose.runtime.remember(Unit) { me.kavishdevar.librepods.presentation.glint.GlintComfort.reduceMotion(context) }
                             androidx.compose.animation.AnimatedContent(
-                                targetState = tab,
+                                targetState = tab(),
                                 transitionSpec = {
                                     if (reduce) fadeIn(tween(0)) togetherWith fadeOut(tween(0))
                                     else (fadeIn(spring(dampingRatio = 1f, stiffness = 420f)) + scaleIn(spring(dampingRatio = 0.9f, stiffness = 420f), initialScale = 0.985f)) togetherWith
