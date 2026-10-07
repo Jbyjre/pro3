@@ -6,7 +6,16 @@ A short checklist. Tick things off, and for anything that looks wrong, take a sc
 
 Install the new `pro.apk` (section A), open pro once, then:
 
-**New: any sound pops the Dynamic Island, with the app's icon (newest)**
+**New: freezes fixed, swipe to put away, messages, phone moments, Apps (newest)**
+1. **The freeze.** Use the phone as usual for a day, including playing music, pausing it for a minute, getting a call, and opening pro. It should never say "pro isn't responding". If it does: open pro, you'll see **"pro stopped earlier"** on the main page. Tap it, tap **Copy details**, and paste it to Claude.
+2. **Swipe up.** Play a new song so the Dynamic Island widens with its name. Swipe up on it: it tucks back at once. Settings > Islands > **Song name stays out for** changes how long it stays by itself.
+3. **A text message.** Settings > Islands > Sounds and messages: make sure **Show new messages** is on and Notification access is on. Have someone text you with the screen on (and you in another app): the island shows the messaging app's icon and its name for a few seconds, beside the camera. The phone's own notification should drop down below it without touching it. Turn on **Show who it's from** to see the sender's name.
+4. **Quiet when it should be.** Turn on Do Not Disturb and get a message: the island stays quiet. Mute a chat: quiet. Open the messaging app and get a message in that chat: quiet (turn off **Skip the app I'm using** to change that). Swipe up on a message moment: it goes.
+5. **Phone moments.** Plug in the charger: the island shows your battery ring in green for a few seconds (also over music, on the right). At 20% and 10% unplugged it shows the ring again. Settings > Islands > **Phone moments** turns it off.
+6. **Apps.** Settings > Islands > **Apps** lists every app on your phone with a switch. Turn one off: it never pops the island. Check the list matches your phone.
+7. **See each look without waiting:** the hidden **pro Lab** (Settings > About > tap "Version code" 7 times) has buttons for a sound, a message and the phone battery. Settings > Islands > **Look** > **Messages** lets you change what a message shows.
+
+**Earlier: any sound pops the Dynamic Island, with the app's icon**
 1. Open pro once after updating, then **Settings > Islands**. Under **Sounds** check "Pop for any sound" is on. Under "Which app made the sound?" turn on what it offers: **Allow** Notification access (if Samsung says "Restricted setting", use **App info** > ⋮ > Allow restricted settings, then Allow again). If "pro Dynamic Island" is already on from before, leave it.
 2. Have someone message you on WhatsApp (or message yourself from another account) with the screen on. The Dynamic Island should show **WhatsApp's icon** with a soft ring and bars for about 4 seconds, then settle. If it shows a bell instead, pro didn't match the app: open **Settings > Islands > Heard lately** and tell Claude what it lists and which switches are green.
 3. Open WhatsApp and play a voice note. The island should show the WhatsApp icon while it plays. Tap the island: WhatsApp should open (may not work on every phone: tell Claude if it doesn't).

@@ -185,9 +185,14 @@ object GlintOverlays {
      * Shows the mini island for a few seconds with sample music (or, with [sound], a pretend
      * message ding with an app icon), for Settings > Island > Try it.
      */
-    fun previewMiniIsland(context: Context, sound: Boolean = false) = main.post {
+    fun previewMiniIsland(context: Context, sound: Boolean = false, message: Boolean = false, phone: Boolean = false) = main.post {
         val c = mini ?: MiniIslandController(context.applicationContext).also { mini = it }
-        if (sound) c.previewSound() else c.preview()
+        when {
+            message -> c.previewMessage()
+            phone -> c.previewPhone()
+            sound -> c.previewSound()
+            else -> c.preview()
+        }
     }
 
     fun showCard(context: Context) = main.post {

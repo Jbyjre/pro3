@@ -84,7 +84,7 @@ import me.kavishdevar.librepods.services.PhoneStatus
  * switches that matter, how sounds are handled, and what was heard lately.
  */
 @Composable
-fun PhoneScreen(navigateToIsland: () -> Unit) {
+fun PhoneScreen(navigateToIsland: () -> Unit, navigateToApps: () -> Unit = {}) {
     val context = LocalContext.current
     val prefs = remember { IslandPrefs.prefs(context) }
     val dark = isSystemInDarkTheme()
@@ -94,7 +94,7 @@ fun PhoneScreen(navigateToIsland: () -> Unit) {
     val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp
 
     var shown by remember { mutableIntStateOf(0) }
-    val previews = listOf(IslandLook.Situation.Rest, IslandLook.Situation.Sound, IslandLook.Situation.Music)
+    val previews = listOf(IslandLook.Situation.Rest, IslandLook.Situation.Message, IslandLook.Situation.Sound, IslandLook.Situation.Music)
     var mini by remember { mutableStateOf(IslandPrefs.mini(prefs)) }
     var anytime by remember { mutableStateOf(IslandPrefs.miniAnytime(prefs)) }
     val phone by PhoneStatus.state.collectAsState()
@@ -127,7 +127,7 @@ fun PhoneScreen(navigateToIsland: () -> Unit) {
             LiveIslandStrip(previews[shown], dark)
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 LiquidSegments(
-                    listOf("Nothing on", "A sound", "Music"), shown, { shown = it },
+                    listOf("Nothing on", "Message", "Sound", "Music"), shown, { shown = it },
                     track = ink.copy(alpha = if (dark) 0.08f else 0.05f),
                 )
                 Text(
@@ -192,13 +192,13 @@ fun PhoneScreen(navigateToIsland: () -> Unit) {
             }
         }
 
-        SoundsSection(ink, dark)
+        SoundsSection(ink, dark, onApps = navigateToApps)
         RecentSounds(ink, dark)
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             GlassPillButton(text = "Customize", textColor = ink, dark = dark, height = 44.dp, fontSize = 15.sp, modifier = Modifier.weight(1f), onClick = navigateToIsland)
-            GlassPillButton(text = "Try a message ding", textColor = ink, dark = dark, height = 44.dp, fontSize = 15.sp, modifier = Modifier.weight(1f)) {
-                GlintOverlays.previewMiniIsland(context, sound = true)
+            GlassPillButton(text = "Try a message", textColor = ink, dark = dark, height = 44.dp, fontSize = 15.sp, modifier = Modifier.weight(1f)) {
+                GlintOverlays.previewMiniIsland(context, message = true)
             }
         }
         Spacer(Modifier.height(bottomPadding))

@@ -141,6 +141,57 @@ object SoundRules {
             items.lastOrNull { (pkg, at) -> now - at in -500L..window && !skip(pkg) }?.first
     }
 
+    // ---- Messages and other notifications: a moment of their own ----
+
+    /**
+     * A notification that has just arrived, as far as the island cares. [title] is only filled in
+     * when "Show who it's from" is on; otherwise nothing inside the notification is ever read.
+     * [importance] is Android's (0 none, 1 min, 2 low, 3 default, 4 high; below zero when unknown),
+     * [interrupts] whether Do Not Disturb would let it through.
+     */
+    data class Posted(
+        val pkg: String?, val key: String, val flags: Int, val category: String?, val importance: Int,
+        val conversation: Boolean, val interrupts: Boolean, val title: String?,
+    )
+
+    const val CATEGORY_MESSAGE = "msg"
+    const val FLAG_ONLY_ALERT_ONCE = 8
+    const val IMPORTANCE_DEFAULT = 3
+
+    fun isMessage(p: Posted): Boolean = p.category == CATEGORY_MESSAGE || p.conversation
+
+    /**
+     * Whether a notification earns a moment on the island. The island follows the phone: nothing
+     * for a silent or muted notification (a muted chat has a lower importance), nothing when Do
+     * Not Disturb would hold it back (if asked), never for ongoing ones. Messages by default;
+     * other alerting notifications only when [othersOn].
+     */
+    fun worthAMoment(p: Posted, own: String, messagesOn: Boolean, othersOn: Boolean, respectDnd: Boolean): Boolean {
+        if (!worthNoting(p.flags, p.pkg, own)) return false
+        if (respectDnd && !p.interrupts) return false
+        if (p.importance in 0 until IMPORTANCE_DEFAULT) return false
+        return if (isMessage(p)) messagesOn else othersOn && p.importance >= IMPORTANCE_DEFAULT
+    }
+
+    /**
+     * Stops one conversation from popping the island twice for one message: the same notification
+     * again within [windowMs] is the same news, and one flagged "alert only once" is not news again
+     * for [onceWindowMs]. A new message in the same chat a few seconds later does pop.
+     */
+    class Dedupe(private val windowMs: Long = 4_000L, private val onceWindowMs: Long = 600_000L, private val keep: Int = 64) {
+        private val last = LinkedHashMap<String, Long>()
+
+        fun fresh(key: String, flags: Int, now: Long): Boolean {
+            val before = last.remove(key)
+            last[key] = now
+            while (last.size > keep) last.remove(last.keys.first())
+            if (before == null) return true
+            val gap = now - before
+            if (gap < windowMs) return false
+            return !(flags and FLAG_ONLY_ALERT_ONCE != 0 && gap < onceWindowMs)
+        }
+    }
+
     // ---- The app on screen ----
 
     /** What a package is, for working out the app on screen. */

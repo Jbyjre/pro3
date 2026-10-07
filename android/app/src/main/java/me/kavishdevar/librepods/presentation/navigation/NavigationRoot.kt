@@ -101,6 +101,7 @@ fun NavigationRoot(
         Screen.StayConnected -> "Stay connected"
         Screen.IslandSettings -> "Islands"
         Screen.Phone -> "This phone"
+        Screen.Apps -> "Apps"
         Screen.GlintLab -> "pro Lab"
         Screen.HeartRate -> "Heart rate"
         Screen.Recorder -> "Recorder"

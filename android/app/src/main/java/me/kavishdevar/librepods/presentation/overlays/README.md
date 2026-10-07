@@ -19,10 +19,15 @@ Everything pro draws **over other apps**. Android lets an app do this with the "
 | Music | Playing, Paused | Music plays; for 30 s after it pauses (only if it played 1.5 s or more) | Cover, Sound bars |
 | Sound | Sounds | Any other sound plays, and for 2.2 / 3.8 / 6.5 s after it ends; a short musical blip counts too | App icon, Sound bars |
 | AirPods | AirPods, Charging | AirPods or the chosen headphones are connected, nothing playing | Battery, Heart (else the listening mode) |
-| Rest | Nothing on | Nothing playing or connected (stays because "Always on" is on by default) | Phone battery, Clock |
+| Message | Messages | A text or chat message just arrived (Notification access) and no music plays; the window is wider only for those seconds | App icon, Title (the sender, or the app's name) |
+| Rest | Nothing on | Nothing playing or connected (stays because "Always on" is on by default); also for 4 s when the phone starts charging, gets full or runs low | Phone battery, Clock |
 | (any) | Talking | Conversation Awareness has the music down | Keep the left, talking dots on the right |
 
-While music plays, an alert (a message ding) swaps the right-hand slot for the app's icon for a moment (`blipping` in `MiniIslandHost`).
+While music plays, an alert, a message or a phone battery moment swaps the right-hand slot for the app's icon (or the phone's ring) for a moment (`blipping` in `MiniIslandHost`).
+
+**Swipe up** (`IslandGestures.Kind.SwipeUp`) tucks the song's name back at once (`collapseTick`), or puts away a message, sound or battery moment (`putAway` in the controller; `dismissedAt` hides moments that began before it).
+
+**The Messages window.** The Messages look needs more width than the usual window, so the window grows first (`onWindowSize(messageWindow)`), then the name slides in, and it shrinks after the pill has narrowed. It is never permanently wider: a wider window swallows taps meant for the status bar. The phone's own heads-up notification drops from below the status bar, so the island never grows downward for a message and never overlaps it.
 
 ## Rules for changes here
 

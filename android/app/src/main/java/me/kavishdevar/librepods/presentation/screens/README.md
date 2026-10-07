@@ -7,6 +7,8 @@ One file per page of the app. Routes are in `../navigation/Screen.kt`, the page 
 | Page | File | Notes |
 |---|---|---|
 | This phone | `PhoneScreen.kt` | Live Dynamic Island strip (Nothing on / A sound / Music), phone battery, island switches, `SoundsSection`, `RecentSounds`. Opened from Settings > This phone and from `components/ThisPhoneCard.kt` on the main page. |
+| Apps | `AppsScreen.kt` | Every app on the phone (read from Android in the background) with a switch for whether its sounds and messages may pop the island; the same switches as "Heard lately". |
+| Freezes and crashes | `FreezeCard.kt` | Top of Troubleshooting: the last freeze or crash in Android's own words, with Copy details. `components/FreezeBanner.kt` is the main-page card. |
 | Sound settings | `SoundsSection.kt` | `SoundsSection` (pop for any sound, app icons, how long, which clues are on) and `RecentSounds` ("Heard lately" with one switch per app). Used on This phone and in Settings > Islands. `AppBadge` draws an app icon in a circle (a symbol when the app isn't known). |
 | Islands | `IslandSettingsScreen.kt` | Settings > Islands: the tap switch card, the Dynamic Island switches, `SoundsSection`, the look editor, gestures, which pop-ups appear, music, duration, haptics, "Try it" buttons. |
 | Look editor | `IslandStudio.kt` | `DynamicIslandStudio` (live preview, situation chips, left and right slots, size, width, glow, colour, reset), `IslandGestureSettings`, `LiveIslandStrip` (the preview with your own look, used by This phone). |

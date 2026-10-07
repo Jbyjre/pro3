@@ -63,6 +63,17 @@ object SoundSource {
         val basis: SoundRules.Basis = SoundRules.Basis.None,
     )
 
+    /**
+     * A message (or other alerting notification) that has just arrived and earned a moment on the
+     * island. [startedAt] stays the same while messages keep coming, so the island doesn't
+     * re-announce itself for every one of a burst.
+     */
+    @Immutable
+    data class Message(
+        val key: String, val pkg: String, val app: String?, val icon: ImageBitmap?, val title: String?,
+        val at: Long, val startedAt: Long,
+    )
+
     /** An app's name and small icon, as the island and Settings show them. */
     @Immutable
     data class AppInfo(val label: String?, val icon: ImageBitmap?)
@@ -75,7 +86,12 @@ object SoundSource {
     /** The apps (or kinds of sound) heard lately, newest first, for Settings. */
     val recent: StateFlow<List<SoundRules.Seen>> = _recent.asStateFlow()
 
+    private val _message = MutableStateFlow<Message?>(null)
+    /** The latest message moment (it shows for a few seconds after [Message.at]). */
+    val message: StateFlow<Message?> = _message.asStateFlow()
+
     private val notes = SoundRules.NoteLog()
+    private var dedupe = SoundRules.Dedupe()
     private var appContext: Context? = null
     private var lastUsages: List<Int> = emptyList()
     private var recordedStart = 0L
@@ -86,8 +102,9 @@ object SoundSource {
 
     private const val ICON_PX = 96
     private const val RETRY_MS = 700L
-    private val infos = HashMap<String, AppInfo>()
-    private val roles = HashMap<String, SoundRules.Role>()
+    // Looked at from the main thread and from background loaders (the Apps page).
+    private val infos = java.util.concurrent.ConcurrentHashMap<String, AppInfo>()
+    private val roles = java.util.concurrent.ConcurrentHashMap<String, SoundRules.Role>()
     private var homeApps: Set<String>? = null
 
     /** Starts listening (safe to call often; the app's background service does it once at start). */
@@ -180,14 +197,35 @@ object SoundSource {
     // ---- Clues from the rest of the app ----
 
     /**
-     * A notification arrived. Only its app and the time are kept (nothing from inside it), and only
-     * to explain a sound that follows. Called by [MediaAccessService] (Notification access).
+     * A notification arrived. Its app and the time are kept for a few seconds, to explain a sound
+     * that follows. If it is a message (or, if switched on, another alerting notification) and the
+     * phone itself would alert for it, it also earns a moment on the island, unless the app is
+     * switched off, you're using that app right now, or Do Not Disturb holds it back. Called by
+     * [MediaAccessService] (Notification access). Nothing inside the notification is read, except
+     * its title when "Show who it's from" is on.
      */
-    fun notificationPosted(pkg: String?, flags: Int) {
+    fun notificationPosted(p: SoundRules.Posted) {
         val ctx = appContext ?: return
-        if (!SoundRules.worthNoting(flags, pkg, ctx.packageName)) return
-        notes.add(pkg!!, SystemClock.elapsedRealtime())
+        val now = SystemClock.elapsedRealtime()
+        if (!SoundRules.worthNoting(p.flags, p.pkg, ctx.packageName)) return
+        val pkg = p.pkg!!
+        notes.add(pkg, now)
+        val prefs = IslandPrefs.prefs(ctx)
+        if (!SoundRules.worthAMoment(p, ctx.packageName, IslandPrefs.messages(prefs), IslandPrefs.messagesOthers(prefs), IslandPrefs.messagesRespectDnd(prefs))) return
+        if (roleOf(ctx, pkg) == SoundRules.Role.System) return
+        if (pkg in IslandPrefs.soundIgnored(prefs)) return
+        if (IslandPrefs.skipInUse(prefs) && pkg == foreground) return
+        if (!dedupe.fresh(p.key, p.flags, now)) return
+        val info = appInfo(ctx, pkg)
+        val prev = _message.value
+        val linger = IslandPrefs.soundLinger(prefs).ms
+        val startedAt = if (prev != null && now - prev.at < linger) prev.startedAt else now
+        _message.value = Message(p.key, pkg, info.label, info.icon, p.title?.trim()?.takeIf { it.isNotEmpty() }?.take(40), now, startedAt)
     }
+
+    /** Just an app and its flags (no category, importance or title): only explains a sound, never earns a moment. */
+    fun notificationPosted(pkg: String?, flags: Int) =
+        notificationPosted(SoundRules.Posted(pkg, "$pkg:$flags", flags, null, -1, false, true, null))
 
     /** A window came to the front (from [IslandAccessService]): remember the app, forget it at the home screen. */
     fun windowChanged(pkg: CharSequence?) {
@@ -237,6 +275,9 @@ object SoundSource {
     /** Sets what's heard, for screenshots and tests only. */
     internal fun preview(h: Heard?) { _heard.value = h }
 
+    /** Sets the message moment, for screenshots and tests only. */
+    internal fun previewMessage(m: Message?) { _message.value = m }
+
     /** Sets the recent list and an app's name and icon, for screenshots and tests only. */
     internal fun previewRecent(list: List<SoundRules.Seen>, names: Map<String, AppInfo> = emptyMap()) {
         _recent.value = list
@@ -248,6 +289,8 @@ object SoundSource {
         main.removeCallbacks(retry)
         appContext = null
         _heard.value = null
+        _message.value = null
+        dedupe = SoundRules.Dedupe()
         _recent.value = emptyList()
         notes.clear()
         lastUsages = emptyList()

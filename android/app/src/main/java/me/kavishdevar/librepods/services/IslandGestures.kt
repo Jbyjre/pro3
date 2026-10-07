@@ -124,7 +124,7 @@ object IslandGestures {
     }
 
     /** What a finished touch was. */
-    enum class Kind { Tap, Hold, SwipeLeft, SwipeRight, PullDown, None }
+    enum class Kind { Tap, Hold, SwipeLeft, SwipeRight, PullDown, SwipeUp, None }
 
     /**
      * A finger went down and came up [dx], [dy] pixels away after [ms] milliseconds. [slop] is
@@ -139,6 +139,8 @@ object IslandGestures {
         return when {
             ax >= ay && ax >= swipe -> if (dx < 0) Kind.SwipeLeft else Kind.SwipeRight
             dy >= swipe && ay > ax -> Kind.PullDown
+            // Back toward the camera: puts away whatever the pill has opened out (a song's name, a message).
+            -dy >= swipe && ay > ax -> Kind.SwipeUp
             else -> Kind.None
         }
     }

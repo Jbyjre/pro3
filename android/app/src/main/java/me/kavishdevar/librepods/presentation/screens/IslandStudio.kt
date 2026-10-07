@@ -230,11 +230,16 @@ private fun IslandPreview(look: IslandLook.Look, actions: Map<IslandGestures.Ges
     val heard = if (situation == IslandLook.Situation.Sound) SoundSource.Heard(
         kind = SoundRules.Kind.Alert, pkg = null, app = "Messages", icon = icon, startedAt = 1L, active = true,
     ) else null
+    val message = if (situation == IslandLook.Situation.Message) SoundSource.Message(
+        key = "sample", pkg = "sample", app = "Messages", icon = icon, title = "Alex", at = 1L, startedAt = 1L,
+    ) else null
     val track = NowPlaying.Track(
         playing = playing, title = "Midnight City", artist = "M83", app = "pro", art = art, fromSession = true,
         durationMs = 243_000L, positionMs = 90_000L, positionAtMs = android.os.SystemClock.elapsedRealtime().coerceAtLeast(1L),
     )
     val geo = remember(look) { MiniGeometry(context, look = look) }
+    // The Messages look is wider than the usual window: the preview box is as wide as it needs.
+    val window = if (situation == IslandLook.Situation.Message) geo.messageWindow else geo.compactWindow
     val wallpaper = if (dark) listOf(Color(0xFF0B1A33), Color(0xFF3A1446)) else listOf(Color(0xFFFFD6A5), Color(0xFFBDE0FE))
     Box(
         Modifier
@@ -245,16 +250,18 @@ private fun IslandPreview(look: IslandLook.Look, actions: Map<IslandGestures.Ges
             .background(Brush.linearGradient(wallpaper)),
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.size(with(density) { geo.compactWindow.width.toDp() }, with(density) { geo.compactWindow.height.toDp() })) {
+        Box(Modifier.size(with(density) { window.width.toDp() }, with(density) { window.height.toDp() })) {
             MiniIslandHost(
                 geometry = geo, track = track, leaving = false, hidden = false,
                 content = when (situation) {
                     IslandLook.Situation.Idle, IslandLook.Situation.Charging -> MiniIslandRules.Content.AirPods
                     IslandLook.Situation.Rest -> MiniIslandRules.Content.Rest
                     IslandLook.Situation.Sound -> MiniIslandRules.Content.Sound
+                    IslandLook.Situation.Message -> MiniIslandRules.Content.Message
                     else -> MiniIslandRules.Content.Music
                 },
                 heard = heard,
+                message = message,
                 pods = pods,
                 heartBpm = 72,
                 talking = situation == IslandLook.Situation.Talking,
@@ -474,6 +481,11 @@ private fun DrawScope.drawSituation(s: IslandLook.Situation, c: Color) {
         }
         // A speaker with sound waves: any other sound.
         IslandLook.Situation.Sound -> drawKindGlyph(SoundRules.Kind.Other, m, r * 1.7f, c)
+        // A speech bubble: a message arrived.
+        IslandLook.Situation.Message -> {
+            drawRoundRect(c, Offset(m.x - r * 0.8f, m.y - r * 0.7f), Size(r * 1.6f, r * 1.15f), CornerRadius(r * 0.4f))
+            drawLine(c, Offset(m.x - r * 0.35f, m.y + r * 0.4f), Offset(m.x - r * 0.6f, m.y + r * 0.85f), r * 0.3f, StrokeCap.Round)
+        }
         IslandLook.Situation.Idle -> {
             // Two little buds.
             for (side in listOf(-1, 1)) {
