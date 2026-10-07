@@ -94,6 +94,8 @@ fun StyledScaffold(
     onNavigateBack: () -> Unit = {},
     actionButtons: List<@Composable (backdrop: LayerBackdrop) -> Unit> = emptyList(),
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    /** A floating bar along the bottom (pro's tabs), drawn as glass over the page through its backdrop. */
+    bottomBar: (@Composable (backdrop: LayerBackdrop) -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     val isDarkTheme = isSystemInDarkTheme()
@@ -153,13 +155,18 @@ fun StyledScaffold(
                     }
                 },
             ) { paddingValues ->
-                Box(
-                    modifier = modifier
-                        .then(if (visible) Modifier.padding(paddingValues) else Modifier)
-                        .fillMaxSize()
-                        .hazeSource(hazeState)
-                ) {
-                    content()
+                val pageBackdrop = rememberLayerBackdrop()
+                Box(Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = modifier
+                            .then(if (visible) Modifier.padding(paddingValues) else Modifier)
+                            .fillMaxSize()
+                            .hazeSource(hazeState)
+                            .layerBackdrop(pageBackdrop)
+                    ) {
+                        content()
+                    }
+                    if (bottomBar != null) Box(Modifier.align(Alignment.BottomCenter).zIndex(3f)) { bottomBar(pageBackdrop) }
                 }
             }
         }
@@ -304,6 +311,8 @@ fun StyledScaffold(
                     ) {
                         content()
                     }
+                    // The tab bar floats over the page and bends what scrolls under it.
+                    if (bottomBar != null) Box(Modifier.align(Alignment.BottomCenter).zIndex(3f)) { bottomBar(backdrop) }
                 }
             }
         }

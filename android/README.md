@@ -41,7 +41,7 @@ All code is under `app/src/main/java/me/kavishdevar/librepods/` (the old LibrePo
 | `presentation/glint/` | The glass material, motion, haptics, symbols, row icons | [`presentation/glint/README.md`](app/src/main/java/me/kavishdevar/librepods/presentation/glint/README.md) |
 | `presentation/screens/` | One file per page of the app | [`presentation/screens/README.md`](app/src/main/java/me/kavishdevar/librepods/presentation/screens/README.md) |
 | `presentation/components/` | Shared pieces: lists, toggles, buttons, banners, cards | |
-| `presentation/navigation/` | Routes (`Screen.kt`), the page switcher (`AppNavGraph.kt`), the top bar (`NavigationRoot.kt`), deep links from pop-ups (`AppLinks.kt`) | |
+| `presentation/navigation/` | Routes (`Screen.kt`), the page switcher (`AppNavGraph.kt`), the top bar and the tabs' state (`NavigationRoot.kt`), the three tabs and their Liquid Glass bar (`Tabs.kt`: Phone first, Island, Headphones), deep links from pop-ups (`AppLinks.kt`, `ISLAND_TAB`) | |
 | `presentation/theme/` | Colours, the Inter font, light/dark (`Appearance.kt`), the light/dark reveal, the home-screen icon choice | |
 | `bluetooth/` | Talking to the AirPods: the Apple accessory protocol (AACP), detection, reconnect timing, the heart sensor stream, the Beats beacon | |
 | `audio/` | The AirPods microphone recorder | |
@@ -64,12 +64,16 @@ SoundSource     any other sound, and its   SoundRules (kinds, which app,      |
 GlintStatus /   AirPods or headphones   -> IslandLook (what goes left/right  MiniIslandHost (composable)
 HeadphoneLink   connected, battery, mode   per situation, size, colour)       draws the pill; slots drawn by drawSlot
 PhoneStatus     the phone's own battery                                       |
+ScreenApp       the app in front, home,    GlanceRules (what's worth a glance)
+                locked; wallpaper colours
+IslandTimer     the island's own timer
 HeartRate/View  heart rate (honest state)                                     v
 Conversation... talking (music is down)                                       OverlayWindow (layer: above the status bar
                                                                               when the accessibility service is on)
 ```
 
-- **Content** (what the pill is about): Music, Sound, AirPods, Rest. **Situation** (which left/right slots apply): Playing, Paused, Sounds, AirPods, Charging, Talking, Nothing on. The look maps each situation to two slots (Cover, App icon, Sound bars, Battery, L/R/case, Mode, Heart, Phone battery, Clock, Title, Talking dots, Keep, Nothing).
+- **Content** (what the pill is about): Music, Sound, Screen (where you are on the phone), AirPods, Rest. **Situation** (which left/right slots apply): In an app, Home screen, Lock screen, Playing, Paused, Sounds, AirPods, Charging, Talking, Nothing on. The look maps each situation to two slots (App on screen, Home, Date, Padlock, Smart glance, Cover, App icon, Sound bars, Battery, L/R/case, Mode, Heart, Phone battery, Clock, Title, Talking dots, Keep, Nothing).
+- **A tap** opens the music island on music, the AirPods island on the AirPods, the app on a sound, and otherwise the glance (`GlancePanel.kt`): what's live and the phone's own controls.
 - Taps, swipes and holds are one system (`services/IslandGestures.kt`). They only reach the pill when the accessibility service "pro Dynamic Island" is on, because Android's status bar otherwise takes every touch in the camera strip.
 - The pop-up islands (`Island.kt`) grow out of the pill and shrink back into it. The pill's window always starts above the pop-up's so both stay touchable.
 
@@ -89,6 +93,7 @@ Tests: `SoundRulesTest` (pure rules), `SoundSourceTest` (events in, sound out, v
 
 - **`delay()` with a computed wait.** `delay(x)` with `x <= 0` returns at once. A recheck that reschedules itself with "time left" must only do so when time is left (`MiniIslandRules.nextCheck` exists for this; the old code looped forever after 30 s of paused music).
 - **Don't `remember` theme colours.** Rows went white on white. Read them each composition.
+- **A page's content in `AppNavGraph` is kept from when it was first made.** Pass anything that changes (like the selected tab) as a function or state that the content reads, never as a plain value, or the page stays stuck while everything around it changes. Test it by pressing the real buttons (`PhoneTabsUiTest`), not only with screenshots that start on the right page.
 - **Glass rim light:** always `GlintLight.rim()`. Kyant's default highlight is a 45 degree diagonal that looks tilted. Level phone means straight overhead.
 - **Overlay windows.** Android draws the status bar above app overlays and gives it every touch in its strip. Accessibility-layer windows sit above it. Hidden overlay windows must be fully transparent and untouchable or they eat taps (`OverlayWindow`).
 - **Status bar height** is the largest of the window insets, the `status_bar_height` resource and the cutout bottom: insets can be 0 from a service.

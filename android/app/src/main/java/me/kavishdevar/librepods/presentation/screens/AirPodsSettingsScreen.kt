@@ -170,7 +170,9 @@ fun AirPodsSettingsRoute(
 
     val m3eEnabled = LocalDesignSystem.current == DesignSystem.Material
     val topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + if (m3eEnabled) 0.dp else 84.dp
-    val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 12.dp
+    // Room under the page for the tab bar floating along the bottom.
+    val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 12.dp +
+        me.kavishdevar.librepods.presentation.navigation.LocalTabBarSpace.current
 
     // Which headphones pro follows (Settings > Your devices). Switching cross-fades between the
     // AirPods page and the headphones page on a spring, so it reads as one page changing.
@@ -345,14 +347,9 @@ fun AirPodsSettingsScreen(
                     Text(text, style = TextStyle(fontSize = 13.sp, fontFamily = glintFontFamily, color = if (isSystemInDarkTheme()) Color.White.copy(alpha = 0.7f) else Color.Black.copy(alpha = 0.65f)))
                 }
             }
+            // The island's setup and the phone's own features live in their own tabs now.
             item(key = "freeze") {
                 me.kavishdevar.librepods.presentation.components.FreezeBanner(Modifier.padding(top = 18.dp))
-            }
-            item(key = "tap_setup") {
-                me.kavishdevar.librepods.presentation.components.TapSetupBanner(Modifier.padding(top = 18.dp))
-            }
-            item(key = "this_phone") {
-                me.kavishdevar.librepods.presentation.components.ThisPhoneCard(Modifier.padding(top = 12.dp), onOpen = navigateToPhone)
             }
             item(key = "spacer_battery") {
                 Spacer(modifier = Modifier.height(28.dp))
@@ -716,17 +713,8 @@ fun AirPodsSettingsScreen(
                 .padding(start = 8.dp, end = 8.dp, bottom = bottomPadding),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                Modifier.align(Alignment.TopCenter).padding(top = topPadding, start = 8.dp, end = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                me.kavishdevar.librepods.presentation.components.FreezeBanner()
-                me.kavishdevar.librepods.presentation.components.TapSetupBanner()
-            }
-            // Nothing connected: the page still has something to open (the phone's own features).
-            me.kavishdevar.librepods.presentation.components.ThisPhoneCard(
-                Modifier.align(Alignment.BottomCenter).padding(horizontal = 8.dp),
-                onOpen = navigateToPhone,
+            me.kavishdevar.librepods.presentation.components.FreezeBanner(
+                Modifier.align(Alignment.TopCenter).padding(top = topPadding, start = 8.dp, end = 8.dp)
             )
             val tapCount = remember { mutableIntStateOf(0) }
             val lastTapTime = remember { mutableLongStateOf(0L) }

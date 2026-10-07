@@ -27,6 +27,8 @@ object AppLinks {
     const val ISLANDS = "islands"
     /** The heart-rate page. */
     const val HEART = "heart"
+    /** The Island tab (from the opened Dynamic Island's customize button). */
+    const val ISLAND_TAB = "island_tab"
     /** Troubleshooting (freeze and crash reports). */
     const val TROUBLESHOOTING = "troubleshooting"
 

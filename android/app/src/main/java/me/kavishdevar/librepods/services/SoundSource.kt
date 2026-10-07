@@ -100,7 +100,8 @@ object SoundSource {
     @Volatile var foreground: String? = null
         private set
 
-    private const val ICON_PX = 96
+    /** Icons are kept this many pixels square: sharp in the opened island's header on a high-density screen. */
+    private const val ICON_PX = 160
     private const val RETRY_MS = 700L
     // Looked at from the main thread and from background loaders (the Apps page).
     private val infos = java.util.concurrent.ConcurrentHashMap<String, AppInfo>()
@@ -188,8 +189,19 @@ object SoundSource {
     private fun evidence(ctx: Context, now: Long): SoundRules.Evidence = SoundRules.Evidence(
         session = NowPlaying.playingSessionPackage(),
         notification = notes.recent(now, skip = skipper(ctx)),
-        foreground = foreground,
+        foreground = inFront(),
     )
+
+    /**
+     * The app on screen. [ScreenApp] counts only real app screens, so a toast or a pop-up from
+     * another app (a WhatsApp toast over a Chrome video) doesn't take the credit for the next
+     * sound; when it doesn't know, the plain window clue below is used.
+     */
+    private fun inFront(): String? = when (val p = ScreenApp.place.value) {
+        is ScreenApp.Place.App -> p.pkg
+        ScreenApp.Place.Home -> null
+        else -> foreground
+    }
 
     /** Packages that never count as "the app that made the sound": pro itself and the phone's own pieces. */
     private fun skipper(ctx: Context): (String) -> Boolean = { pkg -> pkg == ctx.packageName || roleOf(ctx, pkg) == SoundRules.Role.System }
@@ -241,7 +253,7 @@ object SoundSource {
         infos[pkg]?.let { return it }
         val label = NowPlaying.appName(context, pkg)
         val icon = runCatching {
-            context.packageManager.getApplicationIcon(pkg).toBitmap(ICON_PX, ICON_PX).asImageBitmap()
+            (launcherIcon(context, pkg) ?: context.packageManager.getApplicationIcon(pkg)).toBitmap(ICON_PX, ICON_PX).asImageBitmap()
         }.getOrNull()
         val info = AppInfo(label, icon)
         // A failed lookup isn't kept: the app may become visible a moment later.
@@ -249,7 +261,40 @@ object SoundSource {
         return info
     }
 
-    private fun roleOf(ctx: Context, pkg: String): SoundRules.Role = roleOverride?.invoke(pkg) ?: roles.getOrPut(pkg) {
+    /** The app's name and icon if already looked up (never asks Android, so it's safe on the main thread). */
+    fun cachedInfo(pkg: String): AppInfo? = infos[pkg]
+
+    /** Forgets an app's looked-up icon (pro's own changes when you pick another in Settings > App icon). */
+    fun forgetInfo(pkg: String) { infos.remove(pkg) }
+
+    /**
+     * The icon the home screen shows for [pkg]: its launcher entry's own picture, which an app can
+     * set apart from its general icon (pro's follows the icon chosen in Settings > App icon). Null
+     * when the app has no launcher entry; then its general icon is used.
+     */
+    private fun launcherIcon(c: Context, pkg: String): android.graphics.drawable.Drawable? = runCatching {
+        c.getSystemService(android.content.pm.LauncherApps::class.java)
+            ?.getActivityList(pkg, android.os.Process.myUserHandle())
+            ?.firstOrNull()
+            ?.getIcon(c.resources.displayMetrics.densityDpi)
+    }.getOrNull()
+
+    /**
+     * A real app on this phone to show in previews (Settings' live island, "Try a message"),
+     * never a drawn stand-in: the default texting app, else an app used lately, else pro itself.
+     */
+    fun exampleApp(context: Context): Pair<String, AppInfo> {
+        val candidates = listOfNotNull(
+            runCatching { android.provider.Telephony.Sms.getDefaultSmsPackage(context) }.getOrNull(),
+        ) + ScreenApp.recent.value + context.packageName
+        for (pkg in candidates) {
+            val info = appInfo(context, pkg)
+            if (info.icon != null) return pkg to info
+        }
+        return context.packageName to appInfo(context, context.packageName)
+    }
+
+    internal fun roleOf(ctx: Context, pkg: String): SoundRules.Role = roleOverride?.invoke(pkg) ?: roles.getOrPut(pkg) {
         val pm = ctx.packageManager
         val home = homeApps ?: runCatching {
             pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0).map { it.activityInfo.packageName }.toSet()

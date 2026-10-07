@@ -53,14 +53,21 @@ class IslandAccessService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        ScreenApp.attach(this)
         IslandAccess.connected(this)
         IslandAccess.updatePanels(this)
+        // Show the app that's open right away, not only after the next app switch.
+        ScreenApp.seed(this)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // Which app just came to the front (the app's name only, nothing on the screen), so a
         // sound can be matched to the app you're in.
-        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) SoundSource.windowChanged(event.packageName)
+        // The same name tells the Dynamic Island which app's icon to show.
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            SoundSource.windowChanged(event.packageName)
+            ScreenApp.windowChanged(event.packageName, event.className)
+        }
         // Windows come and go in bursts (an animation can send dozens): look once things settle.
         main.removeCallbacks(check)
         main.postDelayed(check, PANEL_CHECK_MS)
@@ -107,6 +114,7 @@ object IslandAccess {
         Log.d(TAG, "disconnected")
         _service.value = null
         _panelOpen.value = false
+        ScreenApp.lostSight()
     }
 
     internal fun updatePanels(s: AccessibilityService) {

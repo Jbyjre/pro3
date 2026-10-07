@@ -48,6 +48,10 @@ object IslandPrefs {
     const val PREF_SOUND_LINGER = "glint_sound_linger"
     /** Apps whose sounds never pop the Dynamic Island. */
     const val PREF_SOUND_IGNORED = "glint_sound_ignored"
+    /** Apps the Dynamic Island hides in (games, video): it steps aside while they're in front. */
+    const val PREF_HIDE_IN = "glint_di_hide_in"
+    /** The app's icon swaps with a little pop as you change apps (off: a plain cross-fade). */
+    const val PREF_APP_POP = "glint_di_app_pop"
     /** Show a moment when a message arrives (a text, a chat), with the app's icon and name. */
     const val PREF_MSG = "glint_msg_on"
     /** Also show moments for other notifications that alert (off: messages only). */
@@ -58,7 +62,7 @@ object IslandPrefs {
     const val PREF_MSG_DND = "glint_msg_dnd"
     /** No sound or message moments from the app you're using right now. */
     const val PREF_SKIP_IN_USE = "glint_skip_in_use"
-    /** A moment when the phone starts charging, gets full, or runs low. */
+    /** A moment when the phone starts charging, gets full, or runs low (with a line of words, like the iPhone's). */
     const val PREF_PHONE_MOMENTS = "glint_phone_moments"
     /** How long the song's name stays out under the camera. */
     const val PREF_NAME_LINGER = "glint_name_linger"
@@ -128,6 +132,15 @@ object IslandPrefs {
 
     /** Packages switched off in Settings (a copy: the stored set must never be edited in place). */
     fun soundIgnored(prefs: SharedPreferences): Set<String> = prefs.getStringSet(PREF_SOUND_IGNORED, emptySet())?.toSet().orEmpty()
+
+    fun hideIn(prefs: SharedPreferences): Set<String> = prefs.getStringSet(PREF_HIDE_IN, emptySet())?.toSet().orEmpty()
+
+    fun setHideIn(prefs: SharedPreferences, pkg: String, hidden: Boolean) {
+        val now = hideIn(prefs)
+        prefs.edit().putStringSet(PREF_HIDE_IN, if (hidden) now + pkg else now - pkg).apply()
+    }
+
+    fun appPop(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_APP_POP, true)
 
     fun setSoundIgnored(prefs: SharedPreferences, pkg: String, ignored: Boolean) {
         val now = soundIgnored(prefs)

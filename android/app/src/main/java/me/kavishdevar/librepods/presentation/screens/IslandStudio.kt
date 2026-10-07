@@ -50,6 +50,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -88,6 +90,8 @@ import me.kavishdevar.librepods.presentation.overlays.MiniGeometry
 import me.kavishdevar.librepods.presentation.overlays.MiniIslandHost
 import me.kavishdevar.librepods.presentation.overlays.PodsSnapshot
 import me.kavishdevar.librepods.presentation.overlays.drawKindGlyph
+import me.kavishdevar.librepods.presentation.overlays.drawHomeGrid
+import me.kavishdevar.librepods.presentation.overlays.drawPadlock
 import me.kavishdevar.librepods.presentation.overlays.sampleIcon
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.services.IslandGestures
@@ -118,7 +122,7 @@ fun DynamicIslandStudio(ink: Color, dark: Boolean, preview: IslandLook.Situation
         prefs.registerOnSharedPreferenceChangeListener(l)
         onDispose { prefs.unregisterOnSharedPreferenceChangeListener(l) }
     }
-    var situation by remember { mutableStateOf(preview ?: IslandLook.Situation.Music) }
+    var situation by remember { mutableStateOf(preview ?: IslandLook.Situation.App) }
     val card = if (dark) Color(0xFF1C1C1E) else Color.White
     val muted = ink.copy(alpha = 0.55f)
 
@@ -226,18 +230,30 @@ private fun IslandPreview(look: IslandLook.Look, actions: Map<IslandGestures.Ges
         }.asImageBitmap()
     }
     val playing = situation == IslandLook.Situation.Music || situation == IslandLook.Situation.Talking
-    val icon = remember { sampleIcon() }
+    // A real app on this phone for the sample sound and message (your texting app, else one you used
+    // lately, else pro), looked up in the background; the drawn bubble only until it arrives.
+    var example by remember { mutableStateOf<Pair<String?, ImageBitmap?>>(null to null) }
+    LaunchedEffect(Unit) {
+        val (_, info) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { SoundSource.exampleApp(context) }
+        example = info.label to info.icon
+    }
+    val fallbackIcon = remember { sampleIcon() }
+    val icon = example.second ?: fallbackIcon
+    val exampleName = example.first ?: "Messages"
     val heard = if (situation == IslandLook.Situation.Sound) SoundSource.Heard(
-        kind = SoundRules.Kind.Alert, pkg = null, app = "Messages", icon = icon, startedAt = 1L, active = true,
+        kind = SoundRules.Kind.Alert, pkg = null, app = exampleName, icon = icon, startedAt = 1L, active = true,
     ) else null
     val message = if (situation == IslandLook.Situation.Message) SoundSource.Message(
-        key = "sample", pkg = "sample", app = "Messages", icon = icon, title = "Alex", at = 1L, startedAt = 1L,
+        key = "sample", pkg = "sample", app = exampleName, icon = icon, title = "Alex", at = 1L, startedAt = 1L,
     ) else null
     val track = NowPlaying.Track(
         playing = playing, title = "Midnight City", artist = "M83", app = "pro", art = art, fromSession = true,
         durationMs = 243_000L, positionMs = 90_000L, positionAtMs = android.os.SystemClock.elapsedRealtime().coerceAtLeast(1L),
     )
     val geo = remember(look) { MiniGeometry(context, look = look) }
+    val livePlace by me.kavishdevar.librepods.services.ScreenApp.place.collectAsState()
+    val liveWallpaper by me.kavishdevar.librepods.services.ScreenApp.wallpaper.collectAsState()
+    val liveTimer by me.kavishdevar.librepods.services.IslandTimer.state.collectAsState()
     // The Messages look is wider than the usual window: the preview box is as wide as it needs.
     val window = if (situation == IslandLook.Situation.Message) geo.messageWindow else geo.compactWindow
     val wallpaper = if (dark) listOf(Color(0xFF0B1A33), Color(0xFF3A1446)) else listOf(Color(0xFFFFD6A5), Color(0xFFBDE0FE))
@@ -257,9 +273,22 @@ private fun IslandPreview(look: IslandLook.Look, actions: Map<IslandGestures.Ges
                     IslandLook.Situation.Idle, IslandLook.Situation.Charging -> MiniIslandRules.Content.AirPods
                     IslandLook.Situation.Rest -> MiniIslandRules.Content.Rest
                     IslandLook.Situation.Sound -> MiniIslandRules.Content.Sound
+                    IslandLook.Situation.App, IslandLook.Situation.Home, IslandLook.Situation.Locked -> MiniIslandRules.Content.Screen
                     IslandLook.Situation.Message -> MiniIslandRules.Content.Message
                     else -> MiniIslandRules.Content.Music
                 },
+                // The app you're really in when pro knows it (pro itself, here), otherwise a sample.
+                place = when (situation) {
+                    IslandLook.Situation.App -> (livePlace as? me.kavishdevar.librepods.services.ScreenApp.Place.App)
+                        ?: me.kavishdevar.librepods.services.ScreenApp.Place.App("sample", exampleName, icon)
+                    IslandLook.Situation.Home -> me.kavishdevar.librepods.services.ScreenApp.Place.Home
+                    IslandLook.Situation.Locked -> me.kavishdevar.librepods.services.ScreenApp.Place.Locked()
+                    else -> me.kavishdevar.librepods.services.ScreenApp.Place.Unknown
+                },
+                wallpaper = liveWallpaper.ifEmpty { wallpaper },
+                // A running timer shows in the preview as it does around the camera.
+                timer = liveTimer.takeIf { situation != IslandLook.Situation.Sound && situation != IslandLook.Situation.Talking },
+                budsUp = live.budsLevel != null,
                 heard = heard,
                 message = message,
                 pods = pods,
@@ -457,6 +486,24 @@ private fun DrawScope.drawSlotIcon(slot: IslandLook.Slot, c: Color) {
             drawLine(c, Offset(m.x + r * 0.62f, m.y - r * 0.05f), Offset(m.x + r * 0.95f, m.y - r * 0.4f), r * 0.18f, StrokeCap.Round)
             drawLine(c, Offset(m.x + r * 0.62f, m.y - r * 0.05f), Offset(m.x + r * 0.25f, m.y - r * 0.3f), r * 0.18f, StrokeCap.Round)
         }
+        IslandLook.Slot.Screen -> {
+            // A rounded app tile.
+            drawRoundRect(Color(0xFF0A84FF), Offset(m.x - r * 0.72f, m.y - r * 0.72f), Size(r * 1.44f, r * 1.44f), CornerRadius(r * 0.4f))
+            drawCircle(Color.White, r * 0.3f, m)
+        }
+        IslandLook.Slot.Home -> drawHomeGrid(m, r * 1.5f, listOf(Color(0xFF64D2FF), Color(0xFFFF9F0A), Color(0xFFBF5AF2)), 1f, c.alpha)
+        IslandLook.Slot.Date -> {
+            drawRoundRect(c, Offset(m.x - r * 0.7f, m.y - r * 0.7f), Size(r * 1.4f, r * 1.4f), CornerRadius(r * 0.28f), style = Stroke(r * 0.12f))
+            drawLine(Color(0xFFFF453A), Offset(m.x - r * 0.55f, m.y - r * 0.35f), Offset(m.x + r * 0.55f, m.y - r * 0.35f), r * 0.2f, StrokeCap.Round)
+            drawCircle(c, r * 0.16f, Offset(m.x, m.y + r * 0.22f))
+        }
+        IslandLook.Slot.Lock -> drawPadlock(m, r * 1.5f, 0f, c)
+        IslandLook.Slot.Glance -> {
+            // A ring with a spark: whatever's worth a glance.
+            drawCircle(c.copy(alpha = c.alpha * 0.3f), r * 0.8f, m, style = st)
+            drawArc(Color(0xFFFF9F0A), -90f, 200f, false, Offset(m.x - r * 0.8f, m.y - r * 0.8f), Size(r * 1.6f, r * 1.6f), style = st)
+            drawCircle(c, r * 0.18f, m)
+        }
         IslandLook.Slot.Nothing -> {
             drawCircle(c.copy(alpha = c.alpha * 0.5f), r * 0.7f, m, style = Stroke(r * 0.12f))
             drawLine(c.copy(alpha = c.alpha * 0.5f), Offset(m.x - r * 0.5f, m.y + r * 0.5f), Offset(m.x + r * 0.5f, m.y - r * 0.5f), r * 0.12f, StrokeCap.Round)
@@ -502,6 +549,10 @@ private fun DrawScope.drawSituation(s: IslandLook.Situation, c: Color) {
             drawPath(p, c)
         }
         IslandLook.Situation.Talking -> for (i in 0 until 3) drawCircle(c, r * 0.17f, Offset(m.x + (i - 1) * r * 0.55f, m.y))
+        // An app tile, the home grid and a padlock: where you are on the phone.
+        IslandLook.Situation.App -> drawRoundRect(c, Offset(m.x - r * 0.6f, m.y - r * 0.6f), Size(r * 1.2f, r * 1.2f), CornerRadius(r * 0.34f))
+        IslandLook.Situation.Home -> drawHomeGrid(m, r * 1.35f, listOf(c, c, c), 1f, c.alpha)
+        IslandLook.Situation.Locked -> drawPadlock(m, r * 1.4f, 0f, c)
         // A small empty pill: nothing on.
         IslandLook.Situation.Rest -> drawRoundRect(
             c, Offset(m.x - r * 0.75f, m.y - r * 0.32f), Size(r * 1.5f, r * 0.64f), CornerRadius(r * 0.32f), style = Stroke(r * 0.16f),

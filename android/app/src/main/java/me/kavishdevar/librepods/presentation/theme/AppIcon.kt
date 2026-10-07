@@ -56,6 +56,8 @@ enum class AppIcon(val alias: String, val label: String) {
             entries.filter { it != icon }.forEach {
                 pm.setComponentEnabledSetting(it.component(context), PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
             }
+            // The Dynamic Island shows pro's real icon while pro is open: the new one from now on.
+            me.kavishdevar.librepods.services.ScreenApp.iconChanged(context.applicationContext)
             true
         } catch (e: Exception) {
             Log.w("AppIcon", "Couldn't switch the icon: ${e.message}")

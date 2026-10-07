@@ -60,12 +60,15 @@ class AppTourScreenshots {
         BatteryTimeLeft.publish(null)
     }
 
-    private fun tour(name: String, dark: Boolean, stack: List<Screen>, demo: Boolean = true, onboarding: Boolean = false) {
+    private fun tour(
+        name: String, dark: Boolean, stack: List<Screen>, demo: Boolean = true, onboarding: Boolean = false,
+        tab: me.kavishdevar.librepods.presentation.navigation.AppTab = me.kavishdevar.librepods.presentation.navigation.AppTab.Headphones,
+    ) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")
         val vm = AirPodsViewModel().apply { if (demo) activateDemoMode() }
         rule.setContent {
             LibrePodsTheme(m3eEnabled = false) {
-                NavigationRoot(airPodsViewModel = vm, initialStack = stack, showOnboarding = onboarding)
+                NavigationRoot(airPodsViewModel = vm, initialStack = stack, showOnboarding = onboarding, initialTab = tab)
             }
         }
         rule.mainClock.advanceTimeBy(1_500)
@@ -83,7 +86,7 @@ class AppTourScreenshots {
     @Test fun homeFull() {
         RuntimeEnvironment.setQualifiers("w412dp-h3400dp-xxhdpi")
         val vm = AirPodsViewModel().apply { activateDemoMode() }
-        rule.setContent { LibrePodsTheme(m3eEnabled = false) { NavigationRoot(airPodsViewModel = vm) } }
+        rule.setContent { LibrePodsTheme(m3eEnabled = false) { NavigationRoot(airPodsViewModel = vm, initialTab = me.kavishdevar.librepods.presentation.navigation.AppTab.Headphones) } }
         rule.mainClock.advanceTimeBy(2_000)
         rule.onRoot().captureRoboImage("$out/01d_home_full.png")
     }
@@ -110,6 +113,31 @@ class AppTourScreenshots {
         rule.onRoot().captureRoboImage("$out/33_long_rows_dark.png")
     }
     @Test fun homeDark() = tour("01_home", dark = true, stack = emptyList())
+
+    // ---- The tabs: Phone (the main page) and the Dynamic Island's own ----
+    private val phoneTab = me.kavishdevar.librepods.presentation.navigation.AppTab.Phone
+    private val islandTab = me.kavishdevar.librepods.presentation.navigation.AppTab.Island
+    @Test fun phoneTab() {
+        me.kavishdevar.librepods.services.PhoneStatus.preview(me.kavishdevar.librepods.services.PhoneStatus.Info(68, true))
+        tour("00_phone_tab", dark = false, stack = emptyList(), tab = phoneTab)
+    }
+    @Test fun phoneTabDark() {
+        me.kavishdevar.librepods.services.PhoneStatus.preview(me.kavishdevar.librepods.services.PhoneStatus.Info(68, false))
+        me.kavishdevar.librepods.services.IslandTimer.preview(me.kavishdevar.librepods.services.IslandTimer.State(total = 600_000L, endsAt = android.os.SystemClock.elapsedRealtime() + 245_000L))
+        try { tour("00_phone_tab", dark = true, stack = emptyList(), tab = phoneTab) }
+        finally { me.kavishdevar.librepods.services.IslandTimer.preview(null) }
+    }
+    /** The whole Phone tab, top to bottom. */
+    @Test fun phoneTabFull() {
+        RuntimeEnvironment.setQualifiers("w412dp-h2400dp-xxhdpi")
+        tour("00c_phone_tab_full", dark = false, stack = emptyList(), tab = phoneTab)
+    }
+    @Test fun islandTab() = tour("00b_island_tab", dark = false, stack = emptyList(), tab = islandTab)
+    @Test fun islandTabDark() = tour("00b_island_tab", dark = true, stack = emptyList(), tab = islandTab)
+    @Test fun islandTabFull() {
+        RuntimeEnvironment.setQualifiers("w412dp-h5200dp-xxhdpi")
+        tour("00d_island_tab_full", dark = false, stack = emptyList(), tab = islandTab)
+    }
 
     // ---- Beats Solo 4 (or other headphones) chosen ----
     private fun headphones(name: String, dark: Boolean, connected: Boolean, battery: Int? = 70, playing: Boolean = true) {
