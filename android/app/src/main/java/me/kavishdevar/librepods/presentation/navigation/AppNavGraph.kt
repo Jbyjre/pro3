@@ -44,6 +44,7 @@ import me.kavishdevar.librepods.presentation.screens.VersionScreen
 import me.kavishdevar.librepods.presentation.screens.GlintLabScreen
 import me.kavishdevar.librepods.presentation.screens.IslandSettingsScreen
 import me.kavishdevar.librepods.presentation.screens.PhoneScreen
+import me.kavishdevar.librepods.presentation.screens.AppsScreen
 import me.kavishdevar.librepods.presentation.screens.DevicesScreen
 import me.kavishdevar.librepods.presentation.screens.HeartRateScreen
 import me.kavishdevar.librepods.presentation.screens.HeartShareScreen
@@ -165,10 +166,15 @@ fun AppNavGraph(
                         NavEntry(screen) { StayConnectedScreen() }
 
                     Screen.IslandSettings ->
-                        NavEntry(screen) { IslandSettingsScreen() }
+                        NavEntry(screen) { IslandSettingsScreen(navigateToApps = { navigate(Screen.Apps) }) }
 
                     Screen.Phone ->
-                        NavEntry(screen) { PhoneScreen(navigateToIsland = { navigate(Screen.IslandSettings) }) }
+                        NavEntry(screen) {
+                            PhoneScreen(navigateToIsland = { navigate(Screen.IslandSettings) }, navigateToApps = { navigate(Screen.Apps) })
+                        }
+
+                    Screen.Apps ->
+                        NavEntry(screen) { AppsScreen() }
 
                     Screen.GlintLab ->
                         NavEntry(screen) { GlintLabScreen() }

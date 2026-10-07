@@ -229,6 +229,9 @@ fun TroubleshootingScreen() {
         ) {
             Spacer(modifier = Modifier.height(topPadding))
 
+            FreezeCard(textColor, androidx.compose.foundation.isSystemInDarkTheme())
+            Spacer(modifier = Modifier.height(12.dp))
+
             Text(
                 text = stringResource(R.string.saved_logs),
                 style = TextStyle(

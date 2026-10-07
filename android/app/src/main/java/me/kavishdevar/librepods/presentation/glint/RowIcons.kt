@@ -93,6 +93,7 @@ object RowIcons {
     val Pencil = icon("pencil", P("M4.2 19.8l1-4.1L15.6 5.3a2 2 0 0 1 2.8 0l.3.3a2 2 0 0 1 0 2.8L8.3 18.8z"), P("M13.8 7.1l3.1 3.1"))
     val Press = icon("press", P(circle(12f, 12f, 2.6f), true), P(circle(12f, 12f, 5.8f)), P("M5.2 6.4a9 9 0 0 0 0 11.2M18.8 6.4a9 9 0 0 1 0 11.2"))
     val Sparkle = icon("sparkle", P("M11 3.4c.6 4.4 2.3 6.1 6.7 6.7-4.4.6-6.1 2.3-6.7 6.7-.6-4.4-2.3-6.1-6.7-6.7 4.4-.6 6.1-2.3 6.7-6.7z"), P("M18 15.2c.2 1.4.8 2 2.2 2.2-1.4.2-2 .8-2.2 2.2-.2-1.4-.8-2-2.2-2.2 1.4-.2 2-.8 2.2-2.2z", true))
+    val Moon = icon("moon", P("M20 14.6A8.4 8.4 0 1 1 9.4 4a6.7 6.7 0 0 0 10.6 10.6z"))
     val Smartphone = icon(
         "smartphone",
         P("M8.4 3.4h7.2a1.8 1.8 0 0 1 1.8 1.8v13.6a1.8 1.8 0 0 1-1.8 1.8H8.4a1.8 1.8 0 0 1-1.8-1.8V5.2a1.8 1.8 0 0 1 1.8-1.8z"),
@@ -144,8 +145,10 @@ object RowIcons {
      */
     private val rules: List<Pair<List<String>, ImageVector>> = listOf(
         listOf("heart") to Heart,
-        listOf("app's icon") to Apps,
-        listOf("this phone") to Smartphone,
+        listOf("app's icon", "skip the app", "apps") to Apps,
+        listOf("this phone", "phone moments") to Smartphone,
+        listOf("do not disturb") to Moon,
+        listOf("message", "who it's from") to Speech,
         listOf("always on") to Power,
         listOf("light follows") to Sun,
         listOf("reduce motion") to Motion,

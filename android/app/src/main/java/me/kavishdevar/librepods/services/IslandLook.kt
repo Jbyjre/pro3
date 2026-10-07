@@ -31,6 +31,8 @@ object IslandLook {
         Paused("paused", "Paused"),
         /** A sound that isn't music: a message ding, a voice note, a call, an alarm. */
         Sound("sound", "Sounds"),
+        /** A message has just arrived (a text, a chat): the app's icon and its name or the sender. */
+        Message("message", "Messages"),
         Idle("idle", "AirPods"),
         Charging("charging", "Charging"),
         Talking("talking", "Talking"),
@@ -99,6 +101,7 @@ object IslandLook {
         Situation.Music to (Slot.Cover to Slot.Bars),
         Situation.Paused to (Slot.Cover to Slot.Bars),
         Situation.Sound to (Slot.App to Slot.Bars),
+        Situation.Message to (Slot.App to Slot.Title),
         Situation.Idle to (Slot.Battery to Slot.Heart),
         Situation.Charging to (Slot.Battery to Slot.Heart),
         Situation.Talking to (Slot.Same to Slot.Talk),
@@ -116,9 +119,11 @@ object IslandLook {
      */
     fun situation(
         music: Boolean, playing: Boolean, talking: Boolean, charging: Boolean, rest: Boolean = false, sound: Boolean = false,
+        message: Boolean = false,
     ): Situation = when {
         talking -> Situation.Talking
         rest -> Situation.Rest
+        message -> Situation.Message
         sound -> Situation.Sound
         music && playing -> Situation.Music
         music -> Situation.Paused
@@ -133,8 +138,8 @@ object IslandLook {
     }
 
     /** The same, ignoring talking: what "Keep" refers to. */
-    fun underneath(music: Boolean, playing: Boolean, charging: Boolean, sound: Boolean = false): Situation =
-        situation(music, playing, false, charging, sound = sound)
+    fun underneath(music: Boolean, playing: Boolean, charging: Boolean, sound: Boolean = false, message: Boolean = false): Situation =
+        situation(music, playing, false, charging, sound = sound, message = message)
 
     // ---- Storage ----
 

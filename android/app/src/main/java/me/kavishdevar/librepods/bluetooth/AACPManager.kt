@@ -1157,6 +1157,20 @@ class AACPManager {
         )
     }
 
+    private val offMain = me.kavishdevar.librepods.utils.OffMain()
+    private val writeLock = Any()
+
+    private fun writeNow(socket: android.bluetooth.BluetoothSocket, packet: ByteArray): Boolean = try {
+        synchronized(writeLock) {
+            socket.outputStream?.write(packet)
+            socket.outputStream?.flush()
+        }
+        true
+    } catch (e: Exception) {
+        Log.e(TAG, "Error sending packet: ${e.message}")
+        false
+    }
+
     @OptIn(ExperimentalStdlibApi::class)
     fun sendPacket(packet: ByteArray): Boolean {
         try {
@@ -1183,9 +1197,9 @@ class AACPManager {
             val socket = BluetoothConnectionManager.aacpSocket ?: return false
 
             if (socket.isConnected) {
-                socket.outputStream?.write(packet)
-                socket.outputStream?.flush()
-                return true
+                // A write to the AirPods can stall when the link does. From the main thread it goes
+                // through a background queue (same order) so the app can't freeze waiting for it.
+                return offMain.run(whenQueued = true) { writeNow(socket, packet) }
             } else {
                 Log.d(TAG, "Can't send packet: Socket not initialized or connected")
                 return false

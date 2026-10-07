@@ -15,6 +15,7 @@ The brains of pro. Files are small and named for what they decide. "Pure" means 
 | `SoundSource.kt` | Listens to every sound the phone plays and publishes `heard` and `recent`; app names and icons (cached); test seams (`usagesChanged`, `roleOverride`, `preview*`, `resetForTest`) | no |
 | `NowPlaying.kt` | Music: playing or paused, cover and title (with Notification access), play/pause/skip; also hosts `MediaAccessService` (Notification access, notes which app posted a notification) | partly |
 | `MusicPulse.kt` | Sound bar levels from the real music (Android Visualizer on the whole output, four bands; needs the microphone permission, nothing is recorded) | no |
+| `FreezeReport.kt` | Android's own record of why pro last stopped (freeze, crash) turned into a readable saved report; shown in Troubleshooting with Copy details and as a main-page banner | `labelFor`, `mainThread`, `compose` yes |
 | `PhoneStatus.kt` | The phone's own battery (level, charging) for the Phone battery slot and the This phone page | `parse` yes |
 | `MiniIslandRules`, `CardGate.kt` | `CardGate` decides when the bottom "case opened" card may appear | yes |
 | `GlintStatus.kt` | One shared status for "what is happening with the AirPods link" | |

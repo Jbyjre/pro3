@@ -83,7 +83,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
 import me.kavishdevar.librepods.BuildConfig
@@ -456,30 +456,23 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 val bluetoothManager = getSystemService(BluetoothManager::class.java)
                 val bluetoothAdapter = bluetoothManager.adapter
                 localMac = bluetoothAdapter.address
+                config.selfMacAddress = localMac
+                sharedPreferences.edit { putString("self_mac_address", localMac) }
             } else {
-                localMac = try {
-                    val process = Runtime.getRuntime().exec(
-                        arrayOf("su", "-c", "settings get secure bluetooth_address")
-                    )
-
-                    val exitCode = process.waitFor()
-
-                    if (exitCode == 0) {
-                        process.inputStream.bufferedReader().use { it.readLine()?.trim().orEmpty() }
-                    } else {
-                        ""
+                // Asking a root shell can wait for a permission prompt: never on the main thread
+                // (it used to run right here and could freeze the app), and at most once a day.
+                val now = System.currentTimeMillis()
+                if (now - sharedPreferences.getLong("self_mac_tried_at", 0L) > 24 * 60 * 60 * 1000L) {
+                    sharedPreferences.edit { putLong("self_mac_tried_at", now) }
+                    serviceScope.launch {
+                        val mac = readOwnMacWithRoot()
+                        if (mac.isNotEmpty()) {
+                            localMac = mac
+                            config.selfMacAddress = mac
+                            sharedPreferences.edit { putString("self_mac_address", mac) }
+                        }
                     }
-                } catch (e: Exception) {
-                    Log.e(
-                        TAG,
-                        "Error retrieving local MAC address: ${e.message}. We probably aren't rooted."
-                    )
-                    ""
                 }
-            }
-            config.selfMacAddress = localMac
-            sharedPreferences.edit {
-                putString("self_mac_address", localMac)
             }
         }
 
@@ -680,7 +673,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                         val leAvailableForAudio =
                             bleManager.getMostRecentStatus()?.isLeftInEar == true || bleManager.getMostRecentStatus()?.isRightInEar == true
 //                        if ((CrossDevice.isAvailable && !isConnectedLocally && earDetectionNotification.status.contains(0x00)) || leAvailableForAudio) CoroutineScope(Dispatchers.IO).launch {
-                        if (leAvailableForAudio) runBlocking {
+                        // Talks to the AirPods (socket writes): off the main thread, this callback runs on it.
+                        if (leAvailableForAudio) serviceScope.launch {
                             takeOver("call")
                         }
                         if (config.headGestures) {
@@ -1213,7 +1207,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     "Stem press received: $stemPressType on $bud, cameraActive: $cameraActive, cameraAction: ${config.cameraAction}"
                 )
                 if (cameraActive && config.cameraAction != null && stemPressType == config.cameraAction) {
-                        Runtime.getRuntime().exec(arrayOf("su", "-c", "input keyevent 27"))
+                        // Needs root; without it this must fail quietly, not take the service down.
+                        runCatching { Runtime.getRuntime().exec(arrayOf("su", "-c", "input keyevent 27")) }
                 } else {
                     val action = getActionFor(bud, stemPressType)
                     Log.d("AirPodsParser", "$bud $stemPressType action: $action")
@@ -3095,10 +3090,25 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             Log.d(TAG, "reconnect after reversed received, taking over")
             disconnectedBecauseReversed = false
             otherDeviceTookOver = false
-            takeOver("music", manualTakeOverAfterReversed = true)
+            // Socket writes: off the main thread.
+            serviceScope.launch { takeOver("music", manualTakeOverAfterReversed = true) }
         }
 
         return START_STICKY
+    }
+
+    /** This phone's Bluetooth address through a root shell ("" without root), giving up after 3 seconds. Not for the main thread. */
+    private fun readOwnMacWithRoot(): String = try {
+        val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "settings get secure bluetooth_address"))
+        if (!process.waitFor(3, TimeUnit.SECONDS)) {
+            process.destroy()
+            ""
+        } else if (process.exitValue() == 0) {
+            process.inputStream.bufferedReader().use { it.readLine()?.trim().orEmpty() }
+        } else ""
+    } catch (e: Exception) {
+        Log.e(TAG, "Error retrieving local MAC address: ${e.message}. We probably aren't rooted.")
+        ""
     }
 
     @RequiresApi(Build.VERSION_CODES.R)

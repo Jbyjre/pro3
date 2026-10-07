@@ -78,7 +78,7 @@ import me.kavishdevar.librepods.services.NowPlaying
  * how long it stays, haptics, and buttons to try each look.
  */
 @Composable
-fun IslandSettingsScreen() {
+fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
     val context = LocalContext.current
     val prefs = remember { IslandPrefs.prefs(context) }
     val dark = isSystemInDarkTheme()
@@ -204,7 +204,7 @@ fun IslandSettingsScreen() {
             )
         }
 
-        SoundsSection(ink, dark)
+        SoundsSection(ink, dark, onApps = navigateToApps)
         RecentSounds(ink, dark)
 
         SectionLabel("Look", ink)
@@ -276,6 +276,18 @@ fun IslandSettingsScreen() {
             ) { open(context, NowPlaying.appInfoIntent(context)) }
         }
 
+        var nameStays by remember { mutableIntStateOf(IslandPrefs.nameLinger(prefs).ordinal) }
+        SectionLabel("Song name stays out for", ink)
+        LiquidSegments(
+            IslandPrefs.NameLinger.entries.map { it.label }, nameStays,
+            { nameStays = it; prefs.edit { putInt(IslandPrefs.PREF_NAME_LINGER, it) } },
+        )
+        Text(
+            "Swipe up on the Dynamic Island to tuck it back at once.",
+            style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = ink.copy(alpha = 0.55f)),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+
         SectionLabel("Stays on screen for", ink)
         LiquidSegments(
             IslandPrefs.Duration.entries.map { it.label }, duration,
@@ -321,6 +333,12 @@ fun IslandSettingsScreen() {
             }
             GlassPillButton(text = "A message ding", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
                 GlintOverlays.previewMiniIsland(context, sound = true)
+            }
+            GlassPillButton(text = "A message", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
+                GlintOverlays.previewMiniIsland(context, message = true)
+            }
+            GlassPillButton(text = "Charging", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
+                GlintOverlays.previewMiniIsland(context, phone = true)
             }
         }
         Text(

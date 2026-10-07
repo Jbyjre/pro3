@@ -76,6 +76,25 @@ object PhoneStatus {
         return Info(pct, charging)
     }
 
+    /** Things worth a moment on the island. */
+    enum class Moment { Charging, Low, VeryLow, Full }
+
+    /**
+     * What changed between two readings that deserves a moment: plugging in, getting full, or
+     * dropping to 20% or 10% while not charging. Nothing for the first reading or for ordinary
+     * ups and downs. Pure.
+     */
+    fun momentBetween(prev: Info?, now: Info): Moment? {
+        if (prev == null || !prev.known || !now.known) return null
+        return when {
+            !prev.charging && now.charging -> Moment.Charging
+            now.charging && now.level >= 100 && prev.level < 100 -> Moment.Full
+            !now.charging && now.level <= 10 && prev.level > 10 -> Moment.VeryLow
+            !now.charging && now.level <= 20 && prev.level > 20 -> Moment.Low
+            else -> null
+        }
+    }
+
     /** Sets what's shown, for screenshots and tests only. */
     internal fun preview(info: Info) { _state.value = info }
 }

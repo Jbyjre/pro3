@@ -27,6 +27,8 @@ object AppLinks {
     const val ISLANDS = "islands"
     /** The heart-rate page. */
     const val HEART = "heart"
+    /** Troubleshooting (freeze and crash reports). */
+    const val TROUBLESHOOTING = "troubleshooting"
 
     /** A page asked for and not yet opened. */
     val pending = MutableStateFlow<String?>(null)

@@ -85,6 +85,8 @@ Tests: `SoundRulesTest` (pure rules), `SoundSourceTest` (events in, sound out, v
 
 ## Gotchas learned the hard way
 
+- **The main thread must never wait.** Android says "pro isn't responding" after about 5 seconds stuck. Bluetooth writes (`OffMain`), ATT reads (2 s each), root shells, `runBlocking` and audio-system setup (`Visualizer`) all belong off it. Six such causes were found and fixed on 2026-10-06 (`DECISIONS.md` 38). If a freeze is reported, ask for Troubleshooting > Freezes and crashes > Copy details.
+
 - **`delay()` with a computed wait.** `delay(x)` with `x <= 0` returns at once. A recheck that reschedules itself with "time left" must only do so when time is left (`MiniIslandRules.nextCheck` exists for this; the old code looped forever after 30 s of paused music).
 - **Don't `remember` theme colours.** Rows went white on white. Read them each composition.
 - **Glass rim light:** always `GlintLight.rim()`. Kyant's default highlight is a 45 degree diagonal that looks tilted. Level phone means straight overhead.

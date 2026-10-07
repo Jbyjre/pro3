@@ -8,6 +8,9 @@ Unit tests (plain JUnit and Robolectric) and the screenshot renderers. Run them 
 |---|---|
 | `SoundRulesTest` | Any-sound rules: usage numbers to kinds, which app made a sound, notification log, app on screen, recent list, linger, wording |
 | `SoundSourceTest` | Playback events in, the sound and its app out (via `SoundSource.usagesChanged` and the `roleOverride` seam); ignored apps; recent list; clicks never pop |
+| `FreezeProofTest` | The protections against "pro isn't responding": work kept off the main thread (`OffMain`), the limit on the island's self-checks (`RefreshGuard`), and the freeze report (Android's record to readable text, including a pretend freeze with its trace) |
+| `MessageRulesTest` | Messages and moments: which notifications earn one (importance, Do Not Disturb, ongoing, own), de-duplication, charging/full/low detection, the Messages look and its window, content order, the swipe-up gesture, message settings, and messages through `SoundSource` |
+| `MomentsUiTest` | Real swipes and window timing on the real pill: swipe up tucks the song name back at once, puts a moment away, the song name's time setting, the message window growing before and shrinking after |
 | `MiniIslandTest` | When the Dynamic Island is wanted and what it is about, camera picking, never cut off, bars follow music, `nextCheck` (the zero-wait regression), short blips, phone battery parsing |
 | `IslandLookTest` | Look defaults equal the original, storage and reset, situations, slots, sizes, colour, clock text, sound preferences |
 | `IslandMomentsTest` | Pop-up wording, when the heart shows, settings defaults |
