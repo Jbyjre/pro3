@@ -201,7 +201,10 @@ internal class IslandController(private val context: Context) {
     fun show(e: IslandEvent, expand: Boolean = false) {
         event.value = e
         generation.intValue++
-        val wantsExpanded = expand || (e is IslandEvent.MovedToDevice && e.canTakeBack) || e is IslandEvent.Problem
+        val wantsExpanded = expand || (e is IslandEvent.MovedToDevice && e.canTakeBack) || e is IslandEvent.Problem || e.isGlance()
+        // The glance is taller than the AirPods' island: one that's up at the other size goes
+        // at once and this one grows fresh, so nothing is cut off or left with a gap.
+        if (window.isShowing && geometry?.tall != e.isGlance()) window.dismiss()
         // Safety net: an island can't legitimately stay up this long (it leaves after 10 s at
         // most). If one is stuck, for example its animation froze while the screen was off,
         // remove it so this event still appears instead of being swallowed.
@@ -216,7 +219,7 @@ internal class IslandController(private val context: Context) {
         phase.value = if (wantsExpanded) IslandPhase.Expanded else IslandPhase.Compact
         shownAt = android.os.SystemClock.elapsedRealtime()
         // Grow out of the mini island when it's up (one shape, like the Dynamic Island).
-        val geo = IslandGeometry(context, GlintOverlays.plannedMiniOrigin())
+        val geo = IslandGeometry(context, GlintOverlays.plannedMiniOrigin(), tall = e.isGlance())
         geometry = geo
         window.show(if (wantsExpanded) geo.expandedWindow else geo.compactWindow, geo.windowTop) {
             IslandHost(
@@ -255,7 +258,12 @@ internal class IslandController(private val context: Context) {
 }
 
 /** All island sizes in pixels, computed once per show from the screen and density. */
-internal class IslandGeometry(context: Context, val origin: GlintOverlays.MiniOrigin? = null) {
+internal class IslandGeometry(
+    context: Context,
+    val origin: GlintOverlays.MiniOrigin? = null,
+    /** The opened Dynamic Island's glance (taller: what's live and the phone's controls). */
+    val tall: Boolean = false,
+) {
     private val density = context.resources.displayMetrics.density
     private fun dp(v: Float) = v * density
     private val screen = GlintOverlays.screenSize(context)
@@ -276,7 +284,7 @@ internal class IslandGeometry(context: Context, val origin: GlintOverlays.MiniOr
     val restSplit = satD / (satGap + 2f * satD)
     val expandedW = minOf(screen.width - dp(28f), dp(368f))
     // Header, AirPods and batteries (with the heart while measuring), time left and play/pause.
-    val expandedH = dp(196f)
+    val expandedH = if (tall) dp(GLANCE_H_DP) else dp(196f)
     // The heart's explanation needs more room: tapping the heart grows the island to this.
     val detailH = dp(292f)
     val expandedRadius = dp(40f)
@@ -454,11 +462,18 @@ private fun IslandHostContent(
     LaunchedEffect(phase, generation, touches) {
         val hold = when (phase) {
             IslandPhase.Compact -> duration.compactMs + if (event.isAlert()) 1_500L else 0L
-            IslandPhase.Expanded -> duration.expandedMs
+            // A ringing timer stays until it's stopped (it stops by itself after a minute).
+            IslandPhase.Expanded -> if (event == IslandEvent.TimerDone) me.kavishdevar.librepods.services.IslandTimer.RING_MAX_MS else duration.expandedMs
             IslandPhase.Leaving -> return@LaunchedEffect
         }
         delay(hold)
         onPhase(IslandPhase.Leaving)
+    }
+
+    // The timer's ring was stopped (here, on the pill or the notification): this island is done.
+    if (event == IslandEvent.TimerDone) {
+        val ringing by me.kavishdevar.librepods.services.IslandTimer.state.collectAsState()
+        LaunchedEffect(ringing?.ringing) { if (ringing?.ringing != true && phase != IslandPhase.Leaving) { delay(250); onPhase(IslandPhase.Leaving) } }
     }
 
     val satelliteContent: @Composable () -> Unit = {
@@ -467,6 +482,10 @@ private fun IslandHostContent(
             is IslandEvent.MovedToDevice, IslandEvent.TakingOver -> Text("⇄", style = TextStyle(color = look.content, fontSize = 17.sp, fontFamily = glintFontFamily))
             is IslandEvent.Problem -> Text("!", style = TextStyle(color = GlintColors.Amber, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = glintFontFamily))
             IslandEvent.TapSetup -> TapGlyph(look.content, reduceMotion)
+            IslandEvent.Glance, IslandEvent.TimerDone -> {
+                val phoneNow by me.kavishdevar.librepods.services.PhoneStatus.state.collectAsState()
+                BatteryRing(phoneNow.level.takeIf { phoneNow.known }, phoneNow.charging, size = 30.dp, stroke = 3.dp, track = ringTrack, label = look.content, labelSize = 10.sp)
+            }
             is IslandEvent.Charging -> BatteryRing(if (snapshot.budsCharging) snapshot.budsLevel else snapshot.case, true, size = 30.dp, stroke = 3.dp, track = ringTrack, label = look.content, labelSize = 10.sp)
             is IslandEvent.LowBattery -> BatteryRing(event.level, false, size = 30.dp, stroke = 3.dp, track = ringTrack, label = look.content, labelSize = 10.sp)
             is IslandEvent.Heart -> {
@@ -485,7 +504,9 @@ private fun IslandHostContent(
     }
     val heartNow by HeartRate.state.collectAsState()
     val age = remember { context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).getInt(me.kavishdevar.librepods.services.PREF_HR_AGE, 0) }
+    val placeNow by me.kavishdevar.librepods.services.ScreenApp.place.collectAsState()
     val (title, subtitle) = when (event) {
+        IslandEvent.Glance -> glanceIslandText(placeNow)
         is IslandEvent.Heart -> heartIslandText(event, heartNow.bpm, age)
         IslandEvent.Music -> NowPlaying.words(playingNow)
         else -> islandText(event, snapshot)
@@ -586,6 +607,10 @@ private fun IslandHostContent(
                         haptics.expand()
                         GlintOverlays.openApp(context, me.kavishdevar.librepods.presentation.navigation.AppLinks.ISLANDS)
                         onPhase(IslandPhase.Leaving)
+                    } else if (!moved && currentPhase == IslandPhase.Expanded && event.isGlance()) {
+                        // The glance has nothing to shrink to: a tap beside its controls tucks it away.
+                        haptics.dismiss()
+                        onPhase(IslandPhase.Leaving)
                     } else if (!moved && currentPhase != IslandPhase.Leaving) {
                         onPhase(if (currentPhase == IslandPhase.Expanded) IslandPhase.Compact else IslandPhase.Expanded)
                     }
@@ -655,8 +680,17 @@ private fun IslandHostContent(
             compact = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val art = playingNow.art
+                    val placeIcon = (placeNow as? me.kavishdevar.librepods.services.ScreenApp.Place.App)?.icon
                     if (event == IslandEvent.Music && art != null) {
                         Box(Modifier.width(42.dp), contentAlignment = Alignment.Center) { CoverArt(art, 30.dp, 8.dp) }
+                    } else if (event.isGlance()) {
+                        Box(Modifier.width(42.dp), contentAlignment = Alignment.Center) {
+                            if (placeIcon != null) CoverArt(placeIcon, 30.dp, 8.dp)
+                            else androidx.compose.foundation.Canvas(Modifier.size(28.dp)) {
+                                if (event == IslandEvent.TimerDone) drawStopwatch(center, size.minDimension * 0.8f, Color(0xFFFF9F0A))
+                                else drawHomeGrid(center, size.minDimension * 0.85f, me.kavishdevar.librepods.services.ScreenApp.wallpaper.value, 1f, 1f)
+                            }
+                        }
                     } else if (snapshot.headphones) {
                         me.kavishdevar.librepods.presentation.glint.HeadphonesArt(42.dp, look.content)
                     } else {
@@ -687,7 +721,12 @@ private fun IslandHostContent(
             },
             satellite = satelliteContent,
             expanded = {
-                ExpandedIslandContent(
+                if (event.isGlance()) GlancePanel(
+                    content = look.content, secondary = look.contentSecondary, dark = look.dark,
+                    active = phase == IslandPhase.Expanded, reduceMotion = reduceMotion,
+                    onTouch = { touches++; haptics.tick() },
+                    onClose = { onPhase(IslandPhase.Leaving) },
+                ) else ExpandedIslandContent(
                     event, snapshot, playingNow, title, look.content, look.contentSecondary, look.dark,
                     active = phase == IslandPhase.Expanded,
                     reduceMotion = reduceMotion,
@@ -1099,7 +1138,7 @@ internal fun PlayPauseButton(
  * also treat it as a tap or a hold), reports [onPressed] for the squish, and fires [onClick]
  * when the finger lifts inside.
  */
-private fun Modifier.islandPress(enabled: Boolean, description: String, onClick: () -> Unit, onPressed: (Boolean) -> Unit, onAt: (Offset) -> Unit = {}): Modifier {
+internal fun Modifier.islandPress(enabled: Boolean, description: String, onClick: () -> Unit, onPressed: (Boolean) -> Unit, onAt: (Offset) -> Unit = {}): Modifier {
     if (!enabled) return this
     return this
         .semantics {
@@ -1157,7 +1196,7 @@ internal fun SkipButton(next: Boolean, color: Color, dark: Boolean, enabled: Boo
 }
 
 @Composable
-private fun PressableGlyph(size: Dp, description: String, onClick: () -> Unit, enabled: Boolean = true, dark: Boolean = true, draw: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit) {
+internal fun PressableGlyph(size: Dp, description: String, onClick: () -> Unit, enabled: Boolean = true, dark: Boolean = true, draw: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit) {
     val currentOnClick by rememberUpdatedState(onClick)
     var pressed by remember { mutableStateOf(false) }
     var at by remember { mutableStateOf<Offset?>(null) }
@@ -1657,7 +1696,7 @@ private fun HeartNote(view: HeartView.View, content: Color, secondary: Color, da
  * The island's small glass surface (play button, heart chip): a soft fill and a light rim that
  * fades downward from the top, like the island's own edge. Round ends at any width.
  */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGlassCapsule(dark: Boolean) {
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGlassCapsule(dark: Boolean) {
     val r = CornerRadius(size.height / 2f)
     drawRoundRect(if (dark) Color.White.copy(alpha = 0.13f) else Color.Black.copy(alpha = 0.06f), cornerRadius = r)
     val inset = 0.5.dp.toPx()
@@ -1699,7 +1738,23 @@ internal fun islandText(event: IslandEvent, s: PodsSnapshot): Pair<String, Strin
     IslandEvent.BothIn -> "Both AirPods in" to s.name
     IslandEvent.Music -> "Now playing" to s.name
     IslandEvent.TapSetup -> "Tap the Dynamic Island" to "Turn it on in pro"
+    IslandEvent.Glance -> "Dynamic Island" to "What's on"
+    IslandEvent.TimerDone -> "Timer done" to "Tap Stop to silence it"
 }
+
+/** The opened Dynamic Island's glance and the ringing timer share one taller layout. */
+internal fun IslandEvent.isGlance() = this == IslandEvent.Glance || this == IslandEvent.TimerDone
+
+/** The glance's words while it's a small pill: where you are on the phone. */
+internal fun glanceIslandText(place: me.kavishdevar.librepods.services.ScreenApp.Place): Pair<String, String> = when (place) {
+    is me.kavishdevar.librepods.services.ScreenApp.Place.App -> (place.label ?: "This app") to "Dynamic Island"
+    me.kavishdevar.librepods.services.ScreenApp.Place.Home -> "Home screen" to "Dynamic Island"
+    is me.kavishdevar.librepods.services.ScreenApp.Place.Locked -> "Locked" to "Dynamic Island"
+    me.kavishdevar.librepods.services.ScreenApp.Place.Unknown -> "This phone" to "Dynamic Island"
+}
+
+/** How tall the opened glance is, in dp (header, two live rows and the controls). */
+internal const val GLANCE_H_DP = 272f
 
 /** Clips expanded content to the island's current (growing) shape, anchored top-left. */
 private class RevealShape(private val w: Float, private val h: Float, private val r: Float) : Shape {

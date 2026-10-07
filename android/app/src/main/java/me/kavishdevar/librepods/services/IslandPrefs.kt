@@ -48,6 +48,12 @@ object IslandPrefs {
     const val PREF_SOUND_LINGER = "glint_sound_linger"
     /** Apps whose sounds never pop the Dynamic Island. */
     const val PREF_SOUND_IGNORED = "glint_sound_ignored"
+    /** Apps the Dynamic Island hides in (games, video): it steps aside while they're in front. */
+    const val PREF_HIDE_IN = "glint_di_hide_in"
+    /** A short charging moment on the Dynamic Island when the phone is plugged in. */
+    const val PREF_CHARGE_MOMENT = "glint_di_charge_moment"
+    /** The app's icon swaps with a little pop as you change apps (off: a plain cross-fade). */
+    const val PREF_APP_POP = "glint_di_app_pop"
     /** How many times (and when last) the "make it tappable" pop-up was shown. */
     const val PREF_TAP_NUDGES = "glint_tap_nudges"
     const val PREF_TAP_NUDGE_AT = "glint_tap_nudge_at"
@@ -98,6 +104,16 @@ object IslandPrefs {
 
     /** Packages switched off in Settings (a copy: the stored set must never be edited in place). */
     fun soundIgnored(prefs: SharedPreferences): Set<String> = prefs.getStringSet(PREF_SOUND_IGNORED, emptySet())?.toSet().orEmpty()
+
+    fun hideIn(prefs: SharedPreferences): Set<String> = prefs.getStringSet(PREF_HIDE_IN, emptySet())?.toSet().orEmpty()
+
+    fun setHideIn(prefs: SharedPreferences, pkg: String, hidden: Boolean) {
+        val now = hideIn(prefs)
+        prefs.edit().putStringSet(PREF_HIDE_IN, if (hidden) now + pkg else now - pkg).apply()
+    }
+
+    fun chargeMoment(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_CHARGE_MOMENT, true)
+    fun appPop(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_APP_POP, true)
 
     fun setSoundIgnored(prefs: SharedPreferences, pkg: String, ignored: Boolean) {
         val now = soundIgnored(prefs)

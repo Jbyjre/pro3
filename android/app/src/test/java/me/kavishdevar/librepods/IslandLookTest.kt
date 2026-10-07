@@ -109,8 +109,8 @@ class IslandLookTest {
 
     @Test fun restIsNeverEmptyAndSoundsHaveTheirOwnLook() {
         val look = IslandLook.read(prefs)
-        // Nothing on: the phone's battery and the time, so the pill doesn't look empty.
-        assertEquals(Slot.Phone to Slot.Clock, look.slots(Situation.Rest))
+        // Nothing on: the phone's battery and the date (never the time: the status bar has it).
+        assertEquals(Slot.Phone to Slot.Date, look.slots(Situation.Rest))
         // A sound that isn't music: the app's icon and the bars.
         assertEquals(Slot.App to Slot.Bars, look.slots(Situation.Sound))
         assertEquals(Situation.Sound, IslandLook.situation(music = false, playing = false, talking = false, charging = false, sound = true))
@@ -127,11 +127,11 @@ class IslandLookTest {
         IslandLook.setSlot(prefs, Situation.Rest, true, Slot.Clock)
         IslandLook.setSlot(prefs, Situation.Sound, false, Slot.Title)
         val look = IslandLook.read(prefs)
-        assertEquals(Slot.Clock to Slot.Clock, look.slots(Situation.Rest))
+        assertEquals(Slot.Clock to Slot.Date, look.slots(Situation.Rest))
         assertEquals(Slot.App to Slot.Title, look.slots(Situation.Sound))
         // The old Rest default (nothing either side) was never stored, so older installs pick up the new one.
         IslandLook.reset(prefs)
-        assertEquals(Slot.Phone to Slot.Clock, IslandLook.read(prefs).slots(Situation.Rest))
+        assertEquals(Slot.Phone to Slot.Date, IslandLook.read(prefs).slots(Situation.Rest))
     }
 
     @Test fun colourChoiceIsSavedAndResets() {

@@ -156,7 +156,7 @@ class GlintScreenshots {
         GlintOverlays.updateSnapshot(snapshot)
         rule.mainClock.autoAdvance = false
         rule.setContent {
-            val geo = IslandGeometry(RuntimeEnvironment.getApplication())
+            val geo = IslandGeometry(RuntimeEnvironment.getApplication(), tall = event == IslandEvent.Glance || event == IslandEvent.TimerDone)
             Wallpaper(dark) {
                 Box(Modifier.padding(top = 12.dp).size(with(androidx.compose.ui.platform.LocalDensity.current) {
                     val s = if (tall) geo.detailWindow else if (phase == IslandPhase.Expanded) geo.expandedWindow else geo.compactWindow
@@ -190,6 +190,11 @@ class GlintScreenshots {
         heard: me.kavishdevar.librepods.services.SoundSource.Heard? = null,
         content: me.kavishdevar.librepods.services.MiniIslandRules.Content? = null,
         phone: me.kavishdevar.librepods.services.PhoneStatus.Info? = null,
+        place: me.kavishdevar.librepods.services.ScreenApp.Place = me.kavishdevar.librepods.services.ScreenApp.Place.Unknown,
+        timer: me.kavishdevar.librepods.services.IslandTimer.State? = null,
+        budsUp: Boolean = false,
+        wallpaper: List<Color> = emptyList(),
+        swap: Float? = null,
     ) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")
         rule.mainClock.autoAdvance = false
@@ -230,6 +235,7 @@ class GlintScreenshots {
                             onWindowSize = {}, onTouchable = {}, onGone = {}, onAction = {},
                             still = 1f, stillWide = wide, stillPress = press, stillAck = ack,
                             look = look, forceSituation = situation,
+                            place = place, timer = timer, budsUp = budsUp, wallpaper = wallpaper, stillSwap = swap,
                         )
                     }
                     // The camera, on top, where the real one would be.
@@ -740,4 +746,72 @@ class GlintScreenshots {
         rule.mainClock.advanceTimeBy(1_500)
         rule.onRoot().captureRoboImage("$out/$name.png")
     }
+
+    // ---- The phone-first Dynamic Island (session 2026-10-07) ----
+
+    /** A made-up app icon: a coloured rounded square with a white mark (Robolectric has no real apps). */
+    private fun fakeIcon(color: Int, mark: String): androidx.compose.ui.graphics.ImageBitmap {
+        val b = android.graphics.Bitmap.createBitmap(96, 96, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(b)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
+        c.drawRect(0f, 0f, 96f, 96f, p)
+        p.color = android.graphics.Color.WHITE
+        p.textSize = 54f; p.textAlign = android.graphics.Paint.Align.CENTER; p.isFakeBoldText = true
+        c.drawText(mark, 48f, 66f, p)
+        return b.asImageBitmap()
+    }
+    private val spotify by lazy { me.kavishdevar.librepods.services.ScreenApp.Place.App("com.spotify.music", "Spotify", fakeIcon(0xFF1DB954.toInt(), "S")) }
+    private val claude by lazy { me.kavishdevar.librepods.services.ScreenApp.Place.App("com.anthropic.claude", "Claude", fakeIcon(0xFFD97757.toInt(), "C")) }
+    private val wall = listOf(Color(0xFF3A6EA5), Color(0xFFE0A458), Color(0xFF7FB7BE))
+    private val screen = me.kavishdevar.librepods.services.MiniIslandRules.Content.Screen
+
+    private val calmPhone = me.kavishdevar.librepods.services.PhoneStatus.Info(80, false)
+    @Test fun miniIslandInApp() = mini("mini_island_in_app", playing = false, wide = 0f, art = false, content = screen, place = claude, phone = calmPhone)
+    @Test fun miniIslandInAppDark() = mini("mini_island_in_app_dark", playing = false, wide = 0f, art = false, dark = true, content = screen, place = spotify,
+        phone = me.kavishdevar.librepods.services.PhoneStatus.Info(9, false))
+    @Test fun miniIslandAppSwap() = mini("mini_island_app_swap", playing = false, wide = 0f, art = false, content = screen, place = claude, swap = 0.55f, phone = calmPhone)
+    @Test fun miniIslandInAppAirPods() = mini("mini_island_in_app_airpods", playing = false, wide = 0f, art = false, content = screen, place = spotify,
+        airPods = demo, budsUp = true, dark = true)
+    @Test fun miniIslandHome() = mini("mini_island_home", playing = false, wide = 0f, art = false, content = screen, phone = calmPhone,
+        place = me.kavishdevar.librepods.services.ScreenApp.Place.Home, wallpaper = wall)
+    @Test fun miniIslandHomePlain() = mini("mini_island_home_plain", playing = false, wide = 0f, art = false, dark = true, content = screen,
+        place = me.kavishdevar.librepods.services.ScreenApp.Place.Home)
+    @Test fun miniIslandLocked() = mini("mini_island_locked", playing = false, wide = 0f, art = false, dark = true, content = screen, phone = me.kavishdevar.librepods.services.PhoneStatus.Info(52, true),
+        place = me.kavishdevar.librepods.services.ScreenApp.Place.Locked())
+    @Test fun miniIslandUnlocking() = mini("mini_island_unlocking", playing = false, wide = 0f, art = false, dark = true, content = screen, phone = calmPhone,
+        place = me.kavishdevar.librepods.services.ScreenApp.Place.Locked(opening = true), swap = 1f)
+    @Test fun miniIslandTimer() = mini("mini_island_timer", playing = false, wide = 0f, art = false, content = screen, place = claude, phone = calmPhone,
+        timer = me.kavishdevar.librepods.services.IslandTimer.State(total = 300_000L, endsAt = android.os.SystemClock.elapsedRealtime() + 192_000L))
+    @Test fun miniIslandTimerLastSeconds() = mini("mini_island_timer_seconds", playing = false, wide = 0f, art = false, dark = true, content = screen,
+        place = me.kavishdevar.librepods.services.ScreenApp.Place.Home, wallpaper = wall,
+        timer = me.kavishdevar.librepods.services.IslandTimer.State(total = 60_000L, endsAt = android.os.SystemClock.elapsedRealtime() + 42_000L))
+    @Test fun miniIslandTimerRinging() = mini("mini_island_timer_ringing", playing = false, wide = 0f, art = false, dark = true, content = screen, place = spotify,
+        timer = me.kavishdevar.librepods.services.IslandTimer.State(total = 60_000L, ringing = true))
+    @Test fun miniIslandPhoneCharging() = mini("mini_island_phone_charging", playing = false, wide = 0f, art = false, content = screen, place = claude,
+        phone = me.kavishdevar.librepods.services.PhoneStatus.Info(64, true))
+    @Test fun miniIslandRestDate() = mini("mini_island_rest_date", playing = false, wide = 0f, art = false,
+        content = me.kavishdevar.librepods.services.MiniIslandRules.Content.Rest, phone = me.kavishdevar.librepods.services.PhoneStatus.Info(81, false))
+
+    private fun glance(name: String, dark: Boolean, place: me.kavishdevar.librepods.services.ScreenApp.Place, timer: me.kavishdevar.librepods.services.IslandTimer.State? = null,
+                       phone: me.kavishdevar.librepods.services.PhoneStatus.Info = me.kavishdevar.librepods.services.PhoneStatus.Info(76, false),
+                       event: IslandEvent = IslandEvent.Glance, snapshot: PodsSnapshot = PodsSnapshot()) {
+        me.kavishdevar.librepods.services.ScreenApp.preview(place, wall)
+        me.kavishdevar.librepods.services.IslandTimer.preview(timer)
+        me.kavishdevar.librepods.services.PhoneStatus.preview(phone)
+        try {
+            island(name, event, IslandPhase.Expanded, dark = dark, snapshot = snapshot)
+        } finally {
+            me.kavishdevar.librepods.services.ScreenApp.resetForTest()
+            me.kavishdevar.librepods.services.IslandTimer.preview(null)
+        }
+    }
+    @Test fun islandGlanceDark() = glance("island_glance_dark", dark = true, place = claude)
+    @Test fun islandGlanceLight() = glance("island_glance_light", dark = false, place = me.kavishdevar.librepods.services.ScreenApp.Place.Home)
+    @Test fun islandGlanceTimerCharging() = glance("island_glance_timer", dark = true, place = spotify,
+        timer = me.kavishdevar.librepods.services.IslandTimer.State(total = 600_000L, endsAt = android.os.SystemClock.elapsedRealtime() + 272_000L),
+        phone = me.kavishdevar.librepods.services.PhoneStatus.Info(58, true))
+    @Test fun islandGlanceAirPods() = connectedLink { glance("island_glance_airpods", dark = false, place = claude, snapshot = demo,
+        phone = me.kavishdevar.librepods.services.PhoneStatus.Info(14, false)) }
+    @Test fun islandTimerDone() = glance("island_timer_done", dark = true, place = spotify, event = IslandEvent.TimerDone,
+        timer = me.kavishdevar.librepods.services.IslandTimer.State(total = 300_000L, ringing = true))
 }

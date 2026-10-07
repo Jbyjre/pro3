@@ -171,8 +171,19 @@ object SoundSource {
     private fun evidence(ctx: Context, now: Long): SoundRules.Evidence = SoundRules.Evidence(
         session = NowPlaying.playingSessionPackage(),
         notification = notes.recent(now, skip = skipper(ctx)),
-        foreground = foreground,
+        foreground = inFront(),
     )
+
+    /**
+     * The app on screen. [ScreenApp] counts only real app screens, so a toast or a pop-up from
+     * another app (a WhatsApp toast over a Chrome video) doesn't take the credit for the next
+     * sound; when it doesn't know, the plain window clue below is used.
+     */
+    private fun inFront(): String? = when (val p = ScreenApp.place.value) {
+        is ScreenApp.Place.App -> p.pkg
+        ScreenApp.Place.Home -> null
+        else -> foreground
+    }
 
     /** Packages that never count as "the app that made the sound": pro itself and the phone's own pieces. */
     private fun skipper(ctx: Context): (String) -> Boolean = { pkg -> pkg == ctx.packageName || roleOf(ctx, pkg) == SoundRules.Role.System }
@@ -211,7 +222,7 @@ object SoundSource {
         return info
     }
 
-    private fun roleOf(ctx: Context, pkg: String): SoundRules.Role = roleOverride?.invoke(pkg) ?: roles.getOrPut(pkg) {
+    internal fun roleOf(ctx: Context, pkg: String): SoundRules.Role = roleOverride?.invoke(pkg) ?: roles.getOrPut(pkg) {
         val pm = ctx.packageManager
         val home = homeApps ?: runCatching {
             pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0).map { it.activityInfo.packageName }.toSet()

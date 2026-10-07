@@ -15,6 +15,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -33,7 +38,11 @@ fun NavigationRoot(
     airPodsViewModel: AirPodsViewModel,
     /** Screens to open on top of the first one; used by the screenshot tour in tests. */
     initialStack: List<Screen> = emptyList(),
+    /** The tab the app opens on (the Phone tab, the main page; tests pick others). */
+    initialTab: AppTab = AppTab.Phone,
 ) {
+    // Which main page is showing: Phone (first), Island, or the headphones.
+    var tab by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(initialTab) }
     val backStack = remember {
         mutableStateListOf(
             when {
@@ -49,8 +58,13 @@ fun NavigationRoot(
             if (target == null) return@collect
             AppLinks.pending.value = null
             if (backStack.firstOrNull() == Screen.Onboarding) return@collect
+            // The Dynamic Island's page is its own tab: back to the top, on that tab.
+            if (target == AppLinks.ISLAND_TAB || target == AppLinks.ISLANDS) {
+                while (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+                tab = AppTab.Island
+                return@collect
+            }
             val page = when (target) {
-                AppLinks.ISLANDS -> listOf(Screen.AppSettings, Screen.IslandSettings)
                 AppLinks.HEART -> listOf(Screen.HeartRate)
                 else -> emptyList()
             }
@@ -72,10 +86,14 @@ fun NavigationRoot(
 
     val title = when (currentScreen) {
         Screen.Onboarding -> ""
-        Screen.AirPodsSettings -> when {
-            !chosenDevice.isAirPods -> chosenDevice.name
-            state.isLocallyConnected -> state.deviceName
-            else -> stringResource(R.string.app_name)
+        Screen.AirPodsSettings -> when (tab) {
+            AppTab.Phone -> "pro"
+            AppTab.Island -> "Dynamic Island"
+            AppTab.Headphones -> when {
+                !chosenDevice.isAirPods -> chosenDevice.name
+                state.isLocallyConnected -> state.deviceName
+                else -> "AirPods"
+            }
         }
         Screen.Devices -> "Your devices"
         Screen.Accessibility -> stringResource(R.string.accessibility)
@@ -109,7 +127,30 @@ fun NavigationRoot(
     }
 
     // is this a bad idea? probably. I can't think of a better way without having to pass around a shouldShowBackButton to each screen to pass to each scaffold
-    val actionButtons = when (currentScreen) {
+    val settingsButton: @Composable (LayerBackdrop) -> Unit = { scaffoldBackdrop ->
+        if (m3eEnabled) {
+            FilledTonalIconButton(
+                onClick = { backStack.add(Screen.AppSettings) },
+                modifier = Modifier
+                    .minimumInteractiveComponentSize()
+                    .size(IconButtonDefaults.mediumContainerSize(IconButtonDefaults.IconButtonWidthOption.Uniform)),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Settings,
+                    contentDescription = "settings",
+                    modifier = Modifier.size(IconButtonDefaults.mediumIconSize)
+                )
+            }
+        } else {
+            StyledIconButton(
+                onClick = { backStack.add(Screen.AppSettings) },
+                icon = "􀍟",
+                backdrop = scaffoldBackdrop
+            )
+        }
+    }
+    // The Phone and Island tabs: just Settings. The headphones tab adds Your devices.
+    val actionButtons = if (currentScreen == Screen.AirPodsSettings && tab != AppTab.Headphones) listOf(settingsButton) else when (currentScreen) {
         Screen.AirPodsSettings -> listOf<@Composable (backdrop: LayerBackdrop) -> Unit>(
                 { scaffoldBackdrop ->
                     // Your devices: which headphones pro follows (AirPods, Beats Solo 4, others).
@@ -195,18 +236,42 @@ fun NavigationRoot(
         else -> listOf()
     }
 
+    // The tab bar shows on the main pages only (not over a page opened from them, nor during setup).
+    val tabsVisible = backStack.size == 1 && currentScreen == Screen.AirPodsSettings
+    // Back on the Island or headphones tab goes to the Phone tab first, then out of the app.
+    androidx.activity.compose.BackHandler(enabled = tabsVisible && tab != AppTab.Phone) { tab = AppTab.Phone }
+    val navBottom = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     StyledScaffold(
         visible = currentScreen.showTopBar,
         title = title,
         showBackButton = backStack.size > 1,
         onNavigateBack = { backStack.removeAt(backStack.lastIndex) },
-        actionButtons = actionButtons
+        actionButtons = actionButtons,
+        bottomBar = { backdrop ->
+            androidx.compose.animation.AnimatedVisibility(
+                visible = tabsVisible,
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { it / 2 },
+                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically { it / 2 },
+            ) {
+                GlassTabBar(
+                    selected = tab,
+                    onSelect = { tab = it },
+                    backdrop = backdrop,
+                    device = chosenDevice,
+                    modifier = Modifier.padding(bottom = navBottom + TAB_BAR_GAP),
+                )
+            }
+        },
     ) {
-        AppNavGraph(
-            showOnboarding = showOnboarding,
-            onboardingComplete = onboardingComplete,
-            backStack = backStack,
-            airPodsViewModel = airPodsViewModel,
-        )
+        androidx.compose.runtime.CompositionLocalProvider(LocalTabBarSpace provides if (tabsVisible) TAB_BAR_HEIGHT + TAB_BAR_GAP + 8.dp else 0.dp) {
+            AppNavGraph(
+                showOnboarding = showOnboarding,
+                onboardingComplete = onboardingComplete,
+                backStack = backStack,
+                airPodsViewModel = airPodsViewModel,
+                tab = tab,
+                onTab = { tab = it },
+            )
+        }
     }
 }

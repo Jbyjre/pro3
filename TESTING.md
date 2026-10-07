@@ -6,6 +6,17 @@ A short checklist. Tick things off, and for anything that looks wrong, take a sc
 
 Install the new `pro.apk` (section A), open pro once, then:
 
+**Newest (7 October): pro is a Dynamic Island app first**
+1. Open pro. It now opens on the **Phone** tab, with a glass tab bar at the bottom: **Phone**, **Island**, **AirPods** (or **Beats** if you chose the Solo 4). Tap each; the page should fade over smoothly and the glass bubble should slide to the tab. Back on Island or AirPods should take you to Phone first.
+2. On the Phone tab, **Make it work fully** lists anything still missing. Tap **Allow** on each until the card disappears. The important one is **See your apps, and tap the island** (pro Dynamic Island in Accessibility; if Samsung says "Restricted setting": App info, ⋮, Allow restricted settings, then again).
+3. Leave pro and open **Spotify**: the island should show Spotify's icon left of the camera. Open **Claude**: the icon should swap with a little spring. Pull down the notification shade and let it go: the icon should stay Spotify/Claude (not change). Go to the **home screen**: four small tiles in your wallpaper's colours and today's date. If the icon never changes, tell Claude: it means One UI doesn't send the app-switch signal pro listens for.
+4. Lock the phone, turn the screen on: a **padlock**. Unlock: the padlock springs open, then the island goes back to where you were.
+5. With no music playing, **tap the island**: the glance opens (app and date, battery or whatever's going on, and Torch, Timer, Sound, Capture, Lock). It should **not** open the music player. Try Torch (on and off), Sound (switches to Vibrate and back), Capture (a screenshot without the island in it), Lock. Tap empty space in the glance: it tucks away.
+6. In the glance tap **Timer**, then **1**. The island shows an orange ring counting down beside the camera in any app. Turn the screen off and wait: at the end it should ring (your alarm sound) and buzz. Tap the island or **Stop** to silence it; try **+1 min** once too. Tell Claude if it rang late or not at all with the screen off.
+7. Plug in the charger with the screen on: the island widens for a moment with "Charging · NN%" in green.
+8. Island tab > **Hide in these apps**: switch on a game or video app you've opened; open it: the island should step aside. A running timer still shows.
+9. Play music: the island still shows the cover and bars, and a tap still opens the music island as before.
+
 **New: any sound pops the Dynamic Island, with the app's icon (newest)**
 1. Open pro once after updating, then **Settings > Islands**. Under **Sounds** check "Pop for any sound" is on. Under "Which app made the sound?" turn on what it offers: **Allow** Notification access (if Samsung says "Restricted setting", use **App info** > ⋮ > Allow restricted settings, then Allow again). If "pro Dynamic Island" is already on from before, leave it.
 2. Have someone message you on WhatsApp (or message yourself from another account) with the screen on. The Dynamic Island should show **WhatsApp's icon** with a soft ring and bars for about 4 seconds, then settle. If it shows a bell instead, pro didn't match the app: open **Settings > Islands > Heard lately** and tell Claude what it lists and which switches are green.

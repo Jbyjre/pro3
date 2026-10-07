@@ -38,7 +38,7 @@
 | Survive Samsung killing background apps | DONE, PHONE CHECK | `utils/CompanionLink.kt`, `services/CompanionPresenceService.kt`, `receivers/BootReceiver.kt` | D4. |
 | Audit AirPods Pro 3 features and the protocol decoding | DONE | `data/Packets.kt`, `AirPodsProtocolTest` | D8, D9. Left open: Pro 3 Bluetooth product ID, unverified radio adverts. |
 | Use Beats Solo 4 (and any other headphones), picked once and kept | DONE, PHONE CHECK | `services/DeviceChoice.kt`, `HeadphoneLink.kt`, `bluetooth/HeadphoneBeacon.kt`, `screens/HeadphonesScreen.kt`, `DevicesScreen.kt` | D36. Whether the Solo 4 reports its battery to Android is not verified. |
-| Work without AirPods or Beats connected; become a general phone app | PARTLY | `screens/PhoneScreen.kt`, `components/ThisPhoneCard.kt`, `services/SoundSource.kt`, `PhoneStatus.kt` | D37. The Dynamic Island, sounds, phone battery and clock already needed no headphones; This phone gathers them. Most other pages (listening modes, hearing, heart rate) are still AirPods-only because they need the AirPods' own protocol. |
+| Work without AirPods or Beats connected; become a general phone app | DONE (section 8) | `screens/PhoneScreen.kt`, `components/ThisPhoneCard.kt`, `services/SoundSource.kt`, `PhoneStatus.kt` | D37. The Dynamic Island, sounds, phone battery and clock already needed no headphones; This phone gathers them. Most other pages (listening modes, hearing, heart rate) are still AirPods-only because they need the AirPods' own protocol. |
 
 ## 3. AirPods features
 
@@ -97,7 +97,7 @@ Jake's words, in short: the Dynamic Island should work for **any noise**, even a
 | More ways to change how it looks | DONE | `IslandLook.kt`, `IslandStudio.kt`, `SoundsSection.kt` | New Sounds situation, three new slots, "Colour of bars and rings", sound switches (any sound, app icons, how long), per-app switches in "Heard lately". |
 | Smoother and cleaner | DONE, PHONE CHECK | `MiniIsland.kt`, `MiniIslandRules.nextCheck` | Sounds reuse the pill's existing spring morph and cross-fade. Fixed the three problems below. |
 | Works without AirPods or Beats | DONE, PHONE CHECK | `PhoneScreen.kt`, `ThisPhoneCard.kt` | The background service already starts at boot without any headphones. New This phone page (Settings > This phone, and a card on the main page) holds the live island, phone battery, sound settings and recent sounds. |
-| Start becoming a multi-purpose phone app | PARTLY | as above | This is the first step, not the whole move. Candidates for later are in `docs/ROADMAP_PHONE.md`. |
+| Start becoming a multi-purpose phone app | DONE (section 8) | as above | Section 8 made the phone the main tab. Remaining ideas: `docs/ROADMAP_PHONE.md`. |
 | More READMEs for AI sessions, including this list | DONE | this file, `README.md`, `docs/README.md`, `android/README.md`, folder READMEs | Update them when you change what they describe. |
 | Find bugs | DONE | see below | |
 
@@ -107,6 +107,23 @@ Jake's words, in short: the Dynamic Island should work for **any noise**, even a
 2. **A half-second blip left a "Paused" pill for 30 s.** Any short musical sound (a game effect) counted as "music played". Now music must play 1.5 s to count (`MiniIslandRules.PlayTracker`); a shorter one shows as a sound instead, and it no longer restarts the 30 seconds of an earlier real pause.
 3. **Other apps' names and icons could not be looked up.** Android hides other apps from an app unless it declares what it needs. Added `<queries>` for launchable apps and the home screen to the manifest (it also makes the song app's name work for apps outside the built-in list).
 4. **A screen reader would have popped the island on every spoken word.** TalkBack's speech is now ignored.
+
+## 8. This session (2026-10-07): a Dynamic Island app first, AirPods second
+
+Jake's words, in short: change the purpose of the app. The **Dynamic Island is the main thing**, the AirPods a secondary feature. Tapping the island shouldn't always pull up **music**: make it useful and interesting, **like an iPhone's**. Keep it on permanently, but he already has the **time** in the status bar, so show the **icon of the app he's using** (Spotify, Claude), and show the **home screen** in a way that isn't bland. Give the island **its own tab** (next to the Beats/AirPods one) and make the **main tab about the phone in general**. **Find bugs**, make behaviour **smarter**, go the extra mile. Use the context-efficient, frontend-design and Liquid Glass skills; **no agents**. Details: `DECISIONS.md` section 38.
+
+| Request | Status | Where | Notes |
+|---|---|---|---|
+| The island shows the app you're using (Spotify shows Spotify) | DONE, PHONE CHECK | `services/ScreenApp.kt`, slot `Screen` in `overlays/MiniIsland.kt` | Needs the "pro Dynamic Island" accessibility switch (the only way Android tells an app which app is open). Only real app screens count; toasts, bubbles, the shade and the keyboard don't. Icon springs in on each app switch. Whether One UI sends these events as standard Android does: not verified. |
+| Home screen shown in a non-bland way | DONE, PHONE CHECK | slots `Home`, `Date` | Four tiles in the wallpaper's own colours and a tiny calendar page (red weekday, day number). |
+| No time on the island by default (it's in the status bar) | DONE | `IslandLook.DEFAULT_SLOTS` | The Clock slot is still offered in Look, just never a default. |
+| Lock screen | DONE, PHONE CHECK | slot `Lock`, `ScreenApp.Place.Locked` | A padlock that springs open as you unlock. Extra, not asked. |
+| A tap doesn't always pull up music; make it useful like an iPhone | DONE, PHONE CHECK | `overlays/GlancePanel.kt`, `services/GlanceRules.kt`, `PhoneControls.kt`, `MiniIslandRules.tapOpens` | With nothing playing a tap opens the glance: the app and date, what's live (timer, charging, headphones, low battery, next alarm) and Torch, Timer, Sound/Vibrate, Capture, Lock. Music still opens the music island when music is actually playing or just paused. |
+| A timer that lives on the island (iPhone-style Live Activity) | DONE, PHONE CHECK | `services/IslandTimer.kt` | Extra. Rings with the alarm sound until stopped (max 1 min); exact alarm granted at install in the GitHub build (not verified on One UI 9). |
+| Charging moment, hide in chosen apps, Capture without the island in the picture | DONE, PHONE CHECK | `MiniMoment`, `PREF_HIDE_IN`, `GlintOverlays.capturing` | Extras from `docs/ROADMAP_PHONE.md` and found while building. |
+| The island gets its own tab; the main tab is about the phone | DONE | `navigation/Tabs.kt`, `screens/PhoneScreen.kt`, `IslandSettingsScreen.kt` | Liquid Glass tab bar: Phone (opens first), Island, AirPods/Beats (named after the chosen device). Back on Island/AirPods goes to Phone. |
+| Find bugs, smarter behaviour | DONE | DECISIONS 38 | Sounds were credited to the wrong app after a toast from another app (fixed); an empty music player on tap (fixed); the island would have appeared in its own screenshots (fixed). |
+| Use the three skills; no agents | DONE | | Context-efficient (checklist, verified facts, no agents or polling), frontend-design (one direction: calm black/white/graphite with orange only for timers and green only for charging), Liquid Glass (real refraction where Android allows it, honest about overlays). |
 
 ## Not done or not verifiable from the cloud
 

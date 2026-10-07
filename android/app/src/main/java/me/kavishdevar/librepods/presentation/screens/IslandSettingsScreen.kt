@@ -84,7 +84,8 @@ fun IslandSettingsScreen() {
     val dark = isSystemInDarkTheme()
     val ink = if (dark) Color.White else Color.Black
     val topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 84.dp
-    val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp
+    val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp +
+        me.kavishdevar.librepods.presentation.navigation.LocalTabBarSpace.current
 
     var master by remember { mutableStateOf(prefs.getBoolean(IslandPrefs.PREF_MASTER, true)) }
     val triggers = remember {
@@ -102,6 +103,8 @@ fun IslandSettingsScreen() {
     var miniAlways by remember { mutableStateOf(IslandPrefs.miniAlways(prefs)) }
     var miniAnytime by remember { mutableStateOf(IslandPrefs.miniAnytime(prefs)) }
     var hearMusic by remember { mutableStateOf(MusicPulse.allowed(context)) }
+    var chargeMoment by remember { mutableStateOf(IslandPrefs.chargeMoment(prefs)) }
+    var appPop by remember { mutableStateOf(IslandPrefs.appPop(prefs)) }
     var askedAt by remember { mutableStateOf(0L) }
     val askHear = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
@@ -145,10 +148,14 @@ fun IslandSettingsScreen() {
 
         if (tapsAvailable) TapAccessCard(enabled = tapsEnabled, running = tapsService != null, ink = ink, dark = dark)
 
+        // What it shows in each situation, live: the Dynamic Island is this tab's main thing.
+        SectionLabel("Look", ink)
+        DynamicIslandStudio(ink, dark)
+
         StyledList(title = "Dynamic Island") {
             StyledToggle(
                 label = "Dynamic Island around the camera",
-                description = "Music, any sound, your AirPods, or the phone's battery and time",
+                description = "The app you're in, music, any sound, a timer, your headphones",
                 checked = mini,
                 onCheckedChange = {
                     mini = it
@@ -158,7 +165,7 @@ fun IslandSettingsScreen() {
             )
             StyledToggle(
                 label = "Always on",
-                description = "Stays round the camera even with nothing playing or connected",
+                description = "Stays round the camera even with nothing playing",
                 checked = miniAnytime,
                 onCheckedChange = {
                     miniAnytime = it
@@ -204,14 +211,28 @@ fun IslandSettingsScreen() {
             )
         }
 
-        SoundsSection(ink, dark)
-        RecentSounds(ink, dark)
+        StyledList(title = "Moments") {
+            StyledToggle(
+                label = "Charging",
+                description = "Widens for a moment with the percentage when you plug in",
+                checked = chargeMoment,
+                onCheckedChange = { chargeMoment = it; prefs.edit { putBoolean(IslandPrefs.PREF_CHARGE_MOMENT, it) } },
+            )
+            StyledToggle(
+                label = "App icon springs in",
+                description = "When you switch apps. Off: a plain fade",
+                checked = appPop,
+                onCheckedChange = { appPop = it; prefs.edit { putBoolean(IslandPrefs.PREF_APP_POP, it) } },
+            )
+        }
 
-        SectionLabel("Look", ink)
-        DynamicIslandStudio(ink, dark)
+        HideInApps(ink, dark, tapsEnabled)
 
         SectionLabel("Gestures", ink)
         IslandGestureSettings(ink, dark)
+
+        SoundsSection(ink, dark)
+        RecentSounds(ink, dark)
 
         StyledList(title = "Mini island") {
             StyledToggle(
@@ -319,6 +340,9 @@ fun IslandSettingsScreen() {
             GlassPillButton(text = "Dynamic Island", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
                 GlintOverlays.previewMiniIsland(context)
             }
+            GlassPillButton(text = "The glance", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
+                GlintOverlays.showIsland(context, IslandEvent.Glance, expand = true)
+            }
             GlassPillButton(text = "A message ding", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
                 GlintOverlays.previewMiniIsland(context, sound = true)
             }
@@ -361,7 +385,7 @@ private fun TapAccessCard(enabled: Boolean, running: Boolean, ink: Color, dark: 
             me.kavishdevar.librepods.presentation.glint.RowIconTile(me.kavishdevar.librepods.presentation.glint.RowIcons.Press, ink, dark, size = 38.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("Tap the Dynamic Island", style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = ink))
+                Text("See your apps, tap the island", style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = ink))
                 androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     androidx.compose.foundation.layout.Box(Modifier.size(8.dp).background(dot, androidx.compose.foundation.shape.CircleShape))
                     Spacer(Modifier.width(6.dp))
@@ -381,7 +405,7 @@ private fun TapAccessCard(enabled: Boolean, running: Boolean, ink: Color, dark: 
         }
         if (!on) {
             Text(
-                "Android gives taps around the camera to its status bar. Turn on \"pro Dynamic Island\" in Accessibility and they reach the island.",
+                "Turn on \"pro Dynamic Island\" in Accessibility. The island then shows the app you're in (only its name and icon: nothing on the screen is read), and taps around the camera reach it instead of the status bar.",
                 style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, lineHeight = 18.sp, color = ink.copy(alpha = 0.7f)),
             )
             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -426,3 +450,41 @@ internal fun Hint(text: String, button: String, ink: Color, dark: Boolean, onCli
 internal fun open(context: Context, intent: Intent): Boolean = try {
     context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true
 } catch (_: Exception) { false }
+
+/**
+ * Apps the Dynamic Island steps aside in (games, video, anything where it's in the way), picked
+ * from the apps used lately. A running timer still shows, so it can't be missed.
+ */
+@Composable
+private fun HideInApps(ink: Color, dark: Boolean, seeing: Boolean) {
+    val context = LocalContext.current
+    val prefs = remember { IslandPrefs.prefs(context) }
+    val recent by me.kavishdevar.librepods.services.ScreenApp.recent.collectAsState()
+    var hidden by remember { mutableStateOf(IslandPrefs.hideIn(prefs)) }
+    // Apps already hidden stay listed even when they haven't been used lately.
+    val apps = (recent + hidden.filter { it !in recent }).distinct()
+    SectionLabel("Hide in these apps", ink)
+    if (apps.isEmpty()) {
+        Text(
+            if (seeing) "Open a few apps and they'll be listed here to choose from."
+            else "Needs \"See your apps\" (above): then the apps you use are listed here.",
+            style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, lineHeight = 18.sp, color = ink.copy(alpha = 0.55f)),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+        return
+    }
+    StyledList {
+        apps.forEach { pkg ->
+            val info = remember(pkg) { me.kavishdevar.librepods.services.SoundSource.appInfo(context, pkg) }
+            StyledToggle(
+                label = info.label ?: pkg,
+                description = if (pkg in hidden) "Hidden while it's open" else "Shows as usual",
+                checked = pkg in hidden,
+                onCheckedChange = { on ->
+                    IslandPrefs.setHideIn(prefs, pkg, on)
+                    hidden = IslandPrefs.hideIn(prefs)
+                },
+            )
+        }
+    }
+}

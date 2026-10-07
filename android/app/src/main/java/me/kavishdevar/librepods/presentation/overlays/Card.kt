@@ -440,6 +440,8 @@ fun GlassPillButton(
     dark: Boolean = true,
     height: Dp = 48.dp,
     fontSize: TextUnit = 16.sp,
+    /** Room either side of the words (narrow buttons in a row of many use less). */
+    horizontalPadding: Dp = 22.dp,
     onClick: () -> Unit,
 ) {
     var pressed by remember { mutableStateOf(false) }
@@ -494,7 +496,7 @@ fun GlassPillButton(
                     if (inside) currentOnClick()
                 }
             }
-            .padding(horizontal = 22.dp),
+            .padding(horizontal = horizontalPadding),
         contentAlignment = Alignment.Center
     ) {
         Text(

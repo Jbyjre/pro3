@@ -27,6 +27,12 @@ import android.content.SharedPreferences
  */
 object IslandLook {
     enum class Situation(val key: String, val label: String) {
+        /** Using an app (its icon shows beside the camera). Needs the accessibility switch to know which. */
+        App("app", "In an app"),
+        /** The home screen. */
+        Home("home", "Home screen"),
+        /** The lock screen (a padlock that springs open as you unlock). */
+        Locked("locked", "Lock screen"),
         Music("music", "Playing"),
         Paused("paused", "Paused"),
         /** A sound that isn't music: a message ding, a voice note, a call, an alarm. */
@@ -34,11 +40,24 @@ object IslandLook {
         Idle("idle", "AirPods"),
         Charging("charging", "Charging"),
         Talking("talking", "Talking"),
-        /** Nothing playing and nothing connected. */
+        /** Nothing playing, and pro can't tell which app is in front (the accessibility switch is off). */
         Rest("rest", "Nothing on"),
     }
 
     enum class Slot(val key: String, val label: String) {
+        /** The icon of the app you're using, swapping with a little spring as you change apps. */
+        Screen("screen", "App on screen"),
+        /** A small grid of tiles in your wallpaper's colours: the home screen. */
+        Home("home", "Home"),
+        /** Today's date as a tiny calendar page. */
+        Date("date", "Date"),
+        /** A padlock that springs open when you unlock. */
+        Lock("lock", "Padlock"),
+        /**
+         * The one thing worth a glance right now: a running timer, charging, your headphones' battery,
+         * or a low phone battery. Nothing at all when there's nothing to say.
+         */
+        Glance("glance", "Smart glance"),
         /** The song's cover with a thin ring showing how far through the song you are. */
         Cover("cover", "Cover"),
         /** The icon of the app making the sound (a symbol for its kind when pro can't tell which). */
@@ -96,32 +115,45 @@ object IslandLook {
     }
 
     val DEFAULT_SLOTS: Map<Situation, Pair<Slot, Slot>> = mapOf(
+        // The phone first: the app you're in, the home screen, the lock screen. The right side is
+        // whatever's worth a glance (a timer, charging, headphones), never the time: the status
+        // bar already shows it.
+        Situation.App to (Slot.Screen to Slot.Glance),
+        Situation.Home to (Slot.Home to Slot.Date),
+        Situation.Locked to (Slot.Lock to Slot.Glance),
         Situation.Music to (Slot.Cover to Slot.Bars),
         Situation.Paused to (Slot.Cover to Slot.Bars),
         Situation.Sound to (Slot.App to Slot.Bars),
         Situation.Idle to (Slot.Battery to Slot.Heart),
         Situation.Charging to (Slot.Battery to Slot.Heart),
         Situation.Talking to (Slot.Same to Slot.Talk),
-        // Nothing on: the phone's battery and the time, so the pill never looks empty.
-        Situation.Rest to (Slot.Phone to Slot.Clock),
+        // Nothing on (pro can't tell the app): the phone's battery and the date, so the pill never looks empty.
+        Situation.Rest to (Slot.Phone to Slot.Date),
     )
 
     /** What can go on a side in a situation: "Keep" only while talking. */
     fun options(s: Situation): List<Slot> = Slot.entries.filter { it != Slot.Same || s == Situation.Talking }
 
+    /** Where you are on the phone, when the island shows that (see [ScreenApp]). */
+    enum class Place { App, Home, Locked }
+
     /**
      * The situation right now. Talking (Conversation Awareness has the music down) wins; then
-     * a sound that isn't music; then music playing or paused; then the AirPods themselves,
-     * charging or not.
+     * a sound that isn't music; then music playing or paused; then where you are on the phone
+     * ([place]: in an app, home, locked); then the AirPods themselves, charging or not.
      */
     fun situation(
         music: Boolean, playing: Boolean, talking: Boolean, charging: Boolean, rest: Boolean = false, sound: Boolean = false,
+        place: Place? = null,
     ): Situation = when {
         talking -> Situation.Talking
         rest -> Situation.Rest
         sound -> Situation.Sound
         music && playing -> Situation.Music
         music -> Situation.Paused
+        place == Place.Locked -> Situation.Locked
+        place == Place.Home -> Situation.Home
+        place == Place.App -> Situation.App
         charging -> Situation.Charging
         else -> Situation.Idle
     }
@@ -133,8 +165,8 @@ object IslandLook {
     }
 
     /** The same, ignoring talking: what "Keep" refers to. */
-    fun underneath(music: Boolean, playing: Boolean, charging: Boolean, sound: Boolean = false): Situation =
-        situation(music, playing, false, charging, sound = sound)
+    fun underneath(music: Boolean, playing: Boolean, charging: Boolean, sound: Boolean = false, place: Place? = null): Situation =
+        situation(music, playing, false, charging, sound = sound, place = place)
 
     // ---- Storage ----
 

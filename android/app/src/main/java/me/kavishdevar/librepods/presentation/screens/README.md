@@ -1,15 +1,16 @@
 # presentation/screens/
 
-One file per page of the app. Routes are in `../navigation/Screen.kt`, the page switcher is `AppNavGraph.kt`, titles and the top-bar buttons are in `NavigationRoot.kt`. A new page needs: a `Screen` object, a `NavEntry` in `AppNavGraph`, a title in `NavigationRoot`, and a way in (a row in `AppSettingsScreen`, a card, or a deep link in `AppLinks`).
+One file per page of the app. Routes are in `../navigation/Screen.kt`, the page switcher is `AppNavGraph.kt`, titles and the top-bar buttons are in `NavigationRoot.kt`. The three main pages are tabs (`../navigation/Tabs.kt`: `AppTab` Phone, Island, Headphones, and the Liquid Glass `GlassTabBar`): they all live in the root entry `Screen.AirPodsSettings` (the old name of the main page, kept so nothing else moves), which shows the selected tab. Pages add `LocalTabBarSpace` under their content so the floating bar never covers it. A new page needs: a `Screen` object, a `NavEntry` in `AppNavGraph`, a title in `NavigationRoot`, and a way in (a row in `AppSettingsScreen`, a card, or a deep link in `AppLinks`).
 
 ## Pages without headphones
 
 | Page | File | Notes |
 |---|---|---|
-| This phone | `PhoneScreen.kt` | Live Dynamic Island strip (Nothing on / A sound / Music), phone battery, island switches, `SoundsSection`, `RecentSounds`. Opened from Settings > This phone and from `components/ThisPhoneCard.kt` on the main page. |
+| **Phone tab** (the main page, opens first) | `PhoneScreen.kt` | Live Dynamic Island strip (In an app / Home / Locked / Music) with Open it and Customize, "Make it work fully" (only the missing permissions, each with Allow), Torch / Sound / Island tiles, the island timer (presets, or the running one with Pause/Cancel/+1), battery with time to full and the next alarm, and a small card for the headphones that opens their tab. Also Settings > This phone (without that card). |
+| **Island tab** | `IslandSettingsScreen.kt` | Below. Also Settings > Islands. `HideInApps` lists apps used lately with a switch each. |
 | Sound settings | `SoundsSection.kt` | `SoundsSection` (pop for any sound, app icons, how long, which clues are on) and `RecentSounds` ("Heard lately" with one switch per app). Used on This phone and in Settings > Islands. `AppBadge` draws an app icon in a circle (a symbol when the app isn't known). |
-| Islands | `IslandSettingsScreen.kt` | Settings > Islands: the tap switch card, the Dynamic Island switches, `SoundsSection`, the look editor, gestures, which pop-ups appear, music, duration, haptics, "Try it" buttons. |
-| Look editor | `IslandStudio.kt` | `DynamicIslandStudio` (live preview, situation chips, left and right slots, size, width, glow, colour, reset), `IslandGestureSettings`, `LiveIslandStrip` (the preview with your own look, used by This phone). |
+| Islands | `IslandSettingsScreen.kt` | The Island tab: the "See your apps, tap the island" switch card, the look editor first, the Dynamic Island switches, Moments (charging, app icon springs in), Hide in these apps, gestures, `SoundsSection`, which pop-ups appear, music, duration, haptics, "Try it" buttons (including the glance). |
+| Look editor | `IslandStudio.kt` | `DynamicIslandStudio` (live preview, situation chips starting with In an app, left and right slots, size, width, glow, colour, reset), `IslandGestureSettings`, `LiveIslandStrip` (the preview with your own look, used by the Phone tab). |
 | Settings | `AppSettingsScreen.kt` | Appearance, app icon, This phone, Your devices, name, Dynamic Island, Stay connected, Troubleshooting, About. Hidden "pro Lab" (`GlintLabScreen.kt`): Settings > About > tap "Version code" 7 times. |
 | Stay connected and appearance | `StayConnectedScreen.kt` | Samsung background setup and the glass and motion comfort switches. |
 | Your devices | `DevicesScreen.kt` | Which headphones pro follows (AirPods, Beats Solo 4, others). |
@@ -20,7 +21,7 @@ One file per page of the app. Routes are in `../navigation/Screen.kt`, the page 
 
 | Page | File |
 |---|---|
-| Main page (AirPods), and the "not connected" panel | `AirPodsSettingsScreen.kt` (large: `AirPodsSettingsRoute` picks AirPods or headphones, then the connected or not-connected layout) |
+| Headphones tab (AirPods), and the "not connected" panel | `AirPodsSettingsScreen.kt` (large: `AirPodsSettingsRoute` picks AirPods or headphones, then the connected or not-connected layout) |
 | Beats Solo 4 or other headphones | `HeadphonesScreen.kt` |
 | Rename | `RenameScreen.kt` |
 | Listening and hearing | `AdaptiveStrengthScreen.kt`, `TransparencySettingsScreen.kt`, `EqualizerScreen.kt`, `HearingAidScreen.kt`, `HearingAidAdjustmentsScreen.kt`, `UpdateHearingTestScreen.kt`, `HearingProtectionScreen.kt`, `AccessibilitySettingsScreen.kt` |

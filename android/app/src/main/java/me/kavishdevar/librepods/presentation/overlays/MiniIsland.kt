@@ -24,6 +24,7 @@ import me.kavishdevar.librepods.presentation.glint.listeningModeName
 import me.kavishdevar.librepods.presentation.glint.ListeningModeGlyph
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.onSizeChanged
 import android.content.BroadcastReceiver
 import android.content.ComponentCallbacks
@@ -118,6 +119,10 @@ import me.kavishdevar.librepods.services.NowPlaying
 import me.kavishdevar.librepods.services.PhoneStatus
 import me.kavishdevar.librepods.services.SoundRules
 import me.kavishdevar.librepods.services.SoundSource
+import me.kavishdevar.librepods.services.GlanceRules
+import me.kavishdevar.librepods.services.IslandTimer
+import me.kavishdevar.librepods.services.ScreenApp
+import me.kavishdevar.librepods.services.TimerRules
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -191,6 +196,9 @@ internal class MiniIslandController(private val context: Context) {
     private val soundShown = mutableStateOf<SoundSource.Heard?>(null)
     /** Music or the AirPods themselves. */
     private val content = mutableStateOf(MiniIslandRules.Content.Music)
+    /** A short moment with words under the camera (the phone plugged in), or null. */
+    private val moment = mutableStateOf<MiniMoment?>(null)
+    private var wasCharging: Boolean? = null
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) {
@@ -204,7 +212,7 @@ internal class MiniIslandController(private val context: Context) {
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
         if (key == IslandPrefs.PREF_MINI || key == IslandPrefs.PREF_MINI_AIRPODS_ONLY || key == IslandPrefs.PREF_MINI_ALWAYS ||
             key == IslandPrefs.PREF_MINI_ANYTIME || key == IslandPrefs.PREF_MINI_ANY_SOUND || key == IslandPrefs.PREF_SOUND_LINGER ||
-            key == IslandPrefs.PREF_SOUND_IGNORED) refresh()
+            key == IslandPrefs.PREF_SOUND_IGNORED || key == IslandPrefs.PREF_HIDE_IN) refresh()
         if (IslandGestures.Gesture.entries.any { it.key == key }) actions.value = IslandGestures.all(p)
         if (key in IslandLook.keys) {
             look.value = IslandLook.read(p)
@@ -249,6 +257,27 @@ internal class MiniIslandController(private val context: Context) {
         scope.launch { NowPlaying.state.collect { onTrack(it) } }
         // Any other sound (a message ding, a voice note, a call, an alarm): show it for a moment.
         scope.launch { SoundSource.heard.collect { refresh() } }
+        // The app in front, the home screen or the lock screen; the island's timer.
+        scope.launch { ScreenApp.place.collect { refresh() } }
+        scope.launch { IslandTimer.state.collect { refresh() } }
+        // Plugged in: a short charging moment, like the iPhone's.
+        scope.launch {
+            PhoneStatus.state.collect { info ->
+                if (!info.known) return@collect
+                val before = wasCharging
+                wasCharging = info.charging
+                if (before == false && info.charging && IslandPrefs.chargeMoment(prefs)) {
+                    val m = MiniMoment.charging(info.level, SystemClock.elapsedRealtime())
+                    moment.value = m
+                    refresh()
+                    // Long enough for the pill to widen, show it and tuck back in.
+                    scope.launch {
+                        delay(MiniMoment.SHOW_MS + 1_200L)
+                        if (moment.value == m) { moment.value = null; refresh() }
+                    }
+                }
+            }
+        }
         // The accessibility service started or stopped: move the pill above or below the status
         // bar (only above it can it be touched).
         scope.launch {
@@ -316,6 +345,9 @@ internal class MiniIslandController(private val context: Context) {
         // An alert popping over music: the app's icon shows in the right-hand spot for a moment.
         val blip = heardOn && heard!!.kind.blip && playing
         soundShown.value = if (soundOnly || blip) heard else null
+        val place = ScreenApp.place.value
+        val timerOn = !previewing && IslandTimer.state.value != null
+        val hiddenHere = !previewing && place is ScreenApp.Place.App && place.pkg in IslandPrefs.hideIn(prefs)
         val want = MiniIslandRules.wanted(
             MiniIslandRules.Inputs(
                 enabled = previewing || IslandPrefs.mini(prefs),
@@ -328,12 +360,16 @@ internal class MiniIslandController(private val context: Context) {
                 screenUnlocked = previewing || unlocked,
                 alwaysWithAirPods = !previewing && IslandPrefs.miniAlways(prefs),
                 anytime = !previewing && IslandPrefs.miniAnytime(prefs),
-                sound = soundOnly,
+                // The charging moment brings the pill up for its few seconds, like a sound does.
+                sound = soundOnly || (!previewing && moment.value != null),
+                timer = timerOn,
+                hiddenHere = hiddenHere,
             )
         )
         content.value = if (previewingMusic) MiniIslandRules.Content.Music else MiniIslandRules.content(
             playing = playing, pausedForMs = pausedFor, playedRecently = play.played,
             airPodsUp = airPodsUp(), sound = soundOnly,
+            placeKnown = place !is ScreenApp.Place.Unknown,
         )
         lastWant = want
         if (!want) GlintOverlays.miniOrigin = null
@@ -399,6 +435,9 @@ internal class MiniIslandController(private val context: Context) {
             val panel by IslandAccess.panelOpen.collectAsState()
             val link by GlintStatus.link.collectAsState()
             val heardLive by SoundSource.heard.collectAsState()
+            val place by ScreenApp.place.collectAsState()
+            val timer by IslandTimer.state.collectAsState()
+            val wallpaper by ScreenApp.wallpaper.collectAsState()
             MiniIslandHost(
                 geometry = geo,
                 track = sample.value ?: withSource(live, heardLive),
@@ -425,6 +464,11 @@ internal class MiniIslandController(private val context: Context) {
                 panelOpen = panel,
                 onAction = { perform(it) },
                 onPullOutside = { IslandAccess.openNotifications() },
+                place = place,
+                timer = timer,
+                budsUp = airPodsUp(),
+                wallpaper = wallpaper,
+                moment = moment.value,
             )
         }
         maybeSuggestTaps()
@@ -435,16 +479,15 @@ internal class MiniIslandController(private val context: Context) {
         val sampling = sample.value != null
         when (a) {
             IslandGestures.Action.Expand -> {
-                if (content.value == MiniIslandRules.Content.Sound) {
+                // A ringing timer: the tap you'd reach for silences it.
+                if (!sampling && IslandTimer.state.value?.ringing == true) { IslandTimer.cancel(context); return }
+                when (MiniIslandRules.tapOpens(content.value)) {
                     // A tap on a sound opens the app that made it (nothing when pro can't tell which).
-                    if (!sampling) SoundSource.openApp(context, soundShown.value?.pkg)
-                } else if (content.value == MiniIslandRules.Content.Rest) {
-                    // Nothing on: open the music controls (play picks up where you left off).
-                    GlintOverlays.showIsland(context, IslandEvent.Music)
-                } else if (content.value == MiniIslandRules.Content.AirPods) {
-                    GlintOverlays.showIsland(context, IslandEvent.Connected, expand = true)
-                } else {
-                    GlintOverlays.showIsland(context, IslandEvent.Music, expand = airPodsUp())
+                    MiniIslandRules.TapOpens.SoundApp -> if (!sampling) SoundSource.openApp(context, soundShown.value?.pkg)
+                    MiniIslandRules.TapOpens.AirPods -> GlintOverlays.showIsland(context, IslandEvent.Connected, expand = true)
+                    MiniIslandRules.TapOpens.Music -> GlintOverlays.showIsland(context, IslandEvent.Music, expand = airPodsUp())
+                    // Nothing playing: what's live and the phone's own controls, never an empty music player.
+                    MiniIslandRules.TapOpens.Glance -> GlintOverlays.showIsland(context, IslandEvent.Glance, expand = true)
                 }
             }
             IslandGestures.Action.PlayPause -> if (!sampling) NowPlaying.playPause(context)
@@ -562,6 +605,18 @@ internal fun MiniIslandHost(
     stillWide: Float = 0f,
     stillPress: Float = 0f,
     stillAck: MiniAck? = null,
+    /** Where you are on the phone: the app in front (its icon shows), the home screen, the lock screen. */
+    place: ScreenApp.Place = ScreenApp.Place.Unknown,
+    /** The island's own timer, when one is running or ringing. */
+    timer: IslandTimer.State? = null,
+    /** The headphones are connected (their battery is worth a glance). */
+    budsUp: Boolean = false,
+    /** The wallpaper's colours, for the home glyph. */
+    wallpaper: List<Color> = emptyList(),
+    /** A short moment with words under the camera (the phone plugged in). */
+    moment: MiniMoment? = null,
+    /** Screenshots only: how far the app swap (and the padlock opening) has got, 0..1. */
+    stillSwap: Float? = null,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -575,28 +630,43 @@ internal fun MiniIslandHost(
     // screen that briefly hides it (opening or closing an app) doesn't make it flicker.
     var fullScreen by remember { mutableStateOf(false) }
     LaunchedEffect(hidden) { if (hidden) { delay(FULL_SCREEN_MS); fullScreen = true } else fullScreen = false }
-    val visible = !leaving && !fullScreen && !panelOpen
+    // A screenshot from the island's Capture button: out of the picture at once.
+    val capturing = GlintOverlays.capturing.value
+    val visible = !leaving && !fullScreen && !panelOpen && !capturing
 
     // ---- What it shows right now ----
     val musicContent = content == MiniIslandRules.Content.Music
     val soundContent = content == MiniIslandRules.Content.Sound
-    val resting = content == MiniIslandRules.Content.Rest
-    val situation = forceSituation ?: IslandLook.situation(musicContent, track.playing, talking, pods.budsCharging, rest = resting, sound = soundContent)
+    val screenContent = content == MiniIslandRules.Content.Screen
+    // Where you are on the phone, when that's what the pill shows.
+    val placeKind = if (!screenContent) null else when (place) {
+        is ScreenApp.Place.App -> IslandLook.Place.App
+        ScreenApp.Place.Home -> IslandLook.Place.Home
+        is ScreenApp.Place.Locked -> IslandLook.Place.Locked
+        ScreenApp.Place.Unknown -> null
+    }
+    val resting = content == MiniIslandRules.Content.Rest || (screenContent && placeKind == null)
+    val situation = forceSituation ?: IslandLook.situation(musicContent, track.playing, talking, pods.budsCharging, rest = resting, sound = soundContent, place = placeKind)
     val under = if (situation == IslandLook.Situation.Talking) {
         if (forceSituation != null) IslandLook.Situation.Music
         else if (resting) IslandLook.Situation.Rest
-        else IslandLook.underneath(musicContent, track.playing, pods.budsCharging, sound = soundContent)
+        else IslandLook.underneath(musicContent, track.playing, pods.budsCharging, sound = soundContent, place = placeKind)
     } else situation
     val (baseL, baseR) = look.slots(situation, under)
     // An alert popping over music (a message ding): the app's icon takes the right-hand spot for a
     // moment, then the music's own slot comes back (the usual cross-fade and width spring).
     val blipping = heard != null && heard.kind.blip && forceSituation == null &&
         (situation == IslandLook.Situation.Music || situation == IslandLook.Situation.Paused)
+    // A running or ringing timer is always on show, like the iPhone's timer: it takes the
+    // right-hand spot in every situation except a moment's sound or talking.
+    val timerHere = timer != null && forceSituation == null && situation != IslandLook.Situation.Talking &&
+        situation != IslandLook.Situation.Sound && baseL != IslandLook.Slot.Glance && baseR != IslandLook.Slot.Glance
     val wantL = baseL
-    val wantR = if (blipping) IslandLook.Slot.App else baseR
+    val wantR = if (blipping) IslandLook.Slot.App else if (timerHere) IslandLook.Slot.Glance else baseR
     // The music and sound situations are black, at one with the camera; the AirPods ones a dark graphite.
     val musicTone = under == IslandLook.Situation.Music || under == IslandLook.Situation.Paused ||
-        under == IslandLook.Situation.Sound || under == IslandLook.Situation.Rest
+        under == IslandLook.Situation.Sound || under == IslandLook.Situation.Rest ||
+        under == IslandLook.Situation.App || under == IslandLook.Situation.Home || under == IslandLook.Situation.Locked
     val showIcons by rememberPref(prefs, IslandPrefs.PREF_SOUND_ICONS, true)
     // The app behind the sound, when pro can tell (the music app's own icon during music).
     val appIcon = if (!showIcons) null else if (soundContent || blipping) heard?.icon else track.icon
@@ -609,6 +679,40 @@ internal fun MiniIslandHost(
     }
     // What's playing, for the bars and the cover's brightness: music, or a sound that's still going.
     val lively = track.playing || (soundContent && heard?.active == true)
+
+    // ---- Where you are on the phone ----
+    // Changing apps: the old icon sinks away and the new one springs up in its place (the home
+    // glyph's tiles and the padlock arrive the same way).
+    val screenKey: Any? = when (place) {
+        is ScreenApp.Place.App -> place.pkg
+        ScreenApp.Place.Home -> "home"
+        is ScreenApp.Place.Locked -> "locked"
+        ScreenApp.Place.Unknown -> null
+    }
+    val screenIcon = (place as? ScreenApp.Place.App)?.icon
+    var curIcon by remember { mutableStateOf(screenIcon) }
+    var prevIcon by remember { mutableStateOf<ImageBitmap?>(null) }
+    val swap = remember { Animatable(stillSwap ?: 1f) }
+    val appPop by rememberPref(prefs, IslandPrefs.PREF_APP_POP, true)
+    LaunchedEffect(screenKey) {
+        if (still != null) { curIcon = screenIcon; prevIcon = null; return@LaunchedEffect }
+        prevIcon = curIcon.takeIf { it !== screenIcon }
+        curIcon = screenIcon
+        if (reduce || !appPop) { swap.snapTo(1f); prevIcon = null }
+        else { swap.snapTo(0f); swap.animateTo(1f, spring(dampingRatio = 0.58f, stiffness = 340f)); prevIcon = null }
+    }
+    // The padlock's shackle springs up and over as you unlock.
+    val opening = (place as? ScreenApp.Place.Locked)?.opening == true
+    val lockOpen = remember { Animatable(if (stillSwap != null && opening) stillSwap else 0f) }
+    LaunchedEffect(opening) {
+        if (still != null) return@LaunchedEffect
+        val to = if (opening) 1f else 0f
+        if (reduce) lockOpen.snapTo(to) else lockOpen.animateTo(to, spring(dampingRatio = 0.5f, stiffness = 300f))
+    }
+    // The smart glance: the one thing worth a look (a timer, charging, headphones, low battery).
+    val glanceItem = GlanceRules.pill(timer, phone, budsUp, pods.budsLevel, pods.headphones)
+    // Today's date for the calendar page, kept to the day.
+    var today by remember { mutableStateOf(dayNow()) }
 
     // Slots cross-fade when the situation (or a choice) changes, and the pill morphs to its new width.
     var shownL by remember { mutableStateOf(wantL) }
@@ -670,7 +774,7 @@ internal fun MiniIslandHost(
             if (wide.value > 0f) wide.snapTo(0f)
             onWindowSize(geometry.compactWindow)
             // Handing over to the big island: it starts exactly here, so vanish at once.
-            if (reduce || handOff || panelOpen) appear.snapTo(0f) else appear.animateTo(0f, spring(dampingRatio = 1f, stiffness = 520f))
+            if (reduce || handOff || panelOpen || capturing) appear.snapTo(0f) else appear.animateTo(0f, spring(dampingRatio = 1f, stiffness = 520f))
             if (leaving) onGone() else onPresent(false)
         }
     }
@@ -708,8 +812,10 @@ internal fun MiniIslandHost(
     val clock = remember { mutableLongStateOf(0L) }
     val shows = setOf(shownL, shownR)
     val lowPulse = IslandLook.Slot.Battery in shows && (pods.budsLevel ?: 100) <= 10 && !pods.budsCharging
+    // A ringing timer shakes its bell (the one glance that keeps moving).
+    val ringing = IslandLook.Slot.Glance in shows && glanceItem is GlanceRules.Item.Timer && glanceItem.state.ringing
     val animated = (lively && (IslandLook.Slot.Bars in shows || IslandLook.Slot.Cover in shows)) ||
-        (appActive && IslandLook.Slot.App in shows) || IslandLook.Slot.Talk in shows || lowPulse
+        (appActive && IslandLook.Slot.App in shows) || IslandLook.Slot.Talk in shows || lowPulse || ringing
     val moving = visible && animated && !reduce && still == null
     // The bars follow the real music (whatever app plays it) while they're on show.
     val listening = visible && track.playing && IslandLook.Slot.Bars in shows && still == null
@@ -762,6 +868,51 @@ internal fun MiniIslandHost(
         }
     }
 
+    // The date for the calendar page: looked at again just after midnight, only while it's on show.
+    LaunchedEffect(visible, IslandLook.Slot.Date in shows) {
+        if (still != null || !visible || IslandLook.Slot.Date !in shows) return@LaunchedEffect
+        while (true) {
+            today = dayNow()
+            val c = java.util.Calendar.getInstance()
+            val msToMidnight = ((24 - c.get(java.util.Calendar.HOUR_OF_DAY)) * 3_600_000L) -
+                c.get(java.util.Calendar.MINUTE) * 60_000L - c.get(java.util.Calendar.SECOND) * 1_000L
+            delay(msToMidnight.coerceIn(1_000L, 24 * 3_600_000L) + 500L)
+        }
+    }
+    // A running timer in the glance spot: its number and ring move on once a second (not every
+    // frame), and only while it's on show.
+    val timerShown = visible && IslandLook.Slot.Glance in shows && glanceItem is GlanceRules.Item.Timer && glanceItem.state.running
+    var timerNow by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+    LaunchedEffect(timerShown, timer) {
+        if (!timerShown || still != null) return@LaunchedEffect
+        while (true) {
+            timerNow = SystemClock.elapsedRealtime()
+            val left = timer?.let { TimerRules.left(it, timerNow) } ?: 0L
+            delay(((left % 1_000L).takeIf { it > 0L } ?: 1_000L) + 5L)
+        }
+    }
+
+    // A moment (the phone plugged in): the pill widens with a line of words for a few seconds.
+    var momentShown by remember { mutableStateOf<MiniMoment?>(null) }
+    var momentDone by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(moment?.id, visible) {
+        val m = moment ?: return@LaunchedEffect
+        if (still != null || !visible || m.id == momentDone) return@LaunchedEffect
+        momentDone = m.id
+        momentShown = m
+        delay(if (appear.value < 0.9f) 380 else 0)
+        onWindowSize(geometry.wideWindow)
+        kotlinx.coroutines.withTimeoutOrNull(250) {
+            androidx.compose.runtime.snapshotFlow { boxW }.first { it >= geometry.wideWindow.width }
+        }
+        androidx.compose.runtime.withFrameNanos { }
+        if (reduce) wide.snapTo(1f) else wide.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = 300f))
+        delay(MiniMoment.SHOW_MS)
+        if (reduce) wide.snapTo(0f) else wide.animateTo(0f, spring(dampingRatio = 1f, stiffness = 340f))
+        onWindowSize(geometry.compactWindow)
+        momentShown = null
+    }
+
     val beat = rememberHeartBeat(heartBpm, reduce || still != null, peak = 1.18f)
     val measurer = androidx.compose.ui.text.rememberTextMeasurer()
     val accent = remember(track.art, appIcon, look.accent) {
@@ -771,7 +922,23 @@ internal fun MiniIslandHost(
     val paused = remember { ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) }
     val m = geometry.margin
     val s = geometry.size
-    val describe = if (resting) "Dynamic Island. Tap for music controls, hold to open pro." else if (soundContent) buildString {
+    val describe = if (placeKind != null) buildString {
+        append("Dynamic Island")
+        when (place) {
+            is ScreenApp.Place.App -> place.label?.let { append(", in ").append(it) }
+            ScreenApp.Place.Home -> append(", home screen")
+            is ScreenApp.Place.Locked -> append(", locked")
+            else -> {}
+        }
+        when (glanceItem) {
+            is GlanceRules.Item.Timer -> append(if (glanceItem.state.ringing) ", timer done" else ", timer " + TimerRules.format(TimerRules.left(glanceItem.state, SystemClock.elapsedRealtime())))
+            is GlanceRules.Item.Charging -> append(", charging ").append(glanceItem.level).append("%")
+            is GlanceRules.Item.Buds -> glanceItem.level?.let { append(", headphones ").append(it).append("%") }
+            is GlanceRules.Item.LowPhone -> append(", battery low ").append(glanceItem.level).append("%")
+            else -> {}
+        }
+        append(". Tap for what's on, hold to open pro.")
+    } else if (resting) "Dynamic Island. Tap for what's on, hold to open pro." else if (soundContent) buildString {
         append("Sound").append(heard?.app?.let { " from $it" } ?: "")
         append(if (heard?.pkg != null) ". Tap to open it, hold to open pro." else ". Hold to open pro.")
     } else if (!musicContent) buildString {
@@ -786,7 +953,7 @@ internal fun MiniIslandHost(
         track.artist?.let { append(" by ").append(it) }
         append(". Tap to open, swipe to change song, hold to open pro.")
     }
-    val textLine = listOfNotNull(track.title, track.artist).joinToString("  ·  ")
+    val textLine = momentShown?.text ?: listOfNotNull(track.title, track.artist).joinToString("  ·  ")
     val titleSource = if (soundContent || blipping) heard?.app ?: heard?.kind?.label else track.title
     val shortTitle = remember(titleSource) { titleSource?.split(' ')?.filter { it.isNotBlank() }?.take(3)?.joinToString(" ") }
 
@@ -1029,6 +1196,9 @@ internal fun MiniIslandHost(
                         phone = phone, clockText = clockText,
                         bars = if (synced) bars else null,
                         progressAt = if (moving) clock.longValue else SystemClock.elapsedRealtime(),
+                        screenIcon = curIcon, prevIcon = prevIcon, swap = swap.value, wallpaper = wallpaper,
+                        today = today, lockOpen = lockOpen.value, glance = glanceItem,
+                        timerAt = if (still != null) 0L else timerNow,
                     )
                 )
             }
@@ -1053,7 +1223,7 @@ internal fun MiniIslandHost(
                 maxLines = 1,
                 overflow = TextOverflow.Clip,
                 textAlign = TextAlign.Center,
-                style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White),
+                style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = momentShown?.color ?: Color.White),
                 modifier = Modifier
                     .offset { IntOffset((m + 14f * density).roundToInt(), (m + s.height + 3f * density).roundToInt()) }
                     .width(androidx.compose.ui.unit.Dp(dpW))
@@ -1121,6 +1291,17 @@ private class SlotData(
     val clockText: String = "",
     /** The music's real levels (bass to treble), when pro can hear it; null: their own motion. */
     val bars: FloatArray? = null,
+    /** The app in front's icon, the one it replaced (fading out), and how far the swap has got. */
+    val screenIcon: ImageBitmap? = null,
+    val prevIcon: ImageBitmap? = null,
+    val swap: Float = 1f,
+    val wallpaper: List<Color> = emptyList(),
+    val today: Day = dayNow(),
+    /** The padlock: 0 shut, 1 sprung open. */
+    val lockOpen: Float = 0f,
+    val glance: GlanceRules.Item? = null,
+    /** elapsedRealtime the timer is drawn for (0: its still state, for screenshots). */
+    val timerAt: Long = 0L,
 )
 
 /** One thing beside the camera, centred at [c] in a spot [w] wide. */
@@ -1308,7 +1489,189 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
                 drawCircle(Color.White.copy(alpha = alpha * (0.45f + 0.55f * wave)), dotR * (0.85f + 0.3f * wave), Offset(c.x + (i - 1) * 5.2f * dp, c.y))
             }
         }
+        IslandLook.Slot.Screen -> {
+            // The app you're in, as a rounded app tile. Changing apps: the old one sinks and fades
+            // as the new one springs up past full size and settles.
+            val k = d.swap
+            d.prevIcon?.let { old -> appTile(old, c, side * (1f - 0.35f * k), alpha * (1f - k).coerceIn(0f, 1f)) }
+            val icon = d.screenIcon
+            val grow = 0.55f + 0.45f * k
+            if (icon != null) appTile(icon, c, side * 0.94f * grow, alpha * k.coerceIn(0f, 1f))
+            else drawHomeGrid(c, side * 0.78f * grow, d.wallpaper, 1f, alpha * k.coerceIn(0f, 1f))
+        }
+        IslandLook.Slot.Home -> drawHomeGrid(c, side * 0.78f, d.wallpaper, d.swap, alpha)
+        IslandLook.Slot.Date -> {
+            // A tiny calendar page: the weekday in red over the day's number.
+            val wd = text(d.today.weekday, side * 0.24f, FontWeight.Bold)
+            val num = text(d.today.day.toString(), side * 0.46f, FontWeight.SemiBold)
+            val total = wd.size.height * 0.82f + num.size.height * 0.86f
+            val y0 = c.y - total / 2f
+            drawText(wd, color = Color(0xFFFF453A), alpha = alpha, topLeft = Offset(c.x - wd.size.width / 2f, y0 - wd.size.height * 0.08f))
+            drawText(num, alpha = alpha, topLeft = Offset(c.x - num.size.width / 2f, y0 + wd.size.height * 0.72f))
+        }
+        IslandLook.Slot.Lock -> drawPadlock(c, side * 0.62f, d.lockOpen, Color.White.copy(alpha = alpha * (0.75f + 0.25f * d.swap)))
+        IslandLook.Slot.Glance -> when (val g = d.glance) {
+            is GlanceRules.Item.Timer -> if (g.state.ringing) {
+                // Done: an orange bell that shakes until it's stopped (a tap on the pill stops it).
+                val wob = if (d.moving) sin(d.clock / 1000f * 22f) * 14f else 0f
+                drawCircle(Color(0xFFFF9F0A).copy(alpha = 0.22f * alpha), side / 2f, c)
+                rotate(wob, c) { drawKindGlyph(SoundRules.Kind.Alert, c, side * 0.52f, Color(0xFFFF9F0A).copy(alpha = alpha)) }
+            } else {
+                // Counting down: an orange ring that empties as time runs out, the minutes (or the
+                // last seconds) inside, like the iPhone's timer.
+                val at = if (d.timerAt == 0L) SystemClock.elapsedRealtime() else d.timerAt
+                val left = TimerRules.left(g.state, at)
+                val rr = side / 2f - 1.5f * dp
+                val tl = Offset(c.x - rr, c.y - rr)
+                val st = androidx.compose.ui.graphics.drawscope.Stroke(2.2f * dp, cap = StrokeCap.Round)
+                val orange = Color(0xFFFF9F0A)
+                drawArc(orange.copy(alpha = 0.22f * alpha), 0f, 360f, false, tl, Size(rr * 2, rr * 2), style = st)
+                drawArc(orange.copy(alpha = alpha * (if (g.state.paused) 0.55f else 1f)), -90f, 360f * (1f - TimerRules.progress(g.state, at)), false, tl, Size(rr * 2, rr * 2), style = st)
+                if (g.state.paused) {
+                    val bw = side * 0.09f; val bh = side * 0.3f
+                    drawRoundRect(orange.copy(alpha = alpha), Offset(c.x - bw * 1.6f, c.y - bh / 2f), Size(bw, bh), CornerRadius(bw / 2f))
+                    drawRoundRect(orange.copy(alpha = alpha), Offset(c.x + bw * 0.6f, c.y - bh / 2f), Size(bw, bh), CornerRadius(bw / 2f))
+                } else {
+                    val t = text(TimerRules.short(left), side * (if (left >= 600_000L) 0.3f else 0.36f))
+                    drawText(t, color = orange, alpha = alpha, topLeft = Offset(c.x - t.size.width / 2f, c.y - t.size.height / 2f))
+                }
+            }
+            is GlanceRules.Item.Charging -> {
+                batteryRing(g.level, true, false, c, side, alpha * 0.35f, d, number = false)
+                drawChargeBolt(c, side * 0.5f, Color(0xFF30D158).copy(alpha = alpha))
+            }
+            is GlanceRules.Item.Buds -> {
+                // The headphones' (or AirPods') battery: a ring with their mark inside, so it can't
+                // be mistaken for the phone's.
+                batteryRing(g.level, false, d.lowPulse, c, side, alpha, d, number = false)
+                if (g.headphones) drawHeadphones(c, side * 0.2f, Color.White.copy(alpha = alpha))
+                else drawBudPair(c, side * 0.5f, Color.White.copy(alpha = alpha))
+            }
+            is GlanceRules.Item.LowPhone -> batteryRing(g.level, false, false, c, side, alpha, d)
+            else -> {}
+        }
         IslandLook.Slot.Same, IslandLook.Slot.Nothing -> {}
+    }
+}
+
+/** An app's icon as a rounded tile (the shape app icons have on a home screen), [size] across. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.appTile(icon: ImageBitmap, c: Offset, size: Float, alpha: Float) {
+    if (alpha <= 0.001f || size <= 1f) return
+    val r = size * 0.27f
+    val tile = Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(c.x - size / 2f, c.y - size / 2f, c.x + size / 2f, c.y + size / 2f, CornerRadius(r, r))) }
+    clipPath(tile) {
+        drawImage(
+            icon, srcOffset = IntOffset.Zero, srcSize = IntSize(icon.width, icon.height),
+            dstOffset = IntOffset((c.x - size / 2f).roundToInt(), (c.y - size / 2f).roundToInt()),
+            dstSize = IntSize(size.roundToInt(), size.roundToInt()), alpha = alpha,
+        )
+    }
+}
+
+/**
+ * The home screen: four small rounded tiles in the wallpaper's own colours (white and greys when
+ * pro can't read them). [arrive] 0..1 brings them in one after another, like apps settling onto
+ * a home screen.
+ */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHomeGrid(c: Offset, size: Float, wallpaper: List<Color>, arrive: Float, alpha: Float) {
+    if (alpha <= 0.001f) return
+    val palette = homeColors(wallpaper)
+    val gap = size * 0.12f
+    val tile = (size - gap) / 2f
+    for (i in 0 until 4) {
+        val k = ((arrive * 1.6f) - i * 0.2f).coerceIn(0f, 1f)
+        if (k <= 0f) continue
+        val col = i % 2; val row = i / 2
+        val cx = c.x - size / 2f + tile / 2f + col * (tile + gap)
+        val cy = c.y - size / 2f + tile / 2f + row * (tile + gap)
+        val t = tile * (0.6f + 0.4f * k)
+        drawRoundRect(
+            palette[i].copy(alpha = alpha * k), Offset(cx - t / 2f, cy - t / 2f), Size(t, t), CornerRadius(t * 0.32f),
+        )
+    }
+}
+
+/** Four tile colours from the wallpaper, made bright enough to read on black. */
+internal fun homeColors(wallpaper: List<Color>): List<Color> {
+    if (wallpaper.isEmpty()) return listOf(Color.White, Color(0xFF98989F), Color(0xFF636366), Color(0xFFD1D1D6))
+    fun lift(c: Color): Color {
+        val hsv = FloatArray(3)
+        android.graphics.Color.colorToHSV(android.graphics.Color.argb(255, (c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt()), hsv)
+        hsv[2] = hsv[2].coerceAtLeast(0.72f)
+        hsv[1] = hsv[1].coerceAtMost(0.75f)
+        return Color(android.graphics.Color.HSVToColor(hsv))
+    }
+    val a = lift(wallpaper[0])
+    val b = lift(wallpaper.getOrElse(1) { wallpaper[0] })
+    val t = lift(wallpaper.getOrElse(2) { wallpaper.getOrElse(1) { wallpaper[0] } })
+    return listOf(a, b, t, androidx.compose.ui.graphics.lerp(a, Color.White, 0.45f))
+}
+
+/** A padlock [size] tall; [open] 0..1 lifts the shackle up and swings it aside. */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPadlock(c: Offset, size: Float, open: Float, color: Color) {
+    val bw = size * 0.78f
+    val bh = size * 0.56f
+    val bodyTop = c.y - size / 2f + size * 0.44f
+    drawRoundRect(color, Offset(c.x - bw / 2f, bodyTop), Size(bw, bh), CornerRadius(bh * 0.22f))
+    // The keyhole.
+    drawCircle(Color.Black.copy(alpha = color.alpha), size * 0.07f, Offset(c.x, bodyTop + bh * 0.45f))
+    val sw = size * 0.11f
+    val shR = bw * 0.32f
+    val lift = size * 0.16f * open
+    val pivot = Offset(c.x + shR, bodyTop)
+    rotate(-28f * open, pivot) {
+        val top = bodyTop - shR * 2f - lift + sw / 2f
+        drawArc(color, 180f, 180f, false, Offset(c.x - shR, top), Size(shR * 2f, shR * 2f), style = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = StrokeCap.Round))
+        // The legs down into the body (the left one comes free as it opens).
+        drawLine(color, Offset(c.x + shR, top + shR), Offset(c.x + shR, bodyTop + sw * 0.4f), sw)
+        drawLine(color, Offset(c.x - shR, top + shR), Offset(c.x - shR, bodyTop + sw * 0.4f - lift * 1.4f), sw)
+    }
+}
+
+/** A charging bolt, [size] tall. */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawChargeBolt(c: Offset, size: Float, color: Color) {
+    val u = size / 2f
+    drawPath(Path().apply {
+        moveTo(c.x + u * 0.18f, c.y - u)
+        lineTo(c.x - u * 0.52f, c.y + u * 0.12f)
+        lineTo(c.x - u * 0.02f, c.y + u * 0.12f)
+        lineTo(c.x - u * 0.18f, c.y + u)
+        lineTo(c.x + u * 0.52f, c.y - u * 0.12f)
+        lineTo(c.x + u * 0.02f, c.y - u * 0.12f)
+        close()
+    }, color)
+}
+
+/** A pair of AirPods facing each other (round heads, stems down), [size] across: the AirPods' mark. */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBudPair(c: Offset, size: Float, color: Color) {
+    val head = size * 0.17f
+    for (s in listOf(-1f, 1f)) {
+        val hc = Offset(c.x + s * size * 0.24f, c.y - size * 0.2f)
+        drawCircle(color, head, hc)
+        // The stem hangs from the outer side of the head.
+        val top = Offset(hc.x + s * head * 0.55f, hc.y + head * 0.25f)
+        drawLine(color, top, Offset(top.x + s * size * 0.02f, c.y + size * 0.42f), size * 0.13f, StrokeCap.Round)
+    }
+}
+
+/** Today, as the calendar page shows it. */
+internal data class Day(val day: Int, val weekday: String)
+
+internal fun dayNow(): Day = java.util.Calendar.getInstance().let { cal ->
+    Day(
+        cal.get(java.util.Calendar.DAY_OF_MONTH),
+        (cal.getDisplayName(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.SHORT, java.util.Locale.getDefault()) ?: "").uppercase(java.util.Locale.getDefault()).take(3),
+    )
+}
+
+/**
+ * A short moment on the Dynamic Island: it widens with a line of words under the camera for a
+ * few seconds (the phone plugged in: "Charging · 76%" in green).
+ */
+internal data class MiniMoment(val id: Long, val text: String, val color: Color) {
+    companion object {
+        const val SHOW_MS = 2_600L
+        fun charging(level: Int, now: Long) = MiniMoment(now, "Charging  ·  $level%", Color(0xFF30D158))
     }
 }
 
@@ -1317,7 +1680,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
  * (where it breathes gently so it catches your eye). For the AirPods and for the phone itself.
  */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.batteryRing(
-    lvl: Int?, charging: Boolean, pulse: Boolean, c: Offset, side: Float, alpha: Float, d: SlotData,
+    lvl: Int?, charging: Boolean, pulse: Boolean, c: Offset, side: Float, alpha: Float, d: SlotData, number: Boolean = true,
 ) {
     val dp = d.density
     val ringC = when {
@@ -1332,6 +1695,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.batteryRing(
     drawArc(Color.White.copy(alpha = 0.18f * alpha), 0f, 360f, false, tl, Size(rr * 2, rr * 2), style = st)
     val breathe = if (pulse) 0.55f + 0.45f * (0.5f + 0.5f * sin(d.clock / 1000f * 3.2f)) else 1f
     if (lvl != null) drawArc(ringC.copy(alpha = alpha * breathe), -90f, 360f * lvl / 100f, false, tl, Size(rr * 2, rr * 2), style = st)
+    if (!number) return
     val num = d.measurer.measure(
         lvl?.toString() ?: "–",
         TextStyle(fontFamily = glintFontFamily, fontSize = (side * 0.34f / dp / d.fontScale).sp, fontWeight = FontWeight.SemiBold, color = Color.White),

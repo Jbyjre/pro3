@@ -119,6 +119,13 @@ sealed interface IslandEvent {
     data object Music : IslandEvent
     /** The Dynamic Island can't be tapped yet: one switch in pro fixes it (tap opens that page). */
     data object TapSetup : IslandEvent
+    /**
+     * The opened Dynamic Island when nothing is playing: the app you're in, what's live right now
+     * (a timer, charging, your headphones, the next alarm) and quick controls for the phone.
+     */
+    data object Glance : IslandEvent
+    /** The island's timer ended and is ringing: Stop, or one more minute. */
+    data object TimerDone : IslandEvent
 }
 
 /**
@@ -147,6 +154,12 @@ object GlintOverlays {
         val c = island ?: IslandController(context.applicationContext).also { island = it }
         c.show(event, expand)
     }
+
+    /**
+     * True for the moment a screenshot is taken from the island's Capture button: the Dynamic
+     * Island vanishes at once and comes back after, so it isn't in the picture (as on an iPhone).
+     */
+    val capturing = androidx.compose.runtime.mutableStateOf(false)
 
     /** True while the big island is on screen (the mini island hides meanwhile). */
     val islandVisible = androidx.compose.runtime.mutableStateOf(false)

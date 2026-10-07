@@ -654,6 +654,9 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         // Island. Neither needs the AirPods, or anything else, to be connected.
         SoundSource.attach(this)
         PhoneStatus.attach(this)
+        // Which app is on screen (or home, or locked) for the island's icon, and the island's own timer.
+        ScreenApp.attach(this)
+        IslandTimer.attach(this)
         // The mini island around the camera follows the music by itself from here.
         GlintOverlays.startMiniIsland(this)
         serviceScope.launch(Dispatchers.Main) {

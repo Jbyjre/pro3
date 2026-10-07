@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The Dynamic Island's timer rings on time with the screen off (an alarm-clock permission,
+         granted at install; Google Play limits it to clock apps, so only this GitHub build has it). -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <application>
         <!-- Only so the Dynamic Island can sit above the status bar, where it can be tapped.
              Off until the user turns it on in Android's Accessibility settings. -->

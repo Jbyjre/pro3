@@ -99,11 +99,18 @@ object MiniIslandRules {
         val anytime: Boolean = false,
         /** A sound that isn't music is playing, or ended a moment ago (an alert, a voice note, a call). */
         val sound: Boolean = false,
+        /** The island's timer is counting down or ringing: it always shows (like a Live Activity). */
+        val timer: Boolean = false,
+        /** The app in front is one Jake chose to hide the island in (Settings > Island). */
+        val hiddenHere: Boolean = false,
     )
 
     /** Whether the pill should exist at all. */
     fun wanted(i: Inputs): Boolean {
         if (!i.enabled || !i.canDraw || !i.screenUnlocked) return false
+        // A ringing or running timer beats "hide in this app": it must be seen and stopped.
+        if (i.timer) return true
+        if (i.hiddenHere) return false
         if (i.anytime) return true
         if (i.airPodsOnly && !i.airPodsUp) return false
         if (i.playing || i.sound) return true
@@ -112,25 +119,44 @@ object MiniIslandRules {
     }
 
     /**
-     * What the pill shows: the music, a sound that isn't music (with the app's icon), the
-     * AirPods themselves (battery, mode, heart), or nothing in particular (the phone's battery
-     * and the time, ready to tap).
+     * What the pill shows: the music, a sound that isn't music (with the app's icon), where you
+     * are on the phone (the app you're in, the home screen, the lock screen), the AirPods
+     * themselves (battery, mode, heart), or nothing in particular (the phone's battery and the
+     * date, ready to tap).
      */
-    enum class Content { Music, Sound, AirPods, Rest }
+    enum class Content { Music, Sound, Screen, AirPods, Rest }
 
     /**
      * Music while something plays; then any other sound (it's the freshest news, and goes back to
      * what was there when it fades); music for a while after it pauses (so you can see what's
-     * paused); otherwise the AirPods; with nothing playing or connected, at rest.
+     * paused); then where you are on the phone, when pro knows ([placeKnown]); otherwise the
+     * AirPods; with nothing playing or connected, at rest. The phone comes before the AirPods:
+     * pro is a Dynamic Island first, and the AirPods' battery still shows in the glance spot.
      */
     fun content(
         playing: Boolean, pausedForMs: Long, playedRecently: Boolean, airPodsUp: Boolean, sound: Boolean = false,
+        placeKnown: Boolean = false,
     ): Content = when {
         playing -> Content.Music
         sound -> Content.Sound
         playedRecently && pausedForMs < PAUSED_LINGER_MS -> Content.Music
+        placeKnown -> Content.Screen
         airPodsUp -> Content.AirPods
         else -> Content.Rest
+    }
+
+    /**
+     * What a tap opens. On music, the music island; on the AirPods, the AirPods island; on a
+     * sound, the app that made it; everywhere else the glance (what's live and the phone's
+     * controls), never the music when nothing has played.
+     */
+    enum class TapOpens { Music, AirPods, SoundApp, Glance }
+
+    fun tapOpens(content: Content): TapOpens = when (content) {
+        Content.Music -> TapOpens.Music
+        Content.AirPods -> TapOpens.AirPods
+        Content.Sound -> TapOpens.SoundApp
+        Content.Screen, Content.Rest -> TapOpens.Glance
     }
 
     /**

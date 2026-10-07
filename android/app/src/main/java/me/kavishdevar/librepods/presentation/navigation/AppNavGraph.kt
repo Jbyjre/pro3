@@ -65,6 +65,9 @@ fun AppNavGraph(
     onboardingComplete: () -> Unit = {},
     backStack: SnapshotStateList<Screen>,
     airPodsViewModel: AirPodsViewModel,
+    /** The main page showing (Phone, Island, headphones) and how to switch it. */
+    tab: AppTab = AppTab.Headphones,
+    onTab: (AppTab) -> Unit = {},
 ) {
     val navigate: (Screen) -> Unit = { screen ->
         backStack.add(screen)
@@ -76,6 +79,7 @@ fun AppNavGraph(
     }
 
     val m3eEnabled = LocalDesignSystem.current == DesignSystem.Material
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     SharedTransitionLayout {
         NavDisplay(
@@ -94,41 +98,65 @@ fun AppNavGraph(
                                 onboardingComplete()
                                 navigate(Screen.AirPodsSettings)
                                 backStack.remove(screen)
+                                // Setup done: start on the Phone tab, the main page.
+                                onTab(AppTab.Phone)
                             }
                         }
                     Screen.AirPodsSettings ->
                         NavEntry(screen) {
-                            if (!airPodsViewModel.isReady) LoadingScreen()
-                            AirPodsSettingsRoute(
-                                viewModel = airPodsViewModel,
-                                navigateToRename = { navigate(Screen.Rename) },
-                                navigateToHearingProtection = { navigate(Screen.HearingProtection) },
-                                navigateToHearingAid = { navigate(Screen.HearingAid) },
-                                navigateToLeftLongPress = {
-                                    navigate(
-                                        Screen.LongPress("Left")
-                                    )
+                            // The three main pages, one per tab: they cross-fade and settle on a
+                            // spring rather than slide (sliding means going deeper, a tab is a peer).
+                            val reduce = androidx.compose.runtime.remember(Unit) { me.kavishdevar.librepods.presentation.glint.GlintComfort.reduceMotion(context) }
+                            androidx.compose.animation.AnimatedContent(
+                                targetState = tab,
+                                transitionSpec = {
+                                    if (reduce) fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+                                    else (fadeIn(spring(dampingRatio = 1f, stiffness = 420f)) + scaleIn(spring(dampingRatio = 0.9f, stiffness = 420f), initialScale = 0.985f)) togetherWith
+                                        fadeOut(spring(dampingRatio = 1f, stiffness = 700f))
                                 },
-                                navigateToRightLongPress = {
-                                    navigate(
-                                        Screen.LongPress("Right")
+                                label = "tabs",
+                            ) { shown ->
+                                when (shown) {
+                                    AppTab.Phone -> PhoneScreen(
+                                        navigateToIsland = { onTab(AppTab.Island) },
+                                        navigateToHeadphones = { onTab(AppTab.Headphones) },
                                     )
-                                },
-                                navigateToPurchase = ::navigateToPurchase,
-                                navigateToAdaptiveStrength = { navigate(Screen.AdaptiveStrength) },
-                                navigateToEqualizer = { navigate(Screen.Equalizer) },
-                                navigateToHeadTracking = { navigate(Screen.HeadTracking) },
-                                navigateToAccessibility = { navigate(Screen.Accessibility) },
-                                navigateToVersion = { navigate(Screen.VersionInfo) },
-                                navigateToTroubleshooting = { navigate(Screen.Troubleshooting) },
-                                navigateToCallControlScreen = { navigate(Screen.CallControl(it)) },
-                                navigateToMicrophoneSettings = { navigate(Screen.MicrophoneSettings) },
-                                navigateToHeartRate = { navigate(Screen.HeartRate) },
-                                navigateToRecorder = { navigate(Screen.Recorder) },
-                                navigateToDevices = { navigate(Screen.Devices) },
-                                navigateToIsland = { navigate(Screen.IslandSettings) },
-                                navigateToPhone = { navigate(Screen.Phone) },
-                            )
+                                    AppTab.Island -> IslandSettingsScreen()
+                                    AppTab.Headphones -> {
+                                        if (!airPodsViewModel.isReady) LoadingScreen()
+                                        AirPodsSettingsRoute(
+                                            viewModel = airPodsViewModel,
+                                            navigateToRename = { navigate(Screen.Rename) },
+                                            navigateToHearingProtection = { navigate(Screen.HearingProtection) },
+                                            navigateToHearingAid = { navigate(Screen.HearingAid) },
+                                            navigateToLeftLongPress = {
+                                                navigate(
+                                                    Screen.LongPress("Left")
+                                                )
+                                            },
+                                            navigateToRightLongPress = {
+                                                navigate(
+                                                    Screen.LongPress("Right")
+                                                )
+                                            },
+                                            navigateToPurchase = ::navigateToPurchase,
+                                            navigateToAdaptiveStrength = { navigate(Screen.AdaptiveStrength) },
+                                            navigateToEqualizer = { navigate(Screen.Equalizer) },
+                                            navigateToHeadTracking = { navigate(Screen.HeadTracking) },
+                                            navigateToAccessibility = { navigate(Screen.Accessibility) },
+                                            navigateToVersion = { navigate(Screen.VersionInfo) },
+                                            navigateToTroubleshooting = { navigate(Screen.Troubleshooting) },
+                                            navigateToCallControlScreen = { navigate(Screen.CallControl(it)) },
+                                            navigateToMicrophoneSettings = { navigate(Screen.MicrophoneSettings) },
+                                            navigateToHeartRate = { navigate(Screen.HeartRate) },
+                                            navigateToRecorder = { navigate(Screen.Recorder) },
+                                            navigateToDevices = { navigate(Screen.Devices) },
+                                            navigateToIsland = { onTab(AppTab.Island) },
+                                            navigateToPhone = { onTab(AppTab.Phone) },
+                                        )
+                                    }
+                                }
+                            }
                         }
 
                     Screen.Rename ->
@@ -168,7 +196,7 @@ fun AppNavGraph(
                         NavEntry(screen) { IslandSettingsScreen() }
 
                     Screen.Phone ->
-                        NavEntry(screen) { PhoneScreen(navigateToIsland = { navigate(Screen.IslandSettings) }) }
+                        NavEntry(screen) { PhoneScreen(navigateToIsland = { navigate(Screen.IslandSettings) }, navigateToHeadphones = null) }
 
                     Screen.GlintLab ->
                         NavEntry(screen) { GlintLabScreen() }
