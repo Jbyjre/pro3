@@ -64,3 +64,15 @@ layers 13, 14, 15, 18, 20; NDK 29 / cmake 4.1.2 flags).
 - Docs: docs/REQUESTS.md (request ledger), folder READMEs, android/tools/cloud-setup.sh.
 - Needs phone: which app each real sound is matched to (WhatsApp ding / voice note), tap-to-open
   the source app, window layers, motion feel. See TESTING.md.
+## 8. Freezes, swipe to put away, messages, smarter rules, Apps: DONE (session 2026-10-06, round 2)
+- Freeze causes fixed (nothing blocking on the main thread): island recheck loop (reproduced in a test),
+  `loadATT` (up to 6 s), call-ring `runBlocking`, Bluetooth writes (`OffMain`), `su` at start-up,
+  `MusicPulse` thread; `RefreshGuard` limit; `FreezeReport` (Android's exit record -> readable report,
+  Troubleshooting card with Copy, main-page banner).
+- Swipe up (`Kind.SwipeUp`) tucks the song name / puts away a moment; song name time option.
+- Messages look (`Situation.Message`, `Content.Message`, temporary wider window), message rules
+  (importance, DND, in use, ignored, dedupe), phone moments, Apps page, arrival bounce, app-colour
+  glow, ellipsis titles, Lab buttons.
+- Proof: FreezeProofTest, MessageRulesTest, MomentsUiTest, screenshots mini_island_message_*,
+  mini_island_phone_music, apps_page_dark, freeze_card_dark, island_studio_message.
+- Needs phone: whether the freezes are gone, message moment feel and matching on real apps.

@@ -21,8 +21,15 @@ Everything pro draws **over other apps**. Android lets an app do this with the "
 | Sound | Sounds | Any other sound plays, and for 2.2 / 3.8 / 6.5 s after it ends; a short musical blip counts too | App icon, Sound bars |
 | Screen | In an app, Home screen, Lock screen | Nothing playing and pro knows where you are (`services/ScreenApp.kt`: the app needs the accessibility switch; locked needs nothing) | App on screen + Smart glance; Home tiles + Date; Padlock + Smart glance |
 | AirPods | AirPods, Charging | AirPods or the chosen headphones are connected, nothing playing, and pro can't tell the app | Battery, Heart (else the listening mode) |
-| Rest | Nothing on | Nothing playing or connected and the app unknown (stays because "Always on" is on by default) | Phone battery, Date |
+| Message | Messages | A text or chat message just arrived (Notification access) and no music plays; the window is wider only for those seconds | App icon, Title (the sender, or the app's name) |
+| Rest | Nothing on | Nothing playing or connected and the app unknown (stays because "Always on" is on by default); also for 4 s when the phone starts charging, gets full or runs low (with a line of words, `MiniMoment`) | Phone battery, Date |
 | (any) | Talking | Conversation Awareness has the music down | Keep the left, talking dots on the right |
+
+While music plays, an alert, a message or a phone battery moment swaps the right-hand slot for the app's icon (or the phone's ring) for a moment (`blipping` in `MiniIslandHost`).
+
+**Swipe up** (`IslandGestures.Kind.SwipeUp`) tucks the song's name back at once (`collapseTick`), or puts away a message, sound or battery moment (`putAway` in the controller; `dismissedAt` hides moments that began before it).
+
+**The Messages window.** The Messages look needs more width than the usual window, so the window grows first (`onWindowSize(messageWindow)`), then the name slides in, and it shrinks after the pill has narrowed. It is never permanently wider: a wider window swallows taps meant for the status bar. The phone's own heads-up notification drops from below the status bar, so the island never grows downward for a message and never overlaps it.
 
 While music plays, an alert (a message ding) swaps the right-hand slot for the app's icon for a moment (`blipping` in `MiniIslandHost`). A running or ringing timer always takes the right-hand slot as the Smart glance (`timerHere`), except during a sound or talking. The time is never a default: the status bar already shows it (Jake).
 

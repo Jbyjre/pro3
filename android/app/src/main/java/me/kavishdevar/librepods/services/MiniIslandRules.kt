@@ -124,21 +124,25 @@ object MiniIslandRules {
      * themselves (battery, mode, heart), or nothing in particular (the phone's battery and the
      * date, ready to tap).
      */
-    enum class Content { Music, Sound, Screen, AirPods, Rest }
+    enum class Content { Music, Sound, Message, Screen, AirPods, Rest }
 
     /**
-     * Music while something plays; then any other sound (it's the freshest news, and goes back to
-     * what was there when it fades); music for a while after it pauses (so you can see what's
-     * paused); then where you are on the phone, when pro knows ([placeKnown]); otherwise the
-     * AirPods; with nothing playing or connected, at rest. The phone comes before the AirPods:
-     * pro is a Dynamic Island first, and the AirPods' battery still shows in the glance spot.
+     * Music while something plays; then a message that just arrived; then any other sound (the
+     * freshest news, and goes back to what was there when it fades); a phone battery moment;
+     * music for a while after it pauses (so you can see what's paused); then where you are on the
+     * phone, when pro knows ([placeKnown]); otherwise the AirPods; with nothing playing or
+     * connected, at rest. The phone comes before the AirPods: pro is a Dynamic Island first, and
+     * the AirPods' battery still shows in the glance spot.
      */
     fun content(
         playing: Boolean, pausedForMs: Long, playedRecently: Boolean, airPodsUp: Boolean, sound: Boolean = false,
-        placeKnown: Boolean = false,
+        message: Boolean = false, phoneMoment: Boolean = false, placeKnown: Boolean = false,
     ): Content = when {
         playing -> Content.Music
+        message -> Content.Message
         sound -> Content.Sound
+        // The phone started charging, got full or ran low: the phone's own battery and the time for a moment.
+        phoneMoment -> Content.Rest
         playedRecently && pausedForMs < PAUSED_LINGER_MS -> Content.Music
         placeKnown -> Content.Screen
         airPodsUp -> Content.AirPods
@@ -147,7 +151,7 @@ object MiniIslandRules {
 
     /**
      * What a tap opens. On music, the music island; on the AirPods, the AirPods island; on a
-     * sound, the app that made it; everywhere else the glance (what's live and the phone's
+     * sound or a message, the app it came from; everywhere else the glance (what's live and the phone's
      * controls), never the music when nothing has played.
      */
     enum class TapOpens { Music, AirPods, SoundApp, Glance }
@@ -155,7 +159,7 @@ object MiniIslandRules {
     fun tapOpens(content: Content): TapOpens = when (content) {
         Content.Music -> TapOpens.Music
         Content.AirPods -> TapOpens.AirPods
-        Content.Sound -> TapOpens.SoundApp
+        Content.Sound, Content.Message -> TapOpens.SoundApp
         Content.Screen, Content.Rest -> TapOpens.Glance
     }
 
@@ -171,6 +175,27 @@ object MiniIslandRules {
             soundLeftMs?.takeIf { it > 0L },
         )
         return waits.minOrNull()?.plus(100L)
+    }
+
+    /**
+     * A safety net against a check that keeps asking for another check without end: at most
+     * [maxPerWindow] refreshes per [windowMs]; the rest are skipped (the caller makes one more,
+     * a moment later). Pure; the main thread can never be kept from handling touches by it.
+     */
+    class RefreshGuard(private val maxPerWindow: Int = 30, private val windowMs: Long = 1_000L) {
+        private val stamps = LongArray(maxPerWindow)
+        private var count = 0
+        private var next = 0
+
+        fun allow(now: Long): Boolean {
+            if (count == maxPerWindow) {
+                val oldest = stamps[next]
+                if (now - oldest < windowMs) return false
+            } else count++
+            stamps[next] = now
+            next = (next + 1) % maxPerWindow
+            return true
+        }
     }
 
     /**
@@ -200,6 +225,12 @@ object MiniIslandRules {
         val center: Float = height,
         /** The compact width in each situation (the pill morphs between them). */
         val widths: Map<IslandLook.Situation, Float> = emptyMap(),
+        /**
+         * The width of the Messages look. Not counted in [compactWidth]: the window only grows
+         * to it while a message shows (a permanently wider window would swallow taps meant for
+         * the status bar around the camera).
+         */
+        val messageWidth: Float = compactWidth,
     ) {
         fun compactFor(s: IslandLook.Situation): Float = widths[s] ?: compactWidth
     }
@@ -224,10 +255,12 @@ object MiniIslandRules {
             val half = maxOf(IslandLook.slotWidth(l, side, density, f), IslandLook.slotWidth(r, side, density, f))
             (center + 2f * (inset + if (half > 0f) half + gap else 0f)).coerceAtMost(fit)
         }
-        // Talking keeps the other situations' left side: make room for the widest of them.
-        val c = widths.values.max().coerceAtMost(fit)
+        // Talking keeps the other situations' left side: make room for the widest of them (the
+        // Messages look has its own, temporary, window).
+        val c = widths.filterKeys { it != IslandLook.Situation.Message }.values.max().coerceAtMost(fit)
+        val messageW = (widths[IslandLook.Situation.Message] ?: c).coerceAtLeast(c)
         val wide = minOf(screenW - 24f * density, 280f * density).coerceIn(c, fit)
-        return Size(h, c, wide, h + 26f * density * f, side, inset, gap, center, widths)
+        return Size(h, c, wide, h + 26f * density * f, side, inset, gap, center, widths, messageW)
     }
 
     /** A rectangle in screen pixels (Android's Rect, without needing Android in tests). */

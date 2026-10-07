@@ -110,7 +110,7 @@ import me.kavishdevar.librepods.services.TimerRules
  * (time to full, the next alarm), and your headphones as a small card that opens their tab.
  */
 @Composable
-fun PhoneScreen(navigateToIsland: () -> Unit, navigateToHeadphones: (() -> Unit)? = null) {
+fun PhoneScreen(navigateToIsland: () -> Unit, navigateToHeadphones: (() -> Unit)? = null, navigateToApps: () -> Unit = {}) {
     val context = LocalContext.current
     val dark = isSystemInDarkTheme()
     val ink = if (dark) Color.White else Color.Black
@@ -161,6 +161,9 @@ fun PhoneScreen(navigateToIsland: () -> Unit, navigateToHeadphones: (() -> Unit)
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Spacer(Modifier.height(topPadding))
+
+        // pro froze or crashed last time: what happened, and a way to send it (only when it did).
+        me.kavishdevar.librepods.presentation.components.FreezeBanner()
 
         // ---- The Dynamic Island, live ----
         var shown by remember { mutableIntStateOf(0) }
@@ -337,6 +340,13 @@ fun PhoneScreen(navigateToIsland: () -> Unit, navigateToHeadphones: (() -> Unit)
         // ---- Your headphones (their own tab has everything) ----
         if (navigateToHeadphones != null) HeadphonesCard(ink, card, navigateToHeadphones)
 
+        // Which apps may pop the island (every app on the phone), and a pretend message to see the look.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GlassPillButton(text = "Your apps", textColor = ink, dark = dark, height = 44.dp, fontSize = 15.sp, modifier = Modifier.weight(1f), onClick = navigateToApps)
+            GlassPillButton(text = "Try a message", textColor = ink, dark = dark, height = 44.dp, fontSize = 15.sp, modifier = Modifier.weight(1f)) {
+                GlintOverlays.previewMiniIsland(context, message = true)
+            }
+        }
         Spacer(Modifier.height(bottomPadding))
     }
 }

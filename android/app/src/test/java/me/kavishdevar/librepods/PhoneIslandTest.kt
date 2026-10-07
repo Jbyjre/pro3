@@ -19,6 +19,8 @@ import me.kavishdevar.librepods.services.ScreenApp
 import me.kavishdevar.librepods.services.ScreenRules
 import me.kavishdevar.librepods.services.SoundRules
 import me.kavishdevar.librepods.services.TimerRules
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.core.graphics.drawable.toBitmap
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -81,8 +83,12 @@ class PhoneIslandTest {
         assertEquals("app29", list.first())
     }
 
+    private fun idle() = org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
     @Test fun windowEventsFollowTheAppInFront() {
         ScreenApp.attachForTest(context)
+        // Icon lookups run off the main thread on the phone; here, in place.
+        ScreenApp.offMain = { it.run() }
         me.kavishdevar.librepods.services.SoundSource.roleOverride = { pkg ->
             when (pkg) {
                 "launcher" -> SoundRules.Role.Launcher
@@ -96,6 +102,7 @@ class PhoneIslandTest {
         ScreenApp.setActivityForTest("com.anthropic.claude", "com.anthropic.Main", true)
 
         ScreenApp.windowChanged("com.spotify.music", "com.spotify.MainActivity")
+        idle()
         assertEquals("com.spotify.music", (ScreenApp.place.value as ScreenApp.Place.App).pkg)
         // The shade pulled down over it: still Spotify.
         ScreenApp.windowChanged("com.android.systemui", "com.android.systemui.Shade")
@@ -106,11 +113,45 @@ class PhoneIslandTest {
         ScreenApp.windowChanged("com.spotify.music", "android.widget.Toast\$TN")
         assertEquals(ScreenApp.Place.Home, ScreenApp.place.value)
         ScreenApp.windowChanged("com.anthropic.claude", "com.anthropic.Main")
+        idle()
         assertEquals("com.anthropic.claude", (ScreenApp.place.value as ScreenApp.Place.App).pkg)
         assertEquals(listOf("com.anthropic.claude", "com.spotify.music"), ScreenApp.recent.value)
         // The accessibility switch went off: pro no longer knows.
         ScreenApp.lostSight()
         assertEquals(ScreenApp.Place.Unknown, ScreenApp.place.value)
+    }
+
+    @Test fun theIconIsTheAppsRealIconNotADrawing() {
+        ScreenApp.attachForTest(context)
+        ScreenApp.offMain = { it.run() }
+        // An app installed on the (test) phone, with its own icon: a distinctive picture.
+        val pkg = "com.spotify.music"
+        val pm = org.robolectric.Shadows.shadowOf(context.packageManager)
+        pm.installPackage(android.content.pm.PackageInfo().apply {
+            packageName = pkg
+            applicationInfo = android.content.pm.ApplicationInfo().apply { packageName = pkg; name = "Spotify" }
+        })
+        val picture = android.graphics.Bitmap.createBitmap(48, 48, android.graphics.Bitmap.Config.ARGB_8888).apply {
+            for (x in 0 until 48) for (y in 0 until 48) setPixel(x, y, if ((x / 8 + y / 8) % 2 == 0) 0xFF1DB954.toInt() else 0xFF000000.toInt())
+        }
+        pm.setApplicationIcon(pkg, android.graphics.drawable.BitmapDrawable(context.resources, picture))
+        me.kavishdevar.librepods.services.SoundSource.forgetInfo(pkg)
+        ScreenApp.setActivityForTest(pkg, "com.spotify.MainActivity", true)
+        me.kavishdevar.librepods.services.SoundSource.roleOverride = { SoundRules.Role.App }
+
+        ScreenApp.windowChanged(pkg, "com.spotify.MainActivity")
+        idle()
+        val shown = (ScreenApp.place.value as ScreenApp.Place.App).icon!!.asAndroidBitmap()
+        // Exactly the icon Android has for the app, drawn at the island's size (sharp: 144 px or more).
+        val real = context.packageManager.getApplicationIcon(pkg).toBitmap(shown.width, shown.height)
+        assertTrue("the island's icon must be the app's own icon", shown.sameAs(real))
+        assertTrue(shown.width >= 144)
+        // Previews use a real app on the phone too (one used lately), never the drawn bubble.
+        val (examplePkg, info) = me.kavishdevar.librepods.services.SoundSource.exampleApp(context)
+        assertEquals(pkg, examplePkg)
+        assertTrue(info.icon!!.asAndroidBitmap().sameAs(real))
+        val drawn = me.kavishdevar.librepods.presentation.overlays.sampleIcon().asAndroidBitmap()
+        assertFalse(info.icon!!.asAndroidBitmap().sameAs(drawn))
     }
 
     // ---- What the pill shows, and what a tap opens ----
@@ -274,7 +315,7 @@ class PhoneIslandTest {
         IslandPrefs.setHideIn(prefs, "com.video", true)
         IslandPrefs.setHideIn(prefs, "com.game", false)
         assertEquals(setOf("com.video"), IslandPrefs.hideIn(prefs))
-        assertTrue(IslandPrefs.chargeMoment(prefs))
+        assertTrue(IslandPrefs.phoneMoments(prefs))
         assertTrue(IslandPrefs.appPop(prefs))
     }
 

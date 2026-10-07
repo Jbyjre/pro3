@@ -6,6 +6,10 @@
 - Jake's exact words are not stored in the repository. This list is rebuilt from `DECISIONS.md` (each section marks "your request" or "your choice" where Jake asked), `CLAUDE.md`, `POLISH_LEDGER.md`, `TESTING.md` and the git history (30 merged pull requests from 2026-09-30 to 2026-10-02, then this file's own session on 2026-10-06). Section numbers like "D12" mean `DECISIONS.md` section 12.
 - **When Jake asks for something new, add a row here. When a status changes, change the row.** Keep it true: if something was not checked on his phone, say so.
 
+## Which phone
+
+Earlier notes say **Galaxy S25 FE**. On 2026-10-06 Jake wrote "Google Pixel 6" (after first writing "Pixel 11" and correcting himself). **Not verified which phone is in use.** The app targets Android 13 and newer and takes the camera position from what the phone reports, so both work. For a Pixel 6, from public pages: a 6.4 inch OLED, 2400 x 1080, 90 Hz, with a hole-punch camera in the middle of the top edge ([Wikipedia](https://en.wikipedia.org/wiki/Pixel_6)); Google extended its updates to five years, with Android 16 and 17 expected ([PhoneArena](https://www.phonearena.com/news/google-extends-os-and-security-updates-window-for-pixel-6-7-series-and-pixel-fold-to-five-5-years_id165574)). The island, sounds, messages and phone moments use only standard Android and need no headphones. Whether the AirPods' own controls work depends on the phone's Bluetooth (see `utils/RootlessSupport.kt`), which is separate.
+
 ## Status words
 
 | Status | Meaning |
@@ -108,9 +112,52 @@ Jake's words, in short: the Dynamic Island should work for **any noise**, even a
 3. **Other apps' names and icons could not be looked up.** Android hides other apps from an app unless it declares what it needs. Added `<queries>` for launchable apps and the home screen to the manifest (it also makes the song app's name work for apps outside the built-in list).
 4. **A screen reader would have popped the island on every spoken word.** TalkBack's speech is now ignored.
 
-## 8. This session (2026-10-07): a Dynamic Island app first, AirPods second
+## 8. Same day, second round: freezes, swipe, messages, smarter, more yours
 
-Jake's words, in short: change the purpose of the app. The **Dynamic Island is the main thing**, the AirPods a secondary feature. Tapping the island shouldn't always pull up **music**: make it useful and interesting, **like an iPhone's**. Keep it on permanently, but he already has the **time** in the status bar, so show the **icon of the app he's using** (Spotify, Claude), and show the **home screen** in a way that isn't bland. Give the island **its own tab** (next to the Beats/AirPods one) and make the **main tab about the phone in general**. **Find bugs**, make behaviour **smarter**, go the extra mile. Use the context-efficient, frontend-design and Liquid Glass skills; **no agents**. Details: `DECISIONS.md` section 38.
+Jake's message, as separate asks (every one has a row below):
+
+1. Fix the app randomly saying "pro isn't responding" (he has to close it and reopen it).
+2. Make a list of what he has asked for, and do all of it systematically and precisely.
+3. Do a full run-through of the app and find several ways to make it smarter (not one), that make his life easier, smooth and interactive with the phone.
+4. Let him swipe the opened Dynamic Island (for example the new song's name) back in quickly to its own place.
+5. Let him customize things in the app, such as how it looks.
+6. Make the Dynamic Island look smooth for all apps: a text message shows in a nice smooth way that doesn't clash with the notifications the phone already shows.
+7. It must look smooth and comfortable (not awkward, dry or unfinished) and reflect the apps on his phone (he wrote Pixel 6).
+8. It must work reliably with all apps, not only for AirPods.
+9. Make the app's behaviour smarter and look better; go the extra mile; finish everything.
+
+| Request | Status | Where | Notes |
+|---|---|---|---|
+| 1. Fix "pro isn't responding" | DONE, PHONE CHECK | `MiniIslandRules.nextCheck`, `RefreshGuard`, `utils/OffMain.kt`, `bluetooth/AACPManager.kt`, `AirPodsViewModel.loadATT`, `AirPodsService`, `MusicPulse`, `services/FreezeReport.kt` | Android shows that message when the main thread is stuck for about 5 seconds. Causes found and fixed, each by reading the code: (a) the island's recheck timer looped without end 30 s after music paused (reproduced in a test: the old pattern made 200,001 checks without giving the main thread a single turn); (b) opening the main page waited up to 6 s for the AirPods (`loadATT`); (c) a phone call ringing ran Bluetooth writes with `runBlocking` on the main thread; (d) every command to the AirPods was written to the Bluetooth link from the calling thread, often the main one; (e) start-up asked a root shell and waited on the main thread; (f) the music-level listener was created on, and reported to, the main thread. All now run off it. Not reproduced on a phone, so which of these was behind Jake's freezes is **not verified**; (a) matches "random, outside the app, fixed by reopening" best. If it ever happens again, Android's own record of it is saved: the main page shows "pro stopped earlier", Troubleshooting > Freezes and crashes has Copy details to paste to Claude. |
+| 2. List of everything asked | DONE | this file, section 8 and the chat reply | |
+| 3. Full run-through; several smarter behaviours | DONE | see "Smarter behaviours" below | Eight, each with tests. |
+| 4. Swipe the opened island back in | DONE | `IslandGestures.Kind.SwipeUp`, `MiniIslandHost` (`collapseTick`), `MomentsUiTest` | Swipe up while the song's name is out: it tucks back at once. Swipe up on a message, sound or battery moment: it goes away. Also: how long the name stays (Short 1.8 s, Normal 3.2 s, Long 5 s). |
+| 5. Customize in the app | DONE | `IslandStudio.kt`, `SoundsSection.kt`, `IslandSettingsScreen.kt`, `AppsScreen.kt` | New: a Messages look you can edit like the others, message options, how long the song name stays, per-app switches for every installed app, phone moments on/off. Earlier options kept. |
+| 6. Messages show smoothly, no clash with phone notifications | DONE, PHONE CHECK | `SoundSource.notificationPosted`, `MiniIsland.kt` (Messages look), `MediaAccessService` | A text or chat message shows the app's icon and its name (or the sender, if switched on) beside the camera. It stays inside the status-bar strip: the phone's own heads-up notification drops from below it, so they never overlap. It follows the phone: nothing for silent or muted chats, nothing for what Do Not Disturb holds back, nothing for ongoing notifications, and nothing for the app you're using. |
+| 7. Smooth, comfortable, reflects my apps | DONE, PHONE CHECK | `AppsScreen.kt`, `SoundSource.appInfo`, `MiniIsland.kt` | Icons and names come from the apps actually installed (nothing is hard-coded), the ring and glow take each icon's own colour, a little bounce on arrival, names end in an ellipsis instead of being cut, and the window grows before the name slides in so nothing flickers. |
+| 8. Works for all apps, not only AirPods | DONE | everything in sections 7 and 8 | None of it needs headphones. |
+| 9. Smarter, better looking, extra mile | DONE | below | |
+
+**Smarter behaviours added in this round**
+
+1. Message moments with the app's icon (and the sender, only if you switch that on).
+2. The island follows the phone: silent, muted and Do Not Disturb notifications stay quiet.
+3. It skips the app you're using (no pop for each message in the chat you're in).
+4. One pop per message: duplicates and "alert once" updates are ignored, and a burst doesn't re-announce itself.
+5. Phone moments: plugged in, full, 20% and 10%, with the battery ring.
+6. Per-app control for every app on the phone (Apps page) and from "Heard lately".
+7. Swipe up puts away whatever is out.
+8. Self-protection: a limit on how often the island may check itself, blocking work moved off the main thread, and a freeze reporter that records the real cause.
+
+**Bugs found and fixed in this round** (besides the freeze causes above)
+
+- The Messages pill was squeezed to the normal width and the name overlapped the camera: found in a screenshot, fixed (`MiniGeometry.widthFor` now takes the limit).
+- A short blip during paused music restarted the 30 second pause (`PlayTracker`, round one).
+- Settings said "Samsung background setup" on any phone: now only on Samsung.
+
+## 9. Later the same session (2026-10-07): a Dynamic Island app first, AirPods second
+
+Jake's words, in short: change the purpose of the app. The **Dynamic Island is the main thing**, the AirPods a secondary feature. Tapping the island shouldn't always pull up **music**: make it useful and interesting, **like an iPhone's**. Keep it on permanently, but he already has the **time** in the status bar, so show the **icon of the app he's using** (Spotify, Claude), and show the **home screen** in a way that isn't bland. Give the island **its own tab** (next to the Beats/AirPods one) and make the **main tab about the phone in general**. **Find bugs**, make behaviour **smarter**, go the extra mile. Use the context-efficient, frontend-design and Liquid Glass skills; **no agents**. Details: `DECISIONS.md` section 39.
 
 | Request | Status | Where | Notes |
 |---|---|---|---|
@@ -120,10 +167,11 @@ Jake's words, in short: change the purpose of the app. The **Dynamic Island is t
 | Lock screen | DONE, PHONE CHECK | slot `Lock`, `ScreenApp.Place.Locked` | A padlock that springs open as you unlock. Extra, not asked. |
 | A tap doesn't always pull up music; make it useful like an iPhone | DONE, PHONE CHECK | `overlays/GlancePanel.kt`, `services/GlanceRules.kt`, `PhoneControls.kt`, `MiniIslandRules.tapOpens` | With nothing playing a tap opens the glance: the app and date, what's live (timer, charging, headphones, low battery, next alarm) and Torch, Timer, Sound/Vibrate, Capture, Lock. Music still opens the music island when music is actually playing or just paused. |
 | A timer that lives on the island (iPhone-style Live Activity) | DONE, PHONE CHECK | `services/IslandTimer.kt` | Extra. Rings with the alarm sound until stopped (max 1 min); exact alarm granted at install in the GitHub build (not verified on One UI 9). |
-| Charging moment, hide in chosen apps, Capture without the island in the picture | DONE, PHONE CHECK | `MiniMoment`, `PREF_HIDE_IN`, `GlintOverlays.capturing` | Extras from `docs/ROADMAP_PHONE.md` and found while building. |
+| Battery moments with words, hide in chosen apps, Capture without the island in the picture | DONE, PHONE CHECK | `MiniMoment`, `PREF_HIDE_IN`, `GlintOverlays.capturing` | Extras from `docs/ROADMAP_PHONE.md` and found while building. |
 | The island gets its own tab; the main tab is about the phone | DONE | `navigation/Tabs.kt`, `screens/PhoneScreen.kt`, `IslandSettingsScreen.kt` | Liquid Glass tab bar: Phone (opens first), Island, AirPods/Beats (named after the chosen device). Back on Island/AirPods goes to Phone. |
-| Find bugs, smarter behaviour | DONE | DECISIONS 38 | Sounds were credited to the wrong app after a toast from another app (fixed); an empty music player on tap (fixed); the island would have appeared in its own screenshots (fixed). |
-| Second pass: check every part and make sure it all works | DONE | `PhoneTabsUiTest`, DECISIONS 38 | Found and fixed: tabs that didn't change the page, a timer that could stay silent after Android closed pro, the app icon waiting for the next app switch. Tests now press the tabs, Back, the glance's Timer and Sound, and fire the timer's alarm on a closed pro. |
+| Find bugs, smarter behaviour | DONE | DECISIONS 39 | Sounds were credited to the wrong app after a toast from another app (fixed); an empty music player on tap (fixed); the island would have appeared in its own screenshots (fixed). |
+| Second pass: check every part and make sure it all works | DONE | `PhoneTabsUiTest`, DECISIONS 39 | Found and fixed: tabs that didn't change the page, a timer that could stay silent after Android closed pro, the app icon waiting for the next app switch. Tests now press the tabs, Back, the glance's Timer and Sound, and fire the timer's alarm on a closed pro. |
+| The actual app icon, not a fake | DONE | `SoundSource.appInfo` (launcher icon), `ScreenApp.showApp`, `SoundSource.exampleApp`, test `theIconIsTheAppsRealIconNotADrawing` | Real icons on the phone; the lettered squares are only in cloud test pictures. Previews now use a real app from the phone too. Themed icons and icon packs can't be read by other apps (not verified on One UI). |
 | Use the three skills; no agents | DONE | | Context-efficient (checklist, verified facts, no agents or polling), frontend-design (one direction: calm black/white/graphite with orange only for timers and green only for charging), Liquid Glass (real refraction where Android allows it, honest about overlays). |
 
 ## Not done or not verifiable from the cloud

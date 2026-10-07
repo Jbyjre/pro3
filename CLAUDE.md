@@ -86,13 +86,22 @@
   `PhoneStatus.kt` (phone battery), Sounds situation + App icon / Phone battery / Clock slots in `IslandLook`, `SoundsSection.kt`.
   Other apps' names and icons need the `<queries>` in the
   manifest. Never schedule a recheck with a computed wait without making sure it is above zero (`MiniIslandRules.nextCheck`).
+- **Never block the main thread** (Android shows "pro isn't responding" after about 5 s): no socket reads or writes (use `OffMain` /
+  `serviceScope` on IO), no root shell, no `runBlocking`, no waiting for the AirPods (ATT reads wait up to 2 s) on it. A recheck that
+  reschedules itself must have a wait above zero (`MiniIslandRules.nextCheck`); the island's checks are also capped (`RefreshGuard`).
+  `FreezeReport` saves Android's own record of a freeze or crash (Troubleshooting > Freezes and crashes, Copy details): ask Jake for it.
+- Messages and moments (round 2): `SoundRules.worthAMoment`/`Dedupe`, `SoundSource.message`, `IslandLook.Situation.Message`
+  (its window is temporarily wider: `MiniGeometry.messageWindow`), `PhoneStatus.momentBetween`, swipe up (`Kind.SwipeUp`),
+  `screens/AppsScreen.kt` (switches are the same set as `IslandPrefs.soundIgnored`). The phone model in use is not verified (S25 FE in older
+  notes, Pixel 6 in Jake's message of 2026-10-06).
 - Phone-first (session 2026-10-07, Jake: the app is now a Dynamic Island app first, AirPods second): three tabs (`navigation/Tabs.kt`,
   Liquid Glass bar; Phone opens first = `screens/PhoneScreen.kt`, Island = `IslandSettingsScreen.kt`, Headphones = the old main page;
   all inside root `Screen.AirPodsSettings`). The pill shows the app in front (`services/ScreenApp.kt`, via the accessibility service,
   only real activities count), wallpaper-coloured home tiles + date on the home screen, a padlock that springs open on unlock; never
   the time by default (Jake has it in the status bar). A tap with nothing playing opens the glance (`overlays/GlancePanel.kt`,
   `services/GlanceRules.kt`, `PhoneControls.kt`), never an empty music player. Island timer: `services/IslandTimer.kt`
-  (`USE_EXACT_ALARM` in the foss manifest only). Hide in apps `PREF_HIDE_IN`; charging moment `PREF_CHARGE_MOMENT`.
+  (`USE_EXACT_ALARM` in the foss manifest only). Hide in apps `PREF_HIDE_IN`; phone moments (`PREF_PHONE_MOMENTS`)
+  also widen with a line of words (`MiniMoment.of`).
 - **`docs/REQUESTS.md` is the ledger of everything Jake has asked for and how finished each thing is: read it first and update it
   whenever he asks for something or a status changes.** Folder READMEs (`android/`, `services/`, `overlays/`, `glint/`, `screens/`,
   tests) map the code: update them with the code. Check a README doesn't already exist before writing one (`git ls-files | grep -i readme`).

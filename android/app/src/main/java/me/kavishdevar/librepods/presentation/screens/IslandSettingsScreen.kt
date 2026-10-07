@@ -78,7 +78,7 @@ import me.kavishdevar.librepods.services.NowPlaying
  * how long it stays, haptics, and buttons to try each look.
  */
 @Composable
-fun IslandSettingsScreen() {
+fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
     val context = LocalContext.current
     val prefs = remember { IslandPrefs.prefs(context) }
     val dark = isSystemInDarkTheme()
@@ -103,7 +103,6 @@ fun IslandSettingsScreen() {
     var miniAlways by remember { mutableStateOf(IslandPrefs.miniAlways(prefs)) }
     var miniAnytime by remember { mutableStateOf(IslandPrefs.miniAnytime(prefs)) }
     var hearMusic by remember { mutableStateOf(MusicPulse.allowed(context)) }
-    var chargeMoment by remember { mutableStateOf(IslandPrefs.chargeMoment(prefs)) }
     var appPop by remember { mutableStateOf(IslandPrefs.appPop(prefs)) }
     var askedAt by remember { mutableStateOf(0L) }
     val askHear = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -213,12 +212,6 @@ fun IslandSettingsScreen() {
 
         StyledList(title = "Moments") {
             StyledToggle(
-                label = "Charging",
-                description = "Widens for a moment with the percentage when you plug in",
-                checked = chargeMoment,
-                onCheckedChange = { chargeMoment = it; prefs.edit { putBoolean(IslandPrefs.PREF_CHARGE_MOMENT, it) } },
-            )
-            StyledToggle(
                 label = "App icon springs in",
                 description = "When you switch apps. Off: a plain fade",
                 checked = appPop,
@@ -226,13 +219,13 @@ fun IslandSettingsScreen() {
             )
         }
 
+        SoundsSection(ink, dark, onApps = navigateToApps)
+        RecentSounds(ink, dark)
+
         HideInApps(ink, dark, tapsEnabled)
 
         SectionLabel("Gestures", ink)
         IslandGestureSettings(ink, dark)
-
-        SoundsSection(ink, dark)
-        RecentSounds(ink, dark)
 
         StyledList(title = "Mini island") {
             StyledToggle(
@@ -297,6 +290,18 @@ fun IslandSettingsScreen() {
             ) { open(context, NowPlaying.appInfoIntent(context)) }
         }
 
+        var nameStays by remember { mutableIntStateOf(IslandPrefs.nameLinger(prefs).ordinal) }
+        SectionLabel("Song name stays out for", ink)
+        LiquidSegments(
+            IslandPrefs.NameLinger.entries.map { it.label }, nameStays,
+            { nameStays = it; prefs.edit { putInt(IslandPrefs.PREF_NAME_LINGER, it) } },
+        )
+        Text(
+            "Swipe up on the Dynamic Island to tuck it back at once.",
+            style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = ink.copy(alpha = 0.55f)),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+
         SectionLabel("Stays on screen for", ink)
         LiquidSegments(
             IslandPrefs.Duration.entries.map { it.label }, duration,
@@ -345,6 +350,12 @@ fun IslandSettingsScreen() {
             }
             GlassPillButton(text = "A message ding", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
                 GlintOverlays.previewMiniIsland(context, sound = true)
+            }
+            GlassPillButton(text = "A message", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
+                GlintOverlays.previewMiniIsland(context, message = true)
+            }
+            GlassPillButton(text = "Charging", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
+                GlintOverlays.previewMiniIsland(context, phone = true)
             }
         }
         Text(

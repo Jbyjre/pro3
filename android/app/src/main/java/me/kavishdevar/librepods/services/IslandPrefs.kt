@@ -50,10 +50,22 @@ object IslandPrefs {
     const val PREF_SOUND_IGNORED = "glint_sound_ignored"
     /** Apps the Dynamic Island hides in (games, video): it steps aside while they're in front. */
     const val PREF_HIDE_IN = "glint_di_hide_in"
-    /** A short charging moment on the Dynamic Island when the phone is plugged in. */
-    const val PREF_CHARGE_MOMENT = "glint_di_charge_moment"
     /** The app's icon swaps with a little pop as you change apps (off: a plain cross-fade). */
     const val PREF_APP_POP = "glint_di_app_pop"
+    /** Show a moment when a message arrives (a text, a chat), with the app's icon and name. */
+    const val PREF_MSG = "glint_msg_on"
+    /** Also show moments for other notifications that alert (off: messages only). */
+    const val PREF_MSG_OTHERS = "glint_msg_others"
+    /** Show who the message is from (reads the notification's title; off: only the app's name). */
+    const val PREF_MSG_SENDER = "glint_msg_sender"
+    /** No message moments while Do Not Disturb would silence that notification. */
+    const val PREF_MSG_DND = "glint_msg_dnd"
+    /** No sound or message moments from the app you're using right now. */
+    const val PREF_SKIP_IN_USE = "glint_skip_in_use"
+    /** A moment when the phone starts charging, gets full, or runs low (with a line of words, like the iPhone's). */
+    const val PREF_PHONE_MOMENTS = "glint_phone_moments"
+    /** How long the song's name stays out under the camera. */
+    const val PREF_NAME_LINGER = "glint_name_linger"
     /** How many times (and when last) the "make it tappable" pop-up was shown. */
     const val PREF_TAP_NUDGES = "glint_tap_nudges"
     const val PREF_TAP_NUDGE_AT = "glint_tap_nudge_at"
@@ -97,6 +109,22 @@ object IslandPrefs {
     fun miniAlways(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ALWAYS, true)
     fun miniAnytime(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ANYTIME, true)
     fun anySound(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ANY_SOUND, true)
+    fun messages(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MSG, true)
+    fun messagesOthers(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MSG_OTHERS, false)
+    fun messageSender(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MSG_SENDER, false)
+    fun messagesRespectDnd(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MSG_DND, true)
+    fun skipInUse(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_SKIP_IN_USE, true)
+    fun phoneMoments(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_PHONE_MOMENTS, true)
+
+    /** How long the song's name stays out under the camera. */
+    enum class NameLinger(val label: String, val ms: Long) {
+        Short("Short", 1_800L),
+        Normal("Normal", 3_200L),
+        Long("Long", 5_000L),
+    }
+
+    fun nameLinger(prefs: SharedPreferences): NameLinger =
+        NameLinger.entries.getOrNull(prefs.getInt(PREF_NAME_LINGER, NameLinger.Normal.ordinal)) ?: NameLinger.Normal
     fun soundIcons(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_SOUND_ICONS, true)
 
     fun soundLinger(prefs: SharedPreferences): SoundRules.Linger =
@@ -112,7 +140,6 @@ object IslandPrefs {
         prefs.edit().putStringSet(PREF_HIDE_IN, if (hidden) now + pkg else now - pkg).apply()
     }
 
-    fun chargeMoment(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_CHARGE_MOMENT, true)
     fun appPop(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_APP_POP, true)
 
     fun setSoundIgnored(prefs: SharedPreferences, pkg: String, ignored: Boolean) {

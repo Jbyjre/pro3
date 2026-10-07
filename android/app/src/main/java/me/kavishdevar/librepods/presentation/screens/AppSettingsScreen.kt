@@ -183,7 +183,7 @@ fun AppSettingsScreen(
             )
             StyledListItem(
                 name = "Stay connected & appearance",
-                description = "Samsung background setup, glass and motion",
+                description = if (me.kavishdevar.librepods.utils.CompanionLink.isSamsung) "Samsung background setup, glass and motion" else "Background setup, glass and motion",
                 orientation = ListItemOrientation.Vertical,
                 onClick = navigateToStayConnected,
             )

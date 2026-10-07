@@ -108,8 +108,9 @@ class IslandTouchTest {
         assertEquals(Kind.SwipeLeft, IslandGestures.classify(-120f, 10f, 200, slop, swipe))
         assertEquals(Kind.SwipeRight, IslandGestures.classify(130f, -30f, 200, slop, swipe))
         assertEquals(Kind.PullDown, IslandGestures.classify(10f, 120f, 200, slop, swipe))
-        // Up is not a gesture on the pill; a short wobble is nothing.
-        assertEquals(Kind.None, IslandGestures.classify(5f, -120f, 200, slop, swipe))
+        // Up tucks away whatever the pill has out (built in, not one of the configurable gestures);
+        // a short wobble is nothing.
+        assertEquals(Kind.SwipeUp, IslandGestures.classify(5f, -120f, 200, slop, swipe))
         assertEquals(Kind.None, IslandGestures.classify(40f, 30f, 200, slop, swipe))
         assertTrue(IslandGestures.isHold(4f, 4f, 450, slop))
         assertFalse(IslandGestures.isHold(40f, 4f, 900, slop))

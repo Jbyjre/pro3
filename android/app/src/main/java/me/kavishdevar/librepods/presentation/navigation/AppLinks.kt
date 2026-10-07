@@ -29,6 +29,8 @@ object AppLinks {
     const val HEART = "heart"
     /** The Island tab (from the opened Dynamic Island's customize button). */
     const val ISLAND_TAB = "island_tab"
+    /** Troubleshooting (freeze and crash reports). */
+    const val TROUBLESHOOTING = "troubleshooting"
 
     /** A page asked for and not yet opened. */
     val pending = MutableStateFlow<String?>(null)

@@ -155,11 +155,7 @@ object ScreenApp {
         // An application window is a real app screen, so it counts like an activity here.
         when (val next = ScreenRules.next(Place.Unknown, pkg, role, isScreen = true, locked = isLocked(c))) {
             is ScreenRules.Next.Home -> set(Place.Home)
-            is ScreenRules.Next.App -> {
-                val info = SoundSource.appInfo(c, next.pkg)
-                set(Place.App(next.pkg, info.label, info.icon))
-                _recent.value = ScreenRules.remember(_recent.value, next.pkg, own = c.packageName)
-            }
+            is ScreenRules.Next.App -> showApp(c, next.pkg)
             ScreenRules.Next.Stay -> {}
         }
     }
@@ -185,14 +181,47 @@ object ScreenApp {
         )
         when (next) {
             is ScreenRules.Next.Stay -> return
-            is ScreenRules.Next.Home -> set(Place.Home)
+            is ScreenRules.Next.Home -> { pending = null; set(Place.Home) }
             is ScreenRules.Next.App -> {
                 if ((_place.value as? Place.App)?.pkg == next.pkg) return
-                val info = SoundSource.appInfo(c, next.pkg)
-                set(Place.App(next.pkg, info.label, info.icon))
-                _recent.value = ScreenRules.remember(_recent.value, next.pkg, own = c.packageName)
+                showApp(c, next.pkg)
             }
         }
+    }
+
+    /** The app whose icon is being looked up (the latest one asked for wins). */
+    @Volatile private var pending: String? = null
+    private val loader = java.util.concurrent.Executors.newSingleThreadExecutor()
+    /** Where icon lookups run: off the main thread (tests run them in place). */
+    internal var offMain: (Runnable) -> Unit = { loader.execute(it) }
+
+    /**
+     * Shows [pkg] with its real icon, the one the home screen shows. Asking Android for an icon is
+     * a call to another process, so it never runs on the main thread: the island keeps showing what
+     * it had for those few milliseconds, then the new app springs in with its icon already there.
+     */
+    private fun showApp(c: Context, pkg: String) {
+        SoundSource.cachedInfo(pkg)?.let { info ->
+            pending = null
+            publishApp(c, pkg, info)
+            return
+        }
+        pending = pkg
+        offMain {
+            val info = SoundSource.appInfo(c, pkg)
+            main.post { if (pending == pkg) { pending = null; publishApp(c, pkg, info) } }
+        }
+    }
+
+    private fun publishApp(c: Context, pkg: String, info: SoundSource.AppInfo) {
+        set(Place.App(pkg, info.label, info.icon))
+        _recent.value = ScreenRules.remember(_recent.value, pkg, own = c.packageName)
+    }
+
+    /** pro's own icon was changed (Settings > App icon): show the new one if pro is in front. */
+    fun iconChanged(c: Context) {
+        SoundSource.forgetInfo(c.packageName)
+        if ((_place.value as? Place.App)?.pkg == c.packageName) showApp(c, c.packageName)
     }
 
     private fun set(p: Place) {
@@ -245,6 +274,8 @@ object ScreenApp {
         _wallpaper.value = emptyList()
         beforeLock = Place.Unknown
         activityCache.clear()
+        pending = null
+        offMain = { loader.execute(it) }
     }
 
     /** Tests only: what counts as an activity, without real apps installed. */

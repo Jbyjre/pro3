@@ -66,6 +66,7 @@ fun NavigationRoot(
             }
             val page = when (target) {
                 AppLinks.HEART -> listOf(Screen.HeartRate)
+                AppLinks.TROUBLESHOOTING -> listOf(Screen.AppSettings, Screen.Troubleshooting)
                 else -> emptyList()
             }
             if (page.isNotEmpty() && backStack.last() != page.last()) {
@@ -118,6 +119,7 @@ fun NavigationRoot(
         Screen.StayConnected -> "Stay connected"
         Screen.IslandSettings -> "Islands"
         Screen.Phone -> "This phone"
+        Screen.Apps -> "Apps"
         Screen.GlintLab -> "pro Lab"
         Screen.HeartRate -> "Heart rate"
         Screen.Recorder -> "Recorder"

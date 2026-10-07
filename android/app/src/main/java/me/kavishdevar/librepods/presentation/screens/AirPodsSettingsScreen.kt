@@ -348,6 +348,9 @@ fun AirPodsSettingsScreen(
                 }
             }
             // The island's setup and the phone's own features live in their own tabs now.
+            item(key = "freeze") {
+                me.kavishdevar.librepods.presentation.components.FreezeBanner(Modifier.padding(top = 18.dp))
+            }
             item(key = "spacer_battery") {
                 Spacer(modifier = Modifier.height(28.dp))
             }
@@ -710,6 +713,9 @@ fun AirPodsSettingsScreen(
                 .padding(start = 8.dp, end = 8.dp, bottom = bottomPadding),
             contentAlignment = Alignment.Center
         ) {
+            me.kavishdevar.librepods.presentation.components.FreezeBanner(
+                Modifier.align(Alignment.TopCenter).padding(top = topPadding, start = 8.dp, end = 8.dp)
+            )
             val tapCount = remember { mutableIntStateOf(0) }
             val lastTapTime = remember { mutableLongStateOf(0L) }
 

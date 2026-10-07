@@ -85,12 +85,18 @@ import me.kavishdevar.librepods.services.SoundSource
  * optional switches). Used in Settings > Islands and on the This phone page.
  */
 @Composable
-fun SoundsSection(ink: Color, dark: Boolean) {
+fun SoundsSection(ink: Color, dark: Boolean, onApps: (() -> Unit)? = null) {
     val context = LocalContext.current
     val prefs = remember { IslandPrefs.prefs(context) }
     var anySound by remember { mutableStateOf(IslandPrefs.anySound(prefs)) }
     var icons by remember { mutableStateOf(IslandPrefs.soundIcons(prefs)) }
     var linger by remember { mutableIntStateOf(IslandPrefs.soundLinger(prefs).ordinal) }
+    var messages by remember { mutableStateOf(IslandPrefs.messages(prefs)) }
+    var sender by remember { mutableStateOf(IslandPrefs.messageSender(prefs)) }
+    var others by remember { mutableStateOf(IslandPrefs.messagesOthers(prefs)) }
+    var dnd by remember { mutableStateOf(IslandPrefs.messagesRespectDnd(prefs)) }
+    var inUse by remember { mutableStateOf(IslandPrefs.skipInUse(prefs)) }
+    var moments by remember { mutableStateOf(IslandPrefs.phoneMoments(prefs)) }
     var notifications by remember { mutableStateOf(NowPlaying.hasAccess(context)) }
     val screenAvailable = remember { IslandAccess.isAvailable(context) }
     var screenOn by remember { mutableStateOf(IslandAccess.isEnabled(context)) }
@@ -117,6 +123,58 @@ fun SoundsSection(ink: Color, dark: Boolean) {
                 description = "Off: a small symbol for the kind of sound",
                 checked = icons,
                 onCheckedChange = { icons = it; prefs.edit { putBoolean(IslandPrefs.PREF_SOUND_ICONS, it) } },
+            )
+        }
+
+        StyledList(title = "Messages and smart rules") {
+            StyledToggle(
+                label = "Show new messages",
+                description = if (notifications) "A text or chat shows the app's icon and name beside the camera, never over the notification"
+                    else "Needs Notification access (below)",
+                checked = messages,
+                onCheckedChange = { messages = it; prefs.edit { putBoolean(IslandPrefs.PREF_MSG, it) } },
+            )
+            StyledToggle(
+                label = "Show who it's from",
+                description = "Reads the notification's title (the sender). Off: only the app's name",
+                checked = sender,
+                enabled = messages,
+                onCheckedChange = { sender = it; prefs.edit { putBoolean(IslandPrefs.PREF_MSG_SENDER, it) } },
+            )
+            StyledToggle(
+                label = "Other notifications too",
+                description = "Also for notifications that make a sound or pop up, not only messages",
+                checked = others,
+                enabled = messages,
+                onCheckedChange = { others = it; prefs.edit { putBoolean(IslandPrefs.PREF_MSG_OTHERS, it) } },
+            )
+            StyledToggle(
+                label = "Stay quiet in Do Not Disturb",
+                description = "No message moments for what Do Not Disturb holds back. Muted chats stay quiet too",
+                checked = dnd,
+                enabled = messages,
+                onCheckedChange = { dnd = it; prefs.edit { putBoolean(IslandPrefs.PREF_MSG_DND, it) } },
+            )
+            StyledToggle(
+                label = "Skip the app I'm using",
+                description = "No pop for sounds or messages from the app on screen",
+                checked = inUse,
+                onCheckedChange = { inUse = it; prefs.edit { putBoolean(IslandPrefs.PREF_SKIP_IN_USE, it) } },
+            )
+            StyledToggle(
+                label = "Phone moments",
+                description = "When the phone starts charging, gets full, or runs low (20% and 10%)",
+                checked = moments,
+                onCheckedChange = { moments = it; prefs.edit { putBoolean(IslandPrefs.PREF_PHONE_MOMENTS, it) } },
+            )
+        }
+
+        if (onApps != null) StyledList(title = "Apps") {
+            me.kavishdevar.librepods.presentation.components.StyledListItem(
+                name = "Apps",
+                description = "Choose which apps can pop the Dynamic Island",
+                orientation = me.kavishdevar.librepods.presentation.components.ListItemOrientation.Vertical,
+                onClick = onApps,
             )
         }
 

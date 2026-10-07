@@ -50,6 +50,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -228,9 +230,21 @@ private fun IslandPreview(look: IslandLook.Look, actions: Map<IslandGestures.Ges
         }.asImageBitmap()
     }
     val playing = situation == IslandLook.Situation.Music || situation == IslandLook.Situation.Talking
-    val icon = remember { sampleIcon() }
+    // A real app on this phone for the sample sound and message (your texting app, else one you used
+    // lately, else pro), looked up in the background; the drawn bubble only until it arrives.
+    var example by remember { mutableStateOf<Pair<String?, ImageBitmap?>>(null to null) }
+    LaunchedEffect(Unit) {
+        val (_, info) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { SoundSource.exampleApp(context) }
+        example = info.label to info.icon
+    }
+    val fallbackIcon = remember { sampleIcon() }
+    val icon = example.second ?: fallbackIcon
+    val exampleName = example.first ?: "Messages"
     val heard = if (situation == IslandLook.Situation.Sound) SoundSource.Heard(
-        kind = SoundRules.Kind.Alert, pkg = null, app = "Messages", icon = icon, startedAt = 1L, active = true,
+        kind = SoundRules.Kind.Alert, pkg = null, app = exampleName, icon = icon, startedAt = 1L, active = true,
+    ) else null
+    val message = if (situation == IslandLook.Situation.Message) SoundSource.Message(
+        key = "sample", pkg = "sample", app = exampleName, icon = icon, title = "Alex", at = 1L, startedAt = 1L,
     ) else null
     val track = NowPlaying.Track(
         playing = playing, title = "Midnight City", artist = "M83", app = "pro", art = art, fromSession = true,
@@ -240,6 +254,8 @@ private fun IslandPreview(look: IslandLook.Look, actions: Map<IslandGestures.Ges
     val livePlace by me.kavishdevar.librepods.services.ScreenApp.place.collectAsState()
     val liveWallpaper by me.kavishdevar.librepods.services.ScreenApp.wallpaper.collectAsState()
     val liveTimer by me.kavishdevar.librepods.services.IslandTimer.state.collectAsState()
+    // The Messages look is wider than the usual window: the preview box is as wide as it needs.
+    val window = if (situation == IslandLook.Situation.Message) geo.messageWindow else geo.compactWindow
     val wallpaper = if (dark) listOf(Color(0xFF0B1A33), Color(0xFF3A1446)) else listOf(Color(0xFFFFD6A5), Color(0xFFBDE0FE))
     Box(
         Modifier
@@ -250,7 +266,7 @@ private fun IslandPreview(look: IslandLook.Look, actions: Map<IslandGestures.Ges
             .background(Brush.linearGradient(wallpaper)),
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.size(with(density) { geo.compactWindow.width.toDp() }, with(density) { geo.compactWindow.height.toDp() })) {
+        Box(Modifier.size(with(density) { window.width.toDp() }, with(density) { window.height.toDp() })) {
             MiniIslandHost(
                 geometry = geo, track = track, leaving = false, hidden = false,
                 content = when (situation) {
@@ -258,12 +274,13 @@ private fun IslandPreview(look: IslandLook.Look, actions: Map<IslandGestures.Ges
                     IslandLook.Situation.Rest -> MiniIslandRules.Content.Rest
                     IslandLook.Situation.Sound -> MiniIslandRules.Content.Sound
                     IslandLook.Situation.App, IslandLook.Situation.Home, IslandLook.Situation.Locked -> MiniIslandRules.Content.Screen
+                    IslandLook.Situation.Message -> MiniIslandRules.Content.Message
                     else -> MiniIslandRules.Content.Music
                 },
                 // The app you're really in when pro knows it (pro itself, here), otherwise a sample.
                 place = when (situation) {
                     IslandLook.Situation.App -> (livePlace as? me.kavishdevar.librepods.services.ScreenApp.Place.App)
-                        ?: me.kavishdevar.librepods.services.ScreenApp.Place.App("sample", "Messages", icon)
+                        ?: me.kavishdevar.librepods.services.ScreenApp.Place.App("sample", exampleName, icon)
                     IslandLook.Situation.Home -> me.kavishdevar.librepods.services.ScreenApp.Place.Home
                     IslandLook.Situation.Locked -> me.kavishdevar.librepods.services.ScreenApp.Place.Locked()
                     else -> me.kavishdevar.librepods.services.ScreenApp.Place.Unknown
@@ -273,6 +290,7 @@ private fun IslandPreview(look: IslandLook.Look, actions: Map<IslandGestures.Ges
                 timer = liveTimer.takeIf { situation != IslandLook.Situation.Sound && situation != IslandLook.Situation.Talking },
                 budsUp = live.budsLevel != null,
                 heard = heard,
+                message = message,
                 pods = pods,
                 heartBpm = 72,
                 talking = situation == IslandLook.Situation.Talking,
@@ -510,6 +528,11 @@ private fun DrawScope.drawSituation(s: IslandLook.Situation, c: Color) {
         }
         // A speaker with sound waves: any other sound.
         IslandLook.Situation.Sound -> drawKindGlyph(SoundRules.Kind.Other, m, r * 1.7f, c)
+        // A speech bubble: a message arrived.
+        IslandLook.Situation.Message -> {
+            drawRoundRect(c, Offset(m.x - r * 0.8f, m.y - r * 0.7f), Size(r * 1.6f, r * 1.15f), CornerRadius(r * 0.4f))
+            drawLine(c, Offset(m.x - r * 0.35f, m.y + r * 0.4f), Offset(m.x - r * 0.6f, m.y + r * 0.85f), r * 0.3f, StrokeCap.Round)
+        }
         IslandLook.Situation.Idle -> {
             // Two little buds.
             for (side in listOf(-1, 1)) {
