@@ -400,9 +400,16 @@ private fun TapAccessCard(enabled: Boolean, running: Boolean, ink: Color, dark: 
                 androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     androidx.compose.foundation.layout.Box(Modifier.size(8.dp).background(dot, androidx.compose.foundation.shape.CircleShape))
                     Spacer(Modifier.width(6.dp))
+                    // What pro sees right now, so it's plain whether recognising apps works.
+                    val seen by me.kavishdevar.librepods.services.ScreenApp.place.collectAsState()
                     Text(
                         when {
-                            on -> "On"
+                            on -> when (val p = seen) {
+                                is me.kavishdevar.librepods.services.ScreenApp.Place.App -> "On · sees ${p.label ?: p.pkg}"
+                                me.kavishdevar.librepods.services.ScreenApp.Place.Home -> "On · sees the home screen"
+                                is me.kavishdevar.librepods.services.ScreenApp.Place.Locked -> "On · sees the lock screen"
+                                me.kavishdevar.librepods.services.ScreenApp.Place.Unknown -> "On · waiting for the next app"
+                            }
                             enabled -> "Starting…"
                             else -> "Off"
                         },
