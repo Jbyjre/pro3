@@ -160,7 +160,7 @@
     <string name="reset_hook_offset">重置钩子偏移</string>
     <string name="reset_hook_offset_description">这将清除当前的钩子偏移，并要求你重新进行设置过程。你确定要继续吗？</string>
     <string name="reset">重置</string>
-    <string name="hook_offset_reset_success">钩子偏移已重置。正在重定向到设置...</string>
+    <string name="hook_offset_reset_success">钩子偏移已重置。正在重定向到设置…</string>
     <string name="hook_offset_reset_failure">重置钩子偏移失败</string>
     <string name="irk_set_success">IRK 已成功设置</string>
     <string name="encryption_key_set_success">加密密钥已成功设置</string>

@@ -83,19 +83,19 @@ fun StayConnectedScreen() {
         StyledList(title = "Glass & motion") {
             StyledToggle(
                 label = "Light follows tilt",
-                description = "Highlights move as you tilt the phone.",
+                description = "Highlights move as you tilt the phone",
                 checked = tilt,
                 onCheckedChange = { tilt = it; prefs.edit { putBoolean(GlintComfort.PREF_TILT_LIGHT, it) } },
             )
             StyledToggle(
                 label = "Reduce motion",
-                description = "Simple fades and still pictures.",
+                description = "Simple fades and still pictures",
                 checked = motion,
                 onCheckedChange = { motion = it; prefs.edit { putBoolean(GlintComfort.PREF_REDUCE_MOTION, it) } },
             )
             StyledToggle(
                 label = "Reduce transparency",
-                description = "Solid surfaces instead of see-through glass.",
+                description = "Solid surfaces instead of see-through glass",
                 checked = transparency,
                 onCheckedChange = { transparency = it; prefs.edit { putBoolean(GlintComfort.PREF_REDUCE_TRANSPARENCY, it) } },
             )

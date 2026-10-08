@@ -169,7 +169,10 @@ object ScreenApp {
     }
 
     /** The app in front (from [look]): an application window is a real app screen. */
-    private fun front(c: Context, pkg: String, role: SoundRules.Role) {
+    internal fun front(c: Context, pkg: String, role: SoundRules.Role) {
+        // The same sturdy answer tells sounds and messages which app you're in ("skip the app
+        // you're using", crediting a sound), which otherwise had only the window messages.
+        SoundSource.foreground = SoundRules.foregroundAfter(SoundSource.foreground, pkg, role)
         when (val next = ScreenRules.next(_place.value, pkg, role, isScreen = true, locked = isLocked(c))) {
             is ScreenRules.Next.Home -> { pending = null; if (_place.value != Place.Home) set(Place.Home) }
             is ScreenRules.Next.App -> if ((_place.value as? Place.App)?.pkg != next.pkg && pending != next.pkg) showApp(c, next.pkg)

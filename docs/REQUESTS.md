@@ -180,6 +180,18 @@ Jake's words, in short: change the purpose of the app. The **Dynamic Island is t
 |---|---|---|---|
 | Recognise the app in front reliably; full audit, fix bugs | DONE, PHONE CHECK | `ScreenApp.look`, `ScreenRules.front`, DECISIONS 40 | Now asks Android which app window is in front after every change (not only the window messages); fixed the stale app after unlocking to the home screen; Island tab shows what pro sees. Needs the "pro Dynamic Island" switch on. Music playing shows the music, not the app. |
 
+## 11. 2026-10-08, later: full audit, UI and UX pass
+
+Jake's words, in short: a full functionality audit of the whole app, find and fix every bug, make sure it works the way he asked in past requests; it must run smoothly, look good and right, with the text format right; lots of UI and UX care; context-efficient and Liquid Glass skills; no agents. Details: `DECISIONS.md` section 41.
+
+| Request | Status | Where | Notes |
+|---|---|---|---|
+| Full audit, fix bugs | DONE, PHONE CHECK | DECISIONS 41 | Five bugs fixed (skip-the-app used the old signal, repeated "Charging" pops with battery protection, glance Saver button, Phone tab buttons with the island off, Island tab "Apps" row). All 446 tests, lint and the release build pass. |
+| Looks right, text format right | DONE | DECISIONS 41 | One permission name everywhere, consistent full stops and sentence case, clearer Beats button rows, "…" instead of "...", setup text matches the island-first app. |
+| Lots of UI and UX | DONE | `glint/RowIcons.kt`, `IslandStudio.kt`, `PhoneScreen.kt` | Every "Pops up when" row has a picture; scrolling choice rows fade at the edge; buttons that can't work yet lead to what fixes them. |
+| Earlier requests | DONE or PHONE CHECK | sections 1 to 10 | Nothing was left PARTLY. What only a phone can prove is listed in `TESTING.md`. |
+| Skills; no agents | DONE | | Context-efficient (checklist, verified facts, no agents or polling), Liquid Glass (glass tab bar and tiles kept on the existing real-refraction path). |
+
 ## Not done or not verifiable from the cloud
 
 - Everything marked PHONE CHECK. `TESTING.md` lists the steps.

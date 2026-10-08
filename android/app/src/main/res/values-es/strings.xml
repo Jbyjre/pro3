@@ -159,7 +159,7 @@
     <string name="reset_hook_offset">Restablecer Hook Offset</string>
     <string name="reset_hook_offset_description">Esto elimina el hook offset actual y requiere volver a realizar la configuración inicial. ¿Estás seguro que quieres continuar?</string>
     <string name="reset">Restablecer</string>
-    <string name="hook_offset_reset_success">Hook offset restablecido. Redirigiendo a configuración inicial...</string>
+    <string name="hook_offset_reset_success">Hook offset restablecido. Redirigiendo a configuración inicial…</string>
     <string name="hook_offset_reset_failure">Error al restablecer hook offset</string>
     <string name="irk_set_success">IRK ha sido establecido</string>
     <string name="encryption_key_set_success">Clave de cifrado establecida</string>

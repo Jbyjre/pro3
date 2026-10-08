@@ -185,7 +185,7 @@ internal fun GlancePanel(
                         GlassPillButton(text = "+1 min", textColor = content, dark = dark, height = 38.dp, fontSize = 15.sp, onClick = { onTouch(); IslandTimer.addMinute(context) })
                         StopPill(active, wide = true) { onTouch(); IslandTimer.cancel(context) }
                     }
-                } else LiveRow(item, now, wall, toFull, pods, content, secondary, dark, active, onTouch, context, hero)
+                } else LiveRow(item, now, wall, toFull, pods, content, secondary, dark, active, onTouch, context, hero, onClose = onClose)
             }
         }
         Spacer(Modifier.weight(1f))
@@ -256,6 +256,8 @@ private fun LiveRow(
     /** Its own buttons at the end of the row (off when they're laid out under it instead). */
     buttons: Boolean = true,
     heightDp: Int = if (hero) 104 else 50,
+    /** Closes the glance (a button that opens another screen puts it away first). */
+    onClose: () -> Unit = {},
 ) {
     val orange = Color(0xFFFF9F0A)
     val green = Color(0xFF30D158)
@@ -346,6 +348,7 @@ private fun LiveRow(
             is GlanceRules.Item.LowPhone -> GlassPillButton(text = "Saver", textColor = content, dark = dark, height = 32.dp, fontSize = 13.sp, onClick = {
                 onTouch()
                 runCatching { context.startActivity(Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                onClose()
             })
             else -> {}
         }

@@ -71,8 +71,11 @@ object PhoneStatus {
     fun parse(level: Int, scale: Int, status: Int, plugged: Int): Info {
         if (level < 0 || scale <= 0) return Info()
         val pct = (level * 100f / scale).toInt().coerceIn(0, 100)
+        // Plugged in counts as charging even while the phone holds off to protect the battery
+        // (Pixel's and Samsung's 80-85% limits report "not charging" on and off): otherwise each
+        // flip back would look like being plugged in again and pop another "Charging" moment.
         val charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
-            (status == BatteryManager.BATTERY_STATUS_FULL && plugged != 0)
+            (plugged != 0 && (status == BatteryManager.BATTERY_STATUS_FULL || status == BatteryManager.BATTERY_STATUS_NOT_CHARGING))
         return Info(pct, charging)
     }
 

@@ -159,7 +159,7 @@
     <string name="reset_hook_offset">Kanca Ofsetini Sıfırla</string>
     <string name="reset_hook_offset_description">Bu, mevcut kanca ofsetini temizleyecek ve kurulum sürecinden tekrar geçmenizi gerektirecektir. Devam etmek istediğinizden emin misiniz?</string>
     <string name="reset">Sıfırla</string>
-    <string name="hook_offset_reset_success">Kanca ofseti sıfırlandı. Kuruluma yönlendiriliyor...</string>
+    <string name="hook_offset_reset_success">Kanca ofseti sıfırlandı. Kuruluma yönlendiriliyor…</string>
     <string name="hook_offset_reset_failure">Kanca ofseti sıfırlanamadı</string>
     <string name="irk_set_success">IRK başarıyla ayarlandı</string>
     <string name="encryption_key_set_success">Şifreleme anahtarı başarıyla ayarlandı</string>

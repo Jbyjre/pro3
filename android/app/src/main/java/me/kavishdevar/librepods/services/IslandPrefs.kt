@@ -71,16 +71,16 @@ object IslandPrefs {
     const val PREF_TAP_NUDGE_AT = "glint_tap_nudge_at"
 
     enum class Trigger(val key: String, val default: Boolean, val label: String, val description: String) {
-        Connected("glint_island_connect", true, "AirPods connect", "Once each time they connect."),
-        InEar("glint_island_in_ear", true, "AirPods go in", "When you put them in your ears."),
-        BudOut("glint_island_bud_out", true, "An AirPod comes out", "Shows that music paused, with a play button."),
-        MusicStarts("glint_island_music", true, "Something starts playing", "Music or video starting on your AirPods, with a pause button."),
-        SongChanges("glint_island_song", false, "Each new song", "Needs \"Show song names\"."),
-        ListeningMode("glint_island_mode_changes", true, "Listening mode changes", "When you switch modes on the AirPods."),
-        LowBattery("glint_island_low_battery", true, "Low battery", "At 20% and at 10%."),
-        Charging("glint_island_charging", true, "Charging starts", "When the case or the buds start charging."),
-        OtherDevice("glint_island_other_device", true, "Moved to another device", "When another device takes your AirPods."),
-        HeartAlert(PREF_HR_ISLAND, true, "High heart rate", "When it goes above your alert limit."),
+        Connected("glint_island_connect", true, "AirPods connect", "Once each time they connect"),
+        InEar("glint_island_in_ear", true, "AirPods go in", "When you put them in your ears"),
+        BudOut("glint_island_bud_out", true, "An AirPod comes out", "Shows that music paused, with a play button"),
+        MusicStarts("glint_island_music", true, "Something starts playing", "Music or video starting on your AirPods, with a pause button"),
+        SongChanges("glint_island_song", false, "Each new song", "Needs \"Show song names\""),
+        ListeningMode("glint_island_mode_changes", true, "Listening mode changes", "When you switch modes on the AirPods"),
+        LowBattery("glint_island_low_battery", true, "Low battery", "At 20% and at 10%"),
+        Charging("glint_island_charging", true, "Charging starts", "When the case or the buds start charging"),
+        OtherDevice("glint_island_other_device", true, "Moved to another device", "When another device takes your AirPods"),
+        HeartAlert(PREF_HR_ISLAND, true, "High heart rate", "When it goes above your alert limit"),
     }
 
     /** How long the island stays before it tucks away. */

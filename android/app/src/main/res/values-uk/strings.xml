@@ -159,7 +159,7 @@
     <string name="reset_hook_offset">Скинути Зміщення Хука</string>
     <string name="reset_hook_offset_description">Це очистить поточне зміщення хука та потребуватиме повторного налаштування. Ви впевнені, що хочете продовжити?</string>
     <string name="reset">Скинути</string>
-    <string name="hook_offset_reset_success">Зміщення хука було скинуто. Перенаправлення до налаштування...</string>
+    <string name="hook_offset_reset_success">Зміщення хука було скинуто. Перенаправлення до налаштування…</string>
     <string name="hook_offset_reset_failure">Не вдалося скинути зміщення хука</string>
     <string name="irk_set_success">IRK було успішно встановлено</string>
     <string name="encryption_key_set_success">Ключ шифрування було успішно встановлено</string>

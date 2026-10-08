@@ -613,7 +613,7 @@ fun NewControlCenterDialogContent(
         } else {
             Spacer(modifier = Modifier.weight(1f))
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text("Loading...", color = textColor)
+                Text("Loading…", color = textColor)
             }
             Spacer(modifier = Modifier.weight(1f))
         }

@@ -159,7 +159,7 @@
     <string name="reset_hook_offset">Redefinir Offset do Hook</string>
     <string name="reset_hook_offset_description">Isso limpará o offset do hook atual e exigirá que você passe pelo processo de configuração novamente. Tem certeza de que deseja continuar?</string>
     <string name="reset">Redefinir</string>
-    <string name="hook_offset_reset_success">O offset do hook foi redefinido. Redirecionando para a configuração...</string>
+    <string name="hook_offset_reset_success">O offset do hook foi redefinido. Redirecionando para a configuração…</string>
     <string name="hook_offset_reset_failure">Falha ao redefinir o offset do hook</string>
     <string name="irk_set_success">IRK foi definido com sucesso</string>
     <string name="encryption_key_set_success">A chave de criptografia foi definida com sucesso</string>

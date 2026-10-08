@@ -13,12 +13,12 @@
     <string name="case_alt">Case</string>
     <string name="test">Test</string>
     <string name="name">Name</string>
-    <string name="noise_control">Listening Mode</string>
+    <string name="noise_control">Listening mode</string>
     <string name="off">Off</string>
     <string name="transparency">Transparency</string>
     <string name="adaptive">Adaptive</string>
     <string name="noise_cancellation">Noise Cancellation</string>
-    <string name="press_and_hold_airpods">Press and Hold AirPods</string>
+    <string name="press_and_hold_airpods">Press and hold AirPods</string>
     <string name="press_and_hold_noise_control_description">Press and hold the stem to cycle through these.</string>
     <string name="head_gestures">Head Gestures</string>
     <string name="left">Left</string>
@@ -62,8 +62,8 @@
     <string name="auto_pause">Auto Pause</string>
     <string name="troubleshooting">Troubleshooting</string>
     <string name="troubleshooting_description">Collect logs to diagnose issues with AirPods connection</string>
-    <string name="collect_logs">Collect Logs</string>
-    <string name="saved_logs">Saved Logs</string>
+    <string name="collect_logs">Collect logs</string>
+    <string name="saved_logs">Saved logs</string>
     <string name="no_logs_found">No saved logs found</string>
     <string name="takeover_header">Auto-Connect preferences</string>
     <string name="takeover_airpods_state">Connect to your AirPods when its status is:</string>
@@ -84,7 +84,7 @@
     <string name="customize_transparency_mode_description">Tune Transparency to help you hear what\'s around you.</string>
     <string name="loud_sound_reduction_description">Softens loud surrounding noise in Transparency and Adaptive.</string>
     <string name="loud_sound_reduction">Loud Sound Reduction</string>
-    <string name="call_controls">Call Controls</string>
+    <string name="call_controls">Call controls</string>
     <string name="automatically_connect">Connect to this device automatically</string>
     <string name="automatically_connect_description">Connect to this phone automatically, not only when it was used last.</string>
     <string name="sleep_detection">Pause media when falling asleep</string>
@@ -164,7 +164,7 @@
     <string name="reset_hook_offset">Reset Hook Offset</string>
     <string name="reset_hook_offset_description">This will clear the current hook offset and require you to go through the setup process again. Are you sure you want to continue?</string>
     <string name="reset">Reset</string>
-    <string name="hook_offset_reset_success">Hook offset has been reset. Redirecting to setup...</string>
+    <string name="hook_offset_reset_success">Hook offset has been reset. Redirecting to setup…</string>
     <string name="hook_offset_reset_failure">Failed to reset hook offset</string>
     <string name="irk_set_success">IRK has been set successfully</string>
     <string name="encryption_key_set_success">Encryption key has been set successfully</string>

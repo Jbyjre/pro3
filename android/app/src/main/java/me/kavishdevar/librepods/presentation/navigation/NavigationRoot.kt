@@ -117,7 +117,7 @@ fun NavigationRoot(
         is Screen.CallControl -> currentScreen.action
         Screen.MicrophoneSettings -> stringResource(R.string.microphone_mode)
         Screen.StayConnected -> "Stay connected"
-        Screen.IslandSettings -> "Islands"
+        Screen.IslandSettings -> "Dynamic Island"
         Screen.Phone -> "This phone"
         Screen.Apps -> "Apps"
         Screen.GlintLab -> "pro Lab"

@@ -180,7 +180,7 @@ fun PhoneScreen(navigateToIsland: () -> Unit, navigateToHeadphones: (() -> Unit)
                 )
                 Text(
                     when {
-                        !canDraw -> "Allow pro to draw over other apps (below) and the island appears around your camera."
+                        !canDraw -> "Allow \"Display over other apps\" (below) and the island appears around your camera."
                         !tapsOn -> "Around your camera right now. Turn on \"See your apps\" below and it shows the app you're in."
                         place is ScreenApp.Place.App -> "Around your camera right now, showing the app you're in. Tap it for what's on."
                         else -> "Around your camera right now. Tap it for what's on: timers, charging, your headphones and quick controls."
@@ -188,8 +188,10 @@ fun PhoneScreen(navigateToIsland: () -> Unit, navigateToHeadphones: (() -> Unit)
                     style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, lineHeight = 18.sp, color = ink.copy(alpha = 0.6f)),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GlassPillButton(text = "Open it", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp, modifier = Modifier.weight(1f)) {
-                        GlintOverlays.showIsland(context, IslandEvent.Glance, expand = true)
+                    // Without "Display over other apps" the island can't appear: the button asks for it instead.
+                    GlassPillButton(text = if (canDraw) "Open it" else "Allow", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp, modifier = Modifier.weight(1f)) {
+                        if (canDraw) GlintOverlays.showIsland(context, IslandEvent.Glance, expand = true)
+                        else open(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).setData(android.net.Uri.fromParts("package", context.packageName, null)))
                     }
                     GlassPillButton(text = "Customize", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp, modifier = Modifier.weight(1f), onClick = navigateToIsland)
                 }
@@ -205,7 +207,7 @@ fun PhoneScreen(navigateToIsland: () -> Unit, navigateToHeadphones: (() -> Unit)
                     style = TextStyle(fontFamily = glintFontFamily, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = ink),
                     modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 2.dp),
                 )
-                SetupRow("Show over other apps", "So the island can sit around the camera", canDraw, ink, dark) {
+                SetupRow("Display over other apps", "So the island can sit around the camera", canDraw, ink, dark) {
                     open(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).setData(android.net.Uri.fromParts("package", context.packageName, null)))
                 }
                 if (IslandAccess.isAvailable(context)) SetupRow(
@@ -229,7 +231,7 @@ fun PhoneScreen(navigateToIsland: () -> Unit, navigateToHeadphones: (() -> Unit)
         // ---- The phone's own controls ----
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             val hasTorch = remember { PhoneControls.hasTorch(context) }
-            ControlTile("Torch", if (!hasTorch) "None" else if (torch) "On" else "Off", torch, hasTorch, ink, dark, Modifier.weight(1f), {
+            ControlTile("Torch", if (!hasTorch) "No flash" else if (torch) "On" else "Off", torch, hasTorch, ink, dark, Modifier.weight(1f), {
                 PhoneControls.toggleTorch(context)
             }) { c, on -> drawTorch(c, size.minDimension * 0.5f, if (on) Color.Black else ink) }
             ControlTile(ring.label, if (ring == PhoneControls.Ring.Sound) "Rings" else "Quiet", ring != PhoneControls.Ring.Sound, true, ink, dark, Modifier.weight(1f), {
@@ -237,8 +239,10 @@ fun PhoneScreen(navigateToIsland: () -> Unit, navigateToHeadphones: (() -> Unit)
             }) { c, on ->
                 drawKindGlyph(me.kavishdevar.librepods.services.SoundRules.Kind.Alert, c, size.minDimension * 0.46f, if (on) Color.Black else ink)
             }
-            ControlTile("Island", if (canDraw && IslandPrefs.mini(IslandPrefs.prefs(context))) "On" else "Off", false, true, ink, dark, Modifier.weight(1f), {
-                GlintOverlays.showIsland(context, IslandEvent.Glance, expand = true)
+            val islandOn = canDraw && IslandPrefs.mini(IslandPrefs.prefs(context))
+            ControlTile("Island", if (islandOn) "On" else "Off", false, true, ink, dark, Modifier.weight(1f), {
+                // Off: there's no island to open, so this goes to where it's switched on.
+                if (islandOn) GlintOverlays.showIsland(context, IslandEvent.Glance, expand = true) else navigateToIsland()
             }) { c, _ ->
                 val w = size.minDimension * 0.62f; val h = w * 0.42f
                 drawRoundRect(ink, Offset(c.x - w / 2f, c.y - h / 2f), Size(w, h), androidx.compose.ui.geometry.CornerRadius(h / 2f))

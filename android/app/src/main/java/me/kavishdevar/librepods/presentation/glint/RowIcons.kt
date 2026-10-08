@@ -145,6 +145,14 @@ object RowIcons {
      */
     private val rules: List<Pair<List<String>, ImageVector>> = listOf(
         listOf("heart") to Heart,
+        // The mini island's "Pops up when" rows: every row in that list gets a picture, so the
+        // names line up instead of some starting further left than others.
+        listOf("airpods connect") to Link,
+        listOf("go in", "comes out") to Ear,
+        listOf("starts playing") to Play,
+        listOf("listening mode") to Waves,
+        listOf("charging starts") to Bolt,
+        listOf("another device") to Smartphone,
         listOf("app's icon", "skip the app", "apps") to Apps,
         listOf("this phone", "phone moments") to Smartphone,
         listOf("do not disturb") to Moon,
