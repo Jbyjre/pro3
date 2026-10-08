@@ -204,6 +204,15 @@ object SoundRules {
         System,
     }
 
+    /**
+     * Which apps are home screens, from Android's list of everything that can be one ([candidates]:
+     * package and priority) and the one chosen ([default]). Settings keeps a hidden emergency home
+     * screen with a negative priority (Pixel and standard Android): counting it made the Settings
+     * app look like the home screen. Real launchers have priority 0 or more; the chosen one always counts.
+     */
+    fun homeApps(candidates: List<Pair<String, Int>>, default: String?): Set<String> =
+        (candidates.filter { it.second >= 0 }.map { it.first } + listOfNotNull(default?.takeIf { it != "android" })).toSet()
+
     /** The app on screen after a window changed: apps replace it, the home screen clears it, system pieces leave it. */
     fun foregroundAfter(current: String?, pkg: String, role: Role): String? = when (role) {
         Role.App -> pkg
