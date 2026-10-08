@@ -192,6 +192,14 @@ Jake's words, in short: a full functionality audit of the whole app, find and fi
 | Earlier requests | DONE or PHONE CHECK | sections 1 to 10 | Nothing was left PARTLY. What only a phone can prove is listed in `TESTING.md`. |
 | Skills; no agents | DONE | | Context-efficient (checklist, verified facts, no agents or polling), Liquid Glass (glass tab bar and tiles kept on the existing real-refraction path). |
 
+## 12. 2026-10-08: the padlock stays after unlocking
+
+| Request | Status | Where | Notes |
+|---|---|---|---|
+| After unlocking, show the app, not just a lock | DONE, PHONE CHECK | `ScreenApp.reconcile`, `ScreenRules.lockNow`, DECISIONS 42 | Lock state now follows the phone itself, not the order Android's messages arrive in; a stuck padlock heals on the next screen change. |
+| App icon recognition better and more accurate | DONE, PHONE CHECK | `SoundRules.homeApps`, `ScreenApp.unlock` | Settings no longer mistaken for the home screen; the app you unlock into is looked up while the padlock opens. Needs the "pro Dynamic Island" switch on. |
+| Cover everything, smooth, looks great | DONE | | All 451 tests, lint and the release build pass. |
+
 ## Not done or not verifiable from the cloud
 
 - Everything marked PHONE CHECK. `TESTING.md` lists the steps.

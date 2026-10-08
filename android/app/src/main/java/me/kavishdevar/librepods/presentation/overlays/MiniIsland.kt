@@ -215,7 +215,9 @@ internal class MiniIslandController(private val context: Context) {
         override fun onReceive(c: Context, i: Intent) {
             // Off only while the screen is off: it stays on the lock screen too (when the phone
             // lets pop-ups show there; Android may hide them under the lock screen).
-            unlocked = i.action != Intent.ACTION_SCREEN_OFF
+            // How the screen is now, not which message this was: Android can hand these over
+            // late or out of order, and a late "screen off" must not hide the island while you use it.
+            unlocked = c.getSystemService(PowerManager::class.java)?.isInteractive ?: (i.action != Intent.ACTION_SCREEN_OFF)
             refresh()
         }
     }

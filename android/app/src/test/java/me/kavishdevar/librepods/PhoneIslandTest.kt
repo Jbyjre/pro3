@@ -72,6 +72,83 @@ class PhoneIslandTest {
         assertEquals(ScreenRules.Next.Stay, ScreenRules.next(spotify, "com.spotify.music", SoundRules.Role.App, isScreen = true, locked = false))
     }
 
+    // ---- Locking and unlocking ----
+
+    private fun phone(screenOn: Boolean, lockScreen: Boolean) {
+        org.robolectric.Shadows.shadowOf(context.getSystemService(android.os.PowerManager::class.java)).setIsInteractive(screenOn)
+        org.robolectric.Shadows.shadowOf(context.getSystemService(android.app.KeyguardManager::class.java)).setKeyguardLocked(lockScreen)
+    }
+    private fun waitMs(ms: Long) = org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(ms))
+    private val spotify = ScreenApp.Place.App("com.spotify.music", "Spotify", null)
+
+    @Test fun lockStateFollowsThePhoneNotTheMessage() {
+        val open = ScreenApp.Place.Locked(opening = true)
+        assertEquals(ScreenRules.Lock.Lock, ScreenRules.lockNow(screenOn = false, keyguard = false, current = spotify))
+        assertEquals(ScreenRules.Lock.Lock, ScreenRules.lockNow(screenOn = true, keyguard = true, current = ScreenApp.Place.Home))
+        assertEquals(ScreenRules.Lock.Keep, ScreenRules.lockNow(screenOn = true, keyguard = true, current = ScreenApp.Place.Locked()))
+        assertEquals(ScreenRules.Lock.Unlock, ScreenRules.lockNow(screenOn = true, keyguard = false, current = ScreenApp.Place.Locked()))
+        // Already springing open: nothing more to do; locked again mid-way: back to the padlock.
+        assertEquals(ScreenRules.Lock.Keep, ScreenRules.lockNow(screenOn = true, keyguard = false, current = open))
+        assertEquals(ScreenRules.Lock.Lock, ScreenRules.lockNow(screenOn = false, keyguard = true, current = open))
+        assertEquals(ScreenRules.Lock.Keep, ScreenRules.lockNow(screenOn = true, keyguard = false, current = spotify))
+    }
+
+    @Test fun unlockingShowsTheAppAgainAndALateScreenOffDoesntLockIt() {
+        ScreenApp.attachForTest(context)
+        ScreenApp.preview(spotify)
+        phone(screenOn = false, lockScreen = true)
+        ScreenApp.onScreen(android.content.Intent.ACTION_SCREEN_OFF)
+        assertEquals(ScreenApp.Place.Locked(), ScreenApp.place.value)
+        phone(screenOn = true, lockScreen = true)
+        ScreenApp.onScreen(android.content.Intent.ACTION_SCREEN_ON)
+        assertEquals(ScreenApp.Place.Locked(), ScreenApp.place.value)
+        // Unlocked: the padlock springs open, then the app is back.
+        phone(screenOn = true, lockScreen = false)
+        ScreenApp.onScreen(android.content.Intent.ACTION_USER_PRESENT)
+        assertEquals(ScreenApp.Place.Locked(opening = true), ScreenApp.place.value)
+        waitMs(ScreenRules.UNLOCK_SHOW_MS + 50)
+        assertEquals(spotify, ScreenApp.place.value)
+        // Android hands over a held-back "screen off" after the unlock: the phone is in use, so nothing changes.
+        ScreenApp.onScreen(android.content.Intent.ACTION_SCREEN_OFF)
+        assertEquals(spotify, ScreenApp.place.value)
+    }
+
+    @Test fun aMissedUnlockMessageNeverLeavesThePadlockStuck() {
+        ScreenApp.attachForTest(context)
+        ScreenApp.preview(spotify)
+        phone(screenOn = true, lockScreen = true)
+        ScreenApp.reconcile(context)
+        assertEquals(ScreenApp.Place.Locked(), ScreenApp.place.value)
+        // Unlocked, but the "unlocked" message never came: the next window change corrects it.
+        phone(screenOn = true, lockScreen = false)
+        ScreenApp.reconcile(context)
+        waitMs(ScreenRules.UNLOCK_SHOW_MS + 50)
+        assertEquals(spotify, ScreenApp.place.value)
+    }
+
+    @Test fun screenOffWithoutALockScreenComesStraightBack() {
+        ScreenApp.attachForTest(context)
+        ScreenApp.preview(spotify)
+        phone(screenOn = false, lockScreen = false)
+        ScreenApp.onScreen(android.content.Intent.ACTION_SCREEN_OFF)
+        assertEquals(ScreenApp.Place.Locked(), ScreenApp.place.value)
+        // Woken within the phone's lock delay: no lock screen came up, so no padlock to open.
+        phone(screenOn = true, lockScreen = false)
+        ScreenApp.onScreen(android.content.Intent.ACTION_SCREEN_ON)
+        assertEquals(spotify, ScreenApp.place.value)
+    }
+
+    @Test fun settingsHiddenEmergencyHomeScreenIsNotTheHomeScreen() {
+        // Android's list of home screens includes Settings' FallbackHome at priority -1000.
+        val list = listOf("com.google.android.apps.nexuslauncher" to 0, "com.android.settings" to -1000)
+        val home = SoundRules.homeApps(list, default = "com.google.android.apps.nexuslauncher")
+        assertEquals(setOf("com.google.android.apps.nexuslauncher"), home)
+        // No default chosen yet: Android answers with its chooser ("android"), which isn't a home screen.
+        assertEquals(setOf("com.google.android.apps.nexuslauncher"), SoundRules.homeApps(list, default = "android"))
+        // A second launcher installed still counts.
+        assertTrue("com.teslacoilsw.launcher" in SoundRules.homeApps(list + ("com.teslacoilsw.launcher" to 0), "com.google.android.apps.nexuslauncher"))
+    }
+
     @Test fun theFrontCheckAlsoTellsSoundsWhichAppYoureIn() {
         ScreenApp.attachForTest(context)
         ScreenApp.offMain = { it.run() }

@@ -93,7 +93,7 @@ object ScreenApp {
             },
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
-        if (isLocked(app)) lock()
+        reconcile(app)
         readWallpaper(app)
         runCatching {
             WallpaperManager.getInstance(app).addOnColorsChangedListener({ _, which ->
@@ -104,13 +104,32 @@ object ScreenApp {
 
     private fun isLocked(c: Context): Boolean = c.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
 
-    private fun onScreen(action: String?) {
+    /**
+     * The screen turned off or on, or the phone was unlocked. Which message it was doesn't decide
+     * anything: Android can hold these messages while pro is in the background and hand them over
+     * late or out of order (a "screen off" arriving after the unlock used to lock the island again
+     * for good). What counts is how the phone is right now.
+     */
+    internal fun onScreen(@Suppress("UNUSED_PARAMETER") action: String?) {
         val c = appContext ?: return
-        when (action) {
-            // The screen turned off or on still locked: the lock screen is what's in front.
-            Intent.ACTION_SCREEN_OFF -> lock()
-            Intent.ACTION_SCREEN_ON -> if (isLocked(c)) lock() else unlock()
-            Intent.ACTION_USER_PRESENT -> unlock()
+        reconcile(c)
+    }
+
+    /** The lock screen was really up during this lock (not just the screen off): the padlock opens when it goes. */
+    private var keyguardSeen = false
+
+    /**
+     * Brings the island's lock state in line with the phone right now: locked while the screen is
+     * off or the lock screen is up, unlocked otherwise. Also runs on every window change (from
+     * [look]), so a missed or late unlock message can never leave the padlock stuck.
+     */
+    internal fun reconcile(c: Context) {
+        val keyguard = isLocked(c)
+        if (keyguard) keyguardSeen = true
+        when (ScreenRules.lockNow(screenOn(c), keyguard, _place.value)) {
+            ScreenRules.Lock.Lock -> lock()
+            ScreenRules.Lock.Unlock -> unlock()
+            ScreenRules.Lock.Keep -> {}
         }
     }
 
@@ -121,12 +140,21 @@ object ScreenApp {
         _place.value = Place.Locked()
     }
 
-    /** Unlocked: the padlock springs open for a moment, then you're back where you were. */
+    /**
+     * Unlocked: the padlock springs open for a moment, then the app you're in shows. When only the
+     * screen went dark (no lock screen came up), there's nothing to open: straight back.
+     */
     private fun unlock() {
         if (_place.value !is Place.Locked) return
-        _place.value = Place.Locked(opening = true)
         main.removeCallbacks(settle)
+        if (!keyguardSeen) { settle.run(); return }
+        keyguardSeen = false
+        _place.value = Place.Locked(opening = true)
         main.postDelayed(settle, ScreenRules.UNLOCK_SHOW_MS)
+        // While the padlock opens, find the app you're landing in (it may not be the one from
+        // before the lock: a notification, the camera, the home screen), so the right icon is
+        // ready when it finishes instead of the old one showing first.
+        IslandAccess.service.value?.let { look(it) }
     }
 
     private val settle = Runnable {
@@ -148,7 +176,9 @@ object ScreenApp {
      * freeze pro.
      */
     fun look(s: android.accessibilityservice.AccessibilityService) {
-        if (appContext == null) return
+        val ctx = appContext ?: return
+        // Every window change is also a chance to correct the lock state (see [reconcile]).
+        reconcile(ctx)
         looker.removeCallbacksAndMessages(null)
         looker.post {
             val wins = runCatching {
@@ -295,6 +325,7 @@ object ScreenApp {
         beforeLock = Place.Unknown
         activityCache.clear()
         pending = null
+        keyguardSeen = false
         offMain = { loader.execute(it) }
     }
 
@@ -312,6 +343,23 @@ object ScreenRules {
     const val UNLOCK_SHOW_MS = 900L
     /** How many apps "Hide in these apps" offers from what was used lately. */
     const val RECENT_MAX = 12
+
+    /** What to do with the island's lock state ([lockNow]). */
+    enum class Lock { Lock, Unlock, Keep }
+
+    /**
+     * Locked means the screen is off or the lock screen is up; anything else is unlocked. The
+     * padlock springing open ([ScreenApp.Place.Locked.opening]) already counts as unlocked.
+     */
+    fun lockNow(screenOn: Boolean, keyguard: Boolean, current: ScreenApp.Place): Lock {
+        val locked = !screenOn || keyguard
+        val shownLocked = current is ScreenApp.Place.Locked && !current.opening
+        return when {
+            locked && !shownLocked -> Lock.Lock
+            !locked && shownLocked -> Lock.Unlock
+            else -> Lock.Keep
+        }
+    }
 
     sealed interface Next {
         data object Stay : Next

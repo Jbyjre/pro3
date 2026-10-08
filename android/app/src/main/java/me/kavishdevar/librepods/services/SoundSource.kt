@@ -297,7 +297,9 @@ object SoundSource {
     internal fun roleOf(ctx: Context, pkg: String): SoundRules.Role = roleOverride?.invoke(pkg) ?: roles.getOrPut(pkg) {
         val pm = ctx.packageManager
         val home = homeApps ?: runCatching {
-            pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0).map { it.activityInfo.packageName }.toSet()
+            val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+            val default = pm.resolveActivity(homeIntent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+            SoundRules.homeApps(pm.queryIntentActivities(homeIntent, 0).map { it.activityInfo.packageName to it.priority }, default)
         }.getOrDefault(emptySet()).also { homeApps = it }
         val keyboards = runCatching {
             ctx.getSystemService(InputMethodManager::class.java)?.enabledInputMethodList?.map { it.packageName }.orEmpty()
