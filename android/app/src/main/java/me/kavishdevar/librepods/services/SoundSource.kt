@@ -98,7 +98,7 @@ object SoundSource {
 
     /** The app on screen, from the Dynamic Island accessibility service (null: home screen or unknown). */
     @Volatile var foreground: String? = null
-        private set
+        internal set
 
     /** Icons are kept this many pixels square: sharp in the opened island's header on a high-density screen. */
     private const val ICON_PX = 160

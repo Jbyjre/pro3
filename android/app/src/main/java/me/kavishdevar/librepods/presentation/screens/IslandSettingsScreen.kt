@@ -237,7 +237,7 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
         }
         if (!canDraw) {
             Hint(
-                "pro isn't allowed to draw over other apps yet.",
+                "The island needs \"Display over other apps\" before it can appear.",
                 "Allow", ink, dark,
             ) { open(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).setData(android.net.Uri.fromParts("package", context.packageName, null))) }
         }

@@ -359,7 +359,7 @@ private fun WelcomeStep(backdrop: LayerBackdrop, onStart: () -> Unit) {
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            "Your AirPods Pro, fully at home on your Galaxy. Battery, listening modes, ear detection and pop-ups, all on this phone.",
+            "A Dynamic Island around your camera, and your AirPods or Beats fully at home on this phone. Music, messages, timers and battery, all in one place.",
             textAlign = TextAlign.Center,
             style = TextStyle(
                 fontFamily = glintFontFamily, fontSize = 15.sp, lineHeight = 21.sp,

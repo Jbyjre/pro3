@@ -63,8 +63,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import kotlinx.coroutines.delay
+import me.kavishdevar.librepods.presentation.components.ListItemOrientation
 import me.kavishdevar.librepods.presentation.components.LiquidSegments
 import me.kavishdevar.librepods.presentation.components.StyledList
+import me.kavishdevar.librepods.presentation.components.StyledListItem
 import me.kavishdevar.librepods.presentation.components.StyledSwitch
 import me.kavishdevar.librepods.presentation.components.StyledToggle
 import me.kavishdevar.librepods.presentation.glint.RowIconTile
@@ -169,11 +171,13 @@ fun SoundsSection(ink: Color, dark: Boolean, onApps: (() -> Unit)? = null) {
             )
         }
 
-        if (onApps != null) StyledList(title = "Apps") {
-            me.kavishdevar.librepods.presentation.components.StyledListItem(
+        // The list's own row (the scoped StyledListItem): it sits inside the card. One row named
+        // Apps needs no "Apps" heading over it.
+        if (onApps != null) StyledList {
+            StyledListItem(
                 name = "Apps",
                 description = "Choose which apps can pop the Dynamic Island",
-                orientation = me.kavishdevar.librepods.presentation.components.ListItemOrientation.Vertical,
+                orientation = ListItemOrientation.Vertical,
                 onClick = onApps,
             )
         }

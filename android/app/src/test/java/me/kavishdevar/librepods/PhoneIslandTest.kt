@@ -18,6 +18,7 @@ import me.kavishdevar.librepods.services.PhoneStatus
 import me.kavishdevar.librepods.services.ScreenApp
 import me.kavishdevar.librepods.services.ScreenRules
 import me.kavishdevar.librepods.services.SoundRules
+import me.kavishdevar.librepods.services.SoundSource
 import me.kavishdevar.librepods.services.TimerRules
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.core.graphics.drawable.toBitmap
@@ -69,6 +70,22 @@ class PhoneIslandTest {
         // The same app again (another of its screens): no swap animation.
         val spotify = ScreenApp.Place.App("com.spotify.music", "Spotify", null)
         assertEquals(ScreenRules.Next.Stay, ScreenRules.next(spotify, "com.spotify.music", SoundRules.Role.App, isScreen = true, locked = false))
+    }
+
+    @Test fun theFrontCheckAlsoTellsSoundsWhichAppYoureIn() {
+        ScreenApp.attachForTest(context)
+        ScreenApp.offMain = { it.run() }
+        val roles = mapOf("com.whatsapp" to SoundRules.Role.App, "com.android.launcher" to SoundRules.Role.Launcher, "com.android.systemui" to SoundRules.Role.System)
+        SoundSource.roleOverride = { roles[it] ?: SoundRules.Role.App }
+        // Found in front by the sturdy check (no window message named it): messages from that
+        // chat app are now known to be from the app you're using.
+        ScreenApp.front(context, "com.whatsapp", SoundRules.Role.App)
+        assertEquals("com.whatsapp", SoundSource.foreground)
+        // The phone's own pieces leave it; the home screen clears it.
+        ScreenApp.front(context, "com.android.systemui", SoundRules.Role.System)
+        assertEquals("com.whatsapp", SoundSource.foreground)
+        ScreenApp.front(context, "com.android.launcher", SoundRules.Role.Launcher)
+        assertNull(SoundSource.foreground)
     }
 
     @Test fun theFrontWindowIsTheAppYoureUsing() {
@@ -363,5 +380,8 @@ class PhoneIslandTest {
 
 /** Puts the sound listener's test hooks back. */
 private object SoundSourceReset {
-    fun reset() { me.kavishdevar.librepods.services.SoundSource.roleOverride = null }
+    fun reset() {
+        me.kavishdevar.librepods.services.SoundSource.roleOverride = null
+        me.kavishdevar.librepods.services.SoundSource.foreground = null
+    }
 }

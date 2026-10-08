@@ -430,10 +430,10 @@ private fun Solo4Buttons() {
     val dark = isSystemInDarkTheme()
     val ink = if (dark) Color.White else Color.Black
     val rows = listOf(
-        Triple(1, "Press b once", "Play or pause"),
-        Triple(2, "Press b twice", "Next song"),
-        Triple(3, "Press b three times", "Previous song"),
-        Triple(0, "Press above or below b", "Volume up or down"),
+        Triple(1, "Press the \"b\" button once", "Play or pause"),
+        Triple(2, "Press the \"b\" button twice", "Next song"),
+        Triple(3, "Press it three times", "Previous song"),
+        Triple(0, "Press above or below it", "Volume up or down"),
     )
     StyledList(title = "Buttons on your Solo 4") {
         rows.forEach { (presses, name, what) ->

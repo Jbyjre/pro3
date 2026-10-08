@@ -132,6 +132,23 @@ class MessageRulesTest {
         assertNull(m(info(50, true), info(50, false)))  // unplugging isn't announced
     }
 
+    @Test fun batteryProtectionPausesDontLookLikeBeingPluggedInAgain() {
+        val charging = android.os.BatteryManager.BATTERY_STATUS_CHARGING
+        val holding = android.os.BatteryManager.BATTERY_STATUS_NOT_CHARGING
+        val unplugged = android.os.BatteryManager.BATTERY_STATUS_DISCHARGING
+        val usb = android.os.BatteryManager.BATTERY_PLUGGED_USB
+        val a = PhoneStatus.parse(80, 100, charging, usb)
+        // The phone stops at 80% to protect the battery, still plugged in: still charging.
+        val b = PhoneStatus.parse(80, 100, holding, usb)
+        assertTrue(b.charging)
+        // ...and starting again isn't a new "plugged in" moment.
+        assertNull(PhoneStatus.momentBetween(b, PhoneStatus.parse(80, 100, charging, usb)))
+        assertNull(PhoneStatus.momentBetween(a, b))
+        // Unplugged is not charging, even if Android says "not charging" rather than "discharging".
+        assertFalse(PhoneStatus.parse(80, 100, holding, 0).charging)
+        assertFalse(PhoneStatus.parse(80, 100, unplugged, 0).charging)
+    }
+
     // ---- The look and the pill's rules ----
 
     @Test fun messagesHaveTheirOwnLookAndTheWindowOnlyGrowsForThem() {

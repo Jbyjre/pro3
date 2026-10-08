@@ -161,7 +161,7 @@
     <string name="reset_hook_offset">重設 Hook 偏移量</string>
     <string name="reset_hook_offset_description">這將清除目前的 Hook 偏移量，並需要你再次進行設定程序。確定要繼續嗎？</string>
     <string name="reset">重設</string>
-    <string name="hook_offset_reset_success">Hook 偏移量已重設。正在重新導向至設定...</string>
+    <string name="hook_offset_reset_success">Hook 偏移量已重設。正在重新導向至設定…</string>
     <string name="hook_offset_reset_failure">重設 Hook 偏移量失敗</string>
     <string name="irk_set_success">IRK 已設定成功</string>
     <string name="encryption_key_set_success">加密金鑰已設定成功</string>

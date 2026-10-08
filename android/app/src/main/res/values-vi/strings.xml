@@ -159,7 +159,7 @@
     <string name="reset_hook_offset">Đặt lại độ lệch hook</string>
     <string name="reset_hook_offset_description">Thao tác này sẽ xóa độ lệch hook hiện tại và yêu cầu bạn thực hiện lại quy trình thiết lập. Bạn có chắc chắn muốn tiếp tục?</string>
     <string name="reset">Đặt lại</string>
-    <string name="hook_offset_reset_success">Đã đặt lại độ lệch hook. Đang chuyển hướng đến thiết lập...</string>
+    <string name="hook_offset_reset_success">Đã đặt lại độ lệch hook. Đang chuyển hướng đến thiết lập…</string>
     <string name="hook_offset_reset_failure">Không thể đặt lại độ lệch hook</string>
     <string name="irk_set_success">Đã đặt IRK thành công</string>
     <string name="encryption_key_set_success">Đã đặt khóa mã hóa thành công</string>

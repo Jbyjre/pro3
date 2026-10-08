@@ -60,6 +60,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -384,8 +385,28 @@ private fun <T> ChipRow(
     label: (T) -> String, icon: DrawScope.(T, Color) -> Unit,
 ) {
     val view = LocalView.current
+    val scroll = rememberScrollState()
     Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        Modifier
+            .fillMaxWidth()
+            // Soft edges where there's more to scroll to, so a chip running off the side reads as
+            // "more this way" rather than as a word cut in half.
+            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                val fade = 28.dp.toPx().coerceAtMost(size.width / 4f)
+                if (scroll.canScrollBackward) drawRect(
+                    Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), 0f, fade),
+                    size = androidx.compose.ui.geometry.Size(fade, size.height), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                )
+                if (scroll.canScrollForward) drawRect(
+                    Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), size.width - fade, size.width),
+                    topLeft = androidx.compose.ui.geometry.Offset(size.width - fade, 0f),
+                    size = androidx.compose.ui.geometry.Size(fade, size.height), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                )
+            }
+            .horizontalScroll(scroll)
+            .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         options.forEach { o ->
