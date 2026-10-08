@@ -131,31 +131,48 @@ object ScreenApp {
 
     private val settle = Runnable {
         if (_place.value is Place.Locked) _place.value = beforeLock
-        // Nothing was known before the lock: ask which app is in front now.
-        IslandAccess.service.value?.let { seed(it) }
+        // Unlocking can land somewhere else (the home screen, another app) while the lock screen
+        // was still up: ask which app is really in front now.
+        IslandAccess.service.value?.let { look(it) }
     }
 
+    /** Where the front-window checks run: never the main thread (a frozen app could stall it). */
+    private val looker by lazy { Handler(android.os.HandlerThread("pro-screen").apply { start() }.looper) }
+
     /**
-     * Where you are right now, when nothing is known yet: just after the accessibility switch comes
-     * on, after pro restarts, or after unlocking. Window events only arrive when something changes,
-     * so without this the island would wait for your next app switch. Asks Android for the app
-     * window that's active and reads only which app it belongs to.
+     * Asks Android which app's window is in front right now, and shows that. This is the sturdy
+     * signal: the "window changed" messages below don't always name an app screen (often a plain
+     * view, and swiping between apps can send none for the new app), so after every window change
+     * the island looks for itself. Only which app owns the window is read, never what's in it.
+     * It runs on its own thread: reading a window can wait on that app, and a stuck app must never
+     * freeze pro.
      */
-    fun seed(s: android.accessibilityservice.AccessibilityService) {
-        val c = appContext ?: return
-        if (_place.value !is Place.Unknown) return
-        val pkg = runCatching {
-            s.windows.orEmpty()
-                .filter { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION }
-                .sortedByDescending { it.isActive || it.isFocused }
-                .firstOrNull()?.root?.packageName?.toString()
-        }.getOrNull()?.takeIf { it.isNotBlank() } ?: return
-        val own = pkg == c.packageName
-        val role = if (own) SoundRules.Role.App else SoundSource.roleOf(c, pkg)
-        // An application window is a real app screen, so it counts like an activity here.
-        when (val next = ScreenRules.next(Place.Unknown, pkg, role, isScreen = true, locked = isLocked(c))) {
-            is ScreenRules.Next.Home -> set(Place.Home)
-            is ScreenRules.Next.App -> showApp(c, next.pkg)
+    fun look(s: android.accessibilityservice.AccessibilityService) {
+        if (appContext == null) return
+        looker.removeCallbacksAndMessages(null)
+        looker.post {
+            val wins = runCatching {
+                s.windows.orEmpty().mapIndexed { i, w ->
+                    ScreenRules.Win(
+                        app = w.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION,
+                        active = w.isActive, focused = w.isFocused, order = i,
+                        pkg = { runCatching { w.root?.packageName?.toString() }.getOrNull() },
+                    )
+                }
+            }.getOrNull() ?: return@post
+            val pkg = ScreenRules.front(wins) ?: return@post
+            val c = appContext ?: return@post
+            // The app's role needs the package manager: worked out here, off the main thread too.
+            val role = if (pkg == c.packageName) SoundRules.Role.App else SoundSource.roleOf(c, pkg)
+            main.post { front(c, pkg, role) }
+        }
+    }
+
+    /** The app in front (from [look]): an application window is a real app screen. */
+    private fun front(c: Context, pkg: String, role: SoundRules.Role) {
+        when (val next = ScreenRules.next(_place.value, pkg, role, isScreen = true, locked = isLocked(c))) {
+            is ScreenRules.Next.Home -> { pending = null; if (_place.value != Place.Home) set(Place.Home) }
+            is ScreenRules.Next.App -> if ((_place.value as? Place.App)?.pkg != next.pkg && pending != next.pkg) showApp(c, next.pkg)
             ScreenRules.Next.Stay -> {}
         }
     }
@@ -310,6 +327,20 @@ object ScreenRules {
         !isScreen -> Next.Stay
         (current as? ScreenApp.Place.App)?.pkg == pkg -> Next.Stay
         else -> Next.App(pkg)
+    }
+
+    /** A window as [ScreenApp.look] sees it; [pkg] is read only when needed (it asks the app's process). */
+    class Win(val app: Boolean, val active: Boolean, val focused: Boolean, val order: Int, val pkg: () -> String?)
+
+    /**
+     * Which app's window is in front: among application windows (not the status bar, the shade, the
+     * keyboard or pro's own island), the one you're using (active), else the one with the keyboard
+     * focus, else the topmost (Android lists windows top first). Null when there's none to read.
+     */
+    fun front(windows: List<Win>): String? {
+        val apps = windows.filter { it.app }
+        val pick = apps.firstOrNull { it.active } ?: apps.firstOrNull { it.focused } ?: apps.minByOrNull { it.order }
+        return pick?.pkg?.invoke()?.takeIf { it.isNotBlank() }
     }
 
     /** Adds [pkg] to the front of the recent list (once, at most [RECENT_MAX]); pro itself isn't offered. */

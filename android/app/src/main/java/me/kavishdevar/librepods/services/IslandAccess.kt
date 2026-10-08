@@ -49,7 +49,11 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class IslandAccessService : AccessibilityService() {
     private val main = Handler(Looper.getMainLooper())
-    private val check = Runnable { IslandAccess.updatePanels(this) }
+    private val check = Runnable {
+        IslandAccess.updatePanels(this)
+        // And which app is in front now (the sturdy check, on its own thread).
+        ScreenApp.look(this)
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -57,7 +61,7 @@ class IslandAccessService : AccessibilityService() {
         IslandAccess.connected(this)
         IslandAccess.updatePanels(this)
         // Show the app that's open right away, not only after the next app switch.
-        ScreenApp.seed(this)
+        ScreenApp.look(this)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

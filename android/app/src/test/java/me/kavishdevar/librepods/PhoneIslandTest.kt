@@ -71,6 +71,37 @@ class PhoneIslandTest {
         assertEquals(ScreenRules.Next.Stay, ScreenRules.next(spotify, "com.spotify.music", SoundRules.Role.App, isScreen = true, locked = false))
     }
 
+    @Test fun theFrontWindowIsTheAppYoureUsing() {
+        fun w(app: Boolean, pkg: String?, active: Boolean = false, focused: Boolean = false, order: Int = 0) =
+            ScreenRules.Win(app, active, focused, order) { pkg }
+        // The active app window wins, whatever is above it (the shade, the keyboard, pro's island).
+        assertEquals("com.spotify.music", ScreenRules.front(listOf(
+            w(app = false, pkg = "com.android.systemui", active = true, order = 0),
+            w(app = true, pkg = "com.anthropic.claude", order = 1),
+            w(app = true, pkg = "com.spotify.music", active = true, order = 2),
+        )))
+        // No active app window (the shade is open): the focused one, else the topmost app window.
+        assertEquals("com.anthropic.claude", ScreenRules.front(listOf(
+            w(app = false, pkg = "com.android.systemui", active = true, order = 0),
+            w(app = true, pkg = "com.spotify.music", order = 2),
+            w(app = true, pkg = "com.anthropic.claude", focused = true, order = 3),
+        )))
+        assertEquals("com.spotify.music", ScreenRules.front(listOf(
+            w(app = true, pkg = "com.anthropic.claude", order = 5),
+            w(app = true, pkg = "com.spotify.music", order = 1),
+        )))
+        // Nothing readable: nothing changes.
+        assertNull(ScreenRules.front(listOf(w(app = false, pkg = "com.android.systemui", active = true))))
+        assertNull(ScreenRules.front(listOf(w(app = true, pkg = null, active = true))))
+    }
+
+    @Test fun anAppWindowCountsEvenWhenTheWindowMessageNamedAView() {
+        // The window message named a plain view (not an app screen): it's ignored...
+        assertEquals(ScreenRules.Next.Stay, ScreenRules.next(ScreenApp.Place.Home, "com.spotify.music", SoundRules.Role.App, isScreen = false, locked = false))
+        // ...but the front-window check, which sees Spotify's application window, shows it.
+        assertEquals(ScreenRules.Next.App("com.spotify.music"), ScreenRules.next(ScreenApp.Place.Home, "com.spotify.music", SoundRules.Role.App, isScreen = true, locked = false))
+    }
+
     @Test fun recentAppsAreRememberedOnceNewestFirstWithoutPro() {
         var list = emptyList<String>()
         list = ScreenRules.remember(list, "a", own = "pro")

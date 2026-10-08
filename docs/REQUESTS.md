@@ -174,6 +174,12 @@ Jake's words, in short: change the purpose of the app. The **Dynamic Island is t
 | The actual app icon, not a fake | DONE | `SoundSource.appInfo` (launcher icon), `ScreenApp.showApp`, `SoundSource.exampleApp`, test `theIconIsTheAppsRealIconNotADrawing` | Real icons on the phone; the lettered squares are only in cloud test pictures. Previews now use a real app from the phone too. Themed icons and icon packs can't be read by other apps (not verified on One UI). |
 | Use the three skills; no agents | DONE | | Context-efficient (checklist, verified facts, no agents or polling), frontend-design (one direction: calm black/white/graphite with orange only for timers and green only for charging), Liquid Glass (real refraction where Android allows it, honest about overlays). |
 
+## 10. 2026-10-08: "the app isn't recognizing what app it is on"
+
+| Request | Status | Where | Notes |
+|---|---|---|---|
+| Recognise the app in front reliably; full audit, fix bugs | DONE, PHONE CHECK | `ScreenApp.look`, `ScreenRules.front`, DECISIONS 40 | Now asks Android which app window is in front after every change (not only the window messages); fixed the stale app after unlocking to the home screen; Island tab shows what pro sees. Needs the "pro Dynamic Island" switch on. Music playing shows the music, not the app. |
+
 ## Not done or not verifiable from the cloud
 
 - Everything marked PHONE CHECK. `TESTING.md` lists the steps.
