@@ -14,6 +14,7 @@ Unit tests (plain JUnit and Robolectric) and the screenshot renderers. Run them 
 | `MiniIslandTest` | When the Dynamic Island is wanted and what it is about, camera picking, never cut off, bars follow music, `nextCheck` (the zero-wait regression), short blips, phone battery parsing |
 | `IslandLookTest` | Look defaults equal the original, storage and reset, situations, slots, sizes, colour, clock text, sound preferences |
 | `IslandMomentsTest` | Pop-up wording, when the heart shows, settings defaults |
+| `IphoneIslandTest` | Apple's numbers (widths, corners, concentric, key line), a pop-up opening out of the pill around the camera (or under it without the switch), room for the detached circle |
 | `IslandHandoverTest` | Pop-ups and the pill for every camera shape and look: never over the camera or clock, always fits |
 | `IslandGestureUiTest` | Real touches on the real pill: taps, double and triple, hold, swipe, pull |
 | `IslandTouchTest`, `OverlayLayerTest` | Where touches go with Android's real window layers; which layer each window uses; hidden windows eat nothing |

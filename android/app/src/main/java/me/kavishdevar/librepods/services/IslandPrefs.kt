@@ -69,6 +69,8 @@ object IslandPrefs {
     /** How many times (and when last) the "make it tappable" pop-up was shown. */
     const val PREF_TAP_NUDGES = "glint_tap_nudges"
     const val PREF_TAP_NUDGE_AT = "glint_tap_nudge_at"
+    /** The iPhone's black island (default) or pro's earlier glass one (`IslandSpec.Style`). */
+    const val PREF_IPHONE_LOOK = "glint_island_iphone_look"
 
     enum class Trigger(val key: String, val default: Boolean, val label: String, val description: String) {
         Connected("glint_island_connect", true, "AirPods connect", "Once each time they connect"),
@@ -141,6 +143,9 @@ object IslandPrefs {
     }
 
     fun appPop(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_APP_POP, true)
+
+    fun style(prefs: SharedPreferences): IslandSpec.Style =
+        if (prefs.getBoolean(PREF_IPHONE_LOOK, true)) IslandSpec.Style.IPhone else IslandSpec.Style.Glass
 
     fun setSoundIgnored(prefs: SharedPreferences, pkg: String, ignored: Boolean) {
         val now = soundIgnored(prefs)

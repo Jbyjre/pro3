@@ -549,6 +549,13 @@ internal class MiniIslandController(private val context: Context) {
                 actions = actions.value,
                 panelOpen = panel,
                 onAction = { perform(it) },
+                // The timer beside the music: a ringing one is silenced, a running one opens the glance with its controls.
+                onDetachedTap = {
+                    if (sample.value == null) {
+                        if (IslandTimer.state.value?.ringing == true) IslandTimer.cancel(context)
+                        else GlintOverlays.showIsland(context, IslandEvent.Glance, expand = true)
+                    }
+                },
                 onPullOutside = { IslandAccess.openNotifications() },
                 place = place,
                 timer = timer,
@@ -630,6 +637,14 @@ internal class MiniGeometry(
     val wideWindow = IntSize((size.wideWidth + margin * 2).roundToInt(), (size.wideHeight + margin * 2).roundToInt())
     /** The window while a message shows: wider than the pill's usual one (only for those few seconds), same height. */
     val messageWindow = IntSize((size.messageWidth + margin * 2).roundToInt().coerceAtLeast(compactWindow.width), compactWindow.height)
+    /** A second thing at once (a timer while music plays) sits in a detached circle this wide, beside the pill. */
+    val detachedD: Float get() = size.height
+    val detachedGap: Float get() = me.kavishdevar.librepods.services.IslandSpec.DETACHED_GAP_DP * density * look.size.factor
+    /** The window while the detached circle is out: wider on both sides (it stays centred on the camera). */
+    val detachedWindow = IntSize(
+        (compactWindow.width + 2f * (detachedGap + detachedD)).roundToInt().coerceAtMost(maxOf(screen.width, compactWindow.width)),
+        compactWindow.height,
+    )
     /** The size it grows out of: the camera hole itself. */
     val seedW: Float get() = hole?.width()?.toFloat()?.coerceAtMost(size.compactWidth) ?: (size.height * 0.6f)
     val seedH: Float get() = hole?.height()?.toFloat()?.coerceAtMost(size.height) ?: (size.height * 0.6f)
@@ -715,6 +730,10 @@ internal fun MiniIslandHost(
     moment: MiniMoment? = null,
     /** Screenshots only: how far the app swap (and the padlock opening) has got, 0..1. */
     stillSwap: Float? = null,
+    /** A tap on the detached circle (the timer beside the music). */
+    onDetachedTap: () -> Unit = {},
+    /** Screenshots only: how far the detached circle has split off, 0..1. */
+    stillSplit: Float? = null,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -724,6 +743,13 @@ internal fun MiniIslandHost(
     // Settings are read live, so a change in Settings > Islands applies at once.
     val hapticsOn by rememberPref(prefs, IslandPrefs.PREF_HAPTICS, true)
     val buzz by androidx.compose.runtime.rememberUpdatedState(remember(hapticsOn) { IslandBuzz(GlintHaptics(view), hapticsOn) })
+    // The iPhone look (Settings > Island > Style): opaque black in light and dark, Apple's key
+    // line only on a dark background, the 44 dp corner, a detached circle for a second thing.
+    val iphone by rememberPref(prefs, IslandPrefs.PREF_IPHONE_LOOK, true)
+    val darkBg = androidx.compose.foundation.isSystemInDarkTheme()
+    // A pop-up that opens around the camera covers this pill (it's the same black shape): no
+    // blur here then, the pill's contents just make way underneath.
+    val coveredByPopUp = iphone && handOff && GlintOverlays.islandAround.value
     // Full-screen apps hide it, but only after the status bar has been gone for a moment, so a
     // screen that briefly hides it (opening or closing an app) doesn't make it flicker.
     var fullScreen by remember { mutableStateOf(false) }
@@ -771,8 +797,13 @@ internal fun MiniIslandHost(
     // (Previews pass a timer only when one really runs, so they show it too.)
     val timerHere = timer != null && situation != IslandLook.Situation.Talking && situation != IslandLook.Situation.Sound &&
         situation != IslandLook.Situation.Message && baseL != IslandLook.Slot.Glance && baseR != IslandLook.Slot.Glance
+    // Two things at once, the iPhone way: music stays on the island (cover and bars) and the
+    // timer splits off into a detached circle beside it, instead of taking the bars' place.
+    val detached = iphone && timerHere && (under == IslandLook.Situation.Music || under == IslandLook.Situation.Paused) &&
+        baseL != IslandLook.Slot.Nothing
     val wantL = baseL
     val wantR = if (blipping) (if (blipPhone) IslandLook.Slot.Phone else IslandLook.Slot.App)
+        else if (detached) baseR
         else if (timerHere) IslandLook.Slot.Glance else baseR
     // The music, sound and phone situations are black, at one with the camera; the AirPods ones a dark graphite.
     val musicTone = under == IslandLook.Situation.Music || under == IslandLook.Situation.Paused ||
@@ -856,8 +887,17 @@ internal fun MiniIslandHost(
     // bounce as it comes back in.
     val soften = remember { Animatable(0f) }
     val wave = remember { Animatable(1f) }
+    // Covered by a pop-up opening around the camera: the contents step back under it.
+    val makeWay = remember { Animatable(0f) }
+    LaunchedEffect(coveredByPopUp) {
+        if (still != null) return@LaunchedEffect
+        val to = if (coveredByPopUp) 1f else 0f
+        if (reduce) makeWay.snapTo(to) else makeWay.animateTo(to, tween(if (coveredByPopUp) 120 else 260))
+    }
     LaunchedEffect(handOff) {
         if (still != null) return@LaunchedEffect
+        // The iPhone's island never blurs: the pop-up either covers it or sits below it, crisp.
+        if (iphone) { soften.snapTo(0f); return@LaunchedEffect }
         if (reduce) { soften.snapTo(if (handOff) 1f else 0f); return@LaunchedEffect }
         coroutineScope {
             launch { soften.animateTo(if (handOff) 1f else 0f, tween(if (handOff) 280 else 420)) }
@@ -899,6 +939,10 @@ internal fun MiniIslandHost(
         if (still == null && leaving && !visible && appear.value < 0.01f) onGone()
     }
 
+    val detachedNow by androidx.compose.runtime.rememberUpdatedState(detached)
+    /** The window to go back to after the name, a moment or a message: room for the detached circle when it's out. */
+    fun restWindow() = if (detachedNow) geometry.detachedWindow else geometry.compactWindow
+
     // Messages: the window grows before the name slides in, and shrinks after the pill has narrowed.
     LaunchedEffect(messageContent, visible, needsMessageWindow) {
         if (still != null || forceSituation != null || !needsMessageWindow) { msgWindowReady = true; return@LaunchedEffect }
@@ -912,7 +956,26 @@ internal fun MiniIslandHost(
         } else if (!messageContent) {
             msgWindowReady = false
             delay(500) // the pill narrows first, then the window follows
-            if (wide.value < 0.01f) onWindowSize(geometry.compactWindow)
+            if (wide.value < 0.01f) onWindowSize(restWindow())
+        }
+    }
+
+    // The detached circle: the window widens first, then the circle buds off the pill's right end
+    // (a liquid neck stretches and lets go); going back, it melts in, then the window narrows.
+    // Starts tucked in, so it buds off only once its wider window is there (never cut off).
+    val split = remember { Animatable(stillSplit ?: 0f) }
+    LaunchedEffect(detached, visible, messageContent) {
+        if (still != null) return@LaunchedEffect
+        if (detached && visible) {
+            if (wide.value < 0.01f && !messageContent) onWindowSize(geometry.detachedWindow)
+            kotlinx.coroutines.withTimeoutOrNull(250) {
+                androidx.compose.runtime.snapshotFlow { boxW }.first { it >= geometry.detachedWindow.width }
+            }
+            androidx.compose.runtime.withFrameNanos { }
+            if (reduce) split.snapTo(1f) else split.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = 240f))
+        } else if (!detached && split.value > 0f) {
+            if (reduce) split.snapTo(0f) else split.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 320f))
+            if (visible && wide.value < 0.01f && !messageContent) onWindowSize(geometry.compactWindow)
         }
     }
 
@@ -951,7 +1014,7 @@ internal fun MiniIslandHost(
         }
         val swiped = collapseTick != t0
         if (reduce) wide.snapTo(0f) else wide.animateTo(0f, spring(dampingRatio = 1f, stiffness = if (swiped) 600f else 340f))
-        onWindowSize(geometry.compactWindow)
+        onWindowSize(restWindow())
     }
 
     // Sound bars, talking dots, the song's progress and a low battery's breathing: ticked about 30
@@ -1050,7 +1113,7 @@ internal fun MiniIslandHost(
             // Put away (swiped up) while out: tuck back in at once.
             if (momentShown != null && still == null) {
                 if (reduce) wide.snapTo(0f) else wide.animateTo(0f, spring(dampingRatio = 1f, stiffness = 340f))
-                onWindowSize(geometry.compactWindow)
+                onWindowSize(restWindow())
                 momentShown = null
             }
             return@LaunchedEffect
@@ -1067,7 +1130,7 @@ internal fun MiniIslandHost(
         if (reduce) wide.snapTo(1f) else wide.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = 300f))
         delay(MiniMoment.SHOW_MS)
         if (reduce) wide.snapTo(0f) else wide.animateTo(0f, spring(dampingRatio = 1f, stiffness = 340f))
-        onWindowSize(geometry.compactWindow)
+        onWindowSize(restWindow())
         momentShown = null
     }
 
@@ -1128,6 +1191,7 @@ internal fun MiniIslandHost(
     val currentActions by androidx.compose.runtime.rememberUpdatedState(actions)
     val currentPullOutside by androidx.compose.runtime.rememberUpdatedState(onPullOutside)
     val currentPutAway by androidx.compose.runtime.rememberUpdatedState(onPutAway)
+    val currentDetachedTap by androidx.compose.runtime.rememberUpdatedState(onDetachedTap)
     val playingNow by androidx.compose.runtime.rememberUpdatedState(track.playing)
     val modeNow by androidx.compose.runtime.rememberUpdatedState(pods.listeningMode)
     val offAllowed = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("off_listening_mode", true) }
@@ -1187,7 +1251,7 @@ internal fun MiniIslandHost(
             .onSizeChanged { boxW = it.width }
             .semantics {
                 role = Role.Button
-                contentDescription = describe
+                contentDescription = if (detached) "$describe A timer runs beside it." else describe
                 onClick(label = (actions[IslandGestures.Gesture.Tap1] ?: IslandGestures.Action.Expand).label) { fire(IslandGestures.Gesture.Tap1); true }
                 onLongClick(label = (actions[IslandGestures.Gesture.Hold] ?: IslandGestures.Action.OpenApp).label) { fire(IslandGestures.Gesture.Hold); true }
             }
@@ -1204,6 +1268,20 @@ internal fun MiniIslandHost(
                     val down = awaitFirstDown(requireUnconsumed = false)
                     // Taps count as soon as the pill is there at all, even while it's still growing.
                     val inside = appear.value > 0.15f && pillBounds().inflate(6f * density).contains(down.position)
+                    // The detached circle (the timer beside the music) is its own button: a tap opens it.
+                    val circleC = Offset(pillBounds().right + geometry.detachedGap + geometry.detachedD / 2f, m + s.height / 2f)
+                    if (!inside && split.value > 0.6f && wide.value < 0.5f && (down.position - circleC).getDistance() <= geometry.detachedD / 2f + 6f * density) {
+                        buzz.touch()
+                        var strayed = false
+                        while (true) {
+                            val ch = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                            if ((ch.position - down.position).getDistance() > slop) strayed = true
+                            ch.consume()
+                            if (!ch.pressed) break
+                        }
+                        if (!strayed) { buzz.confirm(); currentDetachedTap() }
+                        return@awaitEachGesture
+                    }
                     var dx = 0f
                     var dy = 0f
                     var last = down.uptimeMillis
@@ -1298,14 +1376,30 @@ internal fun MiniIslandHost(
             // The camera line stays put; the wide pill grows downward under it.
             val top = m + (s.height - compactH) / 2f
             val left = cx - pillW / 2f
-            val r = compactH / 2f
+            // The iPhone's corner: 44 dp, or a full capsule while shorter than 88 dp (always, compact).
+            val r = if (iphone) me.kavishdevar.librepods.services.IslandSpec.cornerPx(pillH, density) else compactH / 2f
             val glow = look.glow.amount
             // With the AirPods (no music): a touch lighter than black with a faint rim of light,
             // so it stands out slightly from the background. With music it's pure black, at one
-            // with the camera. Glow Off keeps it black always.
-            val idle = tone.value * minOf(1f, glow)
+            // with the camera. Glow Off keeps it black always. The iPhone look is always black.
+            val idle = if (iphone) 0f else tone.value * minOf(1f, glow)
             val fill = androidx.compose.ui.graphics.lerp(Color.Black, Color(0xFF1D1D20), idle)
             drawRoundRect(fill, Offset(left, top), Size(pillW, pillH), CornerRadius(r, r))
+            // The detached circle (a timer beside the music): buds off the pill's right end with a
+            // liquid neck, then floats a small gap away. Black like the island, with the same key line.
+            val sp = split.value
+            val circleD = geometry.detachedD * lerp(0.55f, 1f, sp.coerceIn(0f, 1f))
+            val circleC = Offset(
+                left + pillW + lerp(-circleD / 2f, geometry.detachedGap + geometry.detachedD / 2f, sp),
+                top + compactH / 2f,
+            )
+            val circleOut = sp > 0.02f && wide.value < 0.5f
+            if (circleOut) {
+                drawCircle(Color.Black, circleD / 2f, circleC)
+                if (!reduce) me.kavishdevar.librepods.presentation.glint.metaballNeck(
+                    Offset(left + pillW - r, top + compactH / 2f), minOf(r, compactH / 2f), circleC, circleD / 2f, reach = 1.3f,
+                )?.let { drawPath(it, Color.Black) }
+            }
             // Pressed: the glass lights up a little, most where it's held.
             if (press.value > 0.01f) {
                 val p = press.value
@@ -1326,7 +1420,18 @@ internal fun MiniIslandHost(
                     )
                 }
             }
-            if (glow > 0f) {
+            if (iphone) {
+                // Apple's key line: a thin edge in the content's own colour, only on a dark
+                // background (on light, the black island needs none). Stronger with Glow Bright.
+                // (Under a pop-up that opened around the camera it steps back too, so it can never show through.)
+                val kl = me.kavishdevar.librepods.services.IslandSpec.keylineAlpha(darkBg, glow) * (1f - makeWay.value)
+                if (kl > 0f) {
+                    val tint = androidx.compose.ui.graphics.lerp(Color.White, accent, 0.55f).copy(alpha = kl)
+                    val stroke = androidx.compose.ui.graphics.drawscope.Stroke(0.75f * density)
+                    drawRoundRect(tint, Offset(left + 0.5f, top + 0.5f), Size(pillW - 1f, pillH - 1f), CornerRadius(r - 0.5f, r - 0.5f), style = stroke)
+                    if (circleOut && sp > 0.85f) drawCircle(tint.copy(alpha = kl * ((sp - 0.85f) / 0.15f).coerceIn(0f, 1f)), circleD / 2f - 0.5f, circleC, style = stroke)
+                }
+            } else if (glow > 0f) {
                 // The rim catches the light from above and swings a little as you tilt the
                 // phone (the same light as the rest of the app's glass). Faint with music.
                 val swing = Math.toRadians(me.kavishdevar.librepods.presentation.glint.GlintLight.swing.floatValue.toDouble()).toFloat()
@@ -1344,8 +1449,8 @@ internal fun MiniIslandHost(
                 )
             }
 
-            // Contents fade in once the pill is mostly formed.
-            val c0 = ((a - 0.55f) / 0.45f).coerceIn(0f, 1f)
+            // Contents fade in once the pill is mostly formed (and step back under a pop-up that covers it).
+            val c0 = ((a - 0.55f) / 0.45f).coerceIn(0f, 1f) * (1f - makeWay.value)
             if (c0 <= 0f) return@Canvas
             val lineY = m + s.height / 2f
             val right = left + pillW
@@ -1357,10 +1462,10 @@ internal fun MiniIslandHost(
                 val sw = geometry.slotW(slot)
                 return Offset(if (leftSide) left + s.inset + sw / 2f else right - s.inset - sw / 2f, lineY)
             }
-            fun slot(slot: IslandLook.Slot, leftSide: Boolean, alpha: Float) {
+            fun slot(slot: IslandLook.Slot, leftSide: Boolean, alpha: Float, at: Offset? = null) {
                 if (alpha <= 0.001f) return
                 drawSlot(
-                    slot, slotCentre(slot, leftSide), geometry.slotW(slot), leftSide, alpha,
+                    slot, at ?: slotCentre(slot, leftSide), geometry.slotW(slot), leftSide, alpha,
                     SlotData(
                         side = s.side, density = density, fontScale = fontScale, track = track, pods = pods, heartBpm = heartBpm, beat = beat.value,
                         level = level.floatValue, accent = accent, paused = paused, clock = clock.longValue, moving = moving,
@@ -1372,9 +1477,12 @@ internal fun MiniIslandHost(
                         screenIcon = curIcon, prevIcon = prevIcon, swap = swap.value, wallpaper = wallpaper,
                         today = today, lockOpen = lockOpen.value, glance = glanceItem,
                         timerAt = if (still != null) 0L else timerNow,
+                        squareArt = iphone,
                     )
                 )
             }
+            // The detached circle's own content: the timer, concentric inside it.
+            if (circleOut) slot(IslandLook.Slot.Glance, false, c0 * ((sp - 0.45f) / 0.55f).coerceIn(0f, 1f), circleC)
             if (fromL == shownL) slot(shownL, true, c0) else { slot(fromL, true, c0 * (1f - k)); slot(shownL, true, c0 * k) }
             val rs = 1f - ak
             if (fromR == shownR) slot(shownR, false, c0 * rs) else { slot(fromR, false, c0 * (1f - k) * rs); slot(shownR, false, c0 * k * rs) }
@@ -1477,7 +1585,28 @@ private class SlotData(
     val glance: GlanceRules.Item? = null,
     /** elapsedRealtime the timer is drawn for (0: its still state, for screenshots). */
     val timerAt: Long = 0L,
+    /** The iPhone look: the cover is a small rounded square, as in Apple's pictures, not a circle. */
+    val squareArt: Boolean = false,
 )
+
+/**
+ * A rounded square's outline centred at [c] (half its width [h], corner [cr]), drawn clockwise
+ * from the middle of its top edge, so a part of it reads like a clock hand's sweep.
+ */
+private fun squareRing(c: Offset, h: Float, cr: Float): Path = Path().apply {
+    val l = c.x - h; val t = c.y - h; val r = c.x + h; val b = c.y + h
+    val k = cr.coerceAtMost(h)
+    moveTo(c.x, t)
+    lineTo(r - k, t)
+    arcTo(androidx.compose.ui.geometry.Rect(r - 2 * k, t, r, t + 2 * k), -90f, 90f, false)
+    lineTo(r, b - k)
+    arcTo(androidx.compose.ui.geometry.Rect(r - 2 * k, b - 2 * k, r, b), 0f, 90f, false)
+    lineTo(l + k, b)
+    arcTo(androidx.compose.ui.geometry.Rect(l, b - 2 * k, l + 2 * k, b), 90f, 90f, false)
+    lineTo(l, t + k)
+    arcTo(androidx.compose.ui.geometry.Rect(l, t, l + 2 * k, t + 2 * k), 180f, 90f, false)
+    lineTo(c.x, t)
+}
 
 /** One thing beside the camera, centred at [c] in a spot [w] wide. */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
@@ -1501,7 +1630,14 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
                 )
             }
             // The cover (or a note when there's no picture), greyed and dimmed while paused.
-            val circle = Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, side / 2f)) }
+            val circle = Path().apply {
+                if (d.squareArt) {
+                    // A touch smaller than the round cover so it reads the same size; corner about a
+                    // quarter of its width (matched by eye to Apple's pictures).
+                    val h = side * 0.43f
+                    addRoundRect(androidx.compose.ui.geometry.RoundRect(c.x - h, c.y - h, c.x + h, c.y + h, CornerRadius(side * 0.2f)))
+                } else addOval(androidx.compose.ui.geometry.Rect(c, side / 2f))
+            }
             clipPath(circle) {
                 val art = d.track.art ?: d.coverIcon
                 if (art != null) {
@@ -1520,6 +1656,19 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
             }
             // How far through the song: a thin ring round the cover (when the app says).
             d.track.progress(d.progressAt)?.let { p ->
+                if (d.squareArt) {
+                    // Around the rounded square: the same thin line, following its shape from the top.
+                    val stroke = androidx.compose.ui.graphics.drawscope.Stroke(1.6f * dp, cap = StrokeCap.Round)
+                    val outline = squareRing(c, side * 0.43f + 2f * dp, side * 0.2f + 2f * dp)
+                    drawPath(outline, Color.White.copy(alpha = 0.16f * alpha), style = stroke)
+                    if (p > 0f) {
+                        val measure = androidx.compose.ui.graphics.PathMeasure().apply { setPath(outline, false) }
+                        val done = Path()
+                        measure.getSegment(0f, measure.length * p.coerceIn(0f, 1f), done, true)
+                        drawPath(done, d.accent.copy(alpha = 0.95f * alpha), style = stroke)
+                    }
+                    return@let
+                }
                 val ringR = side / 2f + 2f * dp
                 val tl = Offset(c.x - ringR, c.y - ringR)
                 val ring = Size(ringR * 2f, ringR * 2f)

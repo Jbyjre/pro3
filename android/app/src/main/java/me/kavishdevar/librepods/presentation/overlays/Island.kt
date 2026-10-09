@@ -170,6 +170,7 @@ internal class IslandController(private val context: Context) {
         // out of it, it takes over again in the same spot the moment this one is gone.
         window.onShownChanged = { shown ->
             if (!shown && geometry?.origin != null) GlintOverlays.returnToMiniAt = android.os.SystemClock.elapsedRealtime()
+            if (!shown) GlintOverlays.islandAround.value = false
             GlintOverlays.islandVisible.value = shown
         }
         // Moved above or below the status bar (pro's accessibility service started or stopped):
@@ -221,6 +222,7 @@ internal class IslandController(private val context: Context) {
         // Grow out of the mini island when it's up (one shape, like the Dynamic Island).
         val geo = IslandGeometry(context, GlintOverlays.plannedMiniOrigin(), tall = e.isGlance())
         geometry = geo
+        GlintOverlays.islandAround.value = geo.around
         window.show(if (wantsExpanded) geo.expandedWindow else geo.compactWindow, geo.windowTop) {
             IslandHost(
                 geometry = geo,
@@ -263,14 +265,30 @@ internal class IslandGeometry(
     val origin: GlintOverlays.MiniOrigin? = null,
     /** The opened Dynamic Island's glance (taller: what's live and the phone's controls). */
     val tall: Boolean = false,
+    /** The iPhone's black island or pro's glass one (Settings > Island > Style). */
+    val style: me.kavishdevar.librepods.services.IslandSpec.Style =
+        me.kavishdevar.librepods.services.IslandPrefs.style(me.kavishdevar.librepods.services.IslandPrefs.prefs(context)),
+    /** The window goes above the status bar (pro's accessibility switch is on). */
+    aboveStatusBar: Boolean = me.kavishdevar.librepods.services.IslandAccess.service.value != null,
 ) {
     private val density = context.resources.displayMetrics.density
+    val iphone = style == me.kavishdevar.librepods.services.IslandSpec.Style.IPhone
+    /**
+     * Opens around the camera, out of the Dynamic Island itself, like the iPhone's: its top edge
+     * stays on the pill's top edge and it grows down and out from there, the camera inside it.
+     */
+    val around = me.kavishdevar.librepods.services.IslandSpec.opensAroundCamera(style, origin != null, aboveStatusBar)
     private fun dp(v: Float) = v * density
     private val screen = GlintOverlays.screenSize(context)
     val margin = dp(22f)
     val shadowDrop = dp(16f)
     val tiny = dp(34f)
-    val compactH = dp(44f)
+    /**
+     * Around the camera, the top of the island is the camera's own band (the Dynamic Island's
+     * height): nothing is drawn under the camera, as on the iPhone, and the content sits below it.
+     */
+    val band = if (around && origin != null) origin.height else 0f
+    val compactH = dp(44f) + band
     // Wide enough for the buds, two readable lines and the bubble inside one pill.
     // Narrow phones: never wider than the screen (with a small margin each side).
     val compactMainW = minOf(dp(268f), screen.width - dp(24f))
@@ -282,12 +300,16 @@ internal class IslandGeometry(
      * 0 = tucked deep inside, 1 = fully budded off beside the pill.
      */
     val restSplit = satD / (satGap + 2f * satD)
-    val expandedW = minOf(screen.width - dp(28f), dp(368f))
+    // The iPhone's opened island: 11 dp from each side of the screen, at most 408 dp (Apple's
+    // own sizes); pro's glass one is a little narrower.
+    val expandedW = if (iphone) minOf(screen.width - dp(2f * me.kavishdevar.librepods.services.IslandSpec.SIDE_MARGIN_DP), dp(me.kavishdevar.librepods.services.IslandSpec.EXPANDED_MAX_W_DP))
+        else minOf(screen.width - dp(28f), dp(368f))
     // Header, AirPods and batteries (with the heart while measuring), time left and play/pause.
-    val expandedH = if (tall) dp(GLANCE_H_DP) else dp(196f)
+    val expandedH = (if (tall) dp(GLANCE_H_DP) else dp(196f)) + band
     // The heart's explanation needs more room: tapping the heart grows the island to this.
-    val detailH = dp(292f)
-    val expandedRadius = dp(40f)
+    val detailH = dp(292f) + band
+    // Apple: "The Dynamic Island uses a corner radius of 44 points."
+    val expandedRadius = dp(if (iphone) me.kavishdevar.librepods.services.IslandSpec.CORNER_DP else 40f)
     // Rests just under the status bar, and never over the camera (some phones report no status
     // bar height, for example while a full-screen app is open).
     private val restScreenTop = maxOf(
@@ -299,15 +321,16 @@ internal class IslandGeometry(
      * pill (which stays tappable) or the status bar (pulling down notifications still works);
      * the pop-up drops out of the pill's underside. Otherwise it has its usual margin above.
      */
-    val windowTop: Int = origin?.let { (it.top + it.height + dp(1f)).roundToInt().coerceAtMost(restScreenTop) }
+    val windowTop: Int = if (around && origin != null) kotlin.math.floor(origin.top).toInt()
+        else origin?.let { (it.top + it.height + dp(1f)).roundToInt().coerceAtMost(restScreenTop) }
         ?: (restScreenTop - margin.roundToInt())
-    /** The pill's top edge at rest, inside the window. */
-    val restTop = (restScreenTop - windowTop).toFloat()
-    // Where the shape starts (and ends when it leaves): a drop from the Dynamic Island's
-    // underside, or a small dot.
+    /** The pill's top edge at rest, inside the window (around the camera: the Dynamic Island's own top). */
+    val restTop = if (around && origin != null) origin.top - windowTop else (restScreenTop - windowTop).toFloat()
+    // Where the shape starts (and ends when it leaves): the Dynamic Island itself (around the
+    // camera), a drop from its underside, or a small dot.
     val seedW = origin?.width ?: tiny
-    val seedH = if (origin != null) dp(8f) else tiny
-    val seedTop = if (origin != null) 0f else restTop
+    val seedH = if (around && origin != null) origin.height else if (origin != null) dp(8f) else tiny
+    val seedTop = if (around) restTop else if (origin != null) 0f else restTop
     val seedDx = origin?.dx ?: 0f
     private val below = margin + shadowDrop
     val compactWindow = IntSize(
@@ -364,10 +387,17 @@ private fun IslandHostContent(
     // The same lighter glass as the app on Battery Saver or a hot phone (checked as it appears).
     LaunchedEffect(Unit) { me.kavishdevar.librepods.presentation.glint.GlassBudget.update(context) }
     val dark = androidx.compose.foundation.isSystemInDarkTheme()
-    val look = remember(dark) { GlassLooks.island(density, dark) }
+    // The iPhone's island is black in light and dark alike, so its words are always light.
+    val iphone = geometry.iphone
+    val look = remember(dark, iphone) { GlassLooks.island(density, dark || iphone) }
+    // Apple's key line: only on a dark background, as strong as the Dynamic Island's own (its Glow choice).
+    val keyline = remember(dark, iphone) {
+        if (!iphone) 0f else me.kavishdevar.librepods.services.IslandSpec.keylineAlpha(dark, me.kavishdevar.librepods.services.IslandLook.read(prefs).glow.amount)
+    }
     val ringTrack = if (dark) Color(0x33FFFFFF) else Color(0x1F000000)
 
-    val useBlur = blurAllowed && !reduceTransparency
+    // The iPhone's island is opaque: no blur behind it (also lighter work for the phone).
+    val useBlur = blurAllowed && !reduceTransparency && !iphone
     val mainBlur = remember(useBlur) { if (useBlur) SystemBlur.create(view) else null }
     val satBlur = remember(useBlur) { if (useBlur) SystemBlur.create(view) else null }
     DisposableEffect(mainBlur, satBlur) { onDispose { mainBlur?.hide(); satBlur?.hide() } }
@@ -539,9 +569,14 @@ private fun IslandHostContent(
         val groupW = w + max(0f, protrude)
         // From the seed (the mini island by the camera, or a dot) down to the resting place.
         val left = (windowWidth - groupW) / 2f + geometry.seedDx * (1f - a).coerceIn(0f, 1f)
-        val top = lerp(geometry.seedTop, geometry.restTop, a) + p.coerceAtMost(0f) * 0.35f + (1f - sq) * lerp(geometry.compactH, fullH, eh) / 2f
+        // Around the camera the top edge stays on the Dynamic Island's top, like the iPhone's
+        // (it only ever grows down and out); otherwise a press squeezes it toward its middle.
+        val top = lerp(geometry.seedTop, geometry.restTop, a) +
+            if (geometry.around) 0f else p.coerceAtMost(0f) * 0.35f + (1f - sq) * lerp(geometry.compactH, fullH, eh) / 2f
         val main = Rect(left, top, left + w, top + h)
-        val satCenter = Offset(main.right - geometry.satD / 2f + protrude, main.top + minOf(h, geometry.compactH) / 2f)
+        // On the content's middle line: below the camera's band when it opens around the camera.
+        val band = minOf(geometry.band, h)
+        val satCenter = Offset(main.right - geometry.satD / 2f + protrude, main.top + band + (minOf(h, geometry.compactH) - band) / 2f)
         return IslandFrame(main, radius, satCenter, satR, a, e, s)
     }
 
@@ -558,7 +593,20 @@ private fun IslandHostContent(
                     val slop = 10f * density
                     val onMain = f.main.inflate(slop).contains(down.position)
                     val onSat = f.satR > 1f && (down.position - f.satCenter).getDistance() <= f.satR + slop
-                    if (!onMain && !onSat) return@awaitEachGesture
+                    if (!onMain && !onSat) {
+                        // Around the camera this window covers the top of the status bar: a pull
+                        // down beside the island still opens the notifications.
+                        if (geometry.around) {
+                            var dy = 0f
+                            while (true) {
+                                val ch = awaitPointerEvent().changes.firstOrNull() ?: break
+                                dy += ch.positionChange().y
+                                if (!ch.pressed) break
+                            }
+                            if (dy > 30f * density) me.kavishdevar.librepods.services.IslandAccess.openNotifications()
+                        }
+                        return@awaitEachGesture
+                    }
                     touches++
                     touch = down.position
                     press = 1f
@@ -644,6 +692,18 @@ private fun IslandHostContent(
                     )
                     if (neck != null && !reduceMotion) Path.combine(PathOperation.Union, union, neck) else union
                 } else mainPath
+                if (iphone) {
+                    // The iPhone's island: opaque black, one shape with its bubble, and Apple's
+                    // thin key line on a dark background. No glass, no shadow.
+                    // Out of the Dynamic Island it is that same black shape from the first frame.
+                    val ink = if (geometry.origin != null) 1f else alpha
+                    drawPath(outline, Color.Black, alpha = ink)
+                    if (keyline > 0f) drawPath(
+                        outline, Color.White.copy(alpha = keyline * ink),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(0.75f * density),
+                    )
+                    return@drawBehind
+                }
                 // One blur region per rounded shape (the platform blur is rounded-rect only),
                 // then a single glass paint over the liquid union so the tint never doubles.
                 if (mainBlur != null) drawSystemBlur(mainBlur, f.main, f.radius, look, alpha)
@@ -677,6 +737,8 @@ private fun IslandHostContent(
             expandedWidth = geometry.expandedW.roundToInt(),
             expandedHeight = { expandedHeight().roundToInt() },
             frameProvider = { frame(it) },
+            blurMorph = !reduceMotion,
+            cameraBand = geometry.band,
             compact = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val art = playingNow.art
@@ -764,7 +826,16 @@ private fun IslandLayout(
     compact: @Composable () -> Unit,
     satellite: @Composable () -> Unit,
     expanded: @Composable () -> Unit,
+    /** Content melts through a soft blur as it changes, the way the iPhone's island does (off with Reduce motion). */
+    blurMorph: Boolean = true,
+    /** The camera's band at the top of the island (around the camera): content starts below it. */
+    cameraBand: Float = 0f,
 ) {
+    /** A blur for content that's [gone] (0 = sharp, 1 = fully out of focus), or none when it's sharp. */
+    fun androidx.compose.ui.graphics.GraphicsLayerScope.focus(gone: Float) {
+        val r = gone.coerceIn(0f, 1f) * 9f * density
+        renderEffect = if (blurMorph && r > 0.5f) androidx.compose.ui.graphics.BlurEffect(r, r, androidx.compose.ui.graphics.TileMode.Decal) else null
+    }
     Layout(
         contents = listOf(compact, satellite, expanded),
         modifier = Modifier.fillMaxSize()
@@ -773,16 +844,18 @@ private fun IslandLayout(
         val h = constraints.maxHeight
         val f = frameProvider(w.toFloat())
         val loose = Constraints(maxWidth = w, maxHeight = h)
-        val c = compactM.map { it.measure(Constraints(maxWidth = (f.main.width - f.main.height * 0.9f - f.main.height).roundToInt().coerceAtLeast(0), maxHeight = h)) }
+        val band = minOf(cameraBand, f.main.height)
+        val rowH = f.main.height - band
+        val c = compactM.map { it.measure(Constraints(maxWidth = (f.main.width - rowH * 0.9f - rowH).roundToInt().coerceAtLeast(0), maxHeight = h)) }
         val s = satM.map { it.measure(loose) }
-        val e = expM.map { it.measure(Constraints.fixed(expandedWidth, expandedHeight())) }
+        val e = expM.map { it.measure(Constraints.fixed(expandedWidth, (expandedHeight() - cameraBand.roundToInt()).coerceAtLeast(0))) }
         layout(w, h) {
             val compactAlpha = (f.appear - 0.55f).coerceAtLeast(0f) / 0.45f * (1f - f.expand * 2.5f).coerceAtLeast(0f)
             c.forEach {
                 it.placeWithLayer(
-                    (f.main.left + f.main.height * 0.32f).roundToInt(),
-                    (f.main.center.y - it.height / 2f).roundToInt()
-                ) { alpha = compactAlpha }
+                    (f.main.left + rowH * 0.32f).roundToInt(),
+                    (f.main.top + band + rowH / 2f - it.height / 2f).roundToInt()
+                ) { alpha = compactAlpha; focus(f.expand * 2.5f) }
             }
             s.forEach {
                 it.placeWithLayer(
@@ -795,17 +868,19 @@ private fun IslandLayout(
                 }
             }
             e.forEach {
-                it.placeWithLayer(f.main.left.roundToInt(), f.main.top.roundToInt()) {
+                it.placeWithLayer(f.main.left.roundToInt(), (f.main.top + cameraBand).roundToInt()) {
                     // Fades in on a smooth S-curve while settling from slightly smaller and higher,
                     // so the content arrives with the glass instead of popping in at the end.
                     val t = ((f.expand - 0.30f) / 0.70f).coerceIn(0f, 1f).let { x -> x * x * (3f - 2f * x) }
                     alpha = t
+                    focus(1f - t)
                     val sc = 0.965f + 0.035f * t
                     scaleX = sc; scaleY = sc
                     transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
                     translationY = (1f - t) * -6f * density
+                    // Clipped to the shape (the blur may not spill past it).
                     clip = true
-                    shape = RevealShape(f.main.width, f.main.height, f.radius)
+                    shape = RevealShape(f.main.width, f.main.height, f.radius, cameraBand)
                 }
             }
         }
@@ -1757,7 +1832,7 @@ internal fun glanceIslandText(place: me.kavishdevar.librepods.services.ScreenApp
 internal const val GLANCE_H_DP = 272f
 
 /** Clips expanded content to the island's current (growing) shape, anchored top-left. */
-private class RevealShape(private val w: Float, private val h: Float, private val r: Float) : Shape {
+private class RevealShape(private val w: Float, private val h: Float, private val r: Float, private val top: Float = 0f) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
-        Outline.Rounded(RoundRect(0f, 0f, w, h, CornerRadius(r)))
+        Outline.Rounded(RoundRect(0f, -top, w, h - top, CornerRadius(r)))
 }

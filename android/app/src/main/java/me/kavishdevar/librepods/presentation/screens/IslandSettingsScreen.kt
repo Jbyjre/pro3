@@ -151,6 +151,24 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
         SectionLabel("Look", ink)
         DynamicIslandStudio(ink, dark)
 
+        // iPhone (Apple's own look, the default) or pro's earlier glass island.
+        var islandStyle by remember { mutableIntStateOf(IslandPrefs.style(prefs).ordinal) }
+        SectionLabel("Style", ink)
+        LiquidSegments(
+            me.kavishdevar.librepods.services.IslandSpec.Style.entries.map { it.label }, islandStyle,
+            {
+                islandStyle = it
+                prefs.edit { putBoolean(IslandPrefs.PREF_IPHONE_LOOK, it == me.kavishdevar.librepods.services.IslandSpec.Style.IPhone.ordinal) }
+            },
+        )
+        Text(
+            me.kavishdevar.librepods.services.IslandSpec.Style.entries[islandStyle].description +
+                if (islandStyle == me.kavishdevar.librepods.services.IslandSpec.Style.IPhone.ordinal && tapsService == null)
+                    ". Opening around the camera needs the \"pro Dynamic Island\" switch." else ".",
+            style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = ink.copy(alpha = 0.55f)),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+
         StyledList(title = "Dynamic Island") {
             StyledToggle(
                 label = "Dynamic Island around the camera",

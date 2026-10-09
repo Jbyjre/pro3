@@ -102,6 +102,10 @@
   `services/GlanceRules.kt`, `PhoneControls.kt`), never an empty music player. Island timer: `services/IslandTimer.kt`
   (`USE_EXACT_ALARM` in the foss manifest only). Hide in apps `PREF_HIDE_IN`; phone moments (`PREF_PHONE_MOMENTS`)
   also widen with a line of words (`MiniMoment.of`).
+- iPhone-accurate island (session 2026-10-09, default "iPhone" style, Settings > Island > Style): Apple's numbers live in
+  `services/IslandSpec.kt` (quoted from Apple's HIG); black in light and dark, key line only on dark, pop-ups open out of the pill around
+  the camera (`IslandGeometry.around`/`band`, needs the accessibility layer), detached timer circle (`MiniIsland` `detached`/`restWindow`).
+  The old glass look is the "Glass" style. Jake's gestures stay (Apple's own: tap = open app, hold = expand).
 - **`docs/REQUESTS.md` is the ledger of everything Jake has asked for and how finished each thing is: read it first and update it
   whenever he asks for something or a status changes.** Folder READMEs (`android/`, `services/`, `overlays/`, `glint/`, `screens/`,
   tests) map the code: update them with the code. Check a README doesn't already exist before writing one (`git ls-files | grep -i readme`).

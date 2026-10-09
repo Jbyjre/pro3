@@ -163,6 +163,8 @@ object GlintOverlays {
 
     /** True while the big island is on screen (the mini island hides meanwhile). */
     val islandVisible = androidx.compose.runtime.mutableStateOf(false)
+    /** The pop-up that's up opened around the camera, over the Dynamic Island (the iPhone style). */
+    val islandAround = androidx.compose.runtime.mutableStateOf(false)
 
     /**
      * Where the mini island is right now (null when it isn't showing), so the big island can
