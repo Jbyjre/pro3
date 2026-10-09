@@ -136,7 +136,7 @@ fun StyledToggle(
         if (description != null && !m3eEnabled) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = description, style = TextStyle(
+                text = footnote(description), style = TextStyle(
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onBackground.copy(0.6f),
                     fontFamily = glintFontFamily,

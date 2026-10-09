@@ -1023,7 +1023,9 @@ internal fun MiniIslandHost(
     val shows = setOf(shownL, shownR)
     val lowPulse = IslandLook.Slot.Battery in shows && (pods.budsLevel ?: 100) <= 10 && !pods.budsCharging
     // A ringing timer shakes its bell (the one glance that keeps moving).
-    val ringing = IslandLook.Slot.Glance in shows && glanceItem is GlanceRules.Item.Timer && glanceItem.state.ringing
+    // The timer shows in the glance spot, or in the detached circle beside the music.
+    val glanceOut = IslandLook.Slot.Glance in shows || detached
+    val ringing = glanceOut && glanceItem is GlanceRules.Item.Timer && glanceItem.state.ringing
     // The phone's own ring breathes when it is very low and not charging.
     val phoneLowPulse = IslandLook.Slot.Phone in shows && phone.known && phone.level <= 10 && !phone.charging
     val animated = (lively && (IslandLook.Slot.Bars in shows || IslandLook.Slot.Cover in shows)) ||
@@ -1093,7 +1095,7 @@ internal fun MiniIslandHost(
     }
     // A running timer in the glance spot: its number and ring move on once a second (not every
     // frame), and only while it's on show.
-    val timerShown = visible && IslandLook.Slot.Glance in shows && glanceItem is GlanceRules.Item.Timer && glanceItem.state.running
+    val timerShown = visible && glanceOut && glanceItem is GlanceRules.Item.Timer && glanceItem.state.running
     var timerNow by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     LaunchedEffect(timerShown, timer) {
         if (!timerShown || still != null) return@LaunchedEffect
@@ -1713,9 +1715,10 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
                 val glow = if (d.moving) 0.5f + 0.5f * sin(d.clock / 1000f * 4.2f) else 0.6f
                 drawCircle(
                     androidx.compose.ui.graphics.Brush.radialGradient(
-                        listOf(d.appAccent.copy(alpha = 0.30f * glow * alpha), d.appAccent.copy(alpha = 0f)), c, r * 1.7f
+                        listOf(d.appAccent.copy(alpha = 0.30f * glow * alpha), d.appAccent.copy(alpha = 0f)), c, r * 1.3f
                     ),
-                    r * 1.7f, c,
+                    // Stays inside the island (it used to spill past its edge onto the screen).
+                    r * 1.3f, c,
                 )
             }
             clipPath(circle) {

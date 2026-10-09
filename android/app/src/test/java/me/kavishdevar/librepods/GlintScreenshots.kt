@@ -166,7 +166,9 @@ class GlintScreenshots {
                 }
             }
         }
-        rule.mainClock.advanceTimeBy(1_200)
+        // Long enough for the heart chip to finish budding out of play/pause (it starts at 1 s),
+        // so the pictures show the settled island rather than the middle of that animation.
+        rule.mainClock.advanceTimeBy(3_200)
         then()
         rule.onRoot().captureRoboImage("$out/$name.png")
     }
@@ -448,10 +450,10 @@ class GlintScreenshots {
 
     @Test fun iphoneAroundCameraCompact() = aroundCamera("iphone_around_compact", IslandEvent.Connected, IslandPhase.Compact, dark = true, frames = listOf(16L, 80L, 160L, 900L))
     @Test fun iphoneAroundCameraOpened() = connectedLink {
-        aroundCamera("iphone_around_opened", IslandEvent.Connected, IslandPhase.Expanded, dark = true, frames = listOf(60L, 140L, 240L, 1_200L))
+        aroundCamera("iphone_around_opened", IslandEvent.Connected, IslandPhase.Expanded, dark = true, frames = listOf(60L, 140L, 240L, 3_200L))
     }
     @Test fun iphoneAroundCameraOpenedLight() = connectedLink {
-        aroundCamera("iphone_around_opened_light", IslandEvent.Connected, IslandPhase.Expanded, dark = false, frames = listOf(1_200L))
+        aroundCamera("iphone_around_opened_light", IslandEvent.Connected, IslandPhase.Expanded, dark = false, frames = listOf(3_200L))
     }
     @Test fun iphoneGlanceOpened() = aroundCamera("iphone_glance", IslandEvent.Glance, IslandPhase.Expanded, dark = true, frames = listOf(1_400L))
 
