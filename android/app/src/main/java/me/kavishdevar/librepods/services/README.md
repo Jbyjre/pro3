@@ -8,6 +8,7 @@ The brains of pro. Files are small and named for what they decide. "Pure" means 
 |---|---|---|
 | `MiniIslandRules.kt` | When the camera pill is wanted (a timer always; never in a "hide in" app otherwise), what it is about (Music, Sound, Screen, AirPods, Rest), what a tap opens (`tapOpens`: never an empty music player), its sizes around any camera, camera picking, how long things linger, `PlayTracker` (when music counts as played), `nextCheck` (the safe "look again" timer) | yes |
 | `IslandLook.kt` | What goes left and right of the camera in each situation, size, width, glow, colour; stored in the `settings` preferences under `glint_di_*`; `clockText` | storage only |
+| `IslandSpec.kt` | Apple's own Dynamic Island numbers and rules, quoted from its design guidelines (44 dp corner, black, key line only on dark, opened width = screen minus 11 dp each side, detached circle), the `Style` (iPhone / Glass) and when a pop-up opens around the camera | yes |
 | `IslandPrefs.kt` | Every on/off switch for the islands and the sound settings (`PREF_*`), the per-moment pop-up switches, the ignored-apps list | storage only |
 | `IslandGestures.kt` | Tap counting, hold, swipe, pull: one recogniser; what each gesture does (configurable) | yes |
 | `IslandAccess.kt` | The accessibility service "pro Dynamic Island" (puts the pill above the status bar so taps reach it; reports the app on screen and open system panels) and `PanelRules` | rules yes |

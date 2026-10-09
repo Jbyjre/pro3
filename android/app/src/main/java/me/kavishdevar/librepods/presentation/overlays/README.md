@@ -35,10 +35,14 @@ While music plays, an alert (a message ding) swaps the right-hand slot for the a
 
 A tap opens, by content (`MiniIslandRules.tapOpens`): Music the music island, AirPods the AirPods island, Sound the app that made it, Screen and Rest the glance (`GlancePanel`). A ringing timer is silenced by the tap instead. Changing apps springs the new icon in (`swap`, Settings > Island > Moments > "App icon springs in"); unlocking springs the padlock open (`ScreenApp.Place.Locked(opening)`); plugging the phone in widens the pill with "Charging · N%" (`MiniMoment`).
 
+## The iPhone style (default) and the Glass style
+
+`IslandSpec.Style` (Settings > Island > Style, `PREF_IPHONE_LOOK`). **iPhone:** opaque black in light and dark, Apple's key line only on a dark background (`IslandSpec.keylineAlpha`, tinted with the content), corner `IslandSpec.cornerPx` (44 dp or a capsule), opened width `screen - 22 dp` (max 408). With the pill up and the accessibility layer available (`IslandGeometry.around`), a pop-up's window starts at the **pill's top**, grows out of exactly the pill and keeps the camera in a clear top band (`IslandGeometry.band`; compact content, the bubble and the opened page all sit below it); a pull down beside it still opens notifications. Under it the pill's contents step back (`makeWay`). Without the accessibility layer the pop-up drops out under the pill as before (the clock would draw over it otherwise). A timer while music plays goes into a **detached circle** beside the pill (`detached`, `split`, `MiniGeometry.detachedWindow`; any code that shrinks the window back must use `restWindow()`). Content changes in the pop-ups melt through a blur (`IslandLayout.focus`). **Glass:** the earlier frosted look, dropping out under the pill.
+
 ## Rules for changes here
 
 - The pill is on screen for hours: nothing may animate, tick or read sensors when it doesn't have to.
-- A pop-up's window starts **below** the pill so the pill stays tappable (taps in the camera strip otherwise go to the status bar).
+- A pop-up's window starts **below** the pill so the pill stays tappable (taps in the camera strip otherwise go to the status bar), except in the iPhone style around the camera, where it covers the pill on purpose (it is the same shape, and handles the taps).
 - Hidden windows must be fully transparent and untouchable, or they eat taps meant for the app underneath.
 - Anything that schedules a recheck with a computed wait must make sure the wait is above zero (`MiniIslandRules.nextCheck`).
 - Draw with the shared light: `GlintLight.rim()`, never a hand-made diagonal.

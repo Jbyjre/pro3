@@ -197,6 +197,8 @@ class GlintScreenshots {
         swap: Float? = null,
         message: me.kavishdevar.librepods.services.SoundSource.Message? = null,
         phoneBlip: Boolean = false,
+        /** How far the detached circle (a timer beside the music) has split off; null: the usual window. */
+        split: Float? = null,
     ) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")
         rule.mainClock.autoAdvance = false
@@ -227,7 +229,7 @@ class GlintScreenshots {
                 Box(Modifier.fillMaxWidth().height(with(dens) { (geo.wideWindow.height + geo.windowTop.coerceAtLeast(0)).toDp() + 40.dp })) {
                     Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(0, geo.windowTop) }.size(with(dens) {
                         val s = if (content == me.kavishdevar.librepods.services.MiniIslandRules.Content.Message) geo.messageWindow
-                            else if (wide > 0f) geo.wideWindow else geo.compactWindow
+                            else if (wide > 0f) geo.wideWindow else if (split != null) geo.detachedWindow else geo.compactWindow
                         androidx.compose.ui.unit.DpSize(s.width.toDp(), s.height.toDp())
                     }).align(Alignment.TopCenter)) {
                         me.kavishdevar.librepods.presentation.overlays.MiniIslandHost(
@@ -239,6 +241,7 @@ class GlintScreenshots {
                             still = 1f, stillWide = wide, stillPress = press, stillAck = ack,
                             look = look, forceSituation = situation,
                             place = place, timer = timer, budsUp = budsUp, wallpaper = wallpaper, stillSwap = swap,
+                            stillSplit = split,
                         )
                     }
                     // The camera, on top, where the real one would be.
@@ -375,6 +378,82 @@ class GlintScreenshots {
             rule.onRoot().captureRoboImage("$out/island_from_mini_$at.png")
         }
     }
+
+    // ---- The iPhone look (Apple's numbers: services/IslandSpec.kt) ----
+
+    private val fiveMinTimer get() = me.kavishdevar.librepods.services.IslandTimer.State(total = 300_000L, endsAt = android.os.SystemClock.elapsedRealtime() + 192_000L)
+
+    /** Music plus a timer: the timer splits off into a detached circle, frame by frame. */
+    private fun detached(sp: Float) =
+        mini("iphone_detached_${(sp * 100).toInt()}", playing = true, wide = 0f, art = true, dark = true, timer = fiveMinTimer, split = sp)
+    @Test fun iphoneDetached0() = detached(0f)
+    @Test fun iphoneDetached35() = detached(0.35f)
+    @Test fun iphoneDetached60() = detached(0.6f)
+    @Test fun iphoneDetached100() = detached(1f)
+    @Test fun iphoneDetachedTimerLight() = mini("iphone_detached_light", playing = true, wide = 0f, art = true, timer = fiveMinTimer, split = 1f)
+    @Test fun iphoneMusicDark() = mini("iphone_music_dark", playing = true, wide = 0f, art = true, dark = true)
+    @Test fun iphoneSongNameDark() = mini("iphone_song_name_dark", playing = true, wide = 1f, art = true, dark = true)
+    @Test fun iphoneAirPodsDark() = mini("iphone_airpods_dark", playing = false, wide = 0f, art = false, airPods = demo, dark = true)
+
+    /**
+     * A pop-up opening out of the Dynamic Island itself, around the camera (the iPhone's way):
+     * the pill underneath, the pop-up's window over it, frame by frame, compact then opened.
+     */
+    private fun aroundCamera(name: String, event: IslandEvent, phase: IslandPhase, dark: Boolean, frames: List<Long>) {
+        if (dark) RuntimeEnvironment.setQualifiers("+night")
+        GlintOverlays.updateSnapshot(demo)
+        rule.mainClock.autoAdvance = false
+        val app = RuntimeEnvironment.getApplication()
+        val d = app.resources.displayMetrics.density
+        val screenW = app.resources.displayMetrics.widthPixels
+        val hole = android.graphics.Rect((screenW / 2 - 13 * d).toInt(), (10 * d).toInt(), (screenW / 2 + 13 * d).toInt(), (36 * d).toInt())
+        val mg = me.kavishdevar.librepods.presentation.overlays.MiniGeometry(app, listOf(hole))
+        val origin = mg.origin(mg.widthFor(me.kavishdevar.librepods.services.IslandLook.Slot.Cover, me.kavishdevar.librepods.services.IslandLook.Slot.Bars))
+        val track = me.kavishdevar.librepods.services.NowPlaying.Track(playing = true, title = "Midnight City", artist = "M83", app = "Spotify")
+        rule.setContent {
+            val geo = IslandGeometry(app, origin, tall = event == IslandEvent.Glance, aboveStatusBar = true)
+            Wallpaper(dark) {
+                val dens = androidx.compose.ui.platform.LocalDensity.current
+                val win = if (phase == IslandPhase.Expanded) geo.expandedWindow else geo.compactWindow
+                Box(Modifier.fillMaxWidth().height(with(dens) { (win.height + geo.windowTop).toDp() + 24.dp })) {
+                    // The Dynamic Island underneath (as on the phone, the pop-up's window is above it).
+                    Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(0, mg.windowTop) }.size(with(dens) {
+                        androidx.compose.ui.unit.DpSize(mg.compactWindow.width.toDp(), mg.compactWindow.height.toDp())
+                    }).align(Alignment.TopCenter)) {
+                        me.kavishdevar.librepods.presentation.overlays.MiniIslandHost(
+                            geometry = mg, track = track, leaving = false, hidden = false,
+                            onWindowSize = {}, onTouchable = {}, onGone = {}, onAction = {}, still = 1f,
+                        )
+                    }
+                    Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(0, geo.windowTop) }.size(with(dens) {
+                        androidx.compose.ui.unit.DpSize(win.width.toDp(), win.height.toDp())
+                    }).align(Alignment.TopCenter)) {
+                        IslandHost(geo, event, phase, 0, blurAllowed = false, onPhase = {}, onWindowSize = {}, onGone = {})
+                    }
+                    // The camera, on top of everything, where the real one is.
+                    androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+                        val c = androidx.compose.ui.geometry.Offset(hole.exactCenterX(), hole.exactCenterY())
+                        drawCircle(androidx.compose.ui.graphics.Color(0xFF0B0B0F), hole.width() / 2f * 0.62f, c)
+                        drawCircle(androidx.compose.ui.graphics.Color(0xFF1F2A44), hole.width() / 2f * 0.26f, c)
+                    }
+                }
+            }
+        }
+        var t = 0L
+        frames.forEach { at ->
+            rule.mainClock.advanceTimeBy(at - t); t = at
+            rule.onRoot().captureRoboImage("$out/${name}_$at.png")
+        }
+    }
+
+    @Test fun iphoneAroundCameraCompact() = aroundCamera("iphone_around_compact", IslandEvent.Connected, IslandPhase.Compact, dark = true, frames = listOf(16L, 80L, 160L, 900L))
+    @Test fun iphoneAroundCameraOpened() = connectedLink {
+        aroundCamera("iphone_around_opened", IslandEvent.Connected, IslandPhase.Expanded, dark = true, frames = listOf(60L, 140L, 240L, 1_200L))
+    }
+    @Test fun iphoneAroundCameraOpenedLight() = connectedLink {
+        aroundCamera("iphone_around_opened_light", IslandEvent.Connected, IslandPhase.Expanded, dark = false, frames = listOf(1_200L))
+    }
+    @Test fun iphoneGlanceOpened() = aroundCamera("iphone_glance", IslandEvent.Glance, IslandPhase.Expanded, dark = true, frames = listOf(1_400L))
 
     @Test fun miniIslandNotch() = mini("mini_island_notch", playing = true, wide = 0f, art = true, shape = "notch")
     @Test fun miniIslandNotchWide() = mini("mini_island_notch_wide", playing = true, wide = 1f, art = true, shape = "notch")
