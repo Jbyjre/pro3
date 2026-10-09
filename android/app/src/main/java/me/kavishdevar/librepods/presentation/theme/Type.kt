@@ -75,14 +75,20 @@ val AppleTypography = Typography().run {
         titleSmall = titleSmall.copy(fontFamily = glintFontFamily),
 
         bodyLarge = bodyLarge.copy(fontFamily = glintFontFamily),
+        // Material's defaults are for small labels: a 16 or 20 sp line height and extra letter
+        // spacing (0.25 to 0.5 sp). Enlarged without them, two-line titles nearly touched and
+        // letters looked spread out. Each size here has its own line height and no extra spacing.
         bodyMedium = bodyMedium.copy(
             fontFamily = glintFontFamily,
-            fontSize = 16.sp
+            fontSize = 16.sp,
+            lineHeight = 21.sp,
+            letterSpacing = 0.sp,
         ),
         bodySmall = bodySmall.copy(
             fontFamily = glintFontFamily,
             fontSize = 14.sp,
-            lineHeight = 18.sp
+            lineHeight = 18.sp,
+            letterSpacing = 0.sp,
         ),
 
         labelLarge = labelLarge.copy(fontFamily = glintFontFamily),
@@ -90,15 +96,21 @@ val AppleTypography = Typography().run {
         labelMedium = labelMedium.copy(
             fontFamily = glintFontFamily,
             fontSize = 16.sp,
+            lineHeight = 21.sp,
+            letterSpacing = 0.sp,
         ),
         labelMediumEmphasized = labelMediumEmphasized.copy(
             fontFamily = glintFontFamily,
             fontSize = 16.sp,
+            lineHeight = 21.sp,
+            letterSpacing = 0.sp,
             fontWeight = FontWeight.Bold
         ),
         labelSmallEmphasized = labelSmallEmphasized.copy(
             fontFamily = glintFontFamily,
             fontSize = 14.sp,
+            lineHeight = 18.sp,
+            letterSpacing = 0.sp,
             fontWeight = FontWeight.Bold
         )
     )

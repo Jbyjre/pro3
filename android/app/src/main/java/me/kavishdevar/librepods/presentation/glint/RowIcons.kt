@@ -193,6 +193,10 @@ object RowIcons {
         listOf("audio", "volume", "sound") to Speaker,
         listOf("support", "everything essential") to Star,
         listOf("about") to Info,
+        // Rows that had no picture while their neighbours did (the AirPods page).
+        listOf("asleep") to Moon,
+        listOf("charge limit", "optimized charg") to Battery,
+        listOf("model", "serial", "version") to Info,
         listOf("hang up") to Phone,
         listOf("mute") to Mic,
         listOf("material") to Contrast,

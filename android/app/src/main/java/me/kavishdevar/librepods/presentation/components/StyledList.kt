@@ -80,7 +80,7 @@ fun StyledList(
         // The same gap and size as a single switch's note, so every page lines up.
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = description,
+            text = footnote(description),
             style = androidx.compose.ui.text.TextStyle(
                 fontSize = 12.sp,
                 fontFamily = me.kavishdevar.librepods.presentation.theme.glintFontFamily,
@@ -137,4 +137,13 @@ fun StyledListDemo() {
             }
         }
     }
+}
+
+/**
+ * A note under a box reads as a sentence, so it ends with a full stop; the same words inside a
+ * row don't (one string can be shown either way, so the stop is added here, not in the text).
+ */
+fun footnote(text: String): String {
+    val t = text.trimEnd()
+    return if (t.isEmpty() || t.last() in ".!?…):") t else "$t."
 }

@@ -734,17 +734,16 @@ fun StyledSlider(
 
                     if (description != null) {
                         Text(
-                            text = description,
+                            // The same note style as under every other box (it used a thinner
+                            // weight and the phone's light/dark instead of the app's own).
+                            text = footnote(description),
                             style = TextStyle(
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.Light,
-                                color = (if (isSystemInDarkTheme()) Color.White else Color.Black).copy(
-                                    alpha = 0.6f
-                                ),
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
                                 fontFamily = glintFontFamily
                             ),
                             modifier = Modifier
-                                .padding(horizontal = 18.dp, vertical = 4.dp)
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
                         )
                     }
                 }

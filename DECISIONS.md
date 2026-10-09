@@ -657,3 +657,18 @@ Sections 23–29 listed problems, several "not verified on your phone". Each is 
 - **Checked:** 470 tests pass (new: `IphoneIslandTest`, Apple's widths, corners, key line, opening around the camera, the detached circle's room); pictures of every new state (`GlintScreenshots.iphone*`). Lint and the release build pass. **Not verified on your phone:** how it feels; that your phone keeps the pop-up's layer above the pill's (standard Android does: the newer window is on top).
 - Pictures of the new look: `docs/island-iphone-look.png`.
 - Code: `services/IslandSpec.kt`, `services/IslandPrefs.kt` (`PREF_IPHONE_LOOK`), `overlays/Island.kt` (`IslandGeometry.around`, `band`, black drawing, blur morph), `overlays/MiniIsland.kt` (key line, detached circle, `restWindow`, square cover), `screens/IslandSettingsScreen.kt` (Style).
+
+## 44. Formatting pass and functionality audit (2026-10-09, later)
+
+- **Your ask:** the general formatting is off; make everything look and fit well, be thorough and accurate, and do a functionality audit.
+- **How:** drew every screen (57 app screens in light and dark, plus 144 island pictures) and went through each one, then re-read the newest code.
+- **Formatting fixed:**
+  - **Text in every settings row.** The shared text styles enlarged Android's small-label styles to 14 and 16 sp but kept their small-label line height (16 sp) and extra letter spacing (0.4 to 0.5 sp). So two-line titles nearly touched and letters looked spread out on every switch row in the app. Each size now has its own line height and normal spacing (`theme/Type.kt`).
+  - **Page titles ran under the round buttons** ("[DEMO] AirPod." under the headphones button, "Beats Solo 4" touching it). The room kept for the buttons was smaller than the buttons (2 x 72 dp). Titles now behave like the iPhone's: centred when they fit, moved aside just enough to clear the buttons, and only then shortened with "…" (`StyledScaffold`).
+  - **Wording:** sentence case for "Hang up", "Mute/unmute", "Press once/twice", "Always left/right". One-line descriptions inside rows have no full stop; notes under a box are sentences and always end with one (`footnote()`; before, some had one and some didn't). The note under sliders used a thinner weight and the phone's light/dark instead of the app's; now it matches the others.
+  - **Row pictures:** "Pause media when falling asleep", "Optimized Charge Limit", "Model/Serial/Version" had none while their neighbours did (`RowIcons`).
+  - **Dynamic Island:** the glow behind an app's icon spilled past the pill's edge onto the screen; it now stays inside.
+- **Bug fixed:** with music playing and a timer running, the timer's separate circle (section 43) **froze its countdown**, and a ringing timer's bell didn't shake. The once-a-second tick only looked at the pill's left and right spots, not the circle. Found by reading the code, not on a phone.
+- **Checked and fine:** the opened island, glance, timer, heart pages and all pill states (after the animations settle); setup pages; heart rate, history and sharing; devices; settings.
+- **Test pictures** now wait for the island's animations to finish (3.2 s), so they show the settled look.
+- **Checked:** 470 tests pass, lint has 0 errors (no new warnings), the release build passes. **Not verified on your phone.**

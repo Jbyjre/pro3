@@ -80,6 +80,7 @@ Names are Jake's: the camera pill is the **Dynamic Island** (code: `MiniIsland*`
 | Sound bars that follow the real music; always-on pill | DONE, PHONE CHECK | `services/MusicPulse.kt`, `PREF_MINI_ANYTIME` | `TESTING.md` check 2: do the bars still follow after leaving pro? |
 | Glass that catches the light and answers the finger | DONE, PHONE CHECK | `glint/GlassTilt.kt`, `Glass.kt` | D13, D15, D33. |
 | Make it as close as possible to Apple's real Dynamic Island, keep every feature (2026-10-09) | DONE, PHONE CHECK | `services/IslandSpec.kt`, `overlays/Island.kt`, `overlays/MiniIsland.kt`, Settings > Island > Style | D43. iPhone style (default): black in light and dark, Apple's key line in dark mode, pop-ups open out of the pill around the camera (needs the "pro Dynamic Island" switch), Apple's width and 44 dp corner, a detached circle for a timer beside music, blur morph, rounded-square cover. Glass style keeps the old look. Springs and the detached gap are by eye (Apple doesn't publish them). |
+| Formatting off everywhere: make everything look and fit well; functionality audit (2026-10-09) | DONE | `theme/Type.kt`, `StyledScaffold.kt`, `StyledList.kt` (`footnote`), `res/values/strings.xml`, `RowIcons.kt`, `MiniIsland.kt` | D44. Text spacing in every row, titles clear of buttons, consistent wording and full stops, missing row pictures, island glow inside the pill; fixed a frozen timer in the separate circle. |
 
 ## 6. Settings and look
 

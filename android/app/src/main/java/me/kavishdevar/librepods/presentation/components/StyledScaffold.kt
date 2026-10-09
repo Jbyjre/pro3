@@ -259,23 +259,36 @@ fun StyledScaffold(
                                 Crossfade(targetState = title) {
                                     // Glint: keep the title clear of the back/action buttons
                                     // (long titles used to run under them) and step down in size.
-                                    Text(
-                                        text = it,
-                                        style = TextStyle(
-                                            fontSize = if (it.length > 20) 17.sp else 20.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = if (isDarkTheme) Color.White else Color.Black,
-                                            fontFamily = glintFontFamily
-                                        ),
-                                        maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            // Room for the buttons on the right (and the same on the
-                                            // left, so the title stays centred).
-                                            .padding(horizontal = maxOf(60, actionButtons.size * 54 + 12).dp),
-                                        textAlign = TextAlign.Center
-                                    )
+                                    // Like the iPhone's title bar: centred when it fits between the
+                                    // buttons, otherwise moved aside just enough to clear them, and
+                                    // only then shortened with "…". Each round button is 48 dp with
+                                    // 12 dp around it, 8 dp from the screen's edge.
+                                    val clearLeft = if (showBackButton) 74.dp else 20.dp
+                                    val n = actionButtons.size
+                                    val clearRight = if (n == 0) 20.dp else (8 + 12 + 48 * n + 24 * (n - 1) + 6).dp
+                                    androidx.compose.ui.layout.Layout(
+                                        content = {
+                                            Text(
+                                                text = it,
+                                                style = TextStyle(
+                                                    fontSize = if (it.length > 20) 17.sp else 20.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = if (isDarkTheme) Color.White else Color.Black,
+                                                    fontFamily = glintFontFamily
+                                                ),
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                            )
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) { measurables, constraints ->
+                                        val w = constraints.maxWidth
+                                        val l = clearLeft.roundToPx()
+                                        val r = clearRight.roundToPx()
+                                        val p = measurables.first().measure(androidx.compose.ui.unit.Constraints(maxWidth = (w - l - r).coerceAtLeast(0)))
+                                        val x = ((w - p.width) / 2).coerceIn(l, (w - r - p.width).coerceAtLeast(l))
+                                        layout(w, p.height) { p.place(x, 0) }
+                                    }
                                 }
                             }
                         }
