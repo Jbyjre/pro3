@@ -106,6 +106,12 @@
   `services/IslandSpec.kt` (quoted from Apple's HIG); black in light and dark, key line only on dark, pop-ups open out of the pill around
   the camera (`IslandGeometry.around`/`band`, needs the accessibility layer), detached timer circle (`MiniIsland` `detached`/`restWindow`).
   The old glass look is the "Glass" style. Jake's gestures stay (Apple's own: tap = open app, hold = expand).
+- Smoother, closer to Apple (session 2026-10-10, DECISIONS 45): everything inside the pill is clipped to the shape minus the camera,
+  grows with it and sits concentric with the ends (`IslandSpec.roundedSquareHalf`/`insetFromCorner`, `endInset`); pictures `centreSquare`.
+  iPhone-style music opens into Apple's Now Playing (`overlays/MusicIsland.kt`; cover/bars are one element from the pill, `SharedMusicArt`,
+  `MiniOrigin.side`); opened content scales with the shape (`IslandLayout` `fit`). Springs: `services/IslandMotion.kt` (closing never
+  overshoots). Edge: `IslandSpec.Edge` (key line / Liquid Glass, `IslandEdge.kt`). Song bar `PREF_MUSIC_BAR` off by default (Jake's
+  earlier no-song-bar choice). If tests crash with "mNativePtr", the Robolectric jar download was rate-limited (re-run cloud-setup.sh).
 - **`docs/REQUESTS.md` is the ledger of everything Jake has asked for and how finished each thing is: read it first and update it
   whenever he asks for something or a status changes.** Folder READMEs (`android/`, `services/`, `overlays/`, `glint/`, `screens/`,
   tests) map the code: update them with the code. Check a README doesn't already exist before writing one (`git ls-files | grep -i readme`).

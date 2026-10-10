@@ -77,6 +77,43 @@ object IslandSpec {
     fun concentric(outer: Float, gap: Float): Float = (outer - gap).coerceAtLeast(0f)
 
     /**
+     * The half-width of a rounded square, centred in a round space of radius [fit], whose
+     * rounded corners just reach that circle (corner = [cornerRatio] x the half-width). Inside
+     * the pill's round end this is Apple's "concentric placement": the square's corners follow
+     * the island's curve instead of poking into it.
+     */
+    fun roundedSquareHalf(fit: Float, cornerRatio: Float): Float {
+        val q = cornerRatio.coerceIn(0f, 1f)
+        return (fit / (kotlin.math.sqrt(2f) * (1f - q) + q)).coerceAtLeast(0f)
+    }
+
+    /**
+     * The space left between a rounded shape's corner (radius [innerCorner]) and the island's own
+     * corner (radius [outer]) when the shape sits [inset] in from both edges. Apple: keep these
+     * even, so the inner shape never pokes into the island's curve. Negative = it pokes out.
+     */
+    fun cornerGap(outer: Float, inset: Float, innerCorner: Float): Float {
+        val d = (outer - inset - innerCorner).coerceAtLeast(0f)
+        // Corner centres sit on the diagonal; the inner corner's farthest point is d*sqrt(2) + its radius away.
+        return outer - (d * kotlin.math.sqrt(2f) + innerCorner)
+    }
+
+    /**
+     * How far in from a shape's right (or left) edge a circle of radius [r] must sit so it keeps
+     * [gap] from the shape's rounded corner of radius [corner], when the circle's centre is
+     * [fromBottom] above the shape's bottom edge. Never closer than [gap] + [r] to the side.
+     */
+    fun insetFromCorner(corner: Float, fromBottom: Float, r: Float, gap: Float): Float {
+        val room = corner - gap - r
+        val side = gap + r
+        if (room <= 0f) return maxOf(side, corner)
+        val dy = (corner - fromBottom).coerceAtLeast(0f)
+        if (dy >= room) return maxOf(side, corner)
+        val dx = kotlin.math.sqrt(room * room - dy * dy)
+        return maxOf(side, corner - dx)
+    }
+
+    /**
      * How the island looks: like the iPhone's (opaque black in light and dark, a key line only
      * in dark mode, growing out of itself around the camera), or pro's earlier frosted glass.
      */
@@ -84,6 +121,20 @@ object IslandSpec {
         IPhone("iPhone", "Black, like the real Dynamic Island, opening around the camera"),
         Glass("Glass", "Frosted glass that drops out under the camera"),
     }
+
+    /**
+     * The island's edge. Apple's key line: a thin line in the content's colour, only on a dark
+     * background. Liquid Glass: a rim that catches the light from above (brightest along the top,
+     * swinging a little as the phone tilts), in light and dark, like the glass in the rest of pro.
+     */
+    enum class Edge(val label: String, val description: String) {
+        KeyLine("Key line", "Apple's thin edge, only on dark backgrounds"),
+        Glass("Liquid Glass", "A rim that catches the light, in light and dark"),
+    }
+
+    /** The Liquid Glass rim's strength along the top edge (0..1 alpha), by background and Glow choice. */
+    fun glassRimAlpha(darkBackground: Boolean, glow: Float): Float =
+        ((if (darkBackground) 0.34f else 0.5f) * (0.55f + 0.45f * glow)).coerceIn(0f, 0.6f)
 
     /**
      * Whether a pop-up opens around the camera, out of the Dynamic Island itself (Apple's way):
