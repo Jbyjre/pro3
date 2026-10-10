@@ -71,6 +71,12 @@ object IslandPrefs {
     const val PREF_TAP_NUDGE_AT = "glint_tap_nudge_at"
     /** The iPhone's black island (default) or pro's earlier glass one (`IslandSpec.Style`). */
     const val PREF_IPHONE_LOOK = "glint_island_iphone_look"
+    /** The opened music island shows the song bar (elapsed time, a bar you can drag, time left). */
+    const val PREF_MUSIC_BAR = "glint_island_music_bar"
+    /** How the island moves when it opens and closes (`IslandMotion.Feel`). */
+    const val PREF_MOTION = "glint_island_motion"
+    /** The island's edge: Apple's key line or a Liquid Glass rim (`IslandSpec.Edge`). */
+    const val PREF_EDGE = "glint_island_edge"
 
     enum class Trigger(val key: String, val default: Boolean, val label: String, val description: String) {
         Connected("glint_island_connect", true, "AirPods connect", "Once each time they connect"),
@@ -146,6 +152,15 @@ object IslandPrefs {
 
     fun style(prefs: SharedPreferences): IslandSpec.Style =
         if (prefs.getBoolean(PREF_IPHONE_LOOK, true)) IslandSpec.Style.IPhone else IslandSpec.Style.Glass
+
+    /** Off unless switched on: Jake chose an opened island without a song bar (Settings > Island > Opened music). */
+    fun musicBar(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MUSIC_BAR, false)
+
+    fun motion(prefs: SharedPreferences): IslandMotion.Feel =
+        IslandMotion.Feel.entries.getOrNull(prefs.getInt(PREF_MOTION, IslandMotion.Feel.Smooth.ordinal)) ?: IslandMotion.Feel.Smooth
+
+    fun edge(prefs: SharedPreferences): IslandSpec.Edge =
+        IslandSpec.Edge.entries.getOrNull(prefs.getInt(PREF_EDGE, IslandSpec.Edge.KeyLine.ordinal)) ?: IslandSpec.Edge.KeyLine
 
     fun setSoundIgnored(prefs: SharedPreferences, pkg: String, ignored: Boolean) {
         val now = soundIgnored(prefs)

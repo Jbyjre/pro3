@@ -14,7 +14,7 @@ Unit tests (plain JUnit and Robolectric) and the screenshot renderers. Run them 
 | `MiniIslandTest` | When the Dynamic Island is wanted and what it is about, camera picking, never cut off, bars follow music, `nextCheck` (the zero-wait regression), short blips, phone battery parsing |
 | `IslandLookTest` | Look defaults equal the original, storage and reset, situations, slots, sizes, colour, clock text, sound preferences |
 | `IslandMomentsTest` | Pop-up wording, when the heart shows, settings defaults |
-| `IphoneIslandTest` | Apple's numbers (widths, corners, concentric, key line), a pop-up opening out of the pill around the camera (or under it without the switch), room for the detached circle |
+| `IphoneIslandTest` | Apple's numbers (widths, corners, concentric, key line), a pop-up opening out of the pill around the camera (or under it without the switch), room for the detached circle; since 2026-10-10 also the square cover fitting the pill's round end, the opened cover clear of the 44 dp corner, the music island inside Apple's 84 to 160 dp and below the camera, every Motion feel inside 2 s with a bounce-free close, song times, cropping, the Liquid Glass rim |
 | `IslandHandoverTest` | Pop-ups and the pill for every camera shape and look: never over the camera or clock, always fits |
 | `IslandGestureUiTest` | Real touches on the real pill: taps, double and triple, hold, swipe, pull |
 | `IslandTouchTest`, `OverlayLayerTest` | Where touches go with Android's real window layers; which layer each window uses; hidden windows eat nothing |
@@ -30,7 +30,7 @@ Unit tests (plain JUnit and Robolectric) and the screenshot renderers. Run them 
 
 | File | Renders | Output |
 |---|---|---|
-| `GlintScreenshots` | Artwork, the pop-ups, and the Dynamic Island in many states (`mini_island_*`: playing, sound, blip, rest, custom looks, camera shapes; `mini_island_in_app*`, `_home*`, `_locked`, `_unlocking`, `_timer*`, `_phone_charging`, `_rest_date`), the opened glance (`island_glance_*`, `island_timer_done`), the look editor, the sound settings, the This phone page | `app/build/screenshots/` |
+| `GlintScreenshots` | Artwork, the pop-ups, and the Dynamic Island in many states (`mini_island_*`: playing, sound, blip, rest, custom looks, camera shapes; `mini_island_in_app*`, `_home*`, `_locked`, `_unlocking`, `_timer*`, `_phone_charging`, `_rest_date`), the opened glance (`island_glance_*`, `island_timer_done`), the iPhone style (`iphone_*`: growing out of the camera `iphone_grow_*`, the music island opening frame by frame `iphone_music_open_*`, closing `iphone_music_close_*`, with the song bar, paused, no cover, with AirPods, the new-song pop-up, the Liquid Glass edge), the look editor, the sound settings, the This phone page | `app/build/screenshots/` |
 | `AppTourScreenshots` | Every page of the app with demo data, light and dark (`00_phone_tab`, `00b_island_tab`, `00c`/`00d` full-length tabs, `01_home` = the AirPods tab, `38_island_settings`, `46_phone`, ...). `tour(..., tab = ...)` picks the tab. | `app/build/screenshots/tour/` |
 
 When you change how something looks, render the screenshots for it and **look at them**. Contact sheets help: crop the top of several `mini_island_*` images and tile them with Pillow (`python3 -I`). The renderer can't show blur, refraction, video or sensors: those need the phone.

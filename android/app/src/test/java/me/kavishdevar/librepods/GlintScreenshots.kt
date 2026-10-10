@@ -201,6 +201,8 @@ class GlintScreenshots {
         phoneBlip: Boolean = false,
         /** How far the detached circle (a timer beside the music) has split off; null: the usual window. */
         split: Float? = null,
+        /** How far it has grown out of the camera (1 = fully there). */
+        appear: Float = 1f,
     ) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")
         rule.mainClock.autoAdvance = false
@@ -240,7 +242,7 @@ class GlintScreenshots {
                             heard = heard, message = message, phoneBlip = phoneBlip,
                             pods = airPods ?: PodsSnapshot(), heartBpm = heart, talking = talking,
                             onWindowSize = {}, onTouchable = {}, onGone = {}, onAction = {},
-                            still = 1f, stillWide = wide, stillPress = press, stillAck = ack,
+                            still = appear, stillWide = wide, stillPress = press, stillAck = ack,
                             look = look, forceSituation = situation,
                             place = place, timer = timer, budsUp = budsUp, wallpaper = wallpaper, stillSwap = swap,
                             stillSplit = split,
@@ -393,6 +395,14 @@ class GlintScreenshots {
     @Test fun iphoneDetached60() = detached(0.6f)
     @Test fun iphoneDetached100() = detached(1f)
     @Test fun iphoneDetachedTimerLight() = mini("iphone_detached_light", playing = true, wide = 0f, art = true, timer = fiveMinTimer, split = 1f)
+    /** Growing out of the camera: what's inside must never stick out of the black shape or cover the camera. */
+    private fun growing(a: Float, dark: Boolean = false) =
+        mini("iphone_grow_${(a * 100).toInt()}${if (dark) "_dark" else ""}", playing = true, wide = 0f, art = true, dark = dark, appear = a)
+    @Test fun iphoneGrow40() = growing(0.4f)
+    @Test fun iphoneGrow65() = growing(0.65f)
+    @Test fun iphoneGrow85() = growing(0.85f)
+    @Test fun iphoneGrow100() = growing(1f)
+    @Test fun iphoneGrow65Dark() = growing(0.65f, dark = true)
     @Test fun iphoneMusicDark() = mini("iphone_music_dark", playing = true, wide = 0f, art = true, dark = true)
     @Test fun iphoneSongNameDark() = mini("iphone_song_name_dark", playing = true, wide = 1f, art = true, dark = true)
     @Test fun iphoneAirPodsDark() = mini("iphone_airpods_dark", playing = false, wide = 0f, art = false, airPods = demo, dark = true)
@@ -447,6 +457,83 @@ class GlintScreenshots {
             rule.onRoot().captureRoboImage("$out/${name}_$at.png")
         }
     }
+
+    /**
+     * Music, the iPhone way: the opened island grows out of the Dynamic Island, its cover growing
+     * out of the pill's own cover, frame by frame; then (when [closeAt] is set) it closes back in.
+     */
+    private fun musicAround(name: String, dark: Boolean, frames: List<Long>, bar: Boolean = false, closeAt: Long? = null, playing: Boolean = true, edgeGlass: Boolean = false, art: Boolean = true, start: IslandPhase = IslandPhase.Expanded) {
+        if (dark) RuntimeEnvironment.setQualifiers("+night")
+        GlintOverlays.updateSnapshot(demo)
+        rule.mainClock.autoAdvance = false
+        val app = RuntimeEnvironment.getApplication()
+        val prefs = me.kavishdevar.librepods.services.IslandPrefs.prefs(app)
+        prefs.edit().putBoolean(me.kavishdevar.librepods.services.IslandPrefs.PREF_MUSIC_BAR, bar)
+            .putInt(me.kavishdevar.librepods.services.IslandPrefs.PREF_EDGE, if (edgeGlass) 1 else 0).commit()
+        val d = app.resources.displayMetrics.density
+        val screenW = app.resources.displayMetrics.widthPixels
+        val hole = android.graphics.Rect((screenW / 2 - 13 * d).toInt(), (10 * d).toInt(), (screenW / 2 + 13 * d).toInt(), (36 * d).toInt())
+        val mg = me.kavishdevar.librepods.presentation.overlays.MiniGeometry(app, listOf(hole))
+        val origin = mg.origin(mg.widthFor(me.kavishdevar.librepods.services.IslandLook.Slot.Cover, me.kavishdevar.librepods.services.IslandLook.Slot.Bars))
+        val cover = if (art) android.graphics.Bitmap.createBitmap(160, 120, android.graphics.Bitmap.Config.ARGB_8888).also { b ->
+            val c = android.graphics.Canvas(b)
+            c.drawPaint(android.graphics.Paint().apply {
+                shader = android.graphics.LinearGradient(0f, 0f, 160f, 120f, 0xFFFF6A3D.toInt(), 0xFF7B2CBF.toInt(), android.graphics.Shader.TileMode.CLAMP)
+            })
+        }.asImageBitmap() else null
+        val track = me.kavishdevar.librepods.services.NowPlaying.Track(
+            playing = playing, title = "Midnight City", artist = "M83", app = "Spotify", pkg = "com.spotify.music", art = cover, fromSession = true,
+            durationMs = 243_000L, positionMs = 90_000L, positionAtMs = android.os.SystemClock.elapsedRealtime().coerceAtLeast(1L), canSeek = true,
+        )
+        me.kavishdevar.librepods.services.NowPlaying.preview(track)
+        val phase = androidx.compose.runtime.mutableStateOf(start)
+        rule.setContent {
+            val geo = IslandGeometry(app, origin, music = true, aboveStatusBar = true)
+            Wallpaper(dark) {
+                val dens = androidx.compose.ui.platform.LocalDensity.current
+                val win = geo.expandedWindow
+                Box(Modifier.fillMaxWidth().height(with(dens) { (win.height + geo.windowTop).toDp() + 24.dp })) {
+                    Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(0, mg.windowTop) }.size(with(dens) {
+                        androidx.compose.ui.unit.DpSize(mg.compactWindow.width.toDp(), mg.compactWindow.height.toDp())
+                    }).align(Alignment.TopCenter)) {
+                        me.kavishdevar.librepods.presentation.overlays.MiniIslandHost(
+                            geometry = mg, track = track, leaving = false, hidden = false,
+                            onWindowSize = {}, onTouchable = {}, onGone = {}, onAction = {}, still = 1f,
+                        )
+                    }
+                    Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(0, geo.windowTop) }.size(with(dens) {
+                        androidx.compose.ui.unit.DpSize(win.width.toDp(), win.height.toDp())
+                    }).align(Alignment.TopCenter)) {
+                        IslandHost(geo, IslandEvent.Music, phase.value, 0, blurAllowed = false, onPhase = {}, onWindowSize = {}, onGone = {})
+                    }
+                    androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+                        val c = androidx.compose.ui.geometry.Offset(hole.exactCenterX(), hole.exactCenterY())
+                        drawCircle(androidx.compose.ui.graphics.Color(0xFF0B0B0F), hole.width() / 2f * 0.62f, c)
+                        drawCircle(androidx.compose.ui.graphics.Color(0xFF1F2A44), hole.width() / 2f * 0.26f, c)
+                    }
+                }
+            }
+        }
+        var t = 0L
+        frames.forEach { at ->
+            if (closeAt != null && at > closeAt && phase.value != IslandPhase.Leaving) {
+                rule.mainClock.advanceTimeBy(closeAt - t); t = closeAt
+                phase.value = IslandPhase.Leaving
+            }
+            rule.mainClock.advanceTimeBy(at - t); t = at
+            rule.onRoot().captureRoboImage("$out/${name}_$at.png")
+        }
+    }
+
+    @Test fun iphoneMusicOpening() = musicAround("iphone_music_open", dark = true, frames = listOf(16L, 50L, 90L, 140L, 200L, 300L, 1_500L))
+    @Test fun iphoneMusicOpenedLight() = musicAround("iphone_music_open_light", dark = false, frames = listOf(1_500L))
+    @Test fun iphoneMusicSongBar() = musicAround("iphone_music_bar", dark = true, bar = true, frames = listOf(1_500L))
+    @Test fun iphoneMusicSongBarLightPaused() = musicAround("iphone_music_bar_light_paused", dark = false, bar = true, playing = false, frames = listOf(1_500L))
+    @Test fun iphoneMusicNoArt() = musicAround("iphone_music_no_art", dark = true, art = false, frames = listOf(1_500L))
+    @Test fun iphoneMusicGlassEdge() = musicAround("iphone_music_glass_edge", dark = false, edgeGlass = true, frames = listOf(1_500L))
+    @Test fun iphoneMusicWithAirPods() = connectedLink { musicAround("iphone_music_airpods", dark = true, frames = listOf(2_600L)) }
+    @Test fun iphoneMusicNewSong() = musicAround("iphone_music_compact", dark = true, start = IslandPhase.Compact, frames = listOf(60L, 140L, 1_200L))
+    @Test fun iphoneMusicClosing() = musicAround("iphone_music_close", dark = true, closeAt = 1_500L, frames = listOf(1_500L, 1_560L, 1_620L, 1_700L, 1_800L, 2_000L))
 
     @Test fun iphoneAroundCameraCompact() = aroundCamera("iphone_around_compact", IslandEvent.Connected, IslandPhase.Compact, dark = true, frames = listOf(16L, 80L, 160L, 900L))
     @Test fun iphoneAroundCameraOpened() = connectedLink {

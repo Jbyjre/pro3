@@ -168,6 +168,20 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
             style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = ink.copy(alpha = 0.55f)),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
+        // The black island's edge: Apple's key line, or a Liquid Glass rim that catches the light.
+        if (islandStyle == me.kavishdevar.librepods.services.IslandSpec.Style.IPhone.ordinal) {
+            var edge by remember { mutableIntStateOf(IslandPrefs.edge(prefs).ordinal) }
+            SectionLabel("Edge", ink)
+            LiquidSegments(
+                me.kavishdevar.librepods.services.IslandSpec.Edge.entries.map { it.label }, edge,
+                { edge = it; prefs.edit { putInt(IslandPrefs.PREF_EDGE, it) } },
+            )
+            Text(
+                me.kavishdevar.librepods.services.IslandSpec.Edge.entries[edge].description + ".",
+                style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = ink.copy(alpha = 0.55f)),
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
 
         StyledList(title = "Dynamic Island") {
             StyledToggle(
@@ -292,6 +306,14 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
                     if (it) NowPlaying.attach(context) else NowPlaying.detach()
                 },
             )
+            // The opened music island (iPhone style): Apple's song bar, off unless asked for.
+            var musicBar by remember { mutableStateOf(IslandPrefs.musicBar(prefs)) }
+            StyledToggle(
+                label = "Song bar when opened",
+                description = "Time gone, a bar you can drag to move in the song, time left",
+                checked = musicBar,
+                onCheckedChange = { musicBar = it; prefs.edit { putBoolean(IslandPrefs.PREF_MUSIC_BAR, it) } },
+            )
         }
         if (songNames && !access) {
             Hint(
@@ -332,6 +354,19 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
+        // How it moves when it opens and closes.
+        var motion by remember { mutableIntStateOf(IslandPrefs.motion(prefs).ordinal) }
+        SectionLabel("Motion", ink)
+        LiquidSegments(
+            me.kavishdevar.librepods.services.IslandMotion.Feel.entries.map { it.label }, motion,
+            { motion = it; prefs.edit { putInt(IslandPrefs.PREF_MOTION, it) } },
+        )
+        Text(
+            me.kavishdevar.librepods.services.IslandMotion.Feel.entries[motion].description + ". Closing never bounces.",
+            style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = ink.copy(alpha = 0.55f)),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+
         StyledList(title = "Feel") {
             StyledToggle(
                 label = "Haptics",
@@ -359,6 +394,9 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
                 GlassPillButton(text = label, textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
                     GlintOverlays.showIsland(context, event)
                 }
+            }
+            GlassPillButton(text = "Music, opened", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
+                GlintOverlays.showIsland(context, IslandEvent.Music, expand = true)
             }
             GlassPillButton(text = "Dynamic Island", textColor = ink, dark = dark, height = 40.dp, fontSize = 15.sp) {
                 GlintOverlays.previewMiniIsland(context)

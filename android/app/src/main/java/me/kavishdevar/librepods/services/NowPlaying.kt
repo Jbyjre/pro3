@@ -75,13 +75,30 @@ object NowPlaying {
         val positionMs: Long = 0L,
         val positionAtMs: Long = 0L,
         val speed: Float = 1f,
+        /** The music app lets others move to a point in the song (the song bar can be dragged). */
+        val canSeek: Boolean = false,
     ) {
         /** How far through the song, 0..1, at [nowElapsed]; null when unknown. */
         fun progress(nowElapsed: Long): Float? {
-            if (durationMs <= 0L || positionAtMs <= 0L) return null
-            val moved = if (playing) ((nowElapsed - positionAtMs) * speed).toLong() else 0L
-            return ((positionMs + moved).toFloat() / durationMs).coerceIn(0f, 1f)
+            val at = positionAt(nowElapsed) ?: return null
+            return (at.toFloat() / durationMs).coerceIn(0f, 1f)
         }
+
+        /** Where in the song, in milliseconds, at [nowElapsed]; null when unknown. */
+        fun positionAt(nowElapsed: Long): Long? {
+            if (durationMs <= 0L || positionAtMs <= 0L) return null
+            val moved = if (playing) ((nowElapsed - positionAtMs) * speed).toLong().coerceAtLeast(0L) else 0L
+            return (positionMs + moved).coerceIn(0L, durationMs)
+        }
+    }
+
+    /** A time in a song the way music players write it: "0:07", "3:42", "1:02:09". */
+    fun clock(ms: Long): String {
+        val total = (ms.coerceAtLeast(0L) / 1000L)
+        val h = total / 3600L
+        val m = (total % 3600L) / 60L
+        val sec = total % 60L
+        return if (h > 0L) "%d:%02d:%02d".format(h, m, sec) else "%d:%02d".format(m, sec)
     }
 
     private const val TAG = "NowPlaying"
@@ -187,6 +204,7 @@ object NowPlaying {
             positionMs = ps?.position?.takeIf { it >= 0L } ?: 0L,
             positionAtMs = ps?.lastPositionUpdateTime?.takeIf { it > 0L } ?: 0L,
             speed = ps?.playbackSpeed?.takeIf { it > 0f } ?: 1f,
+            canSeek = ps != null && (ps.actions and PlaybackState.ACTION_SEEK_TO) != 0L,
         )
     }
 
@@ -197,7 +215,8 @@ object NowPlaying {
             ?: md?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
             ?: return null
         return try {
-            val side = 144
+            // Big enough to stay sharp as the opened island's cover (54 dp), small enough to hold.
+            val side = 192
             val small = if (bmp.width > side || bmp.height > side) bmp.scale(side, side * bmp.height / bmp.width.coerceAtLeast(1)) else bmp
             small.asImageBitmap()
         } catch (_: Exception) { null }
@@ -253,6 +272,19 @@ object NowPlaying {
         } else {
             key(context, if (next) KeyEvent.KEYCODE_MEDIA_NEXT else KeyEvent.KEYCODE_MEDIA_PREVIOUS)
         }
+    }
+
+    /**
+     * Moves the song to [fraction] (0..1) of the way through, from the opened island's song bar.
+     * Only when the music app allows it ([Track.canSeek]); shows the new place straight away.
+     */
+    fun seekTo(fraction: Float) {
+        val t = _state.value
+        if (!t.canSeek || t.durationMs <= 0L) return
+        val ms = (fraction.coerceIn(0f, 1f) * t.durationMs).toLong()
+        lastOwnActionAt = SystemClock.elapsedRealtime()
+        current?.transportControls?.seekTo(ms) ?: return
+        _state.value = t.copy(positionMs = ms, positionAtMs = SystemClock.elapsedRealtime())
     }
 
     private fun key(context: Context, code: Int) {

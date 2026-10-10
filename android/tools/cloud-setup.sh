@@ -60,8 +60,18 @@ if [ ! -d "$SDK/platforms" ]; then
 else echo "   already there"; fi
 
 echo "== 3/3 Robolectric Android image ($ROBO_JAR)"
-if [ ! -f "robo/$ROBO_JAR" ]; then
-  curl -sS -L -o "robo/$ROBO_JAR" "$ROBO_URL"
+# A real jar is a zip of about 200 MB. Maven Central sometimes answers with a short "rate
+# limited" text instead (HTTP 429); a file like that makes every drawing test crash with
+# "Unable to find static field mNativePtr". So: fail on HTTP errors, check the file, retry.
+robo_ok() { [ -f "robo/$ROBO_JAR" ] && [ "$(head -c 2 "robo/$ROBO_JAR")" = "PK" ] && [ "$(stat -c %s "robo/$ROBO_JAR")" -gt 10000000 ]; }
+if ! robo_ok; then
+  rm -f "robo/$ROBO_JAR"
+  for wait in 2 4 8 16 32; do
+    curl -sS -L -f -o "robo/$ROBO_JAR" "$ROBO_URL" && robo_ok && break
+    echo "   download failed or rate-limited; trying again in ${wait}s"
+    rm -f "robo/$ROBO_JAR"; sleep "$wait"
+  done
+  robo_ok || { echo "   could not download $ROBO_JAR (Maven Central rate limit?). Run this script again later."; exit 1; }
 else echo "   already there"; fi
 
 cat > env.sh <<ENV

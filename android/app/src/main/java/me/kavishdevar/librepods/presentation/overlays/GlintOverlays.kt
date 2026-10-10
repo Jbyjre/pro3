@@ -171,7 +171,13 @@ object GlintOverlays {
      * grow out of it: [dx] is its centre's distance from the screen's middle, [top] its top
      * edge from the top of the screen, all in pixels.
      */
-    data class MiniOrigin(val dx: Float, val top: Float, val width: Float, val height: Float)
+    data class MiniOrigin(
+        val dx: Float, val top: Float, val width: Float, val height: Float,
+        /** How wide the things beside the camera are (the cover), so a pop-up can grow its cover out of the pill's. */
+        val side: Float = height * 0.78f,
+        /** The camera's lowest point, measured from the pill's top: content opening around it starts below this. */
+        val lensBottom: Float = height,
+    )
 
     @Volatile var miniOrigin: MiniOrigin? = null
 

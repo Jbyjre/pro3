@@ -211,3 +211,15 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 4. Open the island: after a second, back and skip come out of the play button and the heart chip glides left.
 5. Settings > Islands: every switch changes and works straight away.
 6. Main page: Hearing Protection is below the audio settings.
+
+## L. 2026-10-10: the Dynamic Island, smoother and closer to Apple's
+
+1. **Covers stay inside.** Play music. Watch the pill grow out of the camera: the cover and bars should grow with it, never sitting on the camera or sticking out past the black edge. Skip a song: the pill widens with its name, and the cover and bars slide in a little so they keep an even gap from the rounder corners. Try a podcast or YouTube video (wide pictures): the cover is cropped, not squashed.
+2. **Opening into the music.** Tap the pill while music plays (needs the "pro Dynamic Island" switch to open around the camera). The cover should fly out of the pill and grow into the top-left corner of the opened island, beside the camera; the song's name sits just under the camera, the bars top right, back / play-pause / next below. Nothing should be cut off at any point while it grows. Tap the cover or the name: the music app opens. Tap an empty part, or swipe up: it shrinks back and the cover lands exactly in the pill's spot, with no blink.
+3. **Closing never bounces smaller than the pill.** Watch closely as it shrinks: it should land on the pill and stop, not dip smaller and pop back.
+4. **With AirPods connected:** the heart sits on the left (a round glass button, the number beside it while measuring), the AirPods battery on the right; tap the battery to see the AirPods page. Without headphones the right shows the music app's icon (tap opens it).
+5. **Settings > Island > Music > "Song bar when opened"** (off by default): times on both sides, and dragging the bar moves the song when your music app allows it (Spotify and YouTube Music should; not verified per app).
+6. **Settings > Island > Motion:** Smooth, Snappy, Bouncy each feel different when opening; none bounces when closing.
+7. **Settings > Island > Edge** (iPhone style): Key line (Apple's, dark mode only) or Liquid Glass (a light-catching rim and a faint sheen along the top, in light and dark, swinging a little as you tilt the phone).
+8. **Pop-ups:** "Connected" and other small pop-ups: the battery ring sits inside the black shape, not hanging over its edge.
+

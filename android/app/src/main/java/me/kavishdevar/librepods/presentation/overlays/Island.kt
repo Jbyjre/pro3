@@ -205,7 +205,7 @@ internal class IslandController(private val context: Context) {
         val wantsExpanded = expand || (e is IslandEvent.MovedToDevice && e.canTakeBack) || e is IslandEvent.Problem || e.isGlance()
         // The glance is taller than the AirPods' island: one that's up at the other size goes
         // at once and this one grows fresh, so nothing is cut off or left with a gap.
-        if (window.isShowing && geometry?.tall != e.isGlance()) window.dismiss()
+        if (window.isShowing && (geometry?.tall != e.isGlance() || geometry?.music != (e == IslandEvent.Music))) window.dismiss()
         // Safety net: an island can't legitimately stay up this long (it leaves after 10 s at
         // most). If one is stuck, for example its animation froze while the screen was off,
         // remove it so this event still appears instead of being swallowed.
@@ -220,7 +220,7 @@ internal class IslandController(private val context: Context) {
         phase.value = if (wantsExpanded) IslandPhase.Expanded else IslandPhase.Compact
         shownAt = android.os.SystemClock.elapsedRealtime()
         // Grow out of the mini island when it's up (one shape, like the Dynamic Island).
-        val geo = IslandGeometry(context, GlintOverlays.plannedMiniOrigin(), tall = e.isGlance())
+        val geo = IslandGeometry(context, GlintOverlays.plannedMiniOrigin(), tall = e.isGlance(), music = e == IslandEvent.Music)
         geometry = geo
         GlintOverlays.islandAround.value = geo.around
         window.show(if (wantsExpanded) geo.expandedWindow else geo.compactWindow, geo.windowTop) {
@@ -270,6 +270,10 @@ internal class IslandGeometry(
         me.kavishdevar.librepods.services.IslandPrefs.style(me.kavishdevar.librepods.services.IslandPrefs.prefs(context)),
     /** The window goes above the status bar (pro's accessibility switch is on). */
     aboveStatusBar: Boolean = me.kavishdevar.librepods.services.IslandAccess.service.value != null,
+    /** Music: in the iPhone style it opens into Apple's Now Playing layout. */
+    val music: Boolean = false,
+    /** The opened music island shows the song bar (Settings > Island > Opened music). */
+    musicBar: Boolean = me.kavishdevar.librepods.services.IslandPrefs.musicBar(me.kavishdevar.librepods.services.IslandPrefs.prefs(context)),
 ) {
     private val density = context.resources.displayMetrics.density
     val iphone = style == me.kavishdevar.librepods.services.IslandSpec.Style.IPhone
@@ -304,8 +308,30 @@ internal class IslandGeometry(
     // own sizes); pro's glass one is a little narrower.
     val expandedW = if (iphone) minOf(screen.width - dp(2f * me.kavishdevar.librepods.services.IslandSpec.SIDE_MARGIN_DP), dp(me.kavishdevar.librepods.services.IslandSpec.EXPANDED_MAX_W_DP))
         else minOf(screen.width - dp(28f), dp(368f))
+    /**
+     * Music, the iPhone way: Apple's Now Playing layout, wrapped round the camera. The cover sits
+     * in the top-left corner beside the camera (18 dp in, a 12 dp corner: by
+     * [IslandSpec.cornerGap] that keeps 12 dp from the island's 44 dp curve, close to the 18 dp
+     * on the straight sides, so nothing pokes into the curve), the song's name beside it just
+     * below the camera, the sound bars top right, then the song bar (if on) and the controls.
+     * About 134 to 138 dp tall (154 to 158 with the song bar), inside Apple's 84 to 160 dp for an opened island.
+     */
+    val musicPage = music && iphone
+    val showBar = musicPage && musicBar
+    val artInset = dp(ART_INSET_DP)
+    val artTop = dp(ART_TOP_DP)
+    val artSize = dp(ART_SIZE_DP)
+    val artCorner = dp(ART_CORNER_DP)
+    /** The song's name and artist: bottom-aligned with the cover, never higher than just under the camera. */
+    val textTop = maxOf(artTop + artSize - dp(40f), if (around && origin != null) origin.lensBottom + dp(3f) else 0f)
+    val headerBottom = maxOf(artTop + artSize, textTop + dp(40f))
+    val barTop = headerBottom + dp(6f)
+    val controlsTop = if (showBar) barTop + dp(22f) else headerBottom + dp(6f)
+    val musicH = controlsTop + dp(44f) + dp(if (showBar) 12f else 14f)
     // Header, AirPods and batteries (with the heart while measuring), time left and play/pause.
-    val expandedH = (if (tall) dp(GLANCE_H_DP) else dp(196f)) + band
+    val expandedH = if (musicPage) musicH else (if (tall) dp(GLANCE_H_DP) else dp(196f)) + band
+    /** Opened content starts below the camera's band, except music, which wraps round the camera. */
+    val expandedBand = if (musicPage) 0f else band
     // The heart's explanation needs more room: tapping the heart grows the island to this.
     val detailH = dp(292f) + band
     // Apple: "The Dynamic Island uses a corner radius of 44 points."
@@ -391,8 +417,11 @@ private fun IslandHostContent(
     val iphone = geometry.iphone
     val look = remember(dark, iphone) { GlassLooks.island(density, dark || iphone) }
     // Apple's key line: only on a dark background, as strong as the Dynamic Island's own (its Glow choice).
+    val glassEdge = remember { IslandPrefs.edge(prefs) == me.kavishdevar.librepods.services.IslandSpec.Edge.Glass }
     val keyline = remember(dark, iphone) {
-        if (!iphone) 0f else me.kavishdevar.librepods.services.IslandSpec.keylineAlpha(dark, me.kavishdevar.librepods.services.IslandLook.read(prefs).glow.amount)
+        val glow = me.kavishdevar.librepods.services.IslandLook.read(prefs).glow.amount
+        if (!iphone) 0f else if (glassEdge) me.kavishdevar.librepods.services.IslandSpec.glassRimAlpha(dark, glow)
+        else me.kavishdevar.librepods.services.IslandSpec.keylineAlpha(dark, glow)
     }
     val ringTrack = if (dark) Color(0x33FFFFFF) else Color(0x1F000000)
 
@@ -427,8 +456,12 @@ private fun IslandHostContent(
     val touchScope = rememberCoroutineScope()
     val currentPhase by rememberUpdatedState(phase)
 
-    val morph = if (reduceMotion) tween<Float>(160) else spring(dampingRatio = 0.72f, stiffness = 340f)
-    val morphH = if (reduceMotion) tween<Float>(160) else spring(dampingRatio = 0.66f, stiffness = 260f)
+    // How it moves (Settings > Island > Motion). Closing never overshoots: a close that bounced
+    // would shrink smaller than the Dynamic Island for a moment and pop back.
+    val feel = remember { IslandPrefs.motion(prefs) }
+    val morph = if (reduceMotion) tween<Float>(160) else spring(dampingRatio = feel.open.damping, stiffness = feel.open.stiffness)
+    val morphH = if (reduceMotion) tween<Float>(160) else spring(dampingRatio = feel.openHeight.damping, stiffness = feel.openHeight.stiffness)
+    val close = if (reduceMotion) tween<Float>(160) else spring(dampingRatio = feel.close.damping, stiffness = feel.close.stiffness)
     val soft = if (reduceMotion) tween<Float>(160) else spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
 
     LaunchedEffect(phase, generation) {
@@ -458,9 +491,9 @@ private fun IslandHostContent(
             IslandPhase.Leaving -> {
                 coroutineScope {
                     launch { split.animateTo(0f, soft) }
-                    launch { expand.animateTo(0f, morph) }
-                    launch { expandH.animateTo(0f, morphH) }
-                    launch { delay(if (reduceMotion) 0 else 90); appear.animateTo(0f, if (reduceMotion) tween(160) else spring(1f, 500f)) }
+                    launch { expand.animateTo(0f, close) }
+                    launch { expandH.animateTo(0f, close) }
+                    launch { delay(if (reduceMotion) 0 else 60); appear.animateTo(0f, close) }
                 }
                 onGone()
             }
@@ -566,7 +599,7 @@ private fun IslandHostContent(
         // Satellite travels from tucked inside the pill's right cap to a small gap beside it.
         val tucked = -geometry.satD
         val protrude = lerp(tucked, geometry.satGap + geometry.satD, s) * (1f - e)
-        val groupW = w + max(0f, protrude)
+        val groupW = w + if (iphone) 0f else max(0f, protrude)
         // From the seed (the mini island by the camera, or a dot) down to the resting place.
         val left = (windowWidth - groupW) / 2f + geometry.seedDx * (1f - a).coerceIn(0f, 1f)
         // Around the camera the top edge stays on the Dynamic Island's top, like the iPhone's
@@ -576,7 +609,13 @@ private fun IslandHostContent(
         val main = Rect(left, top, left + w, top + h)
         // On the content's middle line: below the camera's band when it opens around the camera.
         val band = minOf(geometry.band, h)
-        val satCenter = Offset(main.right - geometry.satD / 2f + protrude, main.top + band + (minOf(h, geometry.compactH) - band) / 2f)
+        val rowMid = main.top + band + (minOf(h, geometry.compactH) - band) / 2f
+        // The iPhone's island is one black shape: its ring sits inside the right end, keeping an
+        // even gap from the curve (it used to stick out past the edge). Glass keeps its bubble.
+        val satX = if (iphone) main.right - me.kavishdevar.librepods.services.IslandSpec.insetFromCorner(
+            radius, fromBottom = main.bottom - rowMid, r = geometry.satD / 2f, gap = 6f * density,
+        ) else main.right - geometry.satD / 2f + protrude
+        val satCenter = Offset(satX, rowMid)
         return IslandFrame(main, radius, satCenter, satR, a, e, s)
     }
 
@@ -655,7 +694,7 @@ private fun IslandHostContent(
                         haptics.expand()
                         GlintOverlays.openApp(context, me.kavishdevar.librepods.presentation.navigation.AppLinks.ISLANDS)
                         onPhase(IslandPhase.Leaving)
-                    } else if (!moved && currentPhase == IslandPhase.Expanded && event.isGlance()) {
+                    } else if (!moved && currentPhase == IslandPhase.Expanded && (event.isGlance() || geometry.musicPage)) {
                         // The glance has nothing to shrink to: a tap beside its controls tucks it away.
                         haptics.dismiss()
                         onPhase(IslandPhase.Leaving)
@@ -698,9 +737,9 @@ private fun IslandHostContent(
                     // Out of the Dynamic Island it is that same black shape from the first frame.
                     val ink = if (geometry.origin != null) 1f else alpha
                     drawPath(outline, Color.Black, alpha = ink)
-                    if (keyline > 0f) drawPath(
-                        outline, Color.White.copy(alpha = keyline * ink),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(0.75f * density),
+                    if (keyline > 0f) drawIslandEdge(
+                        outline, if (satVisible) Rect(f.main.left, f.main.top, satRect.right, f.main.bottom) else f.main,
+                        glassEdge, keyline * ink, Color.White, density,
                     )
                     return@drawBehind
                 }
@@ -739,11 +778,16 @@ private fun IslandHostContent(
             frameProvider = { frame(it) },
             blurMorph = !reduceMotion,
             cameraBand = geometry.band,
+            expandedBand = geometry.expandedBand,
             compact = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val art = playingNow.art
                     val placeIcon = (placeNow as? me.kavishdevar.librepods.services.ScreenApp.Place.App)?.icon
-                    if (event == IslandEvent.Music && art != null) {
+                    if (geometry.musicPage) {
+                        // The cover is drawn by the shared cover above, so it can fly out of the
+                        // Dynamic Island's own cover and on into the opened island's.
+                        Spacer(Modifier.size(42.dp, 30.dp))
+                    } else if (event == IslandEvent.Music && art != null) {
                         Box(Modifier.width(42.dp), contentAlignment = Alignment.Center) { CoverArt(art, 30.dp, 8.dp) }
                     } else if (event.isGlance()) {
                         Box(Modifier.width(42.dp), contentAlignment = Alignment.Center) {
@@ -788,6 +832,12 @@ private fun IslandHostContent(
                     active = phase == IslandPhase.Expanded, reduceMotion = reduceMotion,
                     onTouch = { touches++; haptics.tick() },
                     onClose = { onPhase(IslandPhase.Leaving) },
+                ) else if (geometry.musicPage) MusicIslandContent(
+                    geometry = geometry, track = playingNow, snapshot = snapshot,
+                    content = look.content, secondary = look.contentSecondary, dark = look.dark,
+                    active = phase == IslandPhase.Expanded, reduceMotion = reduceMotion, age = age,
+                    heartOpen = heartOpen, onHeartOpen = { heartOpen = it },
+                    onTouch = { touches++; haptics.tick() },
                 ) else ExpandedIslandContent(
                     event, snapshot, playingNow, title, look.content, look.contentSecondary, look.dark,
                     active = phase == IslandPhase.Expanded,
@@ -804,10 +854,15 @@ private fun IslandHostContent(
                 )
             },
         )
+        // Music: the cover and the sound bars are one thing all the way through. They start as
+        // the Dynamic Island's own (same place, same size) and grow into the opened island's,
+        // and fly back into the pill as it closes, the way Apple keeps elements in place
+        // instead of removing them and bringing them back.
+        if (geometry.musicPage) SharedMusicArt(geometry, playingNow, phase, reduceMotion, { frame(it) }, { grow.value })
     }
 }
 
-private data class IslandFrame(
+internal data class IslandFrame(
     val main: Rect,
     val radius: Float,
     val satCenter: Offset,
@@ -828,8 +883,10 @@ private fun IslandLayout(
     expanded: @Composable () -> Unit,
     /** Content melts through a soft blur as it changes, the way the iPhone's island does (off with Reduce motion). */
     blurMorph: Boolean = true,
-    /** The camera's band at the top of the island (around the camera): content starts below it. */
+    /** The camera's band at the top of the island (around the camera): compact content starts below it. */
     cameraBand: Float = 0f,
+    /** Where opened content starts: below the camera's band, or at the top (music wraps round the camera). */
+    expandedBand: Float = cameraBand,
 ) {
     /** A blur for content that's [gone] (0 = sharp, 1 = fully out of focus), or none when it's sharp. */
     fun androidx.compose.ui.graphics.GraphicsLayerScope.focus(gone: Float) {
@@ -848,7 +905,8 @@ private fun IslandLayout(
         val rowH = f.main.height - band
         val c = compactM.map { it.measure(Constraints(maxWidth = (f.main.width - rowH * 0.9f - rowH).roundToInt().coerceAtLeast(0), maxHeight = h)) }
         val s = satM.map { it.measure(loose) }
-        val e = expM.map { it.measure(Constraints.fixed(expandedWidth, (expandedHeight() - cameraBand.roundToInt()).coerceAtLeast(0))) }
+        val fullH = (expandedHeight() - expandedBand.roundToInt()).coerceAtLeast(1)
+        val e = expM.map { it.measure(Constraints.fixed(expandedWidth, fullH)) }
         layout(w, h) {
             val compactAlpha = (f.appear - 0.55f).coerceAtLeast(0f) / 0.45f * (1f - f.expand * 2.5f).coerceAtLeast(0f)
             c.forEach {
@@ -867,20 +925,30 @@ private fun IslandLayout(
                     scaleX = sc; scaleY = sc
                 }
             }
+            // Opened content grows with the shape, as on the iPhone: drawn at the size that fits
+            // the shape right now (never full size inside a shape that is still growing, which
+            // cut it off), centred, coming into focus as the island opens.
+            val bandE = minOf(expandedBand, f.main.height)
+            val fit = minOf(
+                1f,
+                f.main.width / expandedWidth.toFloat(),
+                ((f.main.height - bandE) / fullH.toFloat()).coerceAtLeast(0f),
+            ).coerceAtLeast(0.3f)
+            val x0 = f.main.center.x - expandedWidth * fit / 2f
+            val y0 = f.main.top + bandE
             e.forEach {
-                it.placeWithLayer(f.main.left.roundToInt(), (f.main.top + cameraBand).roundToInt()) {
-                    // Fades in on a smooth S-curve while settling from slightly smaller and higher,
-                    // so the content arrives with the glass instead of popping in at the end.
-                    val t = ((f.expand - 0.30f) / 0.70f).coerceIn(0f, 1f).let { x -> x * x * (3f - 2f * x) }
+                it.placeWithLayer(x0.roundToInt(), y0.roundToInt()) {
+                    val t = ((f.expand - 0.25f) / 0.65f).coerceIn(0f, 1f).let { x -> x * x * (3f - 2f * x) }
                     alpha = t
                     focus(1f - t)
-                    val sc = 0.965f + 0.035f * t
-                    scaleX = sc; scaleY = sc
-                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
-                    translationY = (1f - t) * -6f * density
-                    // Clipped to the shape (the blur may not spill past it).
+                    scaleX = fit; scaleY = fit
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                    // Clipped to the shape (the blur may not spill past it), in the content's own
+                    // (unscaled) units.
                     clip = true
-                    shape = RevealShape(f.main.width, f.main.height, f.radius, cameraBand)
+                    val lx = (f.main.left - x0) / fit
+                    val ly = (f.main.top - y0) / fit
+                    shape = RevealShape(lx, ly, lx + f.main.width / fit, ly + f.main.height / fit, f.radius / fit)
                 }
             }
         }
@@ -1390,7 +1458,7 @@ private fun HeartBadge(bpm: Int, size: Dp, dark: Boolean, reduceMotion: Boolean,
 
 /** The bigger explanation: a large heart, what the number means, and where it sits on a scale. */
 @Composable
-private fun HeartDetail(bpm: Int, age: Int, content: Color, secondary: Color, dark: Boolean, reduceMotion: Boolean, onBack: () -> Unit) {
+internal fun HeartDetail(bpm: Int, age: Int, content: Color, secondary: Color, dark: Boolean, reduceMotion: Boolean, onBack: () -> Unit) {
     val context = LocalContext.current
     val usual by androidx.compose.runtime.produceState(0) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -1577,7 +1645,7 @@ private fun PartRing(mark: PartMark, level: Int?, charging: Boolean, content: Co
  * number. Sits beside the play button; tap it for the explanation.
  */
 @Composable
-private fun HeartChip(
+internal fun HeartChip(
     view: HeartView.View,
     content: Color,
     secondary: Color,
@@ -1829,10 +1897,16 @@ internal fun glanceIslandText(place: me.kavishdevar.librepods.services.ScreenApp
 }
 
 /** How tall the opened glance is, in dp (header, two live rows and the controls). */
-internal const val GLANCE_H_DP = 272f
+internal const val GLANCE_H_DP = 252f
+/** The opened music island's cover: its size, corner and place (see [IslandGeometry.musicPage]). */
+internal const val ART_SIZE_DP = 52f
+internal const val ART_CORNER_DP = 12f
+internal const val ART_INSET_DP = 18f
+internal const val ART_TOP_DP = 16f
 
 /** Clips expanded content to the island's current (growing) shape, anchored top-left. */
-private class RevealShape(private val w: Float, private val h: Float, private val r: Float, private val top: Float = 0f) : Shape {
+/** The island's outline in the content's own units: content outside it is cut off. */
+private class RevealShape(private val l: Float, private val t: Float, private val r: Float, private val b: Float, private val radius: Float) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
-        Outline.Rounded(RoundRect(0f, -top, w, h - top, CornerRadius(r)))
+        Outline.Rounded(RoundRect(l, t, r, b, CornerRadius(radius)))
 }
