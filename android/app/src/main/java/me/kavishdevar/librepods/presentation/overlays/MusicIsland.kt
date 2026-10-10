@@ -374,7 +374,7 @@ internal fun MusicIslandContent(
             ) {
                 // Three parts: the heart (left), the controls (centred: both sides get the same
                 // room), the headphones or the app (right). Narrow phones close the gaps a little.
-                val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 380
+                val narrow = geometry.expandedW / dens.density < 360f
                 val gap = if (narrow) 8.dp else 16.dp
                 Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {

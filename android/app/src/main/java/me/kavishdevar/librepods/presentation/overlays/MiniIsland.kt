@@ -1479,7 +1479,9 @@ internal fun MiniIslandHost(
             // that isn't there yet. They step back under a pop-up that covers the pill.
             val c0 = ((a - 0.5f) / 0.4f).coerceIn(0f, 1f) * (1f - makeWay.value)
             if (c0 <= 0f) return@Canvas
-            val grow = (compactH / s.height).coerceIn(0.45f, 1f)
+            // As far as the shape has grown, in its smaller direction (it widens later than it
+            // gets tall), so the ends' contents never reach the camera while it grows.
+            val grow = minOf(compactH / s.height, compactW / bodyW.value.coerceAtLeast(1f)).coerceIn(0.45f, 1f)
             val lineY = m + s.height / 2f
             val right = left + pillW
             // A gesture's result shows in the right-hand spot for a moment; what's there steps back.
