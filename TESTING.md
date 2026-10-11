@@ -223,3 +223,17 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 7. **Settings > Island > Edge** (iPhone style): Key line (Apple's, dark mode only) or Liquid Glass (a light-catching rim and a faint sheen along the top, in light and dark, swinging a little as you tilt the phone).
 8. **Pop-ups:** "Connected" and other small pop-ups: the battery ring sits inside the black shape, not hanging over its edge.
 
+
+## M. 2026-10-11: what only your phone can confirm
+
+1. **Covers:** play a song: the cover beside the camera is round and sits inside the pill's end; tap the island: the opened cover is round too, and it flies there without changing shape.
+2. **Noise control:** tap the mode on the island twice quickly: it goes two steps (not the same one twice) and the AirPods end in the last one; with the AirPods out of range, a tap says it couldn't send and the screen shows the real mode again.
+3. **Beats:** walk out of range for a second and back: the island shouldn't flash "disconnected"; turning the Beats on should show within a few seconds.
+4. **Games:** open COD Mobile (or any full-screen game): a small black ring stays round the camera; tap it: heat, time played, Mute, Focus, your chat app. Focus asks once for Do Not Disturb access.
+5. **Apps:** start Google Maps navigation: the island shows Maps' arrow and the distance; tap it: the turn, its words and "Exit navigation" (does Exit work?). Open WhatsApp meanwhile: the route still shows. Open Spotify with nothing playing: Play, Search and your recent songs (do they play?).
+6. **Home only:** the Torch / Timer / Sound / Capture / Lock row shows on the home screen only.
+7. **Right side:** in any app with nothing going on, the right of the camera shows the phone's battery, never blank.
+8. **New song:** with your Beats on, skip a song: the pill stretches sideways with the title left and the artist right; nothing drops below it.
+9. **Beats model:** the headphones page shows the turning Solo 4; drag it to spin; pick your finish.
+10. **Unlock:** unlock the phone: the padlock opens with a soft light across the island, then the app's icon.
+11. **Bars:** play a song with vocals, then an instrumental: the middle bars follow the singing; without vocals the beat ripples out from the middle.

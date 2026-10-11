@@ -151,6 +151,11 @@ object GlintOverlays {
     }
 
     fun showIsland(context: Context, event: IslandEvent, expand: Boolean = false) = main.post {
+        // A new song while the Dynamic Island is up: the pill itself stretches sideways with its
+        // name, so no second pop-up drops below it (both used to show, the pop-up as a "bulb").
+        if (event == IslandEvent.Music && !expand && miniOrigin != null &&
+            me.kavishdevar.librepods.services.IslandPrefs.miniNames(me.kavishdevar.librepods.services.IslandPrefs.prefs(context))
+        ) return@post
         val c = island ?: IslandController(context.applicationContext).also { island = it }
         c.show(event, expand)
     }
@@ -270,7 +275,9 @@ object GlintOverlays {
         if (!me.kavishdevar.librepods.services.DeviceChoice.followsAirPods(context)) return
         val service = me.kavishdevar.librepods.services.ServiceManager.getService() ?: return
         val offAllowed = context.getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("off_listening_mode", true)
-        val next = me.kavishdevar.librepods.services.ListeningModes.next(service.getANC(), offAllowed)
+        // From the mode on its way, if a switch is pending: two quick taps go two steps, not one.
+        val now = me.kavishdevar.librepods.services.CommandFeedback.pending ?: service.getANC()
+        val next = me.kavishdevar.librepods.services.ListeningModes.next(now, offAllowed)
         runCatching {
             service.aacpManager.sendControlCommand(
                 me.kavishdevar.librepods.bluetooth.AACPManager.Companion.ControlCommandIdentifiers.LISTENING_MODE.value, next

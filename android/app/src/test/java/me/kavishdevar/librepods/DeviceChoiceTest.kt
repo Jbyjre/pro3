@@ -232,4 +232,29 @@ class DeviceChoiceTest {
         assertEquals("Beats Solo 4", s.name)
         assertEquals(0, s.listeningMode)
     }
+
+    // ---- 2026-10-11: a blip isn't a disconnection ----
+
+    @Test fun aShortBlipKeepsTheHeadphonesConnected() {
+        val settle = HeadphoneLink.LinkSettle()
+        assertEquals(HeadphoneLink.LinkSettle.Step(false, null), settle.reading(false, 0L))
+        assertEquals(HeadphoneLink.LinkSettle.Step(true, null), settle.reading(true, 100L))
+        // Drops for a moment: still shown connected, look again before the grace runs out.
+        val blip = settle.reading(false, 1_000L)
+        assertTrue(blip.connected)
+        assertEquals(HeadphoneLink.LinkSettle.GRACE_MS, blip.recheckInMs)
+        assertTrue(settle.reading(true, 2_000L).connected)
+        // A real drop: gone once it has lasted the grace, and the recheck is never a zero wait.
+        settle.reading(false, 10_000L)
+        val near = settle.reading(false, 10_000L + HeadphoneLink.LinkSettle.GRACE_MS - 10L)
+        assertTrue(near.connected)
+        assertTrue(near.recheckInMs!! >= 50L)
+        assertEquals(HeadphoneLink.LinkSettle.Step(false, null), settle.reading(false, 10_000L + HeadphoneLink.LinkSettle.GRACE_MS))
+    }
+
+    @Test fun aSlowConnectionIsLookedAtForSeconds() {
+        val looks = HeadphoneLink.SETTLE_LOOKS_MS
+        assertTrue(looks.all { it > 0L })
+        assertTrue(looks.last() >= 8_000L)
+    }
 }

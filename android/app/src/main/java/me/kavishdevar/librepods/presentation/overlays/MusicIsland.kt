@@ -29,7 +29,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.basicMarquee
+import me.kavishdevar.librepods.presentation.glint.scrollingLine
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
@@ -92,6 +92,7 @@ import kotlinx.coroutines.delay
 import me.kavishdevar.librepods.presentation.glint.drawHeadphones
 import me.kavishdevar.librepods.presentation.glint.lerp
 import me.kavishdevar.librepods.presentation.glint.roundRectPath
+import me.kavishdevar.librepods.presentation.glint.smoothRectPath
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.services.GlintStatus
 import me.kavishdevar.librepods.services.HeartRate
@@ -193,7 +194,8 @@ internal fun SharedMusicArt(
         val pillT = geometry.seedTop
         val ring = track.progress(SystemClock.elapsedRealtime()) != null
         val pillFit = (o?.side ?: 0f) / 2f
-        val pHalf = IslandSpec.roundedSquareHalf(if (ring) pillFit - 3.4f * density else pillFit, 0.42f)
+        // The Dynamic Island's own round cover (inside its progress ring when it has one).
+        val pHalf = if (ring) pillFit - 3.4f * density else pillFit
         val pCover = Offset(pillL + pillH / 2f, pillT + pillH / 2f)
         val pBars = Offset(pillL + (o?.width ?: 0f) - pillH / 2f, pillT + pillH / 2f)
         // 2. The compact pop-up's cover (a new song).
@@ -222,13 +224,14 @@ internal fun SharedMusicArt(
             startCover.y * wP + cCover.y * wC + eCover.y * wE,
         )
         val half = startHalf * wP + cHalf * wC + eHalf * wE
-        val corner = startHalf * 0.42f * wP + 8f * density * wC + geometry.artCorner * fit * wE
+        // Round in every place it sits (pill, pop-up, opened), so it never changes shape in flight.
+        val corner = startHalf * wP + cHalf * wC + geometry.artCorner * fit * wE
 
-        clipPath(roundRectPath(f.main, f.radius)) {
+        clipPath(smoothRectPath(f.main, f.radius)) {
             // The cover: the same picture all the way, cropped to a square.
             if (half > 0.5f && fade * away > 0.001f) {
                 val alpha = fade * away
-                val shape = Path().apply { addRoundRect(RoundRect(cover.x - half, cover.y - half, cover.x + half, cover.y + half, CornerRadius(corner))) }
+                val shape = smoothRectPath(Rect(cover.x - half, cover.y - half, cover.x + half, cover.y + half), corner)
                 clipPath(shape) {
                     if (art != null) {
                         val (so, ss) = centreSquare(art)
@@ -241,7 +244,7 @@ internal fun SharedMusicArt(
                             colorFilter = if (level < 0.5f && wP > 0.5f) grey else null,
                         )
                     } else {
-                        drawRect(Color(0xFF2C2C2E), Offset(cover.x - half, cover.y - half), Size(2f * half, 2f * half), alpha = alpha)
+                        drawPath(shape, Color(0xFF2C2C2E), alpha = alpha)
                         drawNote(cover, half * 1.1f, Color.White.copy(alpha = alpha * 0.9f))
                     }
                 }
@@ -259,17 +262,15 @@ internal fun SharedMusicArt(
 
 /** Four sound bars centred at [c] in a spot [side] across, like the Dynamic Island's. */
 internal fun DrawScope.drawSoundBars(c: Offset, side: Float, color: Color, level: Float, live: FloatArray?, clock: Long, moving: Boolean, density: Float) {
-    val t = clock / 1000f
     val barW = 2.6f * density * (side / (28f * density)).coerceIn(0.5f, 1.4f)
     val gap = barW * 0.92f
     val maxH = side * 0.62f
     val startX = c.x - (4 * barW + 3 * gap) / 2f + barW / 2f
-    val order = intArrayOf(1, 0, 2, 3)
     for (i in 0 until 4) {
-        val wiggle = 0.35f + 0.65f * abs(sin(t * (2.3f + i * 0.73f) + i * 1.7f))
+        val ambient = me.kavishdevar.librepods.services.PulseShaper.ambient(clock, i)
         val rest = if (i % 2 == 0) 0.62f else 0.42f
-        val l = live?.let { 0.22f + 0.78f * it[order[i]] }
-        val h = lerp(barW, maxH * (l ?: if (moving) wiggle else rest), level)
+        val l = live?.let { 0.22f + 0.78f * it[i] }
+        val h = lerp(barW, maxH * (l ?: if (moving) ambient else rest), level)
         val x = startX + i * (barW + gap)
         drawLine(color, Offset(x, c.y - h / 2f), Offset(x, c.y + h / 2f), barW, StrokeCap.Round)
     }
@@ -348,7 +349,8 @@ internal fun MusicIslandContent(
                 Text(
                     title, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 20.sp, color = content),
-                    modifier = if (active && !reduceMotion) Modifier.basicMarquee(iterations = 1, initialDelayMillis = 1_400) else Modifier,
+                    // Too long: it scrolls once with soft ends (never chopped at the cover's edge).
+                    modifier = Modifier.scrollingLine(active && !reduceMotion),
                 )
                 Text(
                     track.artist ?: sub, maxLines = 1, overflow = TextOverflow.Ellipsis,

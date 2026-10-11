@@ -161,15 +161,19 @@ fun ConnectionStatusPanel(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // LibrePods' AirPods picture; it breathes while a connection attempt is running.
+        // On the stage: it turns with the tilt, catches the light, sits on a soft shadow, and a
+        // finger can turn it.
         Box(Modifier.size(width = 146.dp, height = 96.dp), contentAlignment = Alignment.Center) {
-            Image(
-                bitmap = ImageBitmap.imageResource(R.drawable.airpods_pro_2_buds),
-                contentDescription = null,
-                modifier = Modifier
-                    .requiredSize(150.dp)
-                    .offset(y = 6.dp)
-                    .graphicsLayer { alpha = if (panel.busy) 0.45f + 0.55f * pulse else 1f }
-            )
+            DeviceStage(draggable = true) {
+                Image(
+                    bitmap = ImageBitmap.imageResource(R.drawable.airpods_pro_2_buds),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .requiredSize(150.dp)
+                        .offset(y = 6.dp)
+                        .graphicsLayer { alpha = if (panel.busy) 0.45f + 0.55f * pulse else 1f }
+                )
+            }
         }
         Text(
             panel.title, textAlign = TextAlign.Center,

@@ -112,6 +112,16 @@
   `MiniOrigin.side`); opened content scales with the shape (`IslandLayout` `fit`). Springs: `services/IslandMotion.kt` (closing never
   overshoots). Edge: `IslandSpec.Edge` (key line / Liquid Glass, `IslandEdge.kt`). Song bar `PREF_MUSIC_BAR` off by default (Jake's
   earlier no-song-bar choice). If tests crash with "mNativePtr", the Robolectric jar download was rate-limited (re-run cloud-setup.sh).
+- Session 2026-10-11 (DECISIONS 46): covers are round everywhere (never square in the pill's round end); every island shape uses
+  continuous corners (`SmoothCorner`, `glint/Glass.kt` `smoothRectPath`); morph rules in `IslandMotion` (`morphRadius`, `volumeGive`).
+  Listening modes from every sender go through `AACPManager.sendControl` + `CommandFeedback` (resend, restore, quick taps).
+  Jake's rules: the phone's quick buttons (torch, timer, sound, capture, lock) **only on the home screen**; inside an app the glance
+  shows the app itself (`services/LiveActivities.kt`: its ongoing notification's words, number and own buttons; never messages;
+  `GlancePanel` `LiveCard`), games get heat + Mute/Focus/chat pills, music apps Play/Search/recent songs. The Dynamic Island's right
+  side must never be blank (live number, else glance, else phone battery). Song names and moments **stretch the pill sideways at
+  its own height** (title left of the camera, artist right), never a drop-down "bulb"; while the pill is up no music pop-up drops below.
+  Beats picture = real 3D model `glint/Headphones3D.kt` (Solo 4 shape, finishes, spins; no drawn flat art). Motion: calm, a hint of
+  bounce, no big vertical travel. Fitting rules: `glint/Fit.kt`. App kinds: `services/AppKinds.kt`.
 - **`docs/REQUESTS.md` is the ledger of everything Jake has asked for and how finished each thing is: read it first and update it
   whenever he asks for something or a status changes.** Folder READMEs (`android/`, `services/`, `overlays/`, `glint/`, `screens/`,
   tests) map the code: update them with the code. Check a README doesn't already exist before writing one (`git ls-files | grep -i readme`).

@@ -37,7 +37,10 @@ class ControlCommandRepository(
         value: ByteArray
     ) {
         val sent = aacpManager.sendControlCommand(id.value, value)
-        me.kavishdevar.librepods.services.CommandFeedback.sent(id.value, value, sent)
+        // Listening modes are reported by the connection itself (every sender, not only this one).
+        if (id != ControlCommandIdentifiers.LISTENING_MODE) {
+            me.kavishdevar.librepods.services.CommandFeedback.sent(id.value, value, sent)
+        }
     }
 
 

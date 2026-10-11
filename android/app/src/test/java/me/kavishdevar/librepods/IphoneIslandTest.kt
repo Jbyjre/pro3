@@ -99,25 +99,24 @@ class IphoneIslandTest {
 
     // ---- 2026-10-10: concentric contents, the music island, motion ----
 
-    @Test fun theSquareCoverFitsThePillsRoundEnd() {
+    @Test fun theRoundCoverFitsThePillsRoundEnd() {
+        // 2026-10-11: the cover is a circle on the round end's own centre (a square poked out).
         val mini = MiniGeometry(app, emptyList())
         val fit = mini.size.side / 2f
-        val half = IslandSpec.roundedSquareHalf(fit, 0.42f)
-        // The square's farthest point (its rounded corner, on the diagonal) is exactly at the circle.
-        val k = half * 0.42f
-        val reach = (half - k) * kotlin.math.sqrt(2f) + k
-        assertEquals(fit, reach, 0.01f)
-        // And that circle sits inside the pill's round end with a margin.
+        // That circle sits inside the pill's round end with a margin all round.
         assertTrue(fit < mini.size.height / 2f)
         // Every spot beside the camera is centred on the round end's own centre (concentric).
         assertEquals(mini.size.height / 2f, mini.size.inset + mini.size.side / 2f, 0.01f)
     }
 
-    @Test fun theOpenedCoverKeepsClearOfTheCorner() {
+    @Test fun theOpenedCoverIsConcentricWithTheCorner() {
         val d = app.resources.displayMetrics.density
-        val gap = IslandSpec.cornerGap(IslandSpec.CORNER_DP * d, 18f * d, 12f * d)
-        // At least 10 dp between the cover's corner and the island's curve (never poking into it).
-        assertTrue("gap ${gap / d} dp", gap >= 10f * d)
+        val g = IslandGeometry(app, null, style = IslandSpec.Style.IPhone, aboveStatusBar = false, music = true)
+        // Inner corner = outer corner minus the gap; on a 52 dp cover that is a full circle.
+        assertEquals(g.artSize / 2f, g.artCorner, 0.01f)
+        val gap = IslandSpec.cornerGap(IslandSpec.CORNER_DP * d, 16f * d, g.artCorner)
+        // At least as much room from the curve as from the top edge: nothing pokes into it.
+        assertTrue("gap ${gap / d} dp", gap >= 14f * d)
         // The formula itself: a fully concentric corner keeps exactly the inset all round.
         assertEquals(14f, IslandSpec.cornerGap(44f, 14f, 30f), 0.01f)
     }

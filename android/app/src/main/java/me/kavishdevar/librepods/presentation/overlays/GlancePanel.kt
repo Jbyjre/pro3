@@ -77,6 +77,17 @@ import kotlinx.coroutines.delay
 import me.kavishdevar.librepods.presentation.glint.drawHeadphones
 import me.kavishdevar.librepods.presentation.navigation.AppLinks
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+import me.kavishdevar.librepods.services.AppActions
+import me.kavishdevar.librepods.services.AppControls
+import me.kavishdevar.librepods.services.AppKinds
+import me.kavishdevar.librepods.services.LiveActivities
+import me.kavishdevar.librepods.services.LiveRules
+import me.kavishdevar.librepods.services.GameStats
+import me.kavishdevar.librepods.services.MusicMemory
+import me.kavishdevar.librepods.services.NowPlaying
+import me.kavishdevar.librepods.services.SoundSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import me.kavishdevar.librepods.services.GlanceRules
 import me.kavishdevar.librepods.services.GlintStatus
 import me.kavishdevar.librepods.services.HeadphoneLink
@@ -137,6 +148,28 @@ internal fun GlancePanel(
     var choosingTimer by remember { mutableStateOf(false) }
     LaunchedEffect(active) { if (!active) choosingTimer = false }
 
+    // ---- The app you're in, and what fits it (AppKinds, AppActions) ----
+    val app = place as? ScreenApp.Place.App
+    val kind = app?.kind
+    val track by NowPlaying.state.collectAsState()
+    val game = kind == AppKinds.Kind.Game
+    // A music app open with nothing playing: its own card (Play, Search, your recent songs from it).
+    val idleMusic = app != null && AppActions.musicIdle(kind, track.playing)
+    // Everything that asks Android (the saved songs, which chat app is installed, the phone's
+    // temperature) is read off the main thread, so opening the glance never waits for it.
+    val songs by androidx.compose.runtime.produceState(emptyList<MusicMemory.Song>(), app?.pkg, idleMusic) {
+        value = if (idleMusic && app != null) withContext(Dispatchers.IO) { MusicMemory.recent(context, app.pkg) } else emptyList()
+    }
+    val chat by androidx.compose.runtime.produceState<String?>(null, app?.pkg, kind) {
+        value = withContext(Dispatchers.IO) { AppControls.chatApp(context, game, app?.pkg) }
+    }
+    val health by androidx.compose.runtime.produceState<AppControls.Health?>(null, game, active) {
+        while (game && active) {
+            value = withContext(Dispatchers.IO) { AppControls.health(context) }
+            delay(10_000L)
+        }
+    }
+
     Column(Modifier.fillMaxSize().padding(start = 20.dp, end = 16.dp, top = 16.dp, bottom = 14.dp)) {
         // ---- Where you are, and today ----
         Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -161,7 +194,9 @@ internal fun GlancePanel(
                     ScreenApp.Place.Unknown -> "This phone"
                 }
                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 21.sp, color = content))
-                Text(longDate(wall), maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, lineHeight = 16.sp, color = secondary))
+                // What kind of app it is, so the buttons below make sense ("Game · Saturday 11 October").
+                val sub = if (kind != null && kind != AppKinds.Kind.Other) "${kind.label} · ${longDate(wall)}" else longDate(wall)
+                Text(sub, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, lineHeight = 16.sp, color = secondary))
             }
             // Straight to the Island tab in pro, to change what the island shows and does.
             PressableGlyph(size = 34.dp, description = "Customize the Dynamic Island", enabled = active, dark = dark, onClick = {
@@ -173,11 +208,64 @@ internal fun GlancePanel(
         }
         Spacer(Modifier.height(10.dp))
 
-        // ---- What's live ----
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // The phone's quick buttons are for the home screen only (Jake, 2026-10-11: never inside
+        // an app). Without the accessibility switch pro can't tell where you are, so they show then too.
+        val home = place == ScreenApp.Place.Home || place == ScreenApp.Place.Unknown
+        val liveAll by LiveActivities.all.collectAsState()
+        // This app's own live activity (its words, its buttons), and any other app's going on
+        // meanwhile (a Maps route while you're in WhatsApp).
+        val own = app?.let { a -> liveAll.values.filter { it.pkg == a.pkg }.maxByOrNull { it.postedAt } }
+        val other = LiveRules.pick(liveAll.values.filter { it.pkg != app?.pkg }, null)
+        var muted by remember { mutableStateOf(AppControls.muted(context)) }
+        var quiet by remember { mutableStateOf(AppControls.quiet(context)) }
+
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // ---- The app you're in: what it says itself ----
+            val appCard = when {
+                own != null -> { LiveCard(own, compact = false, wall, content, secondary, dark, active, onTouch, onClose, context); true }
+                idleMusic && app != null -> {
+                    MusicIdleCard(app, songs, content, secondary, dark, active, onTouch, onClose, context)
+                    true
+                }
+                game -> {
+                    // In a game: how the phone is coping, then the few things a game wants, as small pills.
+                    GameRow(app, health, content, secondary)
+                    PillRow {
+                        GlassPillButton(text = if (muted) "Muted" else "Mute", textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                            modifier = Modifier.weight(1f), onClick = { if (active) { onTouch(); muted = AppControls.toggleMute(context) } })
+                        GlassPillButton(text = if (quiet) "Focus on" else "Focus", textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                            modifier = Modifier.weight(1f), onClick = {
+                                if (active) {
+                                    onTouch()
+                                    // Without Do Not Disturb access, Android's page to allow it opens (once).
+                                    val now = AppControls.toggleQuiet(context)
+                                    if (now == null) onClose() else quiet = now
+                                }
+                            })
+                        chat?.let { c ->
+                            GlassPillButton(text = AppActions.chatLabel(c), textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                                modifier = Modifier.weight(1f), onClick = { if (active) { onTouch(); SoundSource.openApp(context, c); onClose() } })
+                        }
+                    }
+                    true
+                }
+                else -> false
+            }
+            // ---- Another app's live activity (a route, a ride), whenever there is one ----
+            val showOther = other != null && (!appCard || (game && own == null))
+            if (showOther && other != null) LiveCard(other, compact = true, wall, content, secondary, dark, active, onTouch, onClose, context,
+                private = place is ScreenApp.Place.Locked)
+            // ---- What's live on the phone (a timer, charging, headphones), in the room left ----
+            val room = when {
+                appCard && own != null -> 0
+                idleMusic -> 0
+                game -> if (showOther) 0 else 1
+                else -> (if (home) 2 else 3) - (if (showOther) 1 else 0)
+            }
+            val shown = rows.take(room.coerceIn(0, 2))
             // One thing going on: it gets the room (bigger ring, bigger words), not a lonely line.
-            val hero = rows.size == 1
-            rows.forEach { item ->
+            val hero = !appCard && !showOther && shown.size == 1 && !home
+            shown.forEach { item ->
                 if (hero && item is GlanceRules.Item.Timer && item.state.ringing) {
                     // Ringing on its own: big words, and Stop / one more minute in a row under them.
                     LiveRow(item, now, wall, toFull, pods, content, secondary, dark, active, onTouch, context, hero = true, buttons = false, heightDp = 64)
@@ -190,12 +278,12 @@ internal fun GlancePanel(
         }
         Spacer(Modifier.weight(1f))
 
-        // ---- The phone's controls (or the timer's lengths) ----
-        AnimatedContent(
+        // ---- The phone's controls (or the timer's lengths): the home screen only ----
+        if (home) AnimatedContent(
             targetState = choosingTimer,
             transitionSpec = {
-                val spec = if (reduceMotion) tween<Float>(120) else spring(0.82f, 420f)
-                (fadeIn(spec) + scaleIn(spec, initialScale = 0.94f)) togetherWith (fadeOut(tween(100)) + scaleOut(tween(100), targetScale = 0.97f))
+                val spec = if (reduceMotion) tween<Float>(120) else spring(0.86f, 380f)
+                (fadeIn(spec) + scaleIn(spec, initialScale = 0.96f)) togetherWith (fadeOut(tween(100)) + scaleOut(tween(100), targetScale = 0.98f))
             },
             label = "glanceControls",
         ) { choosing ->
@@ -222,26 +310,175 @@ internal fun GlancePanel(
             } else {
                 Row(Modifier.fillMaxWidth().height(66.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     val system = PhoneControls.canUseSystemActions()
+                    var ring by remember { mutableStateOf(PhoneControls.ring(context)) }
+                    val ink = { on: Boolean -> if (on) Color.Black else content }
+                    val share = Modifier.weight(1f)
                     Control("Torch", on = torch, enabled = active && PhoneControls.hasTorch(context), content, secondary, dark, {
                         onTouch(); PhoneControls.toggleTorch(context)
-                    }) { c, on -> drawTorch(c, size.minDimension * 0.5f, if (on) Color.Black else content) }
+                    }, modifier = share) { c, on -> drawTorch(c, size.minDimension * 0.5f, ink(on)) }
                     Control("Timer", on = timer != null, enabled = active, content, secondary, dark, {
                         onTouch(); choosingTimer = true
-                    }) { c, on -> drawStopwatch(c, size.minDimension * 0.46f, if (on) Color.Black else content) }
-                    var ring by remember { mutableStateOf(PhoneControls.ring(context)) }
+                    }, modifier = share) { c, on -> drawStopwatch(c, size.minDimension * 0.46f, ink(on)) }
                     Control(ring.label, on = ring != PhoneControls.Ring.Sound, enabled = active, content, secondary, dark, {
                         onTouch(); PhoneControls.toggleRing(context)?.let { ring = it }
-                    }) { c, on -> if (ring == PhoneControls.Ring.Sound) drawRinger(c, size.minDimension * 0.46f, content) else drawVibrate(c, size.minDimension * 0.46f, if (on) Color.Black else content) }
+                    }, modifier = share) { c, on -> if (ring == PhoneControls.Ring.Sound) drawRinger(c, size.minDimension * 0.46f, content) else drawVibrate(c, size.minDimension * 0.46f, ink(on)) }
                     Control("Capture", on = false, enabled = active, content, secondary, dark, {
                         onTouch()
                         // Needs the accessibility switch; without it, straight to where it's turned on.
                         if (system) { onClose(); PhoneControls.screenshot() } else { GlintOverlays.openApp(context, AppLinks.ISLANDS); onClose() }
-                    }, dim = !system) { c, _ -> drawScreenshot(c, size.minDimension * 0.46f, content) }
+                    }, dim = !system, modifier = share) { c, _ -> drawScreenshot(c, size.minDimension * 0.46f, content) }
                     Control("Lock", on = false, enabled = active, content, secondary, dark, {
                         onTouch()
                         if (system) { onClose(); PhoneControls.lockScreen() } else { GlintOverlays.openApp(context, AppLinks.ISLANDS); onClose() }
-                    }, dim = !system) { c, _ -> drawPadlock(c, size.minDimension * 0.46f, 0f, content) }
+                    }, dim = !system, modifier = share) { c, _ -> drawPadlock(c, size.minDimension * 0.46f, 0f, content) }
                 }
+            }
+        }
+    }
+}
+
+/** A row of small pills sharing the width evenly. */
+@Composable
+private fun PillRow(content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically, content = content)
+}
+
+/**
+ * An app's live activity, in its own words: its picture (Maps' next turn), what it says, its one
+ * live number, a progress bar when it has one, and its own buttons (up to three). [compact]: just
+ * the line (another app's, while you're somewhere else). A tap opens the app at it.
+ */
+@Composable
+private fun LiveCard(
+    l: LiveActivities.Live, compact: Boolean, wall: Long, content: Color, secondary: Color, dark: Boolean,
+    active: Boolean, onTouch: () -> Unit, onClose: () -> Unit, context: Context,
+    /** On the lock screen: only the app and its live number, never its words (as Android hides them there). */
+    private: Boolean = false,
+) {
+    val name = remember(l.pkg) { SoundSource.cachedInfo(l.pkg)?.label }
+    val title = if (private) (name ?: "Live") else l.title
+    val text = if (private) null else l.text
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(if (compact) 46.dp else 48.dp)
+                .islandPress(active, "Open ${title ?: "the app"}", { onTouch(); LiveActivities.open(context, l); onClose() }, {}),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Canvas(Modifier.size(36.dp)) {
+                val pic = l.picture ?: l.icon
+                if (pic != null) appTileFill(pic, center, size.minDimension)
+                else drawCircle(Color(0xFF30D158), size.minDimension * 0.18f, center)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title ?: text ?: "Live", maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 18.sp, color = content))
+                if (title != null && text != null) Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, lineHeight = 15.sp, color = secondary))
+            }
+            l.value(wall)?.let { v ->
+                Spacer(Modifier.width(8.dp))
+                Text(v, maxLines = 1, style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = content, fontFeatureSettings = "tnum"))
+            }
+        }
+        if (!compact) {
+            l.progress?.let { pr ->
+                Canvas(Modifier.fillMaxWidth().height(4.dp)) {
+                    val h = size.height
+                    drawRoundRect(content.copy(alpha = 0.18f), cornerRadius = CornerRadius(h / 2f))
+                    drawRoundRect(content, size = Size((size.width * pr).coerceAtLeast(h), h), cornerRadius = CornerRadius(h / 2f))
+                }
+            }
+            if (l.actions.isNotEmpty()) PillRow {
+                l.actions.forEach { a ->
+                    GlassPillButton(text = a.title, textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                        modifier = Modifier.weight(1f), onClick = { if (active) { onTouch(); LiveActivities.press(a); onClose() } })
+                }
+            }
+        }
+    }
+}
+
+/**
+ * In a game: the game, how hot the phone is running and its battery, and how long you've played.
+ * Android doesn't let one app read another's frame rate (not without root), so this is what the
+ * phone itself reports; past "Hot", games usually slow themselves down to cool off.
+ */
+@Composable
+private fun GameRow(app: ScreenApp.Place.App?, health: AppControls.Health?, content: Color, secondary: Color) {
+    val since = ScreenApp.frontSince
+    val playedFor = if (since > 0L) SystemClock.elapsedRealtime() - since else 0L
+    val hot = health?.let { GameStats.throttling(it.thermal) } == true
+    val heatColor = when {
+        health == null -> content
+        health.thermal >= 3 -> Color(0xFFFF453A)
+        hot -> Color(0xFFFFB340)
+        else -> Color(0xFF30D158)
+    }
+    val line = health?.let { GameStats.line(it.thermal, it.tempTenths, it.battery) } ?: "Checking the phone…"
+    Row(
+        Modifier.fillMaxWidth().height(50.dp).semantics { contentDescription = "${GameStats.played(playedFor)}. $line" },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Canvas(Modifier.size(36.dp)) {
+            val r = size.minDimension / 2f - 2.dp.toPx()
+            val st = Stroke(3.dp.toPx(), cap = StrokeCap.Round)
+            val tl = Offset(center.x - r, center.y - r); val sz = Size(r * 2, r * 2)
+            // A gauge: how far toward "too hot" the phone is (Android's 0..4 scale).
+            drawArc(content.copy(alpha = 0.18f), 135f, 270f, false, tl, sz, style = st)
+            val t = ((health?.thermal ?: 0).coerceIn(0, 4) + 1) / 5f
+            drawArc(heatColor, 135f, 270f * t, false, tl, sz, style = st)
+            drawGamepad(center, r * 1.0f, content)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(GameStats.played(playedFor), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 18.sp, color = content))
+            Text(if (hot) "$line · may slow down" else line, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, lineHeight = 15.sp, color = if (hot) heatColor else secondary))
+        }
+    }
+}
+
+/**
+ * A music app open with nothing playing: pick up where you left off. Its recent songs (the ones
+ * pro saw it play) are one tap each; with none yet, a line says how to fill them.
+ */
+@Composable
+private fun MusicIdleCard(
+    app: ScreenApp.Place.App, songs: List<MusicMemory.Song>, content: Color, secondary: Color, dark: Boolean,
+    active: Boolean, onTouch: () -> Unit, onClose: () -> Unit, context: Context,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().height(46.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Nothing playing", maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 18.sp, color = content))
+                Text(
+                    if (songs.isEmpty()) "Play something in ${app.label ?: "this app"} and it shows up here"
+                    else "Pick up where you left off in ${app.label ?: "this app"}",
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, lineHeight = 15.sp, color = secondary),
+                )
+            }
+        }
+        // Its own two: play again, or look for something (as small pills, never a row of round buttons).
+        PillRow {
+            GlassPillButton(text = "Play", textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                modifier = Modifier.weight(1f), onClick = { if (active) { onTouch(); AppControls.resume(context, app.pkg) } })
+            GlassPillButton(text = "Search", textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                modifier = Modifier.weight(1f), onClick = { if (active) { onTouch(); AppControls.search(context, app.pkg); onClose() } })
+        }
+        if (songs.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Up to three, sharing the width evenly; long names end in "…" instead of spilling.
+            songs.take(3).forEach { song ->
+                GlassPillButton(
+                    text = song.title, textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 12.dp,
+                    modifier = Modifier.weight(1f),
+                    onClick = { if (active) { onTouch(); AppControls.play(context, app.pkg, song); onClose() } },
+                )
             }
         }
     }
@@ -390,10 +627,14 @@ private fun levelColor(level: Int, normal: Color): Color = when {
 @Composable
 private fun Control(
     label: String, on: Boolean, enabled: Boolean, content: Color, secondary: Color, dark: Boolean,
-    onClick: () -> Unit, dim: Boolean = false, glyph: DrawScope.(Offset, Boolean) -> Unit,
+    onClick: () -> Unit, dim: Boolean = false, modifier: Modifier = Modifier.width(56.dp), glyph: DrawScope.(Offset, Boolean) -> Unit,
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(56.dp)) {
-        PressableGlyph(size = 46.dp, description = label + if (on) ", on" else "", enabled = enabled, dark = dark, onClick = onClick) {
+    // Each button gets an even share of the row; on a narrow phone they all shrink together
+    // (FitRules), instead of the last one being squeezed or cut off.
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier, contentAlignment = Alignment.TopCenter) {
+    val circle = androidx.compose.ui.unit.Dp(me.kavishdevar.librepods.presentation.glint.FitRules.buttonSize(maxWidth.value))
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        PressableGlyph(size = circle, description = label + if (on) ", on" else "", enabled = enabled, dark = dark, onClick = onClick) {
             if (on) drawCircle(Color.White, size.minDimension / 2f, center)
             else drawGlassCapsule(dark)
             val a = if (dim) 0.4f else 1f
@@ -404,7 +645,8 @@ private fun Control(
             } else glyph(center, on)
         }
         Spacer(Modifier.height(4.dp))
-        Text(label, maxLines = 1, style = TextStyle(fontFamily = glintFontFamily, fontSize = 10.5.sp, fontWeight = FontWeight.Medium, color = if (dim) secondary.copy(alpha = secondary.alpha * 0.6f) else secondary, textAlign = TextAlign.Center))
+        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontSize = 10.5.sp, fontWeight = FontWeight.Medium, color = if (dim) secondary.copy(alpha = secondary.alpha * 0.6f) else secondary, textAlign = TextAlign.Center))
+    }
     }
 }
 
@@ -520,3 +762,18 @@ private fun DrawScope.drawPlayTriangle(c: Offset, size: Float, color: Color) {
         moveTo(c.x - size * 0.32f, c.y - size / 2f); lineTo(c.x + size * 0.48f, c.y); lineTo(c.x - size * 0.32f, c.y + size / 2f); close()
     }, color)
 }
+
+// ---- The game's gauge (2026-10-11) ----
+
+/** A game controller, small enough to sit inside the heat gauge. */
+private fun DrawScope.drawGamepad(c: Offset, size: Float, color: Color) {
+    val w = size; val h = size * 0.58f
+    drawRoundRect(color, Offset(c.x - w / 2f, c.y - h / 2f), Size(w, h), CornerRadius(h / 2f), style = Stroke(size * 0.09f))
+    val d = size * 0.14f
+    val lx = c.x - w * 0.22f
+    drawLine(color, Offset(lx - d, c.y), Offset(lx + d, c.y), size * 0.08f, StrokeCap.Round)
+    drawLine(color, Offset(lx, c.y - d), Offset(lx, c.y + d), size * 0.08f, StrokeCap.Round)
+    drawCircle(color, size * 0.055f, Offset(c.x + w * 0.2f, c.y - size * 0.05f))
+    drawCircle(color, size * 0.055f, Offset(c.x + w * 0.3f, c.y + size * 0.07f))
+}
+

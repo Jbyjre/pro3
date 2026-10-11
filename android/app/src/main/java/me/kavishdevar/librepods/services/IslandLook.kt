@@ -57,7 +57,8 @@ object IslandLook {
         Lock("lock", "Padlock"),
         /**
          * The one thing worth a glance right now: a running timer, charging, your headphones' battery,
-         * or a low phone battery. Nothing at all when there's nothing to say.
+         * or a low phone battery; the phone's battery when there's nothing else, so it's never an
+         * empty space (Jake, 2026-10-11: the right side was blank half the time).
          */
         Glance("glance", "Smart glance"),
         /** The song's cover with a thin ring showing how far through the song you are. */
@@ -74,6 +75,11 @@ object IslandLook {
         Mode("mode", "Mode"),
         /** Your heart rate when there's a real reading; otherwise the listening mode. */
         Heart("heart", "Heart"),
+        /**
+         * What an app is doing live, in its own words' one number ("200 m", "4 min", "45%"): a Maps
+         * route, a ride, a download. Shows on its own whenever an app has one (see LiveActivities).
+         */
+        Live("live", "Live from apps"),
         /** The phone's own battery as a ring with the number (green while charging). */
         Phone("phone", "Phone battery"),
         /** The time, in your phone's 12 or 24 hour style. */
@@ -220,6 +226,7 @@ object IslandLook {
     fun slotWidth(slot: Slot, side: Float, density: Float, factor: Float): Float = when (slot) {
         Slot.Nothing, Slot.Same -> 0f
         Slot.Title -> 74f * density * factor
+        Slot.Live -> 50f * density * factor
         Slot.Buds -> side * 2.3f
         else -> side
     }

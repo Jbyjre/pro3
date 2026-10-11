@@ -10,6 +10,11 @@ Unit tests (plain JUnit and Robolectric) and the screenshot renderers. Run them 
 | `SoundSourceTest` | Playback events in, the sound and its app out (via `SoundSource.usagesChanged` and the `roleOverride` seam); ignored apps; recent list; clicks never pop |
 | `FreezeProofTest` | The protections against "pro isn't responding": work kept off the main thread (`OffMain`), the limit on the island's self-checks (`RefreshGuard`), and the freeze report (Android's record to readable text, including a pretend freeze with its trace) |
 | `MessageRulesTest` | Messages and moments: which notifications earn one (importance, Do Not Disturb, ongoing, own), de-duplication, charging/full/low detection, the Messages look and its window, content order, the swipe-up gesture, message settings, and messages through `SoundSource` |
+| `OrganicIslandTest` | Continuous corners land on the next edge, capsules stay capsules, the half-grown shape isn't a fat capsule, volume kept, height never bouncier than width, unlock timing, buttons shrink together |
+| `AppAwareTest` | App kinds (table, makers, Android category, words, no "facebook is a book"), music idle, chat app choice, game stats in words, recent songs |
+| `LiveActivitiesTest` | Which notifications are live, the one number from the app's words ("5 min" is never five miles), running clocks, which one shows |
+| `PulseShaperTest` | Silence flat, a voice leads the middle bars, noise isn't a voice, the kick ripples out, the ambient beat moves smoothly |
+| `Headphones3DTest` | The 3D model fits one batch and its box, unit normals, mirror-symmetric, cups under the band, a calm turn |
 | `MomentsUiTest` | Real swipes and window timing on the real pill: swipe up tucks the song name back at once, puts a moment away, the song name's time setting, the message window growing before and shrinking after |
 | `MiniIslandTest` | When the Dynamic Island is wanted and what it is about, camera picking, never cut off, bars follow music, `nextCheck` (the zero-wait regression), short blips, phone battery parsing |
 | `IslandLookTest` | Look defaults equal the original, storage and reset, situations, slots, sizes, colour, clock text, sound preferences |

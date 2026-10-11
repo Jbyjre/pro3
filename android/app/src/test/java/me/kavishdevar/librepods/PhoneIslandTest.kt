@@ -246,6 +246,37 @@ class PhoneIslandTest {
         assertEquals(ScreenApp.Place.Unknown, ScreenApp.place.value)
     }
 
+    // ---- 2026-10-11: switching apps without waiting (Jake's item 8) ----
+
+    @Test fun aSlowFirstLookupNeverOverridesANewerApp() {
+        ScreenApp.attachForTest(context)
+        // The first lookup for Spotify is slow (held here); Claude is already known.
+        val held = mutableListOf<Runnable>()
+        ScreenApp.offMain = { held += it }
+        me.kavishdevar.librepods.services.SoundSource.roleOverride = { SoundRules.Role.App }
+        ScreenApp.setActivityForTest("com.anthropic.claude", "com.anthropic.Main", true)
+        ScreenApp.windowChanged("com.spotify.music", "com.spotify.MainActivity") // unknown screen: off the main thread
+        ScreenApp.windowChanged("com.anthropic.claude", "com.anthropic.Main")    // known: decided at once
+        held.toList().forEach { held.remove(it); it.run() }                       // Claude's icon lookup, then Spotify's late answer
+        held.toList().forEach { it.run() }
+        idle()
+        assertEquals("com.anthropic.claude", (ScreenApp.place.value as ScreenApp.Place.App).pkg)
+    }
+
+    @Test fun theSwapSettlesQuickly() {
+        val s = me.kavishdevar.librepods.services.IslandMotion.Spring(
+            me.kavishdevar.librepods.presentation.overlays.APP_SWAP_DAMPING, me.kavishdevar.librepods.presentation.overlays.APP_SWAP_STIFFNESS,
+        )
+        assertTrue(me.kavishdevar.librepods.services.IslandMotion.settleMs(s) <= 300L)
+        assertTrue(me.kavishdevar.librepods.services.IslandMotion.overshoot(s) < 0.02f)
+    }
+
+    @Test fun theIconCacheStaysSmall() {
+        // Many apps in a day: only the 40 most recent icons are kept (about 4 MB at most).
+        for (i in 0 until 60) me.kavishdevar.librepods.services.SoundSource.appInfo(context, "com.example.app$i")
+        assertNull(me.kavishdevar.librepods.services.SoundSource.cachedInfo("com.example.app0"))
+    }
+
     @Test fun theIconIsTheAppsRealIconNotADrawing() {
         ScreenApp.attachForTest(context)
         ScreenApp.offMain = { it.run() }

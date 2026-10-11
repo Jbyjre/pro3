@@ -37,9 +37,14 @@ import kotlin.math.ln
  * bars fall back to their own gentle motion.
  */
 object MusicPulse {
-    const val BANDS = 4
+    /** What [levels] holds: the four bars left to right, then the kick (see [PulseShaper]). */
+    const val BANDS = PulseShaper.SIZE
+    /** The kick's place in [levels] (the cover glows with it). */
+    const val KICK = PulseShaper.KICK
+    /** The plain loudness bands of [levels] (kept for the tests and as a reference). */
+    private const val RAW = 4
 
-    /** 0..1 per band, about 20 times a second. */
+    /** 0..1 per bar, then the kick, about 20 times a second, shaped by [PulseShaper]. */
     private val _levels = MutableStateFlow(FloatArray(BANDS))
     val levels: StateFlow<FloatArray> = _levels
 
@@ -59,7 +64,7 @@ object MusicPulse {
 
     private var visualizer: Visualizer? = null   // only touched on the pulse thread
     @Volatile private var users = 0
-    private val peaks = FloatArray(BANDS) { 1f }
+    private val shaper = PulseShaper()   // only touched on the pulse thread
     private var heardAt = 0L
     private const val SILENT_MS = 4_000L
 
@@ -98,7 +103,7 @@ object MusicPulse {
                     override fun onWaveFormDataCapture(v: Visualizer?, waveform: ByteArray?, samplingRate: Int) {}
                     override fun onFftDataCapture(v: Visualizer?, fft: ByteArray?, samplingRate: Int) {
                         if (fft == null) return
-                        val l = levels(fft, samplingRate, peaks)
+                        val l = shaper.frame(fft, samplingRate)
                         _levels.value = l
                         val now = android.os.SystemClock.elapsedRealtime()
                         if (l.any { it > 0f }) heardAt = now
@@ -121,7 +126,7 @@ object MusicPulse {
         _live.value = false
         heardAt = 0L
         _levels.value = FloatArray(BANDS)
-        peaks.fill(1f)
+        shaper.reset()
     }
 
     /** Band edges in Hz: bass, low mids, high mids, treble. */
@@ -135,12 +140,12 @@ object MusicPulse {
      */
     internal fun levels(fft: ByteArray, samplingRateMilliHz: Int, peaks: FloatArray): FloatArray {
         val bins = fft.size / 2
-        val out = FloatArray(BANDS)
+        val out = FloatArray(RAW)
         if (bins < 2 || samplingRateMilliHz <= 0) return out
         val nyquist = samplingRateMilliHz / 1000f / 2f
         val hzPerBin = nyquist / bins
         var next = 1
-        for (b in 0 until BANDS) {
+        for (b in 0 until RAW) {
             val from = maxOf(next, (EDGES[b] / hzPerBin).toInt()).coerceIn(1, bins - 1)
             val to = (EDGES[b + 1] / hzPerBin).toInt().coerceIn(from + 1, bins)
             next = to

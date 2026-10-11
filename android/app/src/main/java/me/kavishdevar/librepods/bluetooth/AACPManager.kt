@@ -176,10 +176,12 @@ class AACPManager {
         )
     }
 
+    // Read and written from the main thread, the Bluetooth thread and the listening-mode timer:
+    // thread-safe collections, so a read while another thread writes can't crash (it could before).
     var controlCommandStatusList: MutableList<ControlCommandStatus> =
-        mutableListOf<ControlCommandStatus>()
+        java.util.concurrent.CopyOnWriteArrayList<ControlCommandStatus>()
     var controlCommandListeners: MutableMap<ControlCommandIdentifiers, MutableList<ControlCommandListener>> =
-        mutableMapOf()
+        java.util.concurrent.ConcurrentHashMap()
 
     var owns: Boolean = false
         private set
@@ -216,11 +218,14 @@ class AACPManager {
     ) {
         // Replace the stored value. (This used to remove it only when unchanged, so a changed
         // value was stored next to the old one and lookups kept returning the old one.)
-        controlCommandStatusList.removeAll { it.identifier == identifier }
+        // Replaced in one step (under a lock), then the listeners hear the new value.
+        synchronized(controlCommandStatusList) {
+            controlCommandStatusList.removeAll { it.identifier == identifier }
+            controlCommandStatusList.add(ControlCommandStatus(identifier, value))
+        }
         controlCommandListeners[identifier]?.forEach { listener ->
             listener.onControlCommandReceived(ControlCommand(identifier.value, value))
         }
-        controlCommandStatusList.add(ControlCommandStatus(identifier, value))
 
         if (identifier == ControlCommandIdentifiers.OWNS_CONNECTION) {
             owns = value.isNotEmpty() && value[0] == 0x01.toByte()
@@ -273,7 +278,7 @@ class AACPManager {
     fun registerControlCommandListener(
         identifier: ControlCommandIdentifiers, callback: ControlCommandListener
     ) {
-        controlCommandListeners.getOrPut(identifier) { mutableListOf() }.add(callback)
+        controlCommandListeners.getOrPut(identifier) { java.util.concurrent.CopyOnWriteArrayList() }.add(callback)
     }
 
     fun unregisterControlCommandListener(
@@ -309,41 +314,41 @@ class AACPManager {
         return sendPacket(createDataPacket(data))
     }
 
-    fun sendControlCommand(identifier: Byte, value: ByteArray): Boolean {
-        val controlPacket = createControlCommandPacket(identifier, value)
-        setControlCommandStatusValue(
-            ControlCommandIdentifiers.fromByte(identifier) ?: return false, value
+    fun sendControlCommand(identifier: Byte, value: ByteArray): Boolean = sendControl(identifier, value)
+
+    fun sendControlCommand(identifier: Byte, value: Byte): Boolean = sendControl(identifier, byteArrayOf(value))
+
+    fun sendControlCommand(identifier: Byte, value: Boolean): Boolean =
+        sendControl(identifier, if (value) byteArrayOf(0x01) else byteArrayOf(0x02))
+
+    fun sendControlCommand(identifier: Byte, value: Int): Boolean = sendControl(identifier, byteArrayOf(value.toByte()))
+
+    /**
+     * Every control command goes through here, whoever sends it (the Dynamic Island, the tile,
+     * the widget, the settings page, the service). The screens show the new value at once; a
+     * listening-mode change is then confirmed, sent again once, or undone by [CommandFeedback],
+     * so no screen keeps showing a mode the AirPods never switched to.
+     */
+    private fun sendControl(identifier: Byte, value: ByteArray): Boolean {
+        val id = ControlCommandIdentifiers.fromByte(identifier) ?: return false
+        val mode = id == ControlCommandIdentifiers.LISTENING_MODE
+        if (mode) me.kavishdevar.librepods.services.CommandFeedback.sending(
+            identifier, value, controlCommandStatusList.find { it.identifier == id }?.value,
         )
-        return sendDataPacket(controlPacket)
+        setControlCommandStatusValue(id, value)
+        val ok = sendDataPacket(createControlCommandPacket(identifier, value))
+        if (mode) me.kavishdevar.librepods.services.CommandFeedback.sent(identifier, value, ok)
+        return ok
     }
 
-    @OptIn(ExperimentalStdlibApi::class)
-    fun sendControlCommand(identifier: Byte, value: Byte): Boolean {
-        val controlPacket = createControlCommandPacket(identifier, byteArrayOf(value))
-        setControlCommandStatusValue(
-            ControlCommandIdentifiers.fromByte(identifier) ?: return false, byteArrayOf(value)
-        )
-        return sendDataPacket(controlPacket)
-    }
-
-    fun sendControlCommand(identifier: Byte, value: Boolean): Boolean {
-        val controlPacket = createControlCommandPacket(
-            identifier, if (value) byteArrayOf(0x01) else byteArrayOf(0x02)
-        )
-        setControlCommandStatusValue(
-            ControlCommandIdentifiers.fromByte(identifier) ?: return false,
-            if (value) byteArrayOf(0x01) else byteArrayOf(0x02)
-        )
-        return sendDataPacket(controlPacket)
-    }
-
-    fun sendControlCommand(identifier: Byte, value: Int): Boolean {
-        val controlPacket = createControlCommandPacket(identifier, byteArrayOf(value.toByte()))
-        setControlCommandStatusValue(
-            ControlCommandIdentifiers.fromByte(identifier) ?: return false,
-            byteArrayOf(value.toByte())
-        )
-        return sendDataPacket(controlPacket)
+    init {
+        // Sending a mode again leaves the screens alone; undoing puts them back on the AirPods' own.
+        me.kavishdevar.librepods.services.CommandFeedback.resend = { m ->
+            sendDataPacket(createControlCommandPacket(ControlCommandIdentifiers.LISTENING_MODE.value, byteArrayOf(m.toByte())))
+        }
+        me.kavishdevar.librepods.services.CommandFeedback.restore = { m ->
+            setControlCommandStatusValue(ControlCommandIdentifiers.LISTENING_MODE, byteArrayOf(m.toByte()))
+        }
     }
 
     fun parseProximityKeysResponse(data: ByteArray): Map<ProximityKeyType, ByteArray> {
@@ -431,7 +436,11 @@ class AACPManager {
                     callback?.onUnknownPacketReceived(packet)
                     return
                 }
-                me.kavishdevar.librepods.services.CommandFeedback.received(controlCommand.identifier, controlCommand.value)
+                // An answer to an earlier tap while a later one is on its way isn't shown (no flicker).
+                if (!me.kavishdevar.librepods.services.CommandFeedback.received(controlCommand.identifier, controlCommand.value)) {
+                    Log.d(TAG, "Listening mode ${controlCommand.value.firstOrNull()} reported while a later switch is on its way")
+                    return
+                }
                 setControlCommandStatusValue(
                     ControlCommandIdentifiers.fromByte(controlCommand.identifier) ?: return,
                     controlCommand.value

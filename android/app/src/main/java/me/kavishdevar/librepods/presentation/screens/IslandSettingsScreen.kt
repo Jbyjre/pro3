@@ -204,6 +204,28 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
                     GlintOverlays.refreshMiniIsland(context)
                 },
             )
+            var liveApps by remember { mutableStateOf(IslandPrefs.liveFromApps(prefs)) }
+            StyledToggle(
+                label = "Live from apps",
+                description = "A Maps route, a ride or a download on the island, in the app's own words. Needs Notification access",
+                checked = liveApps,
+                onCheckedChange = {
+                    liveApps = it
+                    prefs.edit { putBoolean(IslandPrefs.PREF_LIVE_APPS, it) }
+                    me.kavishdevar.librepods.services.LiveActivities.settingChanged(context)
+                },
+            )
+            var inGames by remember { mutableStateOf(IslandPrefs.miniGames(prefs)) }
+            StyledToggle(
+                label = "Stay in games",
+                description = "A small ring round the camera in full-screen games. Tap it for mute, Focus, chat and how hot the phone is",
+                checked = inGames,
+                onCheckedChange = {
+                    inGames = it
+                    prefs.edit { putBoolean(IslandPrefs.PREF_MINI_GAMES, it) }
+                    GlintOverlays.refreshMiniIsland(context)
+                },
+            )
             StyledToggle(
                 label = "Sound bars follow the music",
                 description = if (hearMusic) "The bars move with what's playing, in any app"

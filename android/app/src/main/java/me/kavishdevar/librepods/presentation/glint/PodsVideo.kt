@@ -94,7 +94,7 @@ fun PodsVideo(
 }
 
 object PodsVideoConfig {
-    /** Tests render the still frames only; there's no video decoder under Robolectric. */
+    /** Tests render the still frames only (no video decoder under Robolectric), and the 3D headphones hold still. */
     @Volatile var enabled: Boolean = true
 
     /** Where playback restarts; the connect clip's first frames are a blank fade-in. */
