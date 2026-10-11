@@ -181,10 +181,12 @@ object LiveActivities {
      * or a tap on the card could do nothing at all.
      */
     private fun send(pi: PendingIntent): Boolean = runCatching {
-        val sdk = android.os.Build.VERSION.SDK_INT
-        if (sdk >= 34) {
-            val mode = if (sdk >= 36) android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE
-                else @Suppress("DEPRECATION") android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.BAKLAVA) {
+                android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE
+            } else {
+                @Suppress("DEPRECATION") android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+            }
             pi.send(android.app.ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(mode).toBundle())
         } else pi.send()
         true
