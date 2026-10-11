@@ -186,7 +186,7 @@
     <string name="custom_camera_package">Custom Camera appid</string>
     <string name="custom_camera_package_set_success">Custom camera appid set successfully</string>
     <string name="app_listener_service_label">Camera listener</string>
-    <string name="app_listener_service_description">Listener service for pro to detect when the camera is active to activate camera control on AirPods.</string>
+    <string name="app_listener_service_description">Lets pro draw the Dynamic Island above the status bar, see which app is open, and, only when you open the island inside an app, read that screen once to offer its title and quick actions. Nothing is saved or sent anywhere; passwords and typing are never read.</string>
     <string name="open_source_licenses">Open Source Licenses</string>
     <string name="hearing_test">Update Hearing Test</string>
     <string name="update_hearing_test">Update Hearing Test Result</string>

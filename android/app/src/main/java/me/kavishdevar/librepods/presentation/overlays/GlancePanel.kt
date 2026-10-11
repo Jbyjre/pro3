@@ -54,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -97,6 +98,9 @@ import me.kavishdevar.librepods.services.PhoneControls
 import me.kavishdevar.librepods.services.PhoneRules
 import me.kavishdevar.librepods.services.PhoneStatus
 import me.kavishdevar.librepods.services.ScreenApp
+import me.kavishdevar.librepods.services.ScreenInsights
+import me.kavishdevar.librepods.services.ScreenText
+import me.kavishdevar.librepods.services.ScreenVoice
 import me.kavishdevar.librepods.services.TimerRules
 
 /**
@@ -170,6 +174,18 @@ internal fun GlancePanel(
         }
     }
 
+    // ---- What's on the app's screen (ScreenInsights): read once as the glance opens in an app ----
+    val insight by ScreenInsights.state.collectAsState()
+    val speaking by ScreenVoice.speaking.collectAsState()
+    LaunchedEffect(active, app?.pkg) {
+        if (active && app != null) ScreenInsights.read(context, app.pkg) else if (!active) ScreenInsights.clear()
+    }
+    val screen = insight?.takeIf { i -> i.pkg == app?.pkg && (i.headline != null || i.sub != null || i.found.isNotEmpty() || i.body != null) }
+    // The app's own colour (its icon's most vivid), for the card's edge: the island takes on the app.
+    val accent by androidx.compose.runtime.produceState(content, app?.icon) {
+        value = app?.icon?.let { withContext(Dispatchers.Default) { accentOf(it) } } ?: content
+    }
+
     Column(Modifier.fillMaxSize().padding(start = 20.dp, end = 16.dp, top = 16.dp, bottom = 14.dp)) {
         // ---- Where you are, and today ----
         Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -194,8 +210,11 @@ internal fun GlancePanel(
                     ScreenApp.Place.Unknown -> "This phone"
                 }
                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 21.sp, color = content))
-                // What kind of app it is, so the buttons below make sense ("Game · Saturday 11 October").
-                val sub = if (kind != null && kind != AppKinds.Kind.Other) "${kind.label} · ${longDate(wall)}" else longDate(wall)
+                // What kind of app it is and how long you've been in it ("Browser · open 12 min"),
+                // today's date for the first minute (and away from apps).
+                val since = ScreenApp.frontSince
+                val sub = if (app != null) ScreenText.appLine(kind?.takeIf { it != AppKinds.Kind.Other }?.label?.takeIf { !it.equals(app.label, ignoreCase = true) }, if (since > 0L) SystemClock.elapsedRealtime() - since else 0L, longDate(wall))
+                    else longDate(wall)
                 Text(sub, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, lineHeight = 16.sp, color = secondary))
             }
             // Straight to the Island tab in pro, to change what the island shows and does.
@@ -253,6 +272,19 @@ internal fun GlancePanel(
             }
             // ---- Another app's live activity (a route, a ride), whenever there is one ----
             val showOther = other != null && (!appCard || (game && own == null))
+            // ---- Any other app: what its screen is about, and the useful things on it ----
+            val card = screen?.takeIf { !appCard }
+            val listen = card?.body != null
+            val pills = card != null && (card.found.isNotEmpty() || listen)
+            // Next to another app's live line, or above a running timer, the card keeps to one line.
+            val compact = showOther || rows.firstOrNull() is GlanceRules.Item.Timer
+            if (card != null) ScreenCard(card, compact, accent, speaking, content, secondary, dark, active, onTouch, onClose, context)
+            // Still reading aloud from another app: the way to stop it is here.
+            val stopReading = speaking && !listen
+            if (stopReading) PillRow {
+                GlassPillButton(text = "Stop reading aloud", textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                    modifier = Modifier.weight(1f), onClick = { if (active) { onTouch(); ScreenVoice.stop() } })
+            }
             if (showOther && other != null) LiveCard(other, compact = true, wall, content, secondary, dark, active, onTouch, onClose, context,
                 private = place is ScreenApp.Place.Locked)
             // ---- What's live on the phone (a timer, charging, headphones), in the room left ----
@@ -260,6 +292,10 @@ internal fun GlancePanel(
                 appCard && own != null -> 0
                 idleMusic -> 0
                 game -> if (showOther) 0 else 1
+                card != null || stopReading -> ScreenText.rowsLeft(
+                    (if (showOther) 52f else 0f) + (if (stopReading) 40f else 0f) +
+                        (card?.let { ScreenText.cardDp(it.headline != null, it.sub != null, pills, compact) + 6f } ?: 0f),
+                )
                 else -> (if (home) 2 else 3) - (if (showOther) 1 else 0)
             }
             val shown = rows.take(room.coerceIn(0, 2))
@@ -333,6 +369,66 @@ internal fun GlancePanel(
                     }, dim = !system, modifier = share) { c, _ -> drawPadlock(c, size.minDimension * 0.46f, 0f, content) }
                 }
             }
+        }
+    }
+}
+
+/**
+ * What the app's screen is about ([ScreenInsights]): its headline (the page, the chat, the video),
+ * a line under it (the website, how long it takes to read), and up to three one-tap things from
+ * it: call the number, map the address, open the link, add the date, copy the code, or Listen
+ * (the article read aloud into your AirPods). The thin edge on the left is the app's own colour.
+ */
+@Composable
+private fun ScreenCard(
+    i: ScreenInsights.Insight, compact: Boolean, accent: Color, speaking: Boolean,
+    content: Color, secondary: Color, dark: Boolean, active: Boolean,
+    onTouch: () -> Unit, onClose: () -> Unit, context: Context,
+) {
+    var copied by remember(i) { mutableStateOf<String?>(null) }
+    LaunchedEffect(copied) { if (copied != null) { delay(1_800L); copied = null } }
+    val listen = i.body
+    val finds = i.found.take(if (listen != null) 2 else 3)
+    val count = finds.size + (if (listen != null) 1 else 0)
+    val words = i.headline != null || (i.sub != null && !compact)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (words) Column(
+            Modifier
+                .fillMaxWidth()
+                .drawBehind {
+                    val w = 3.dp.toPx()
+                    drawRoundRect(accent, topLeft = Offset(0f, 2.dp.toPx()), size = Size(w, (size.height - 4.dp.toPx()).coerceAtLeast(w)), cornerRadius = CornerRadius(w / 2f))
+                }
+                .padding(start = 13.dp)
+                .semantics { contentDescription = listOfNotNull(i.headline, i.sub).joinToString(". ") },
+        ) {
+            i.headline?.let {
+                Text(it, maxLines = if (compact) 1 else 2, overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 20.sp, color = content))
+            }
+            if (!compact) i.sub?.let {
+                Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, lineHeight = 15.sp, color = secondary))
+            }
+        }
+        if (count > 0) PillRow {
+            finds.forEach { f ->
+                val label = if (copied == f.text) "Copied" else ScreenText.pillLabel(f, count)
+                GlassPillButton(text = label, textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                    modifier = Modifier.weight(1f), onClick = {
+                        if (!active) return@GlassPillButton
+                        onTouch()
+                        ScreenInsights.act(context, f)
+                        // A copied code stays in view (you'll paste it next); everything else opens its app.
+                        if (f.kind == ScreenInsights.Kind.Code) copied = f.text else onClose()
+                    })
+            }
+            if (listen != null) GlassPillButton(text = if (speaking) "Stop" else "Listen", textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                modifier = Modifier.weight(1f), onClick = {
+                    if (!active) return@GlassPillButton
+                    onTouch()
+                    if (speaking) ScreenVoice.stop() else ScreenVoice.speak(context, listOfNotNull(i.headline, listen).joinToString(".\n\n"))
+                })
         }
     }
 }

@@ -1894,7 +1894,12 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             }
             // Battery-saving pace (background only): one minute of readings, then the sensor
             // rests for a few minutes. Continuous keeps the stream on.
-            val pace = if (background) HeartPace.of(sharedPreferences.getInt(PREF_HR_PACE, 0)) else HeartPace.Continuous
+            // On Battery Saver, a low battery or a warm phone, a continuous background stream rests
+            // between minutes by itself (PowerPlan); in the app it's always continuous.
+            val pace = PowerPlan.heartPace(
+                if (background) HeartPace.of(sharedPreferences.getInt(PREF_HR_PACE, 0)) else HeartPace.Continuous,
+                PowerPlan.level.value, background,
+            )
             // Readings stop when the buds come out; say so instead of showing an old number.
             val quietAfter = interval / 1000 * 3 + 7_000
             // Check less often in the background: fewer wake-ups, same result.

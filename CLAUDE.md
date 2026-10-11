@@ -122,6 +122,11 @@
   its own height** (title left of the camera, artist right), never a drop-down "bulb"; while the pill is up no music pop-up drops below.
   Beats picture = real 3D model `glint/Headphones3D.kt` (Solo 4 shape, finishes, spins; no drawn flat art). Motion: calm, a hint of
   bounce, no big vertical travel. Fitting rules: `glint/Fit.kt`. App kinds: `services/AppKinds.kt`.
+- Session 2026-10-11, third message (DECISIONS 47): the glance in an app reads its screen once on open (`services/ScreenInsights.kt`,
+  `ScreenText`; `PREF_READ_SCREEN`; never banks/password apps, passwords or typing; nothing stored) and shows `ScreenCard` (headline, site,
+  Call/Map/Open/Add/Copy, Listen = `ScreenVoice` text-to-speech). The accessibility config now has canRetrieveWindowContent +
+  flagRetrieveInteractiveWindows (without them `getWindows()` was always empty). Battery: `services/PowerPlan.kt` (automatic, no setting;
+  paces bars, the 3D model, the visualiser and background heart; never springs/morphs). New redraw loops must use `PowerPlan`.
 - **`docs/REQUESTS.md` is the ledger of everything Jake has asked for and how finished each thing is: read it first and update it
   whenever he asks for something or a status changes.** Folder READMEs (`android/`, `services/`, `overlays/`, `glint/`, `screens/`,
   tests) map the code: update them with the code. Check a README doesn't already exist before writing one (`git ls-files | grep -i readme`).

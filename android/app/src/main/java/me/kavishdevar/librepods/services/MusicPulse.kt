@@ -98,7 +98,8 @@ object MusicPulse {
                 val range = Visualizer.getCaptureSizeRange()
                 captureSize = 512.coerceIn(range[0], range[1])
                 scalingMode = Visualizer.SCALING_MODE_NORMALIZED
-                val rate = Visualizer.getMaxCaptureRate()
+                // Android's most (20 a second on most phones), half that when the phone is saving.
+                val rate = PowerPlan.listenRateMilliHz(PowerPlan.level.value, Visualizer.getMaxCaptureRate())
                 setDataCaptureListener(object : Visualizer.OnDataCaptureListener {
                     override fun onWaveFormDataCapture(v: Visualizer?, waveform: ByteArray?, samplingRate: Int) {}
                     override fun onFftDataCapture(v: Visualizer?, fft: ByteArray?, samplingRate: Int) {
@@ -116,6 +117,22 @@ object MusicPulse {
             // Some phones refuse the whole-output visualiser (or another app holds it).
             Log.w("MusicPulse", "Visualizer unavailable", e)
             null
+        }
+    }
+
+    /**
+     * The battery plan changed: listen again at its pace. The bars carry on meanwhile (what was
+     * heard stays, no flash back to the wiggle). Call on the main thread.
+     */
+    fun replan(context: Context) {
+        if (users <= 0) return
+        val app = context.applicationContext
+        handler.post {
+            if (users <= 0 || visualizer == null) return@post
+            runCatching { visualizer?.enabled = false }
+            runCatching { visualizer?.release() }
+            visualizer = null
+            open(app)
         }
     }
 

@@ -156,10 +156,12 @@ internal fun SharedMusicArt(
     val pulseLive by MusicPulse.live.collectAsState()
     val bars = remember { FloatArray(MusicPulse.BANDS) }
     var clock by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(listening, reduceMotion, pulseLive) {
+    val plan by me.kavishdevar.librepods.services.PowerPlan.level.collectAsState()
+    LaunchedEffect(listening, reduceMotion, pulseLive, plan) {
         var last = 0L
         while (listening && !reduceMotion) {
-            delay(16L)
+            // Opened, it's on screen for seconds: full smoothness unless the phone is saving (PowerPlan).
+            me.kavishdevar.librepods.services.PowerPlan.nextFrame(me.kavishdevar.librepods.services.PowerPlan.barsFrameMs(plan, pulseLive, big = true))
             val now = SystemClock.elapsedRealtime()
             val dt = if (last == 0L) 16f else (now - last).toFloat().coerceAtMost(100f)
             last = now

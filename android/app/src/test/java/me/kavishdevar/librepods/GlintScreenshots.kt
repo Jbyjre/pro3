@@ -1070,6 +1070,44 @@ class GlintScreenshots {
     @Test fun miniIslandLiveRoute() = withLive {
         mini("mini_island_live_route", playing = false, wide = 0f, art = false, dark = true, content = screen, place = me.kavishdevar.librepods.services.ScreenApp.Place.Home, phone = calmPhone)
     }
+    // ---- 2026-10-11 (third round): the island reflects the app's screen (ScreenInsights) ----
+    private fun withScreen(i: me.kavishdevar.librepods.services.ScreenInsights.Insight, block: () -> Unit) {
+        me.kavishdevar.librepods.services.ScreenInsights.preview(i)
+        try { block() } finally { me.kavishdevar.librepods.services.ScreenInsights.preview(null) }
+    }
+    private val chrome by lazy {
+        me.kavishdevar.librepods.services.ScreenApp.Place.App("com.android.chrome", "Chrome", fakeIcon(0xFF4285F4.toInt(), "C"),
+            me.kavishdevar.librepods.services.AppKinds.Kind.Browser)
+    }
+    private val messages by lazy {
+        me.kavishdevar.librepods.services.ScreenApp.Place.App("com.google.android.apps.messaging", "Messages", fakeIcon(0xFF1A73E8.toInt(), "M"),
+            me.kavishdevar.librepods.services.AppKinds.Kind.Chat)
+    }
+    private fun f(k: me.kavishdevar.librepods.services.ScreenInsights.Kind, t: String) = me.kavishdevar.librepods.services.ScreenText.found(k, t)
+    @Test fun islandGlanceReadsArticle() = withScreen(
+        me.kavishdevar.librepods.services.ScreenInsights.Insight("com.android.chrome", "How the iPhone's Dynamic Island really works, frame by frame",
+            "theverge.com · 6 min read", listOf(f(me.kavishdevar.librepods.services.ScreenInsights.Kind.Link, "https://www.theverge.com/apple")), 1L, body = "Words."),
+    ) { glance("island_glance_screen_article", dark = true, place = chrome) }
+    @Test fun islandGlanceCopiesCode() = withScreen(
+        me.kavishdevar.librepods.services.ScreenInsights.Insight("com.google.android.apps.messaging", "Bank of Example", null,
+            listOf(f(me.kavishdevar.librepods.services.ScreenInsights.Kind.Code, "482913").copy(label = "Copy 482913"),
+                f(me.kavishdevar.librepods.services.ScreenInsights.Kind.Phone, "0800 123 4567")), 1L),
+    ) { glance("island_glance_screen_code", dark = false, place = messages) }
+    @Test fun islandGlanceScreenWithRoute() = withLive {
+        withScreen(
+            me.kavishdevar.librepods.services.ScreenInsights.Insight("com.android.chrome", "Tartine Bakery, 600 Guerrero St", "tartinebakery.com",
+                listOf(f(me.kavishdevar.librepods.services.ScreenInsights.Kind.Phone, "(415) 487-2600"),
+                    f(me.kavishdevar.librepods.services.ScreenInsights.Kind.Address, "600 Guerrero St, San Francisco"),
+                    f(me.kavishdevar.librepods.services.ScreenInsights.Kind.Link, "tartinebakery.com")), 1L),
+        ) { glance("island_glance_screen_route", dark = true, place = chrome) }
+    }
+    @Test fun fitGlanceScreenNarrowBigText() = stress {
+        withScreen(
+            me.kavishdevar.librepods.services.ScreenInsights.Insight("com.android.chrome", longTitle + " — " + longArtist, "a-very-long-website-name.example.com · 14 min read",
+                listOf(f(me.kavishdevar.librepods.services.ScreenInsights.Kind.Phone, "+44 20 7946 0018"),
+                    f(me.kavishdevar.librepods.services.ScreenInsights.Kind.Date, "Saturday 14 November")), 1L, body = "Words."),
+        ) { glance("fit_glance_screen", dark = true, place = chrome) }
+    }
     @Test fun miniIslandRightSideNeverEmpty() = mini("mini_island_right_side", playing = false, wide = 0f, art = false, dark = true, content = screen, place = claude, phone = calmPhone)
     // The song's moment stretches sideways (half-way, settled, and a long name).
     @Test fun miniIslandSongStretching() = mini("mini_island_song_stretching", playing = true, wide = 0.5f, art = true, dark = true)

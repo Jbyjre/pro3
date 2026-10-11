@@ -19,6 +19,8 @@ class LibrePodsApplication: Application(), XposedServiceHelper.OnServiceListener
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
 
         super<Application>.onCreate()
+        // The battery plan follows the phone from the start (PowerPlan): no setting, always on.
+        me.kavishdevar.librepods.services.PowerPlan.attach(this)
 
         // Android keeps a note of why pro last stopped (a freeze, a crash): save a readable copy
         // for Troubleshooting. Off the main thread: it asks Android and may read a trace.

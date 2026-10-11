@@ -1144,12 +1144,14 @@ internal fun MiniIslandHost(
     val synced = listening && pulseLive && !reduce
     /** What the bars show (eased toward the music so they glide rather than jump). */
     val bars = remember { FloatArray(MusicPulse.BANDS) }
-    LaunchedEffect(moving, synced) {
+    val plan by me.kavishdevar.librepods.services.PowerPlan.level.collectAsState()
+    LaunchedEffect(moving, synced, plan) {
         var last = 0L
         while (moving) {
-            // In step with the music: about 60 a second for smooth bars; otherwise about 30 a
-            // second, plenty for the rest.
-            delay(if (synced) 16L else 33L)
+            // The pill is up for hours while music plays, so its bars keep the battery plan's
+            // pace (PowerPlan: 30 a second on a normal day, 60 while charging, 20 when saving),
+            // each step landing on one of the screen's own frames.
+            me.kavishdevar.librepods.services.PowerPlan.nextFrame(me.kavishdevar.librepods.services.PowerPlan.barsFrameMs(plan, synced))
             val now = SystemClock.elapsedRealtime()
             val dt = if (last == 0L) 16f else (now - last).toFloat().coerceAtMost(100f)
             last = now

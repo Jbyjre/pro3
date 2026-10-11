@@ -13,6 +13,8 @@ Unit tests (plain JUnit and Robolectric) and the screenshot renderers. Run them 
 | `OrganicIslandTest` | Continuous corners land on the next edge, capsules stay capsules, the half-grown shape isn't a fat capsule, volume kept, height never bouncier than width, unlock timing, buttons shrink together |
 | `AppAwareTest` | App kinds (table, makers, Android category, words, no "facebook is a book"), music idle, chat app choice, game stats in words, recent songs |
 | `LiveActivitiesTest` | Which notifications are live, the one number from the app's words ("5 min" is never five miles), running clocks, which one shows |
+| `ScreenInsightsTest` | Reading an app's screen: headlines (never chrome, clocks or the app's name), site and reading time, codes, the fallback patterns, which apps are never read, button words, card sizes, Listen's pieces |
+| `PowerPlanTest` | The battery plan's levels (charging, Battery Saver, low, warm) and what each paces |
 | `PulseShaperTest` | Silence flat, a voice leads the middle bars, noise isn't a voice, the kick ripples out, the ambient beat moves smoothly |
 | `Headphones3DTest` | The 3D model fits one batch and its box, unit normals, mirror-symmetric, cups under the band, a calm turn |
 | `MomentsUiTest` | Real swipes and window timing on the real pill: swipe up tucks the song name back at once, puts a moment away, the song name's time setting, the message window growing before and shrinking after |

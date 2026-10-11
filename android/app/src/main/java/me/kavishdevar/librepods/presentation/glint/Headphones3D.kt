@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -80,13 +81,20 @@ fun Headphones3D(
     var yaw by remember { mutableFloatStateOf(startYaw) }
     val scope = rememberCoroutineScope()
     // Tests render still pictures (the same switch that holds the AirPods clips still).
-    val turning = spin && !reduce && PodsVideoConfig.enabled
-    LaunchedEffect(turning) {
-        if (!turning) return@LaunchedEffect
+    // The turntable keeps the battery plan's pace (PowerPlan): 30 frames a second on a normal day
+    // (it turns slowly: under a degree a frame), every frame while charging, resting when saving.
+    val plan by me.kavishdevar.librepods.services.PowerPlan.level.collectAsState()
+    val frameMs = me.kavishdevar.librepods.services.PowerPlan.spinFrameMs(plan)
+    val turning = spin && !reduce && PodsVideoConfig.enabled && frameMs != null
+    LaunchedEffect(turning, frameMs) {
+        if (!turning || frameMs == null) return@LaunchedEffect
         var last = 0L
-        while (true) withFrameNanos { t ->
-            if (last != 0L) yaw += HeadphoneModel.SPIN_RAD_PER_S * ((t - last) / 1e9f).coerceAtMost(0.05f)
-            last = t
+        while (true) {
+            if (frameMs > 16L) me.kavishdevar.librepods.services.PowerPlan.nextFrame(frameMs)
+            withFrameNanos { t ->
+                if (last != 0L) yaw += HeadphoneModel.SPIN_RAD_PER_S * ((t - last) / 1e9f).coerceAtMost(0.1f)
+                last = t
+            }
         }
     }
     Canvas(

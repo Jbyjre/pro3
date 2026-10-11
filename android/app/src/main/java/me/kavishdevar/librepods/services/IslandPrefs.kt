@@ -47,6 +47,8 @@ object IslandPrefs {
     const val PREF_MINI_GAMES = "glint_mini_games"
     /** Apps' live activities (a Maps route, a ride, a download) on the islands. On by default. */
     const val PREF_LIVE_APPS = "glint_live_apps"
+    /** Read the app's screen once when the island opens in it ([ScreenInsights]); on by default. */
+    const val PREF_READ_SCREEN = "glint_read_screen"
     /** Pop the Dynamic Island for any sound (alerts, calls, voice notes), not only music. */
     const val PREF_MINI_ANY_SOUND = "glint_mini_any_sound"
     /** Show the app's icon for a sound (off: a symbol for the kind of sound instead). */
@@ -125,6 +127,7 @@ object IslandPrefs {
     fun miniAnytime(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ANYTIME, true)
     fun miniGames(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_GAMES, true)
     fun liveFromApps(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_LIVE_APPS, true)
+    fun readScreen(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_READ_SCREEN, true)
     fun anySound(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ANY_SOUND, true)
     fun messages(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MSG, true)
     fun messagesOthers(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MSG_OTHERS, false)
