@@ -263,48 +263,49 @@ internal fun GlancePanel(
                     var muted by remember { mutableStateOf(AppControls.muted(context)) }
                     var quiet by remember { mutableStateOf(AppControls.quiet(context)) }
                     val ink = { on: Boolean -> if (on) Color.Black else content }
+                    val share = Modifier.weight(1f)
                     // Five buttons that fit the app you're in (the phone's own five elsewhere).
                     AppActions.row(kind).forEach { action ->
                         when (action) {
                             AppActions.Action.Torch -> Control("Torch", on = torch, enabled = active && PhoneControls.hasTorch(context), content, secondary, dark, {
                                 onTouch(); PhoneControls.toggleTorch(context)
-                            }) { c, on -> drawTorch(c, size.minDimension * 0.5f, ink(on)) }
+                            }, modifier = share) { c, on -> drawTorch(c, size.minDimension * 0.5f, ink(on)) }
                             AppActions.Action.Timer -> Control("Timer", on = timer != null, enabled = active, content, secondary, dark, {
                                 onTouch(); choosingTimer = true
-                            }) { c, on -> drawStopwatch(c, size.minDimension * 0.46f, ink(on)) }
+                            }, modifier = share) { c, on -> drawStopwatch(c, size.minDimension * 0.46f, ink(on)) }
                             AppActions.Action.Ring -> Control(ring.label, on = ring != PhoneControls.Ring.Sound, enabled = active, content, secondary, dark, {
                                 onTouch(); PhoneControls.toggleRing(context)?.let { ring = it }
-                            }) { c, on -> if (ring == PhoneControls.Ring.Sound) drawRinger(c, size.minDimension * 0.46f, content) else drawVibrate(c, size.minDimension * 0.46f, ink(on)) }
+                            }, modifier = share) { c, on -> if (ring == PhoneControls.Ring.Sound) drawRinger(c, size.minDimension * 0.46f, content) else drawVibrate(c, size.minDimension * 0.46f, ink(on)) }
                             AppActions.Action.Capture -> Control("Capture", on = false, enabled = active, content, secondary, dark, {
                                 onTouch()
                                 // Needs the accessibility switch; without it, straight to where it's turned on.
                                 if (system) { onClose(); PhoneControls.screenshot() } else { GlintOverlays.openApp(context, AppLinks.ISLANDS); onClose() }
-                            }, dim = !system) { c, _ -> drawScreenshot(c, size.minDimension * 0.46f, content) }
+                            }, dim = !system, modifier = share) { c, _ -> drawScreenshot(c, size.minDimension * 0.46f, content) }
                             AppActions.Action.Lock -> Control("Lock", on = false, enabled = active, content, secondary, dark, {
                                 onTouch()
                                 if (system) { onClose(); PhoneControls.lockScreen() } else { GlintOverlays.openApp(context, AppLinks.ISLANDS); onClose() }
-                            }, dim = !system) { c, _ -> drawPadlock(c, size.minDimension * 0.46f, 0f, content) }
+                            }, dim = !system, modifier = share) { c, _ -> drawPadlock(c, size.minDimension * 0.46f, 0f, content) }
                             AppActions.Action.Mute -> Control(if (muted) "Muted" else "Mute", on = muted, enabled = active, content, secondary, dark, {
                                 onTouch(); muted = AppControls.toggleMute(context)
-                            }) { c, on -> drawSpeaker(c, size.minDimension * 0.46f, ink(on), crossed = on) }
+                            }, modifier = share) { c, on -> drawSpeaker(c, size.minDimension * 0.46f, ink(on), crossed = on) }
                             AppActions.Action.Quiet -> Control("Focus", on = quiet, enabled = active, content, secondary, dark, {
                                 onTouch()
                                 // Without Do Not Disturb access, Android's page to allow it opens (once).
                                 val now = AppControls.toggleQuiet(context)
                                 if (now == null) onClose() else quiet = now
-                            }, dim = !AppControls.canQuiet(context)) { c, on -> drawMoon(c, size.minDimension * 0.42f, ink(on)) }
+                            }, dim = !AppControls.canQuiet(context), modifier = share) { c, on -> drawMoon(c, size.minDimension * 0.42f, ink(on)) }
                             AppActions.Action.Chat -> Control(AppActions.chatLabel(chat), on = false, enabled = active && chat != null, content, secondary, dark, {
                                 onTouch(); chat?.let { SoundSource.openApp(context, it) }; onClose()
-                            }, dim = chat == null) { c, _ -> drawBubble(c, size.minDimension * 0.44f, content) }
+                            }, dim = chat == null, modifier = share) { c, _ -> drawBubble(c, size.minDimension * 0.44f, content) }
                             AppActions.Action.Resume -> Control("Play", on = false, enabled = active && app != null, content, secondary, dark, {
                                 onTouch(); app?.let { AppControls.resume(context, it.pkg) }
-                            }) { c, _ -> drawPlayTriangle(c, size.minDimension * 0.24f, content) }
+                            }, modifier = share) { c, _ -> drawPlayTriangle(c, size.minDimension * 0.24f, content) }
                             AppActions.Action.Search -> Control("Search", on = false, enabled = active && app != null, content, secondary, dark, {
                                 onTouch(); app?.let { AppControls.search(context, it.pkg) }; onClose()
-                            }) { c, _ -> drawMagnifier(c, size.minDimension * 0.42f, content) }
+                            }, modifier = share) { c, _ -> drawMagnifier(c, size.minDimension * 0.42f, content) }
                             AppActions.Action.Camera -> Control("Camera", on = false, enabled = active, content, secondary, dark, {
                                 onTouch(); AppControls.openCamera(context); onClose()
-                            }) { c, _ -> drawCamera(c, size.minDimension * 0.46f, content) }
+                            }, modifier = share) { c, _ -> drawCamera(c, size.minDimension * 0.46f, content) }
                         }
                     }
                 }
@@ -532,10 +533,14 @@ private fun levelColor(level: Int, normal: Color): Color = when {
 @Composable
 private fun Control(
     label: String, on: Boolean, enabled: Boolean, content: Color, secondary: Color, dark: Boolean,
-    onClick: () -> Unit, dim: Boolean = false, glyph: DrawScope.(Offset, Boolean) -> Unit,
+    onClick: () -> Unit, dim: Boolean = false, modifier: Modifier = Modifier.width(56.dp), glyph: DrawScope.(Offset, Boolean) -> Unit,
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(56.dp)) {
-        PressableGlyph(size = 46.dp, description = label + if (on) ", on" else "", enabled = enabled, dark = dark, onClick = onClick) {
+    // Each button gets an even share of the row; on a narrow phone they all shrink together
+    // (FitRules), instead of the last one being squeezed or cut off.
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier, contentAlignment = Alignment.TopCenter) {
+    val circle = androidx.compose.ui.unit.Dp(me.kavishdevar.librepods.presentation.glint.FitRules.buttonSize(maxWidth.value))
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        PressableGlyph(size = circle, description = label + if (on) ", on" else "", enabled = enabled, dark = dark, onClick = onClick) {
             if (on) drawCircle(Color.White, size.minDimension / 2f, center)
             else drawGlassCapsule(dark)
             val a = if (dim) 0.4f else 1f
@@ -546,7 +551,8 @@ private fun Control(
             } else glyph(center, on)
         }
         Spacer(Modifier.height(4.dp))
-        Text(label, maxLines = 1, style = TextStyle(fontFamily = glintFontFamily, fontSize = 10.5.sp, fontWeight = FontWeight.Medium, color = if (dim) secondary.copy(alpha = secondary.alpha * 0.6f) else secondary, textAlign = TextAlign.Center))
+        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontSize = 10.5.sp, fontWeight = FontWeight.Medium, color = if (dim) secondary.copy(alpha = secondary.alpha * 0.6f) else secondary, textAlign = TextAlign.Center))
+    }
     }
 }
 

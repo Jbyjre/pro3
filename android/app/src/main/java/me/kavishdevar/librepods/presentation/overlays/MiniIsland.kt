@@ -42,7 +42,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.basicMarquee
+import me.kavishdevar.librepods.presentation.glint.scrollingLine
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
@@ -1623,7 +1623,8 @@ internal fun MiniIslandHost(
                     .offset { IntOffset((m + 14f * density).roundToInt(), (m + s.height + 3f * density).roundToInt()) }
                     .width(androidx.compose.ui.unit.Dp(dpW))
                     .graphicsLayer { alpha = ((wide.value - 0.4f) / 0.6f).coerceIn(0f, 1f) }
-                    .basicMarquee(iterations = 1, initialDelayMillis = 900),
+                    // A long name scrolls once with soft ends instead of being cut at the pill's edge.
+                    .scrollingLine(!reduce, delayMs = 900),
             )
             }
         }

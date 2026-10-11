@@ -29,7 +29,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.basicMarquee
+import me.kavishdevar.librepods.presentation.glint.scrollingLine
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
@@ -349,7 +349,8 @@ internal fun MusicIslandContent(
                 Text(
                     title, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 20.sp, color = content),
-                    modifier = if (active && !reduceMotion) Modifier.basicMarquee(iterations = 1, initialDelayMillis = 1_400) else Modifier,
+                    // Too long: it scrolls once with soft ends (never chopped at the cover's edge).
+                    modifier = Modifier.scrollingLine(active && !reduceMotion),
                 )
                 Text(
                     track.artist ?: sub, maxLines = 1, overflow = TextOverflow.Ellipsis,

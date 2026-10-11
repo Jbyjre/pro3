@@ -79,4 +79,13 @@ class OrganicIslandTest {
         assertTrue(IslandMotion.overshoot(shackle) in 0.03f..0.12f)
         assertTrue(show in 1_000L..1_300L)
     }
+
+    @Test fun buttonsShrinkTogetherOnANarrowPhone() {
+        val f = me.kavishdevar.librepods.presentation.glint.FitRules
+        // A roomy phone: the usual 46 dp. A 320 dp phone (about 56 dp a slot minus margins): still 46.
+        assertEquals(46f, f.buttonSize(72f), 0f)
+        // Squeezed slots: smaller, all alike, never below 34 dp (still a comfortable target).
+        assertEquals(44f, f.buttonSize(50f), 0f)
+        assertEquals(34f, f.buttonSize(20f), 0f)
+    }
 }
