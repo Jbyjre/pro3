@@ -239,7 +239,8 @@ class GlintScreenshots {
                 Box(Modifier.fillMaxWidth().height(with(dens) { (geo.wideWindow.height + geo.windowTop.coerceAtLeast(0)).toDp() + 40.dp })) {
                     Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(0, geo.windowTop) }.size(with(dens) {
                         val s = if (content == me.kavishdevar.librepods.services.MiniIslandRules.Content.Message) geo.messageWindow
-                            else if (wide > 0f) geo.wideWindow else if (split != null) geo.detachedWindow else geo.compactWindow
+                            else if (wide > 0f) geo.wideWindow else if (split != null) geo.detachedWindow
+                            else if (me.kavishdevar.librepods.services.LiveActivities.all.value.isNotEmpty()) geo.liveWindow else geo.compactWindow
                         androidx.compose.ui.unit.DpSize(s.width.toDp(), s.height.toDp())
                     }).align(Alignment.TopCenter)) {
                         me.kavishdevar.librepods.presentation.overlays.MiniIslandHost(

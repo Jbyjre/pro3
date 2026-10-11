@@ -650,15 +650,23 @@ internal class MiniGeometry(
 
     val windowTop: Int get() = (centerY - size.height / 2f - margin).roundToInt()
     val compactWindow = IntSize((size.compactWidth + margin * 2).roundToInt(), (size.height + margin * 2).roundToInt())
-    val wideWindow = IntSize((size.wideWidth + margin * 2).roundToInt(), (size.wideHeight + margin * 2).roundToInt())
+    /** Stretched sideways toward the corners: never wider than the screen (the pill keeps 10 dp from each edge). */
+    val wideWindow = IntSize((size.wideWidth + margin * 2).roundToInt().coerceAtMost(maxOf(screen.width, compactWindow.width)), (size.wideHeight + margin * 2).roundToInt())
     /** The window while a message shows: wider than the pill's usual one (only for those few seconds), same height. */
     val messageWindow = IntSize((size.messageWidth + margin * 2).roundToInt().coerceAtLeast(compactWindow.width), compactWindow.height)
+    /** The window while an app's live activity shows (its number needs more room than a cover), same height. */
+    val liveWindow = IntSize((size.liveWidth + margin * 2).roundToInt().coerceAtLeast(compactWindow.width).coerceAtMost(maxOf(screen.width, compactWindow.width)), compactWindow.height)
     /** A second thing at once (a timer while music plays) sits in a detached circle this wide, beside the pill. */
     val detachedD: Float get() = size.height
     val detachedGap: Float get() = me.kavishdevar.librepods.services.IslandSpec.DETACHED_GAP_DP * density * look.size.factor
     /** The window while the detached circle is out: wider on both sides (it stays centred on the camera). */
     val detachedWindow = IntSize(
         (compactWindow.width + 2f * (detachedGap + detachedD)).roundToInt().coerceAtMost(maxOf(screen.width, compactWindow.width)),
+        compactWindow.height,
+    )
+    /** Both: a live activity with a timer's circle beside it. */
+    val liveDetachedWindow = IntSize(
+        (liveWindow.width + 2f * (detachedGap + detachedD)).roundToInt().coerceAtMost(maxOf(screen.width, liveWindow.width)),
         compactWindow.height,
     )
     /** The size it grows out of: the camera hole itself. */
@@ -817,7 +825,10 @@ internal fun MiniIslandHost(
     val livePref by rememberPref(prefs, IslandPrefs.PREF_LIVE_APPS, true)
     val live = if (!livePref || forceSituation != null) null
         else me.kavishdevar.librepods.services.LiveActivities.pick((place as? ScreenApp.Place.App)?.pkg, liveAll)
-    val liveHere = live != null && situation in MiniIslandRules.LIVE_SITUATIONS
+    val liveWanted = live != null && situation in MiniIslandRules.LIVE_SITUATIONS
+    // Its window widens first, then it shows (so its number is never cut off); it narrows after.
+    var liveReady by remember { mutableStateOf(still != null) }
+    val liveHere = liveWanted && liveReady
     // A running clock in it (a stopwatch, a call): the number moves on once a second.
     var liveTick by remember { androidx.compose.runtime.mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(liveHere && live?.clockFrom != null) {
@@ -931,7 +942,11 @@ internal fun MiniIslandHost(
         if (reduce || still != null) mix.snapTo(1f) else { mix.snapTo(0f); mix.animateTo(1f, spring(dampingRatio = 1f, stiffness = 260f)) }
     }
     // The Messages look may use the wider window that is there only while a message shows.
-    val targetW = geometry.widthFor(wantL, wantR, if (messageShown) geometry.size.messageWidth else geometry.size.compactWidth)
+    val targetW = geometry.widthFor(wantL, wantR, when {
+        messageShown -> geometry.size.messageWidth
+        liveHere -> geometry.size.liveWidth
+        else -> geometry.size.compactWidth
+    })
     val bodyW = remember { Animatable(targetW) }
     LaunchedEffect(targetW) {
         if (reduce || still != null) bodyW.snapTo(targetW) else bodyW.animateTo(targetW, spring(dampingRatio = 0.78f, stiffness = 360f))
@@ -1006,7 +1021,30 @@ internal fun MiniIslandHost(
 
     val detachedNow by androidx.compose.runtime.rememberUpdatedState(detached)
     /** The window to go back to after the name, a moment or a message: room for the detached circle when it's out. */
-    fun restWindow() = if (detachedNow) geometry.detachedWindow else geometry.compactWindow
+    val liveNow by androidx.compose.runtime.rememberUpdatedState(liveWanted)
+    fun restWindow() = when {
+        liveNow && detachedNow -> geometry.liveDetachedWindow
+        liveNow -> geometry.liveWindow
+        detachedNow -> geometry.detachedWindow
+        else -> geometry.compactWindow
+    }
+
+    // An app's live activity: the window widens before it shows, and narrows after it has gone.
+    LaunchedEffect(liveWanted, visible) {
+        if (still != null) { liveReady = true; return@LaunchedEffect }
+        if (liveWanted && visible) {
+            if (wide.value < 0.01f && !messageContent) onWindowSize(restWindow())
+            kotlinx.coroutines.withTimeoutOrNull(250) {
+                androidx.compose.runtime.snapshotFlow { boxW }.first { it >= geometry.liveWindow.width }
+            }
+            androidx.compose.runtime.withFrameNanos { }
+            liveReady = true
+        } else {
+            liveReady = false
+            delay(500) // the pill narrows first, then the window follows
+            if (visible && wide.value < 0.01f && !messageContent) onWindowSize(restWindow())
+        }
+    }
 
     // Messages: the window grows before the name slides in, and shrinks after the pill has narrowed.
     LaunchedEffect(messageContent, visible, needsMessageWindow) {
@@ -1032,15 +1070,15 @@ internal fun MiniIslandHost(
     LaunchedEffect(detached, visible, messageContent) {
         if (still != null) return@LaunchedEffect
         if (detached && visible) {
-            if (wide.value < 0.01f && !messageContent) onWindowSize(geometry.detachedWindow)
+            if (wide.value < 0.01f && !messageContent) onWindowSize(restWindow())
             kotlinx.coroutines.withTimeoutOrNull(250) {
-                androidx.compose.runtime.snapshotFlow { boxW }.first { it >= geometry.detachedWindow.width }
+                androidx.compose.runtime.snapshotFlow { boxW }.first { it >= restWindow().width }
             }
             androidx.compose.runtime.withFrameNanos { }
             if (reduce) split.snapTo(1f) else split.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = 240f))
         } else if (!detached && split.value > 0f) {
             if (reduce) split.snapTo(0f) else split.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 320f))
-            if (visible && wide.value < 0.01f && !messageContent) onWindowSize(geometry.compactWindow)
+            if (visible && wide.value < 0.01f && !messageContent) onWindowSize(restWindow())
         }
     }
 

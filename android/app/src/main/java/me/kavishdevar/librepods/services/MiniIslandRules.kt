@@ -231,6 +231,8 @@ object MiniIslandRules {
          * the status bar around the camera).
          */
         val messageWidth: Float = compactWidth,
+        /** The pill with an app's live activity in it (its own window while it shows). */
+        val liveWidth: Float = compactWidth,
     ) {
         fun compactFor(s: IslandLook.Situation): Float = widths[s] ?: compactWidth
     }
@@ -265,10 +267,7 @@ object MiniIslandRules {
         val fit = screenW - 16f * density
         val widths = IslandLook.Situation.entries.associateWith { sit ->
             val (l, r) = look.slots(sit, if (sit == IslandLook.Situation.Talking) IslandLook.Situation.Music else sit)
-            var half = maxOf(IslandLook.slotWidth(l, side, density, f), IslandLook.slotWidth(r, side, density, f))
-            // Wherever an app's live activity can take over (a Maps route: its arrow left, "200 m"
-            // right), there's room for it, so its number is never cut by the camera.
-            if (sit in LIVE_SITUATIONS) half = maxOf(half, IslandLook.slotWidth(IslandLook.Slot.Live, side, density, f))
+            val half = maxOf(IslandLook.slotWidth(l, side, density, f), IslandLook.slotWidth(r, side, density, f))
             (center + 2f * (inset + if (half > 0f) half + gap else 0f)).coerceAtMost(fit)
         }
         // Talking keeps the other situations' left side: make room for the widest of them (the
@@ -279,7 +278,11 @@ object MiniIslandRules {
         // at its own height, the title left of the camera and the artist right of it, instead of
         // growing a second line under it (Jake, 2026-10-11: it "looks bulbous").
         val wide = minOf(screenW - 2f * WIDE_EDGE_DP * density, 440f * density).coerceIn(c, fit)
-        return Size(h, c, wide, h, side, inset, gap, center, widths, messageW)
+        // An app's live activity (its picture left, "200 m" right) gets its own, wider window only
+        // while it shows, like a message: a permanently wider window would take taps from the status bar.
+        val liveHalf = maxOf(IslandLook.slotWidth(IslandLook.Slot.App, side, density, f), IslandLook.slotWidth(IslandLook.Slot.Live, side, density, f))
+        val liveW = (center + 2f * (inset + liveHalf + gap)).coerceAtMost(fit).coerceAtLeast(c)
+        return Size(h, c, wide, h, side, inset, gap, center, widths, messageW, liveW)
     }
 
     /** A rectangle in screen pixels (Android's Rect, without needing Android in tests). */
