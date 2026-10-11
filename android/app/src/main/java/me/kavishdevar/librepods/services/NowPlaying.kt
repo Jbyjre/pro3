@@ -369,12 +369,19 @@ class MediaAccessService : NotificationListenerService() {
     override fun onListenerConnected() {
         NowPlaying.attach(this)
         SoundSource.attach(this)
+        // What apps are doing live right now (a Maps route, a ride, a download), for the islands.
+        LiveActivities.replaceAll(this) { activeNotifications }
+    }
+
+    override fun onNotificationRemoved(sbn: android.service.notification.StatusBarNotification?) {
+        LiveActivities.removed(sbn?.key)
     }
 
     override fun onNotificationPosted(
         sbn: android.service.notification.StatusBarNotification?, rankingMap: RankingMap?,
     ) {
         sbn ?: return
+        LiveActivities.posted(this, sbn)
         val n = sbn.notification
         val ranking = Ranking()
         val known = rankingMap?.getRanking(sbn.key, ranking) == true
@@ -394,5 +401,6 @@ class MediaAccessService : NotificationListenerService() {
 
     override fun onListenerDisconnected() {
         NowPlaying.detach()
+        LiveActivities.clear()
     }
 }

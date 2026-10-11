@@ -18,43 +18,13 @@
 package me.kavishdevar.librepods.services
 
 /**
- * Which controls the opened glance offers, for the kind of app you're in ([AppKinds]). Every app
- * gets a row that fits its kind, by one rule, instead of the same five buttons everywhere: a game
- * gets Mute, Do Not Disturb and a chat app; a music app with nothing playing gets Play and Search
- * (its recent songs show above); the home screen and plain apps keep the phone's own controls.
- * Pure, unit-tested.
+ * What the opened glance offers inside an app, beyond the app's own live activity
+ * ([LiveActivities]): a game gets Mute, Focus (Do Not Disturb) and a chat app as small pills; a
+ * music app with nothing playing gets Play, Search and your recent songs from it. The phone's
+ * own quick buttons (torch, timer, sound, capture, lock) are for the home screen only (Jake,
+ * 2026-10-11). Pure, unit-tested.
  */
 object AppActions {
-    enum class Action(val label: String) {
-        Torch("Torch"), Timer("Timer"), Ring("Sound"), Capture("Capture"), Lock("Lock"),
-        /** The phone's media sound on and off (the game's or video's sound, not the ringer). */
-        Mute("Mute"),
-        /** Do Not Disturb. */
-        Quiet("Focus"),
-        /** Opens a chat app ([chatApp]). */
-        Chat("Chat"),
-        /** Plays again in this app. */
-        Resume("Play"),
-        /** This app's own search. */
-        Search("Search"),
-        Camera("Camera"),
-    }
-
-    /** The phone's own five, for the home screen, the lock screen and plain apps. */
-    val PHONE = listOf(Action.Torch, Action.Timer, Action.Ring, Action.Capture, Action.Lock)
-
-    /** Always five, so the row keeps its rhythm whichever app you're in. */
-    fun row(kind: AppKinds.Kind?): List<Action> = when (kind) {
-        AppKinds.Kind.Game -> listOf(Action.Mute, Action.Quiet, Action.Chat, Action.Capture, Action.Lock)
-        AppKinds.Kind.Video -> listOf(Action.Mute, Action.Quiet, Action.Timer, Action.Capture, Action.Lock)
-        AppKinds.Kind.Music, AppKinds.Kind.Listen -> listOf(Action.Resume, Action.Search, Action.Timer, Action.Ring, Action.Lock)
-        AppKinds.Kind.Chat, AppKinds.Kind.Social -> listOf(Action.Quiet, Action.Camera, Action.Timer, Action.Capture, Action.Lock)
-        AppKinds.Kind.Maps -> listOf(Action.Mute, Action.Quiet, Action.Torch, Action.Capture, Action.Lock)
-        AppKinds.Kind.Camera -> listOf(Action.Torch, Action.Timer, Action.Ring, Action.Quiet, Action.Lock)
-        AppKinds.Kind.Fitness -> listOf(Action.Timer, Action.Mute, Action.Quiet, Action.Torch, Action.Lock)
-        else -> PHONE
-    }
-
     /** Chat apps to offer, most fitting first: while gaming Discord leads (voice chat for games). */
     val CHAT_FOR_GAMES = listOf(
         "com.discord", "com.whatsapp", "org.telegram.messenger", "com.facebook.orca",

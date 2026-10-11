@@ -1031,6 +1031,43 @@ class GlintScreenshots {
     }
     @Test fun fitHeadphonesLongName() = stress { withSolo4 { island("fit_headphones", IslandEvent.Connected, IslandPhase.Expanded, snapshot = solo4.copy(name = "Jake's Beats Solo 4 Wireless Headphones")) } }
     @Test fun fitMiniSongName() = stress { mini("fit_mini_song_name", playing = true, wide = 1f, art = true, dark = true) }
+    // ---- 2026-10-11 (second round): apps' live activities, buttons on the home screen only ----
+    private fun arrow(): androidx.compose.ui.graphics.ImageBitmap {
+        val b = android.graphics.Bitmap.createBitmap(96, 96, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(b)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF1A73E8.toInt() }
+        c.drawRoundRect(0f, 0f, 96f, 96f, 26f, 26f, p)
+        p.color = android.graphics.Color.WHITE; p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = 10f; p.strokeCap = android.graphics.Paint.Cap.ROUND
+        c.drawPath(android.graphics.Path().apply { moveTo(34f, 76f); lineTo(34f, 46f); lineTo(60f, 46f) }, p)
+        p.style = android.graphics.Paint.Style.FILL
+        c.drawPath(android.graphics.Path().apply { moveTo(58f, 32f); lineTo(76f, 46f); lineTo(58f, 60f); close() }, p)
+        return b.asImageBitmap()
+    }
+    private fun mapsLive(): me.kavishdevar.librepods.services.LiveActivities.Live {
+        val app = RuntimeEnvironment.getApplication()
+        val pi = android.app.PendingIntent.getBroadcast(app, 0, android.content.Intent("x"), android.app.PendingIntent.FLAG_IMMUTABLE)
+        return me.kavishdevar.librepods.services.LiveActivities.Live(
+            pkg = "com.google.android.apps.maps", key = "maps", kind = me.kavishdevar.librepods.services.LiveActivities.Kind.Navigation,
+            picture = arrow(), title = "Turn right onto Market St", text = "Then left in 400 m · 12 min", short = "200 m", progress = null,
+            clockFrom = null, countDown = false, icon = fakeIcon(0xFF34A853.toInt(), "M"),
+            actions = listOf(me.kavishdevar.librepods.services.LiveActivities.Action("Exit navigation", pi)), open = pi, postedAt = 1L,
+        )
+    }
+    private val mapsPlace by lazy {
+        me.kavishdevar.librepods.services.ScreenApp.Place.App("com.google.android.apps.maps", "Google Maps", fakeIcon(0xFF34A853.toInt(), "M"),
+            me.kavishdevar.librepods.services.AppKinds.Kind.Maps)
+    }
+    private fun withLive(block: () -> Unit) {
+        me.kavishdevar.librepods.services.LiveActivities.preview(listOf(mapsLive()))
+        try { block() } finally { me.kavishdevar.librepods.services.LiveActivities.preview(emptyList()) }
+    }
+    @Test fun islandGlanceMapsNavigating() = withLive { glance("island_glance_maps", dark = true, place = mapsPlace) }
+    @Test fun islandGlanceRouteWhileInAnotherApp() = withLive { glance("island_glance_route_elsewhere", dark = true, place = claude) }
+    @Test fun islandGlanceHomeWithRoute() = withLive { glance("island_glance_home_route", dark = false, place = me.kavishdevar.librepods.services.ScreenApp.Place.Home) }
+    @Test fun miniIslandLiveRoute() = withLive {
+        mini("mini_island_live_route", playing = false, wide = 0f, art = false, dark = true, content = screen, place = me.kavishdevar.librepods.services.ScreenApp.Place.Home, phone = calmPhone)
+    }
+    @Test fun miniIslandRightSideNeverEmpty() = mini("mini_island_right_side", playing = false, wide = 0f, art = false, dark = true, content = screen, place = claude, phone = calmPhone)
     @Test fun miniIslandGameRing() = mini("mini_island_game_ring", playing = false, wide = 0f, art = false, dark = true, content = screen, place = cod,
         hidden = true, settle = 2_000L)
     @Test fun islandTimerDone() = glance("island_timer_done", dark = true, place = spotify, event = IslandEvent.TimerDone,

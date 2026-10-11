@@ -80,6 +80,8 @@ import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.services.AppActions
 import me.kavishdevar.librepods.services.AppControls
 import me.kavishdevar.librepods.services.AppKinds
+import me.kavishdevar.librepods.services.LiveActivities
+import me.kavishdevar.librepods.services.LiveRules
 import me.kavishdevar.librepods.services.GameStats
 import me.kavishdevar.librepods.services.MusicMemory
 import me.kavishdevar.librepods.services.NowPlaying
@@ -206,14 +208,62 @@ internal fun GlancePanel(
         }
         Spacer(Modifier.height(10.dp))
 
-        // ---- What's live ----
-        if (idleMusic && app != null) MusicIdleCard(app, songs, content, secondary, dark, active, onTouch, onClose, context)
-        else Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            // In a game: how the phone is coping comes first (heat, battery, how long you've played).
-            if (game) GameRow(app, health, content, secondary)
-            val shown = if (game) rows.take(1) else rows
+        // The phone's quick buttons are for the home screen only (Jake, 2026-10-11: never inside
+        // an app). Without the accessibility switch pro can't tell where you are, so they show then too.
+        val home = place == ScreenApp.Place.Home || place == ScreenApp.Place.Unknown
+        val liveAll by LiveActivities.all.collectAsState()
+        // This app's own live activity (its words, its buttons), and any other app's going on
+        // meanwhile (a Maps route while you're in WhatsApp).
+        val own = app?.let { a -> liveAll.values.filter { it.pkg == a.pkg }.maxByOrNull { it.postedAt } }
+        val other = LiveRules.pick(liveAll.values.filter { it.pkg != app?.pkg }, null)
+        var muted by remember { mutableStateOf(AppControls.muted(context)) }
+        var quiet by remember { mutableStateOf(AppControls.quiet(context)) }
+
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // ---- The app you're in: what it says itself ----
+            val appCard = when {
+                own != null -> { LiveCard(own, compact = false, wall, content, secondary, dark, active, onTouch, onClose, context); true }
+                idleMusic && app != null -> {
+                    MusicIdleCard(app, songs, content, secondary, dark, active, onTouch, onClose, context)
+                    true
+                }
+                game -> {
+                    // In a game: how the phone is coping, then the few things a game wants, as small pills.
+                    GameRow(app, health, content, secondary)
+                    PillRow {
+                        GlassPillButton(text = if (muted) "Muted" else "Mute", textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                            modifier = Modifier.weight(1f), onClick = { if (active) { onTouch(); muted = AppControls.toggleMute(context) } })
+                        GlassPillButton(text = if (quiet) "Focus on" else "Focus", textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                            modifier = Modifier.weight(1f), onClick = {
+                                if (active) {
+                                    onTouch()
+                                    // Without Do Not Disturb access, Android's page to allow it opens (once).
+                                    val now = AppControls.toggleQuiet(context)
+                                    if (now == null) onClose() else quiet = now
+                                }
+                            })
+                        chat?.let { c ->
+                            GlassPillButton(text = AppActions.chatLabel(c), textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                                modifier = Modifier.weight(1f), onClick = { if (active) { onTouch(); SoundSource.openApp(context, c); onClose() } })
+                        }
+                    }
+                    true
+                }
+                else -> false
+            }
+            // ---- Another app's live activity (a route, a ride), whenever there is one ----
+            val showOther = other != null && (!appCard || (game && own == null))
+            if (showOther && other != null) LiveCard(other, compact = true, wall, content, secondary, dark, active, onTouch, onClose, context)
+            // ---- What's live on the phone (a timer, charging, headphones), in the room left ----
+            val room = when {
+                appCard && own != null -> 0
+                idleMusic -> 0
+                game -> if (showOther) 0 else 1
+                else -> (if (home) 2 else 3) - (if (showOther) 1 else 0)
+            }
+            val shown = rows.take(room.coerceIn(0, 2))
             // One thing going on: it gets the room (bigger ring, bigger words), not a lonely line.
-            val hero = !game && shown.size == 1
+            val hero = !appCard && !showOther && shown.size == 1 && !home
             shown.forEach { item ->
                 if (hero && item is GlanceRules.Item.Timer && item.state.ringing) {
                     // Ringing on its own: big words, and Stop / one more minute in a row under them.
@@ -227,12 +277,12 @@ internal fun GlancePanel(
         }
         Spacer(Modifier.weight(1f))
 
-        // ---- The phone's controls (or the timer's lengths) ----
-        AnimatedContent(
+        // ---- The phone's controls (or the timer's lengths): the home screen only ----
+        if (home) AnimatedContent(
             targetState = choosingTimer,
             transitionSpec = {
-                val spec = if (reduceMotion) tween<Float>(120) else spring(0.82f, 420f)
-                (fadeIn(spec) + scaleIn(spec, initialScale = 0.94f)) togetherWith (fadeOut(tween(100)) + scaleOut(tween(100), targetScale = 0.97f))
+                val spec = if (reduceMotion) tween<Float>(120) else spring(0.86f, 380f)
+                (fadeIn(spec) + scaleIn(spec, initialScale = 0.96f)) togetherWith (fadeOut(tween(100)) + scaleOut(tween(100), targetScale = 0.98f))
             },
             label = "glanceControls",
         ) { choosing ->
@@ -260,54 +310,85 @@ internal fun GlancePanel(
                 Row(Modifier.fillMaxWidth().height(66.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     val system = PhoneControls.canUseSystemActions()
                     var ring by remember { mutableStateOf(PhoneControls.ring(context)) }
-                    var muted by remember { mutableStateOf(AppControls.muted(context)) }
-                    var quiet by remember { mutableStateOf(AppControls.quiet(context)) }
                     val ink = { on: Boolean -> if (on) Color.Black else content }
                     val share = Modifier.weight(1f)
-                    // Five buttons that fit the app you're in (the phone's own five elsewhere).
-                    AppActions.row(kind).forEach { action ->
-                        when (action) {
-                            AppActions.Action.Torch -> Control("Torch", on = torch, enabled = active && PhoneControls.hasTorch(context), content, secondary, dark, {
-                                onTouch(); PhoneControls.toggleTorch(context)
-                            }, modifier = share) { c, on -> drawTorch(c, size.minDimension * 0.5f, ink(on)) }
-                            AppActions.Action.Timer -> Control("Timer", on = timer != null, enabled = active, content, secondary, dark, {
-                                onTouch(); choosingTimer = true
-                            }, modifier = share) { c, on -> drawStopwatch(c, size.minDimension * 0.46f, ink(on)) }
-                            AppActions.Action.Ring -> Control(ring.label, on = ring != PhoneControls.Ring.Sound, enabled = active, content, secondary, dark, {
-                                onTouch(); PhoneControls.toggleRing(context)?.let { ring = it }
-                            }, modifier = share) { c, on -> if (ring == PhoneControls.Ring.Sound) drawRinger(c, size.minDimension * 0.46f, content) else drawVibrate(c, size.minDimension * 0.46f, ink(on)) }
-                            AppActions.Action.Capture -> Control("Capture", on = false, enabled = active, content, secondary, dark, {
-                                onTouch()
-                                // Needs the accessibility switch; without it, straight to where it's turned on.
-                                if (system) { onClose(); PhoneControls.screenshot() } else { GlintOverlays.openApp(context, AppLinks.ISLANDS); onClose() }
-                            }, dim = !system, modifier = share) { c, _ -> drawScreenshot(c, size.minDimension * 0.46f, content) }
-                            AppActions.Action.Lock -> Control("Lock", on = false, enabled = active, content, secondary, dark, {
-                                onTouch()
-                                if (system) { onClose(); PhoneControls.lockScreen() } else { GlintOverlays.openApp(context, AppLinks.ISLANDS); onClose() }
-                            }, dim = !system, modifier = share) { c, _ -> drawPadlock(c, size.minDimension * 0.46f, 0f, content) }
-                            AppActions.Action.Mute -> Control(if (muted) "Muted" else "Mute", on = muted, enabled = active, content, secondary, dark, {
-                                onTouch(); muted = AppControls.toggleMute(context)
-                            }, modifier = share) { c, on -> drawSpeaker(c, size.minDimension * 0.46f, ink(on), crossed = on) }
-                            AppActions.Action.Quiet -> Control("Focus", on = quiet, enabled = active, content, secondary, dark, {
-                                onTouch()
-                                // Without Do Not Disturb access, Android's page to allow it opens (once).
-                                val now = AppControls.toggleQuiet(context)
-                                if (now == null) onClose() else quiet = now
-                            }, dim = !AppControls.canQuiet(context), modifier = share) { c, on -> drawMoon(c, size.minDimension * 0.42f, ink(on)) }
-                            AppActions.Action.Chat -> Control(AppActions.chatLabel(chat), on = false, enabled = active && chat != null, content, secondary, dark, {
-                                onTouch(); chat?.let { SoundSource.openApp(context, it) }; onClose()
-                            }, dim = chat == null, modifier = share) { c, _ -> drawBubble(c, size.minDimension * 0.44f, content) }
-                            AppActions.Action.Resume -> Control("Play", on = false, enabled = active && app != null, content, secondary, dark, {
-                                onTouch(); app?.let { AppControls.resume(context, it.pkg) }
-                            }, modifier = share) { c, _ -> drawPlayTriangle(c, size.minDimension * 0.24f, content) }
-                            AppActions.Action.Search -> Control("Search", on = false, enabled = active && app != null, content, secondary, dark, {
-                                onTouch(); app?.let { AppControls.search(context, it.pkg) }; onClose()
-                            }, modifier = share) { c, _ -> drawMagnifier(c, size.minDimension * 0.42f, content) }
-                            AppActions.Action.Camera -> Control("Camera", on = false, enabled = active, content, secondary, dark, {
-                                onTouch(); AppControls.openCamera(context); onClose()
-                            }, modifier = share) { c, _ -> drawCamera(c, size.minDimension * 0.46f, content) }
-                        }
-                    }
+                    Control("Torch", on = torch, enabled = active && PhoneControls.hasTorch(context), content, secondary, dark, {
+                        onTouch(); PhoneControls.toggleTorch(context)
+                    }, modifier = share) { c, on -> drawTorch(c, size.minDimension * 0.5f, ink(on)) }
+                    Control("Timer", on = timer != null, enabled = active, content, secondary, dark, {
+                        onTouch(); choosingTimer = true
+                    }, modifier = share) { c, on -> drawStopwatch(c, size.minDimension * 0.46f, ink(on)) }
+                    Control(ring.label, on = ring != PhoneControls.Ring.Sound, enabled = active, content, secondary, dark, {
+                        onTouch(); PhoneControls.toggleRing(context)?.let { ring = it }
+                    }, modifier = share) { c, on -> if (ring == PhoneControls.Ring.Sound) drawRinger(c, size.minDimension * 0.46f, content) else drawVibrate(c, size.minDimension * 0.46f, ink(on)) }
+                    Control("Capture", on = false, enabled = active, content, secondary, dark, {
+                        onTouch()
+                        // Needs the accessibility switch; without it, straight to where it's turned on.
+                        if (system) { onClose(); PhoneControls.screenshot() } else { GlintOverlays.openApp(context, AppLinks.ISLANDS); onClose() }
+                    }, dim = !system, modifier = share) { c, _ -> drawScreenshot(c, size.minDimension * 0.46f, content) }
+                    Control("Lock", on = false, enabled = active, content, secondary, dark, {
+                        onTouch()
+                        if (system) { onClose(); PhoneControls.lockScreen() } else { GlintOverlays.openApp(context, AppLinks.ISLANDS); onClose() }
+                    }, dim = !system, modifier = share) { c, _ -> drawPadlock(c, size.minDimension * 0.46f, 0f, content) }
+                }
+            }
+        }
+    }
+}
+
+/** A row of small pills sharing the width evenly. */
+@Composable
+private fun PillRow(content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically, content = content)
+}
+
+/**
+ * An app's live activity, in its own words: its picture (Maps' next turn), what it says, its one
+ * live number, a progress bar when it has one, and its own buttons (up to three). [compact]: just
+ * the line (another app's, while you're somewhere else). A tap opens the app at it.
+ */
+@Composable
+private fun LiveCard(
+    l: LiveActivities.Live, compact: Boolean, wall: Long, content: Color, secondary: Color, dark: Boolean,
+    active: Boolean, onTouch: () -> Unit, onClose: () -> Unit, context: Context,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(if (compact) 46.dp else 48.dp)
+                .islandPress(active, "Open ${l.title ?: "the app"}", { onTouch(); LiveActivities.open(context, l); onClose() }, {}),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Canvas(Modifier.size(36.dp)) {
+                val pic = l.picture ?: l.icon
+                if (pic != null) appTileFill(pic, center, size.minDimension)
+                else drawCircle(Color(0xFF30D158), size.minDimension * 0.18f, center)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(l.title ?: l.text ?: "Live", maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 18.sp, color = content))
+                if (l.title != null && l.text != null) Text(l.text, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, lineHeight = 15.sp, color = secondary))
+            }
+            l.value(wall)?.let { v ->
+                Spacer(Modifier.width(8.dp))
+                Text(v, maxLines = 1, style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = content, fontFeatureSettings = "tnum"))
+            }
+        }
+        if (!compact) {
+            l.progress?.let { pr ->
+                Canvas(Modifier.fillMaxWidth().height(4.dp)) {
+                    val h = size.height
+                    drawRoundRect(content.copy(alpha = 0.18f), cornerRadius = CornerRadius(h / 2f))
+                    drawRoundRect(content, size = Size((size.width * pr).coerceAtLeast(h), h), cornerRadius = CornerRadius(h / 2f))
+                }
+            }
+            if (l.actions.isNotEmpty()) PillRow {
+                l.actions.forEach { a ->
+                    GlassPillButton(text = a.title, textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                        modifier = Modifier.weight(1f), onClick = { if (active) { onTouch(); LiveActivities.press(a); onClose() } })
                 }
             }
         }
@@ -376,6 +457,13 @@ private fun MusicIdleCard(
                     style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, lineHeight = 15.sp, color = secondary),
                 )
             }
+        }
+        // Its own two: play again, or look for something (as small pills, never a row of round buttons).
+        PillRow {
+            GlassPillButton(text = "Play", textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                modifier = Modifier.weight(1f), onClick = { if (active) { onTouch(); AppControls.resume(context, app.pkg) } })
+            GlassPillButton(text = "Search", textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 10.dp,
+                modifier = Modifier.weight(1f), onClick = { if (active) { onTouch(); AppControls.search(context, app.pkg); onClose() } })
         }
         if (songs.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             // Up to three, sharing the width evenly; long names end in "…" instead of spilling.
@@ -669,71 +757,7 @@ private fun DrawScope.drawPlayTriangle(c: Offset, size: Float, color: Color) {
     }, color)
 }
 
-// ---- Glyphs for the app-aware buttons (2026-10-11) ----
-
-/** A speaker; [crossed] adds the line through it (muted). */
-private fun DrawScope.drawSpeaker(c: Offset, size: Float, color: Color, crossed: Boolean) {
-    val u = size / 2f
-    val body = Path().apply {
-        moveTo(c.x - u * 0.9f, c.y - u * 0.32f)
-        lineTo(c.x - u * 0.45f, c.y - u * 0.32f)
-        lineTo(c.x + u * 0.1f, c.y - u * 0.8f)
-        lineTo(c.x + u * 0.1f, c.y + u * 0.8f)
-        lineTo(c.x - u * 0.45f, c.y + u * 0.32f)
-        lineTo(c.x - u * 0.9f, c.y + u * 0.32f)
-        close()
-    }
-    drawPath(body, color, style = androidx.compose.ui.graphics.drawscope.Fill)
-    drawPath(body, color, style = Stroke(u * 0.12f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-    val w = u * 0.16f
-    if (crossed) {
-        drawLine(color, Offset(c.x + u * 0.38f, c.y - u * 0.34f), Offset(c.x + u * 0.98f, c.y + u * 0.34f), w, StrokeCap.Round)
-        drawLine(color, Offset(c.x + u * 0.98f, c.y - u * 0.34f), Offset(c.x + u * 0.38f, c.y + u * 0.34f), w, StrokeCap.Round)
-    } else {
-        drawArc(color, -45f, 90f, false, Offset(c.x - u * 0.3f, c.y - u * 0.55f), Size(u * 1.1f, u * 1.1f), style = Stroke(w, cap = StrokeCap.Round))
-    }
-}
-
-/** A crescent moon (Do Not Disturb, like the phone's own). */
-private fun DrawScope.drawMoon(c: Offset, size: Float, color: Color) {
-    val r = size / 2f
-    val moon = Path.combine(
-        androidx.compose.ui.graphics.PathOperation.Difference,
-        Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, r)) },
-        Path().apply { addOval(androidx.compose.ui.geometry.Rect(Offset(c.x + r * 0.55f, c.y - r * 0.45f), r * 0.82f)) },
-    )
-    drawPath(moon, color)
-}
-
-/** A speech bubble (chat). */
-private fun DrawScope.drawBubble(c: Offset, size: Float, color: Color) {
-    val w = size; val h = size * 0.78f
-    val bubble = Path().apply {
-        addRoundRect(androidx.compose.ui.geometry.RoundRect(c.x - w / 2f, c.y - h / 2f - size * 0.06f, c.x + w / 2f, c.y + h / 2f - size * 0.06f, CornerRadius(h * 0.42f)))
-        moveTo(c.x - w * 0.22f, c.y + h * 0.3f)
-        lineTo(c.x - w * 0.34f, c.y + h * 0.62f)
-        lineTo(c.x + w * 0.02f, c.y + h * 0.36f)
-        close()
-    }
-    drawPath(bubble, color, style = Stroke(size * 0.1f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-}
-
-/** A magnifying glass (search). */
-private fun DrawScope.drawMagnifier(c: Offset, size: Float, color: Color) {
-    val r = size * 0.32f
-    val o = Offset(c.x - size * 0.1f, c.y - size * 0.1f)
-    drawCircle(color, r, o, style = Stroke(size * 0.11f))
-    drawLine(color, Offset(o.x + r * 0.72f, o.y + r * 0.72f), Offset(c.x + size * 0.42f, c.y + size * 0.42f), size * 0.13f, StrokeCap.Round)
-}
-
-/** A camera body with its lens. */
-private fun DrawScope.drawCamera(c: Offset, size: Float, color: Color) {
-    val w = size; val h = size * 0.7f
-    val st = Stroke(size * 0.09f, join = androidx.compose.ui.graphics.StrokeJoin.Round)
-    drawRoundRect(color, Offset(c.x - w / 2f, c.y - h / 2f + size * 0.06f), Size(w, h), CornerRadius(h * 0.22f), style = st)
-    drawRoundRect(color, Offset(c.x - w * 0.18f, c.y - h / 2f - size * 0.08f), Size(w * 0.36f, size * 0.16f), CornerRadius(size * 0.05f))
-    drawCircle(color, h * 0.26f, Offset(c.x, c.y + size * 0.06f), style = st)
-}
+// ---- The game's gauge (2026-10-11) ----
 
 /** A game controller, small enough to sit inside the heat gauge. */
 private fun DrawScope.drawGamepad(c: Offset, size: Float, color: Color) {

@@ -809,6 +809,19 @@ internal fun MiniIslandHost(
         else IslandLook.underneath(musicContent, track.playing, pods.budsCharging, sound = soundContent, message = messageShown, place = placeKind)
     } else situation
     val (baseL, baseR) = look.slots(situation, under)
+    // An app doing something live (a Maps route, a ride, a download): its picture left of the
+    // camera, its one live number right of it, the iPhone way, whenever no music or sound is the
+    // news. The app in front's own wins, then navigation, then the newest (LiveActivities.pick).
+    val liveAll by me.kavishdevar.librepods.services.LiveActivities.all.collectAsState()
+    val livePref by rememberPref(prefs, IslandPrefs.PREF_LIVE_APPS, true)
+    val live = if (!livePref || forceSituation != null) null
+        else me.kavishdevar.librepods.services.LiveActivities.pick((place as? ScreenApp.Place.App)?.pkg, liveAll)
+    val liveHere = live != null && situation in MiniIslandRules.LIVE_SITUATIONS
+    // A running clock in it (a stopwatch, a call): the number moves on once a second.
+    var liveTick by remember { androidx.compose.runtime.mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(liveHere && live?.clockFrom != null) {
+        while (liveHere && live?.clockFrom != null) { liveTick = System.currentTimeMillis(); delay(1_000L - liveTick % 1_000L + 5L) }
+    }
     // An alert popping over music (a message ding): the app's icon takes the right-hand spot for a
     // moment, then the music's own slot comes back (the usual cross-fade and width spring).
     val blipSource = heard?.kind?.blip == true || message != null
@@ -823,10 +836,11 @@ internal fun MiniIslandHost(
         situation != IslandLook.Situation.Message && baseL != IslandLook.Slot.Glance && baseR != IslandLook.Slot.Glance
     // Two things at once, the iPhone way: music stays on the island (cover and bars) and the
     // timer splits off into a detached circle beside it, instead of taking the bars' place.
-    val detached = iphone && timerHere && (under == IslandLook.Situation.Music || under == IslandLook.Situation.Paused) &&
+    val detached = iphone && timerHere && (under == IslandLook.Situation.Music || under == IslandLook.Situation.Paused || liveHere) &&
         baseL != IslandLook.Slot.Nothing && !gameRing
-    val wantL = if (gameRing) IslandLook.Slot.Nothing else baseL
+    val wantL = if (gameRing) IslandLook.Slot.Nothing else if (liveHere) IslandLook.Slot.App else baseL
     val wantR = if (gameRing) IslandLook.Slot.Nothing
+        else if (liveHere) (if (timerHere && !detached) IslandLook.Slot.Glance else IslandLook.Slot.Live)
         else if (blipping) (if (blipPhone) IslandLook.Slot.Phone else IslandLook.Slot.App)
         else if (detached) baseR
         else if (timerHere) IslandLook.Slot.Glance else baseR
@@ -837,9 +851,9 @@ internal fun MiniIslandHost(
     val showIcons by rememberPref(prefs, IslandPrefs.PREF_SOUND_ICONS, true)
     // The app behind the sound, when pro can tell (the music app's own icon during music).
     val fromMoment = messageContent || soundContent || (blipping && !blipPhone)
-    val appIcon = if (!showIcons) null else if (fromMoment) (message?.icon ?: heard?.icon) else track.icon
+    val appIcon = if (liveHere) (live?.picture ?: live?.icon) else if (!showIcons) null else if (fromMoment) (message?.icon ?: heard?.icon) else track.icon
     val appKind = if (fromMoment) (heard?.kind ?: if (message != null) SoundRules.Kind.Alert else SoundRules.Kind.Other) else SoundRules.Kind.Media
-    val appActive = if (fromMoment) (heard?.active == true || message != null) else track.playing
+    val appActive = if (liveHere) false else if (fromMoment) (heard?.active == true || message != null) else track.playing
     val phone by PhoneStatus.state.collectAsState()
     // The App slot's ring takes the app icon's own colour (not the cover's).
     val appAccent = remember(appIcon, look.accent) {
@@ -1590,6 +1604,8 @@ internal fun MiniIslandHost(
                     screenIcon = curIcon, prevIcon = prevIcon, swap = swap.value, wallpaper = wallpaper,
                     today = today, lockOpen = lockOpen.value, glance = glanceItem,
                     timerAt = if (still != null) 0L else timerNow,
+                    liveValue = live?.value(liveTick),
+                    liveOn = live != null,
                 )
                 if (grow >= 0.999f || at != null) drawSlot(slot, centre, geometry.slotW(slot), leftSide, alpha, data)
                 else scale(grow, grow, centre) { drawSlot(slot, centre, geometry.slotW(slot), leftSide, alpha, data) }
@@ -1700,6 +1716,10 @@ private class SlotData(
     val glance: GlanceRules.Item? = null,
     /** elapsedRealtime the timer is drawn for (0: its still state, for screenshots). */
     val timerAt: Long = 0L,
+    /** An app's live number ("200 m", "4 min", "45%"), or null (then a quiet live dot). */
+    val liveValue: String? = null,
+    /** An app has something live right now (the Live slot is empty otherwise). */
+    val liveOn: Boolean = false,
 )
 
 /** One thing beside the camera, centred at [c] in a spot [w] wide. */
@@ -1990,7 +2010,22 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
                 else drawBudPair(c, side * 0.5f, Color.White.copy(alpha = alpha))
             }
             is GlanceRules.Item.LowPhone -> batteryRing(g.level, false, false, c, side, alpha, d)
-            else -> {}
+            // Nothing else worth a glance: the phone's battery, never an empty space.
+            else -> if (d.phone.known) batteryRing(d.phone.level, d.phone.charging, d.phoneLow, c, side, alpha, d)
+        }
+        IslandLook.Slot.Live -> {
+            val v = d.liveValue
+            if (v != null) {
+                // The app's one live number, like the iPhone's (a little smaller when it's long).
+                var t = text(v, side * (if (v.length > 5) 0.36f else 0.42f))
+                // Never wider than its spot (a long number steps down a size instead of reaching the camera).
+                if (t.size.width > w) t = text(v, side * 0.42f * w / t.size.width.toFloat())
+                drawText(t, alpha = alpha, topLeft = Offset(c.x - t.size.width / 2f, c.y - t.size.height / 2f))
+            } else if (d.liveOn) {
+                // Live, with no number to show: a calm green dot that breathes.
+                val b = if (d.moving) 0.75f + 0.25f * sin(d.clock / 1000f * 2.4f) else 1f
+                drawCircle(Color(0xFF30D158).copy(alpha = alpha * b), side * 0.13f, c)
+            }
         }
         IslandLook.Slot.Same, IslandLook.Slot.Nothing -> {}
     }

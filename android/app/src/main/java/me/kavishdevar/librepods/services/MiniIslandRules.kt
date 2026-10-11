@@ -241,6 +241,9 @@ object MiniIslandRules {
      * side of it in every situation. With the default look this is exactly the original size: a
      * round cover on one side, the sound bars on the other.
      */
+    /** The situations an app's live activity shows in (no music, sound or message is the news). */
+    val LIVE_SITUATIONS = setOf(IslandLook.Situation.App, IslandLook.Situation.Home, IslandLook.Situation.Locked, IslandLook.Situation.Rest)
+
     fun size(holeW: Float, holeH: Float, density: Float, screenW: Float, look: IslandLook.Look = IslandLook.Look()): Size {
         val f = look.size.factor
         val floor = holeH + 4f * density
@@ -252,7 +255,10 @@ object MiniIslandRules {
         val fit = screenW - 16f * density
         val widths = IslandLook.Situation.entries.associateWith { sit ->
             val (l, r) = look.slots(sit, if (sit == IslandLook.Situation.Talking) IslandLook.Situation.Music else sit)
-            val half = maxOf(IslandLook.slotWidth(l, side, density, f), IslandLook.slotWidth(r, side, density, f))
+            var half = maxOf(IslandLook.slotWidth(l, side, density, f), IslandLook.slotWidth(r, side, density, f))
+            // Wherever an app's live activity can take over (a Maps route: its arrow left, "200 m"
+            // right), there's room for it, so its number is never cut by the camera.
+            if (sit in LIVE_SITUATIONS) half = maxOf(half, IslandLook.slotWidth(IslandLook.Slot.Live, side, density, f))
             (center + 2f * (inset + if (half > 0f) half + gap else 0f)).coerceAtMost(fit)
         }
         // Talking keeps the other situations' left side: make room for the widest of them (the

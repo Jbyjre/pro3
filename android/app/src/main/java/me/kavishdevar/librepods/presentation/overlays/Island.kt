@@ -275,6 +275,13 @@ internal class IslandGeometry(
     val music: Boolean = false,
     /** The opened music island shows the song bar (Settings > Island > Opened music). */
     musicBar: Boolean = me.kavishdevar.librepods.services.IslandPrefs.musicBar(me.kavishdevar.librepods.services.IslandPrefs.prefs(context)),
+    /**
+     * The glance opens away from the home screen: the phone's quick buttons are for the home screen
+     * only, so it's that much shorter instead of ending in an empty space.
+     */
+    glanceAway: Boolean = me.kavishdevar.librepods.services.ScreenApp.place.value.let {
+        it is me.kavishdevar.librepods.services.ScreenApp.Place.App || it is me.kavishdevar.librepods.services.ScreenApp.Place.Locked
+    },
 ) {
     private val density = context.resources.displayMetrics.density
     val iphone = style == me.kavishdevar.librepods.services.IslandSpec.Style.IPhone
@@ -336,7 +343,7 @@ internal class IslandGeometry(
     val controlsTop = if (showBar) barTop + dp(22f) else headerBottom + dp(6f)
     val musicH = controlsTop + dp(44f) + dp(if (showBar) 12f else 14f)
     // Header, AirPods and batteries (with the heart while measuring), time left and play/pause.
-    val expandedH = if (musicPage) musicH else (if (tall) dp(GLANCE_H_DP) else dp(196f)) + band
+    val expandedH = if (musicPage) musicH else (if (tall) dp(if (glanceAway) GLANCE_AWAY_H_DP else GLANCE_H_DP) else dp(196f)) + band
     /** Opened content starts below the camera's band, except music, which wraps round the camera. */
     val expandedBand = if (musicPage) 0f else band
     // The heart's explanation needs more room: tapping the heart grows the island to this.
@@ -1913,6 +1920,8 @@ internal fun glanceIslandText(place: me.kavishdevar.librepods.services.ScreenApp
 
 /** How tall the opened glance is, in dp (header, two live rows and the controls). */
 internal const val GLANCE_H_DP = 252f
+/** The glance in an app or on the lock screen: no quick-button row, so 28 dp shorter. */
+internal const val GLANCE_AWAY_H_DP = 224f
 /** The opened music island's cover: its size, corner and place (see [IslandGeometry.musicPage]). */
 internal const val ART_SIZE_DP = 52f
 internal const val ART_INSET_DP = 18f

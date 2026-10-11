@@ -49,15 +49,6 @@ class AppAwareTest {
         assertEquals(Kind.Other, AppKinds.classify("com.example.calculator"))
     }
 
-    @Test fun everyKindGetsFiveButtonsAndGamesGetGameOnes() {
-        for (k in Kind.entries) assertEquals("$k", 5, AppActions.row(k).size)
-        assertEquals(5, AppActions.row(null).size)
-        val game = AppActions.row(Kind.Game)
-        assertTrue(AppActions.Action.Mute in game && AppActions.Action.Quiet in game && AppActions.Action.Chat in game)
-        assertEquals(AppActions.PHONE, AppActions.row(Kind.Other))
-        assertEquals(AppActions.Action.Resume, AppActions.row(Kind.Music).first())
-    }
-
     @Test fun aMusicAppWithNothingPlayingGetsItsOwnCard() {
         assertTrue(AppActions.musicIdle(Kind.Music, playing = false))
         assertTrue(AppActions.musicIdle(Kind.Listen, playing = false))

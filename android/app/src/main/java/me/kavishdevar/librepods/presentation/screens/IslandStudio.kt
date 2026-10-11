@@ -63,6 +63,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -471,6 +472,16 @@ private fun DrawScope.drawSlotIcon(slot: IslandLook.Slot, c: Color) {
             drawCircle(c.copy(alpha = c.alpha * 0.3f), r * 0.8f, m, style = st)
             drawArc(c, -90f, 250f, false, Offset(m.x - r * 0.8f, m.y - r * 0.8f), Size(r * 1.6f, r * 1.6f), style = st)
             drawRoundRect(c, Offset(m.x - r * 0.22f, m.y - r * 0.38f), Size(r * 0.44f, r * 0.76f), CornerRadius(r * 0.1f), style = Stroke(r * 0.12f))
+        }
+        IslandLook.Slot.Live -> {
+            // An app's live number: "200 m" beside a small turn arrow.
+            val p = Path().apply {
+                moveTo(m.x - r * 0.62f, m.y + r * 0.5f); lineTo(m.x - r * 0.62f, m.y - r * 0.05f)
+                lineTo(m.x - r * 0.2f, m.y - r * 0.05f)
+            }
+            drawPath(p, c, style = Stroke(r * 0.16f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            drawPath(Path().apply { moveTo(m.x - r * 0.2f, m.y - r * 0.35f); lineTo(m.x + r * 0.15f, m.y - r * 0.05f); lineTo(m.x - r * 0.2f, m.y + r * 0.25f); close() }, c)
+            drawCircle(Color(0xFF30D158), r * 0.2f, Offset(m.x + r * 0.55f, m.y))
         }
         IslandLook.Slot.Clock -> {
             // A clock face with its two hands.
