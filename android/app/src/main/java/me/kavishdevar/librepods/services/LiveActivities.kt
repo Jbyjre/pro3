@@ -117,6 +117,15 @@ object LiveActivities {
 
     fun clear() = main.post { _all.value = emptyMap() }
 
+    /** The notification listener's own list of what's up now (set while it's connected). */
+    @Volatile internal var source: (() -> Array<StatusBarNotification>?)? = null
+
+    /** Settings > Island > Live from apps was switched: start over from what's up now, or clear. */
+    fun settingChanged(context: Context) {
+        val list = source
+        if (IslandPrefs.liveFromApps(IslandPrefs.prefs(context)) && list != null) replaceAll(context, list) else clear()
+    }
+
     /** Screenshots and tests. */
     internal fun preview(list: List<Live>) { _all.value = list.associateBy { it.key } }
 
@@ -158,13 +167,28 @@ object LiveActivities {
     }
 
     /** Presses one of the app's own buttons (Maps' "Exit", a download's "Cancel"). */
-    fun press(a: Action): Boolean = runCatching { a.intent.send(); true }.getOrDefault(false)
+    fun press(a: Action): Boolean = send(a.intent)
 
     /** Opens the app at what the activity is about (its notification's own tap). */
     fun open(context: Context, l: Live) {
-        val sent = l.open?.let { pi -> runCatching { pi.send(); true }.getOrDefault(false) } ?: false
+        val sent = l.open?.let { send(it) } ?: false
         if (!sent) SoundSource.openApp(context, l.pkg)
     }
+
+    /**
+     * Sends an app's own action. From Android 14 an app's action may open its screen from pro only
+     * if pro says it may (pro is on screen, the island being tapped): without this, Maps' "Exit"
+     * or a tap on the card could do nothing at all.
+     */
+    private fun send(pi: PendingIntent): Boolean = runCatching {
+        val sdk = android.os.Build.VERSION.SDK_INT
+        if (sdk >= 34) {
+            val mode = if (sdk >= 36) android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE
+                else @Suppress("DEPRECATION") android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+            pi.send(android.app.ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(mode).toBundle())
+        } else pi.send()
+        true
+    }.onFailure { Log.w(TAG, "The app's action didn't go through", it) }.getOrDefault(false)
 }
 
 /** The pure rules behind [LiveActivities], unit-tested. */

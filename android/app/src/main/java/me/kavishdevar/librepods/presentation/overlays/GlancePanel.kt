@@ -253,7 +253,8 @@ internal fun GlancePanel(
             }
             // ---- Another app's live activity (a route, a ride), whenever there is one ----
             val showOther = other != null && (!appCard || (game && own == null))
-            if (showOther && other != null) LiveCard(other, compact = true, wall, content, secondary, dark, active, onTouch, onClose, context)
+            if (showOther && other != null) LiveCard(other, compact = true, wall, content, secondary, dark, active, onTouch, onClose, context,
+                private = place is ScreenApp.Place.Locked)
             // ---- What's live on the phone (a timer, charging, headphones), in the room left ----
             val room = when {
                 appCard && own != null -> 0
@@ -351,13 +352,18 @@ private fun PillRow(content: @Composable androidx.compose.foundation.layout.RowS
 private fun LiveCard(
     l: LiveActivities.Live, compact: Boolean, wall: Long, content: Color, secondary: Color, dark: Boolean,
     active: Boolean, onTouch: () -> Unit, onClose: () -> Unit, context: Context,
+    /** On the lock screen: only the app and its live number, never its words (as Android hides them there). */
+    private: Boolean = false,
 ) {
+    val name = remember(l.pkg) { SoundSource.cachedInfo(l.pkg)?.label }
+    val title = if (private) (name ?: "Live") else l.title
+    val text = if (private) null else l.text
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
             Modifier
                 .fillMaxWidth()
                 .height(if (compact) 46.dp else 48.dp)
-                .islandPress(active, "Open ${l.title ?: "the app"}", { onTouch(); LiveActivities.open(context, l); onClose() }, {}),
+                .islandPress(active, "Open ${title ?: "the app"}", { onTouch(); LiveActivities.open(context, l); onClose() }, {}),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Canvas(Modifier.size(36.dp)) {
@@ -367,9 +373,9 @@ private fun LiveCard(
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(l.title ?: l.text ?: "Live", maxLines = 1, overflow = TextOverflow.Ellipsis,
+                Text(title ?: text ?: "Live", maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 18.sp, color = content))
-                if (l.title != null && l.text != null) Text(l.text, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                if (title != null && text != null) Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, lineHeight = 15.sp, color = secondary))
             }
             l.value(wall)?.let { v ->

@@ -370,6 +370,7 @@ class MediaAccessService : NotificationListenerService() {
         NowPlaying.attach(this)
         SoundSource.attach(this)
         // What apps are doing live right now (a Maps route, a ride, a download), for the islands.
+        LiveActivities.source = { activeNotifications }
         LiveActivities.replaceAll(this) { activeNotifications }
     }
 
@@ -401,6 +402,7 @@ class MediaAccessService : NotificationListenerService() {
 
     override fun onListenerDisconnected() {
         NowPlaying.detach()
+        LiveActivities.source = null
         LiveActivities.clear()
     }
 }

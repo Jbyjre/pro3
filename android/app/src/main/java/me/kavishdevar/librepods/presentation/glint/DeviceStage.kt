@@ -123,7 +123,8 @@ fun DeviceStage(
                     }
                     val sc = 0.86f + 0.14f * a
                     scaleX = sc; scaleY = sc
-                    translationY = (1f - a) * 18f * density
+                    // Barely rises (the eye shouldn't have to travel to follow it).
+                    translationY = (1f - a) * 6f * density
                     alpha = a.coerceIn(0f, 1f)
                     compositingStrategy = CompositingStrategy.Offscreen
                 }
@@ -154,6 +155,6 @@ fun DeviceStage(
 object DeviceStageSpec {
     const val TILT_Y_DEG = 9f
     const val TILT_X_DEG = 6f
-    const val ENTER_TURN_DEG = -16f
-    const val SHEEN = 0.2f
+    const val ENTER_TURN_DEG = -10f
+    const val SHEEN = 0.14f
 }

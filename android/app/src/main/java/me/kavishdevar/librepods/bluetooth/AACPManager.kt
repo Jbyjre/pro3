@@ -176,10 +176,12 @@ class AACPManager {
         )
     }
 
+    // Read and written from the main thread, the Bluetooth thread and the listening-mode timer:
+    // thread-safe collections, so a read while another thread writes can't crash (it could before).
     var controlCommandStatusList: MutableList<ControlCommandStatus> =
-        mutableListOf<ControlCommandStatus>()
+        java.util.concurrent.CopyOnWriteArrayList<ControlCommandStatus>()
     var controlCommandListeners: MutableMap<ControlCommandIdentifiers, MutableList<ControlCommandListener>> =
-        mutableMapOf()
+        java.util.concurrent.ConcurrentHashMap()
 
     var owns: Boolean = false
         private set
@@ -216,11 +218,14 @@ class AACPManager {
     ) {
         // Replace the stored value. (This used to remove it only when unchanged, so a changed
         // value was stored next to the old one and lookups kept returning the old one.)
-        controlCommandStatusList.removeAll { it.identifier == identifier }
+        // Replaced in one step (under a lock), then the listeners hear the new value.
+        synchronized(controlCommandStatusList) {
+            controlCommandStatusList.removeAll { it.identifier == identifier }
+            controlCommandStatusList.add(ControlCommandStatus(identifier, value))
+        }
         controlCommandListeners[identifier]?.forEach { listener ->
             listener.onControlCommandReceived(ControlCommand(identifier.value, value))
         }
-        controlCommandStatusList.add(ControlCommandStatus(identifier, value))
 
         if (identifier == ControlCommandIdentifiers.OWNS_CONNECTION) {
             owns = value.isNotEmpty() && value[0] == 0x01.toByte()
@@ -273,7 +278,7 @@ class AACPManager {
     fun registerControlCommandListener(
         identifier: ControlCommandIdentifiers, callback: ControlCommandListener
     ) {
-        controlCommandListeners.getOrPut(identifier) { mutableListOf() }.add(callback)
+        controlCommandListeners.getOrPut(identifier) { java.util.concurrent.CopyOnWriteArrayList() }.add(callback)
     }
 
     fun unregisterControlCommandListener(

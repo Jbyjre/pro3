@@ -204,6 +204,17 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
                     GlintOverlays.refreshMiniIsland(context)
                 },
             )
+            var liveApps by remember { mutableStateOf(IslandPrefs.liveFromApps(prefs)) }
+            StyledToggle(
+                label = "Live from apps",
+                description = "A Maps route, a ride or a download on the island, in the app's own words. Needs Notification access",
+                checked = liveApps,
+                onCheckedChange = {
+                    liveApps = it
+                    prefs.edit { putBoolean(IslandPrefs.PREF_LIVE_APPS, it) }
+                    me.kavishdevar.librepods.services.LiveActivities.settingChanged(context)
+                },
+            )
             var inGames by remember { mutableStateOf(IslandPrefs.miniGames(prefs)) }
             StyledToggle(
                 label = "Stay in games",

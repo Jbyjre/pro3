@@ -58,3 +58,5 @@ A tap opens, by content (`MiniIslandRules.tapOpens`): Music the music island, Ai
 - Draw with the shared light: `GlintLight.rim()`, never a hand-made diagonal.
 - Changing the default look changes `IslandLookTest` and the screenshots; the default pill window size must stay the original (`defaultSizeIsUnchanged`).
 - Screenshots: `GlintScreenshots` has a `mini(...)` helper that draws the real `MiniIslandHost` on a wallpaper with a drawn camera, in any look and any content.
+- 2026-10-11: the glance (`GlancePanel.kt`) shows the phone's five buttons only on the home screen; in an app it shows the app itself (`LiveCard` from `LiveActivities`, a game's heat and pills, a music app's idle card). The Dynamic Island's song name and phone moments stretch it sideways at its own height (title left of the camera, artist right); a live activity shows its picture left and its number right (`Slot.Live`); the right side never draws nothing. A song pop-up isn't shown while the pill announces the song (`GlintOverlays.showIsland`).
+

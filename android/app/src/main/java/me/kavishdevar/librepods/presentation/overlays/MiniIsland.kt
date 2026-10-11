@@ -1983,7 +1983,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
             val bloom = kotlin.math.sin(Math.PI.toFloat() * d.lockOpen.coerceIn(0f, 1f))
             if (bloom > 0.01f) drawCircle(
                 androidx.compose.ui.graphics.Brush.radialGradient(
-                    listOf(Color.White.copy(alpha = 0.22f * bloom * alpha), Color.White.copy(alpha = 0f)), c, side * 0.6f,
+                    listOf(Color.White.copy(alpha = 0.14f * bloom * alpha), Color.White.copy(alpha = 0f)), c, side * 0.6f,
                 ),
                 side * 0.6f, c,
             )
@@ -2391,9 +2391,9 @@ internal const val UNLOCK_DAMPING = 0.62f
 internal const val UNLOCK_STIFFNESS = 240f
 /** The light's glide across the island as you unlock, and how bright it gets at its brightest. */
 internal const val UNLOCK_SWEEP_MS = 720
-internal const val UNLOCK_SWEEP_ALPHA = 0.26f
+internal const val UNLOCK_SWEEP_ALPHA = 0.16f
 /** How much wider the island breathes as you unlock. */
-internal const val UNLOCK_SWELL_DP = 8f
+internal const val UNLOCK_SWELL_DP = 6f
 internal const val APP_SWAP_STIFFNESS = 560f
 /** The longest the Dynamic Island's leaving may take before its window is removed regardless. */
 private const val LEAVE_SAFETY_MS = 1_500L

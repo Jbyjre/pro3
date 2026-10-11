@@ -10,6 +10,12 @@ The brains of pro. Files are small and named for what they decide. "Pure" means 
 | `IslandLook.kt` | What goes left and right of the camera in each situation, size, width, glow, colour; stored in the `settings` preferences under `glint_di_*`; `clockText` | storage only |
 | `IslandSpec.kt` | Apple's own Dynamic Island numbers and rules, quoted from its design guidelines (44 dp corner, black, key line only on dark, opened width = screen minus 11 dp each side, detached circle), the `Style` (iPhone / Glass), the `Edge` (key line / Liquid Glass), when a pop-up opens around the camera, and the concentric-placement helpers (`roundedSquareHalf`, `cornerGap`, `insetFromCorner`) | yes |
 | `IslandMotion.kt` | The island's springs (`Feel`: Smooth, Snappy, Bouncy), with `settleMs` and `overshoot` so tests keep every feel inside Apple's 2 s and every close bounce-free | yes |
+| `SmoothCorner.kt` | Apple-style continuous corners (Figma's corner smoothing, 0.6): the numbers for every island shape (drawn by `glint/Glass.kt` `smoothRectPath`); a capsule stays an exact capsule | yes |
+| `LiveActivities.kt` | Apps' live activities from their ongoing notifications (a Maps route, a ride, a download, a call; never messages or the music player): the app's picture, words, one live number and its own buttons, for the island's `Live` slot and the glance's live card. `LiveRules` (which notifications count, the number from the app's words, the running clock, which one to show) is pure. Setting `glint_live_apps` | rules yes |
+| `AppKinds.kt` | What kind of app every app is (known-apps table, makers' prefixes, the app's own Android category, words in its name) | yes |
+| `AppActions.kt` | What the glance offers inside an app beyond its live activity (games: chat app; music idle), `GameStats` (heat, played time in words), `MusicMemory` (recent songs per app) | mostly |
+| `AppControls.kt` | The Android side: media mute, Do Not Disturb, play / search / play-from-search in a music app, the phone's health for a game | no |
+| `PulseShaper.kt` | Spectrum captures to the four bars: follows the voice while someone sings, the kick's ripple when nobody does, `ambient` beat with nothing to hear | yes |
 | `IslandPrefs.kt` | Every on/off switch for the islands and the sound settings (`PREF_*`), the per-moment pop-up switches, the ignored-apps list | storage only |
 | `IslandGestures.kt` | Tap counting, hold, swipe, pull: one recogniser; what each gesture does (configurable) | yes |
 | `IslandAccess.kt` | The accessibility service "pro Dynamic Island" (puts the pill above the status bar so taps reach it; reports the app on screen and open system panels) and `PanelRules` | rules yes |
@@ -41,6 +47,6 @@ The brains of pro. Files are small and named for what they decide. "Pure" means 
 
 ## Where state lives
 
-- Settings: the `settings` SharedPreferences (`IslandPrefs.prefs(context)`). Island looks use `glint_di_*` (also `glint_di_hide_in`, `glint_di_charge_moment`, `glint_di_app_pop`), sound switches `glint_mini_any_sound`, `glint_sound_icons`, `glint_sound_linger`, `glint_sound_ignored`; a running timer `glint_timer_*`.
+- Settings: the `settings` SharedPreferences (`IslandPrefs.prefs(context)`). Island looks use `glint_di_*` (2026-10-11: `glint_mini_games`, `glint_live_apps`; recent songs in the `music_memory` preferences; recent apps in `screen_app`; the Solo 4 finish `glint_beats_finish`) (also `glint_di_hide_in`, `glint_di_charge_moment`, `glint_di_app_pop`), sound switches `glint_mini_any_sound`, `glint_sound_icons`, `glint_sound_linger`, `glint_sound_ignored`; a running timer `glint_timer_*`.
 - Live state: `StateFlow`s on `object`s (`NowPlaying.state`, `SoundSource.heard`, `PhoneStatus.state`, `ScreenApp.place`, `IslandTimer.state`, `PhoneControls.torch`, `GlintStatus.link`). The pill collects them.
 - Never store a new setting without a default that equals the old behaviour, and a test that a bad stored value falls back instead of crashing (see `IslandLookTest`).
