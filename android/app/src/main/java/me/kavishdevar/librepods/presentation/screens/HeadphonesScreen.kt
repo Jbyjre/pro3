@@ -202,7 +202,11 @@ fun HeadphonesScreen(
         item(key = "note") {
             val dark = isSystemInDarkTheme()
             Text(
-                "Noise control, ear detection and heart rate are AirPods features, so they're hidden here. " +
+                // The Solo 4 has no noise cancelling or transparency at all (Beats' own support page,
+                // checked 2026-10-11), so there's no mode to switch; other headphones keep their own buttons.
+                (if (state.device?.kind == me.kavishdevar.librepods.services.DeviceKind.BEATS_SOLO_4)
+                    "The Beats Solo 4 has no noise cancelling or transparency, so there's no listening mode to switch. Ear detection and heart rate are AirPods features. "
+                else "Noise control, ear detection and heart rate are AirPods features, so they're hidden here. ") +
                     when (state.source) {
                         HeadphoneState.BatterySource.Android -> "Battery comes from Android."
                         HeadphoneState.BatterySource.Beacon -> "Battery comes from the headphones' own Bluetooth signal."

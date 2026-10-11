@@ -443,6 +443,20 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
         aacpManager = AACPManager()
         initializeAACPManagerCallback()
+        // Whatever the screens show for the listening mode (a tap on its way, or put back after the
+        // AirPods didn't take it) reaches the islands, the tile and the widget at once.
+        aacpManager.registerControlCommandListener(
+            AACPManager.Companion.ControlCommandIdentifiers.LISTENING_MODE,
+            object : AACPManager.ControlCommandListener {
+                override fun onControlCommandReceived(controlCommand: AACPManager.ControlCommand) {
+                    Handler(Looper.getMainLooper()).post {
+                        pushOverlaySnapshot()
+                        updateNoiseControlWidget()
+                        runCatching { android.service.quicksettings.TileService.requestListeningState(this@AirPodsService, android.content.ComponentName(this@AirPodsService, AirPodsQSService::class.java)) }
+                    }
+                }
+            },
+        )
 
         attManager = ATTManagerv2()
 
@@ -1807,8 +1821,10 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             return
         }
         val name = sharedPreferences.getString("name", null)?.takeIf { it.isNotBlank() } ?: config.deviceName
+        // The mode on its way shows at once (and goes back if the AirPods don't take it).
+        val mode = CommandFeedback.pending ?: ancNotification.status
         GlintOverlays.updateSnapshot(
-            PodsSnapshot.from(name, batteryNotification.getBattery(), earDetectionNotification.status, ancNotification.status, lidOpen)
+            PodsSnapshot.from(name, batteryNotification.getBattery(), earDetectionNotification.status, mode, lidOpen)
         )
     }
 

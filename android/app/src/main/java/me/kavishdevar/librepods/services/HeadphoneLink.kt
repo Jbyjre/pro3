@@ -83,6 +83,9 @@ object HeadphoneLink {
     private var beaconLevel: Int? = null
     private var beaconAt = 0L
     private var lastConnectedPop = 0L
+    private val settle = LinkSettle()
+    private val recheck = Runnable { refresh() }
+    private var audioCallback: android.media.AudioDeviceCallback? = null
 
     /**
      * Answers "is this address connected for audio right now?" (the service's profile
@@ -109,6 +112,16 @@ object HeadphoneLink {
                 Log.w(TAG, "Couldn't listen for battery changes", e)
             }
         }
+        if (audioCallback == null) {
+            // Android's audio route changing (the headphones becoming, or no longer being, an
+            // output) is the quickest sign they connected or dropped: look at once.
+            val cb = object : android.media.AudioDeviceCallback() {
+                override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) { if (added.any { it.isBluetoothOut() }) refresh(app) }
+                override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) { if (removed.any { it.isBluetoothOut() }) refresh(app) }
+            }
+            runCatching { app.getSystemService(AudioManager::class.java)?.registerAudioDeviceCallback(cb, main); audioCallback = cb }
+                .onFailure { Log.w(TAG, "Couldn't follow audio routes", it) }
+        }
         refresh(app)
     }
 
@@ -116,7 +129,13 @@ object HeadphoneLink {
         val app = appContext ?: return
         receiver?.let { runCatching { app.unregisterReceiver(it) } }
         receiver = null
+        audioCallback?.let { cb -> runCatching { app.getSystemService(AudioManager::class.java)?.unregisterAudioDeviceCallback(cb) } }
+        audioCallback = null
+        main.removeCallbacks(recheck)
     }
+
+    private fun AudioDeviceInfo.isBluetoothOut(): Boolean =
+        type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || type == AudioDeviceInfo.TYPE_BLE_HEADSET || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
 
     /** Re-reads who is chosen, whether it's connected, and its battery. Call after any change. */
     fun refresh() = refresh(appContext)
@@ -135,24 +154,34 @@ object HeadphoneLink {
             beaconLevel = null
             gate.clear()
             lowBattery.reset()
+            settle.reset()
         }
-        val connected = isConnected(app, chosen.address)
-        if (connected) readSystemBattery(app, chosen.address)?.let { systemLevel = it }
-        if (!connected) {
+        val raw = isConnected(app, chosen.address)
+        if (raw) readSystemBattery(app, chosen.address)?.let { systemLevel = it }
+        // A blip of a second or two isn't a disconnection: it keeps showing connected (and its
+        // battery) for [LinkSettle.GRACE_MS], then looks again before saying it's gone.
+        val step = settle.reading(raw, android.os.SystemClock.elapsedRealtime())
+        main.removeCallbacks(recheck)
+        step.recheckInMs?.let { main.postDelayed(recheck, it) }
+        if (!step.connected) {
             beaconLevel = null
             systemLevel = null
         }
-        publish(chosen, connected)
+        publish(chosen, step.connected)
     }
 
     /** Android reports [address] connecting or disconnecting. */
     fun onConnectionEvent(context: Context, address: String) {
         val chosen = DeviceChoice.current(context)
         if (chosen.isAirPods || !address.equals(chosen.address, ignoreCase = true)) return
-        // Profile state settles a moment after the broadcast; look now and again shortly.
+        // Profile state settles a while after the broadcast (seconds, on some phones): look now
+        // and a few more times as it does, so a slow connection is never missed.
         refresh(context)
-        main.postDelayed({ refresh(context) }, 1_500L)
+        for (wait in SETTLE_LOOKS_MS) main.postDelayed({ refresh(context) }, wait)
     }
+
+    /** When to look again after a connection event, in ms (Android's profiles can take seconds). */
+    internal val SETTLE_LOOKS_MS = longArrayOf(400L, 1_500L, 4_000L, 8_000L)
 
     private fun onSystemBattery(address: String, level: Int) {
         val chosen = _state.value.device ?: return
@@ -181,6 +210,8 @@ object HeadphoneLink {
         beaconLevel = null
         gate.clear()
         lowBattery.reset()
+        settle.reset()
+        main.removeCallbacks(recheck)
         _state.value = HeadphoneState()
     }
 
@@ -242,6 +273,32 @@ object HeadphoneLink {
         val device = adapter.getRemoteDevice(address)
         (BluetoothDevice::class.java.getMethod("getBatteryLevel").invoke(device) as? Int)?.takeIf { it in 0..100 }
     }.getOrNull()
+
+    /**
+     * Turns raw "is it connected right now?" readings into what to show: connected straight away,
+     * but a drop only after it has lasted [GRACE_MS] (Bluetooth blips for a moment, often while the
+     * phone changes audio route). Pure, for tests.
+     */
+    class LinkSettle {
+        data class Step(val connected: Boolean, val recheckInMs: Long?)
+
+        private var shown = false
+        private var downSince: Long? = null
+
+        fun reset() { shown = false; downSince = null }
+
+        fun reading(connected: Boolean, now: Long): Step {
+            if (connected) { shown = true; downSince = null; return Step(true, null) }
+            if (!shown) return Step(false, null)
+            val since = downSince ?: now.also { downSince = it }
+            val left = GRACE_MS - (now - since)
+            if (left <= 0L) { shown = false; downSince = null; return Step(false, null) }
+            // Never a wait of zero (a recheck that runs again at once would spin).
+            return Step(true, left.coerceAtLeast(50L))
+        }
+
+        companion object { const val GRACE_MS = 2_500L }
+    }
 
     /** Announces 20% and 10% once each; re-arms after charging above 25%. Pure, for tests. */
     class LowBatteryLatch {

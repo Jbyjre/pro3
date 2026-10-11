@@ -246,7 +246,8 @@ class AirPodsQSService : TileService() {
     private fun getNextAncMode(): Int {
         val availableModes = getAvailableModes()
         Log.d("AirPodsQSService", "availableModes: $availableModes, currentAncMode: $currentAncMode")
-        val currentIndex = availableModes.indexOf(currentAncMode)
+        // From the mode on its way, if a switch is pending: two quick taps go two steps, not one.
+        val currentIndex = availableModes.indexOf(CommandFeedback.pending ?: currentAncMode)
         val nextIndex = (currentIndex + 1) % availableModes.size
         Log.d("AirPodsQSService", "nextIndex: $nextIndex")
         return availableModes[nextIndex]
