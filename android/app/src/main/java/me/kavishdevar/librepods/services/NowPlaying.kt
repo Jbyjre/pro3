@@ -204,7 +204,8 @@ object NowPlaying {
             app = appName(context, c.packageName),
             pkg = c.packageName,
             art = art,
-            icon = SoundSource.appInfo(context, c.packageName).icon,
+            // The app's icon if it's ready; otherwise looked up off the main thread and added after.
+            icon = SoundSource.cachedInfo(c.packageName)?.icon ?: iconLater(context, c.packageName),
             fromSession = true,
             durationMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION)?.coerceAtLeast(0L) ?: 0L,
             positionMs = ps?.position?.takeIf { it >= 0L } ?: 0L,
@@ -212,6 +213,15 @@ object NowPlaying {
             speed = ps?.playbackSpeed?.takeIf { it > 0f } ?: 1f,
             canSeek = ps != null && (ps.actions and PlaybackState.ACTION_SEEK_TO) != 0L,
         )
+    }
+
+    /** Looks [pkg]'s icon up in the background and adds it to the track if it's still that app's. */
+    private fun iconLater(context: Context, pkg: String): ImageBitmap? {
+        memory.execute {
+            val icon = SoundSource.appInfo(context, pkg).icon ?: return@execute
+            main.post { if (_state.value.pkg == pkg && _state.value.icon == null) _state.value = _state.value.copy(icon = icon) }
+        }
+        return null
     }
 
     /** Cover art, shrunk to a thumbnail so the island never holds a large bitmap. */

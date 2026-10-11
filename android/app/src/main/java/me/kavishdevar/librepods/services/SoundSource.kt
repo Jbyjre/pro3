@@ -105,7 +105,12 @@ object SoundSource {
     private const val ICON_PX = 160
     private const val RETRY_MS = 700L
     // Looked at from the main thread and from background loaders (the Apps page).
-    private val infos = java.util.concurrent.ConcurrentHashMap<String, AppInfo>()
+    // At most [INFO_MAX] apps, the least recently shown forgotten first: a day of switching apps
+    // used to keep every icon it ever saw (about 100 KB each).
+    private val infos = object : java.util.LinkedHashMap<String, AppInfo>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, AppInfo>?): Boolean = size > INFO_MAX
+    }
+    private const val INFO_MAX = 40
     private val roles = java.util.concurrent.ConcurrentHashMap<String, SoundRules.Role>()
     private var homeApps: Set<String>? = null
 
@@ -251,7 +256,7 @@ object SoundSource {
 
     /** An app's name and icon, cached (the island draws the icon every frame it's up). */
     fun appInfo(context: Context, pkg: String): AppInfo {
-        infos[pkg]?.let { return it }
+        synchronized(infos) { infos[pkg] }?.let { return it }
         val label = NowPlaying.appName(context, pkg)
         val icon = runCatching {
             (launcherIcon(context, pkg) ?: context.packageManager.getApplicationIcon(pkg)).toBitmap(ICON_PX, ICON_PX).asImageBitmap()
@@ -265,15 +270,18 @@ object SoundSource {
         }.getOrElse { AppKinds.classify(pkg) }
         val info = AppInfo(label, icon, kind)
         // A failed lookup isn't kept: the app may become visible a moment later.
-        if (label != null || icon != null) infos[pkg] = info
+        if (label != null || icon != null) synchronized(infos) { infos[pkg] = info }
         return info
     }
 
     /** The app's name and icon if already looked up (never asks Android, so it's safe on the main thread). */
-    fun cachedInfo(pkg: String): AppInfo? = infos[pkg]
+    fun cachedInfo(pkg: String): AppInfo? = synchronized(infos) { infos[pkg] }
 
     /** Forgets an app's looked-up icon (pro's own changes when you pick another in Settings > App icon). */
-    fun forgetInfo(pkg: String) { infos.remove(pkg) }
+    fun forgetInfo(pkg: String) { synchronized(infos) { infos.remove(pkg) } }
+
+    /** An app's role if already worked out (never asks Android, so it's safe on the main thread). */
+    internal fun cachedRole(pkg: String): SoundRules.Role? = roleOverride?.invoke(pkg) ?: roles[pkg]
 
     /**
      * The icon the home screen shows for [pkg]: its launcher entry's own picture, which an app can
@@ -336,7 +344,7 @@ object SoundSource {
     /** Sets the recent list and an app's name and icon, for screenshots and tests only. */
     internal fun previewRecent(list: List<SoundRules.Seen>, names: Map<String, AppInfo> = emptyMap()) {
         _recent.value = list
-        infos.putAll(names)
+        synchronized(infos) { infos.putAll(names) }
     }
 
     /** Starts from nothing again (tests share one process, so each begins clean). */
@@ -351,7 +359,7 @@ object SoundSource {
         lastUsages = emptyList()
         recordedStart = 0L
         foreground = null
-        infos.clear()
+        synchronized(infos) { infos.clear() }
         roles.clear()
         roleOverride = null
     }

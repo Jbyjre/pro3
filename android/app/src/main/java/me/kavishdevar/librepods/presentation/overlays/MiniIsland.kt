@@ -867,7 +867,9 @@ internal fun MiniIslandHost(
         prevIcon = curIcon.takeIf { it !== screenIcon }
         curIcon = screenIcon
         if (reduce || !appPop) { swap.snapTo(1f); prevIcon = null }
-        else { swap.snapTo(0f); swap.animateTo(1f, spring(dampingRatio = 0.58f, stiffness = 340f)); prevIcon = null }
+        // Quick and calm (settles in about a quarter of a second, a hint of give): switching apps
+        // should feel instant, not wobble (it used to bounce for over half a second).
+        else { swap.snapTo(0f); swap.animateTo(1f, spring(dampingRatio = APP_SWAP_DAMPING, stiffness = APP_SWAP_STIFFNESS)); prevIcon = null }
     }
     // The padlock's shackle springs up and over as you unlock.
     val opening = (place as? ScreenApp.Place.Locked)?.opening == true
@@ -2277,6 +2279,9 @@ internal fun accentOfPixels(pixels: IntArray): Color {
 
 /** The status bar must be gone this long before it counts as a full-screen app. */
 private const val FULL_SCREEN_MS = 1_200L
+/** The app icon's swap spring (see [IslandMotion.settleMs]: about 250 ms). */
+internal const val APP_SWAP_DAMPING = 0.8f
+internal const val APP_SWAP_STIFFNESS = 560f
 /** The longest the Dynamic Island's leaving may take before its window is removed regardless. */
 private const val LEAVE_SAFETY_MS = 1_500L
 /** How long a dropped connection may last before the Dynamic Island leaves. */

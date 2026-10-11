@@ -78,7 +78,10 @@ object ScreenApp {
     private var beforeLock: Place = Place.Unknown
     private var appContext: Context? = null
     private val main = Handler(Looper.getMainLooper())
-    private val activityCache = HashMap<String, Boolean>()
+    // Read on the main thread, filled on the loader: shared safely.
+    private val activityCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    /** Counts window changes, so a slow lookup for an older one never overrides a newer one. */
+    private var windowSerial = 0L
 
     /** Starts following the screen (safe to call often; the background service does it at start). */
     fun attach(context: Context) {
@@ -98,6 +101,7 @@ object ScreenApp {
         )
         reconcile(app)
         readWallpaper(app)
+        warm(app)
         runCatching {
             WallpaperManager.getInstance(app).addOnColorsChangedListener({ _, which ->
                 if (which and WallpaperManager.FLAG_SYSTEM != 0) readWallpaper(app)
@@ -224,12 +228,26 @@ object ScreenApp {
         val p = pkg?.toString()?.takeIf { it.isNotBlank() } ?: return
         val cls = className?.toString()
         val own = p == c.packageName
-        val role = if (own) SoundRules.Role.App else SoundSource.roleOf(c, p)
+        val serial = ++windowSerial
+        // Already known (almost always after the first visit): decided at once, no waiting.
+        val role = if (own) SoundRules.Role.App else SoundSource.cachedRole(p)
+        val screen = if (cls.isNullOrBlank()) false else activityCache["$p/$cls"]
+        if (role != null && screen != null) { decideWindow(c, p, role, screen); return }
+        // First time for this app or screen: asking Android is a call to another process, so it
+        // happens off the main thread (it used to hold up every first switch to an app).
+        offMain {
+            val r = role ?: SoundSource.roleOf(c, p)
+            val sc = screen ?: isActivity(c, p, cls)
+            main.post { if (serial == windowSerial) decideWindow(c, p, r, sc) }
+        }
+    }
+
+    private fun decideWindow(c: Context, p: String, role: SoundRules.Role, isScreen: Boolean) {
         val next = ScreenRules.next(
             current = _place.value,
             pkg = p,
             role = role,
-            isScreen = isActivity(c, p, cls),
+            isScreen = isScreen,
             locked = isLocked(c),
         )
         when (next) {
@@ -273,7 +291,31 @@ object ScreenApp {
     private fun publishApp(c: Context, pkg: String, info: SoundSource.AppInfo) {
         frontSince = android.os.SystemClock.elapsedRealtime()
         set(Place.App(pkg, info.label, info.icon, info.kind))
-        _recent.value = ScreenRules.remember(_recent.value, pkg, own = c.packageName)
+        val before = _recent.value
+        _recent.value = ScreenRules.remember(before, pkg, own = c.packageName)
+        // Kept for next time, so the apps you use most have their icons ready after a restart.
+        if (_recent.value != before) {
+            val list = _recent.value.joinToString(",")
+            offMain { c.getSharedPreferences(RECENT_PREFS, Context.MODE_PRIVATE).edit().putString(RECENT_KEY, list).apply() }
+        }
+    }
+
+    private const val RECENT_PREFS = "screen_app"
+    private const val RECENT_KEY = "recent"
+    /** How many of the recent apps get their icon ready at start. */
+    private const val WARM = 8
+
+    /**
+     * At start: the apps you used lately come back (Settings > Hide in these apps lists them) and
+     * the first few have their icon and kind looked up in the background, so switching to them
+     * shows the right icon at once instead of after a lookup.
+     */
+    private fun warm(c: Context) = offMain {
+        val saved = c.getSharedPreferences(RECENT_PREFS, Context.MODE_PRIVATE).getString(RECENT_KEY, null)
+            ?.split(',')?.filter { it.isNotBlank() }.orEmpty().take(ScreenRules.RECENT_MAX)
+        if (saved.isEmpty()) return@offMain
+        main.post { if (_recent.value.isEmpty()) _recent.value = saved }
+        for (pkg in saved.take(WARM)) runCatching { SoundSource.appInfo(c, pkg); SoundSource.roleOf(c, pkg) }
     }
 
     /** pro's own icon was changed (Settings > App icon): show the new one if pro is in front. */
@@ -332,6 +374,7 @@ object ScreenApp {
         _wallpaper.value = emptyList()
         beforeLock = Place.Unknown
         activityCache.clear()
+        windowSerial = 0L
         pending = null
         keyguardSeen = false
         offMain = { loader.execute(it) }
