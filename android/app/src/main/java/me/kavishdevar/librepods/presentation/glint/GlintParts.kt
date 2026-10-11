@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -190,20 +191,35 @@ fun androidx.compose.ui.graphics.drawscope.DrawScope.drawListeningMode(mode: Int
 }
 
 /**
- * Headphones art for the islands and the headphones page, sized like the AirPods clip it stands
- * in for: shaded on-ear headphones (a lit headband, rounded cups with their own highlight and
- * cushions) on [DeviceStage], so they turn with the phone, catch the light and sit on a soft
- * shadow, instead of the flat outline they were before 2026-10-11. [color] is the island's
- * content colour (white on the black island, graphite on light glass): the shading is built from it.
+ * Headphones art for the islands and the headphones page: the real 3D model ([Headphones3D]),
+ * turning slowly in the finish you chose (Settings > Your devices), on [DeviceStage] for its soft
+ * shadow and its spring in. [color] is kept for the tiny sizes, where a drawing reads better.
  */
 @Composable
-fun HeadphonesArt(width: Dp, color: Color, modifier: Modifier = Modifier, draggable: Boolean = false) {
-    DeviceStage(modifier, enter = true, draggable = draggable, shadow = width >= 64.dp, shadowStrength = if (color.luminance() > 0.5f) 0.6f else 1f) {
-        // The stage's own light and shadow give the depth (a glow here showed as a grey square).
-        Canvas(Modifier.size(width, width * 0.56f)) {
-            drawHeadphonesShaded(center, size.height * 0.48f, color)
-        }
+fun HeadphonesArt(width: Dp, color: Color, modifier: Modifier = Modifier, draggable: Boolean = false, finish: Finish? = null) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val saved = remember { BeatsFinish.read(context) }
+    val finish = finish ?: saved
+    if (width < 40.dp) {
+        // At glyph size a model is mush: the shaded drawing.
+        Canvas(modifier.size(width, width * 0.56f)) { drawHeadphonesShaded(center, size.height * 0.48f, color) }
+        return
     }
+    DeviceStage(modifier, enter = true, draggable = false, shadow = width >= 64.dp, sheen = false, turn = false,
+        shadowStrength = if (color.luminance() > 0.5f) 0.6f else 1f) {
+        // A light content colour means a dark background behind it.
+        Headphones3D(width, finish, draggable = draggable, onDark = color.luminance() > 0.5f)
+    }
+}
+
+/** Which Solo 4 finish the model shows (Settings > Your devices). */
+object BeatsFinish {
+    const val PREF = "glint_beats_finish"
+    fun read(context: android.content.Context): Finish =
+        Finish.entries.firstOrNull { it.name == context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).getString(PREF, null) }
+            ?: Finish.MatteBlack
+    fun write(context: android.content.Context, f: Finish) =
+        context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).edit().putString(PREF, f.name).apply()
 }
 
 /**

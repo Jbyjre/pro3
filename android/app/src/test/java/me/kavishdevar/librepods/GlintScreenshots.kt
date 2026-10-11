@@ -1074,6 +1074,20 @@ class GlintScreenshots {
     @Test fun miniIslandSongStretching() = mini("mini_island_song_stretching", playing = true, wide = 0.5f, art = true, dark = true)
     @Test fun miniIslandSongLongName() = mini("mini_island_song_long", playing = true, wide = 1f, art = true, dark = false,
         title = "Pneumonoultramicroscopic (Extended Mix)", artist = "The Very Long Band Name")
+    // The Solo 4 model from four sides, in each finish, on the black island and on light glass.
+    @Test fun headphonesModelTurntable() {
+        rule.setContent {
+            androidx.compose.foundation.layout.Column(Modifier.background(Color(0xFF0B0B0D))) {
+                for (f in me.kavishdevar.librepods.presentation.glint.Finish.entries) androidx.compose.foundation.layout.Row {
+                    for (yaw in listOf(-0.55f, 0.6f, 1.57f, 3.4f)) me.kavishdevar.librepods.presentation.glint.Headphones3D(100.dp, f, spin = false, startYaw = yaw)
+                }
+                androidx.compose.foundation.layout.Row(Modifier.background(Color(0xFFF2F2F7))) {
+                    for (f in me.kavishdevar.librepods.presentation.glint.Finish.entries) me.kavishdevar.librepods.presentation.glint.Headphones3D(130.dp, f, spin = false)
+                }
+            }
+        }
+        rule.onRoot().captureRoboImage("$out/headphones_model.png")
+    }
     @Test fun miniIslandGameRing() = mini("mini_island_game_ring", playing = false, wide = 0f, art = false, dark = true, content = screen, place = cod,
         hidden = true, settle = 2_000L)
     @Test fun islandTimerDone() = glance("island_timer_done", dark = true, place = spotify, event = IslandEvent.TimerDone,

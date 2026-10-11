@@ -228,6 +228,8 @@ fun HeadphonesScreen(
 @Composable
 private fun HeadphonesHero(state: HeadphoneState, onRefresh: () -> Unit, onOpenBluetooth: () -> Unit) {
     val context = LocalContext.current
+    var finish by remember { androidx.compose.runtime.mutableStateOf(me.kavishdevar.librepods.presentation.glint.BeatsFinish.read(context)) }
+    val pickView = androidx.compose.ui.platform.LocalView.current
     val dark = isSystemInDarkTheme()
     val reduceMotion = remember { GlintComfort.reduceMotion(context) }
     val solid = remember { GlintComfort.reduceTransparency(context) }
@@ -274,7 +276,7 @@ private fun HeadphonesHero(state: HeadphoneState, onRefresh: () -> Unit, onOpenB
                 ) {
                     val art by animateFloatAsState(if (state.connected) 1f else 0.45f, if (reduceMotion) tween(0) else spring(1f, 200f), label = "artAlpha")
                     // Shaded headphones on the stage: they turn with the tilt (and a finger), catch the light.
-                    me.kavishdevar.librepods.presentation.glint.HeadphonesArt(118.dp, ink.copy(alpha = 0.92f * art), draggable = true)
+                    me.kavishdevar.librepods.presentation.glint.HeadphonesArt(104.dp, ink.copy(alpha = 0.92f * art), draggable = true, finish = finish)
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -314,6 +316,33 @@ private fun HeadphonesHero(state: HeadphoneState, onRefresh: () -> Unit, onOpenB
                     style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted)
                 )
             }
+            // Which finish yours is, so the model looks like your pair (the Solo 4's three colours).
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                me.kavishdevar.librepods.presentation.glint.Finish.entries.forEach { f ->
+                    val chosen = f == finish
+                    Box(
+                        Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .semantics { role = Role.Button; contentDescription = f.label + if (chosen) ", chosen" else "" }
+                            .pressable {
+                                pickView.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
+                                finish = f
+                                me.kavishdevar.librepods.presentation.glint.BeatsFinish.write(context, f)
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Canvas(Modifier.size(30.dp)) {
+                            if (chosen) drawCircle(ink, size.minDimension / 2f, style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+                            drawCircle(f.shell, size.minDimension / 2f - 5.dp.toPx())
+                            drawCircle(Color.White.copy(alpha = 0.25f), size.minDimension / 2f - 5.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(0.8.dp.toPx()))
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(finish.label, style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, color = muted))
             AnimatedVisibility(!state.connected) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Spacer(Modifier.height(16.dp))

@@ -64,6 +64,8 @@ fun DeviceStage(
     shadowStrength: Float = 1f,
     /** The sliding highlight (off for a clip with its own backdrop, where it would light the backdrop too). */
     sheen: Boolean = true,
+    /** Turns with the tilt (off for a real 3D model, which turns itself). */
+    turn: Boolean = true,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val context = LocalContext.current
@@ -115,8 +117,10 @@ fun DeviceStage(
                     cameraDistance = 14f * density
                     // Turns with the tilt (a few degrees, like an object on a table), plus a finger's spin,
                     // and on arrival swings in from a quarter turn away.
-                    rotationY = tilt.x * DeviceStageSpec.TILT_Y_DEG + spinY.value + (1f - a) * DeviceStageSpec.ENTER_TURN_DEG
-                    rotationX = (tilt.y - GlassLight.REST_Y) * DeviceStageSpec.TILT_X_DEG + spinX.value
+                    if (turn) {
+                        rotationY = tilt.x * DeviceStageSpec.TILT_Y_DEG + spinY.value + (1f - a) * DeviceStageSpec.ENTER_TURN_DEG
+                        rotationX = (tilt.y - GlassLight.REST_Y) * DeviceStageSpec.TILT_X_DEG + spinX.value
+                    }
                     val sc = 0.86f + 0.14f * a
                     scaleX = sc; scaleY = sc
                     translationY = (1f - a) * 18f * density
