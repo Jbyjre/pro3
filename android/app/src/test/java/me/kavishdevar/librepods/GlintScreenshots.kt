@@ -955,6 +955,9 @@ class GlintScreenshots {
         place = me.kavishdevar.librepods.services.ScreenApp.Place.Locked())
     @Test fun miniIslandUnlocking() = mini("mini_island_unlocking", playing = false, wide = 0f, art = false, dark = true, content = screen, phone = calmPhone,
         place = me.kavishdevar.librepods.services.ScreenApp.Place.Locked(opening = true), swap = 1f)
+    // 2026-10-11: half-way through unlocking (the shackle swinging, the light mid-glide).
+    @Test fun miniIslandUnlockingMid() = mini("mini_island_unlocking_mid", playing = false, wide = 0f, art = false, dark = true, content = screen, phone = calmPhone,
+        place = me.kavishdevar.librepods.services.ScreenApp.Place.Locked(opening = true), swap = 0.45f)
     @Test fun miniIslandTimer() = mini("mini_island_timer", playing = false, wide = 0f, art = false, content = screen, place = claude, phone = calmPhone,
         timer = me.kavishdevar.librepods.services.IslandTimer.State(total = 300_000L, endsAt = android.os.SystemClock.elapsedRealtime() + 192_000L))
     @Test fun miniIslandTimerLastSeconds() = mini("mini_island_timer_seconds", playing = false, wide = 0f, art = false, dark = true, content = screen,

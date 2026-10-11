@@ -66,4 +66,17 @@ class OrganicIslandTest {
         }
         assertTrue(IslandMotion.MAX_HEIGHT_OVERSHOOT <= 0.03f)
     }
+
+    @Test fun theUnlockFitsItsMomentAndFeelsFluid() {
+        val shackle = IslandMotion.Spring(
+            me.kavishdevar.librepods.presentation.overlays.UNLOCK_DAMPING, me.kavishdevar.librepods.presentation.overlays.UNLOCK_STIFFNESS,
+        )
+        val show = me.kavishdevar.librepods.services.ScreenRules.UNLOCK_SHOW_MS
+        // The shackle settles, and the light finishes its glide, before the app's icon takes over.
+        assertTrue(IslandMotion.settleMs(shackle) < show)
+        assertTrue(me.kavishdevar.librepods.presentation.overlays.UNLOCK_SWEEP_MS < show)
+        // A little give, never a wild bounce; and only slightly longer than before (900 ms), no lag.
+        assertTrue(IslandMotion.overshoot(shackle) in 0.03f..0.12f)
+        assertTrue(show in 1_000L..1_300L)
+    }
 }

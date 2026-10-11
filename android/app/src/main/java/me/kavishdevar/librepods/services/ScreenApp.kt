@@ -390,8 +390,11 @@ object ScreenApp {
 
 /** The pure rules behind [ScreenApp]. */
 object ScreenRules {
-    /** How long the padlock shows open after unlocking, before the island moves on. */
-    const val UNLOCK_SHOW_MS = 900L
+    /**
+     * How long the padlock shows opening after unlocking, before the island moves on: room for the
+     * shackle's spring and the light's glide across the glass (900 ms before 2026-10-11).
+     */
+    const val UNLOCK_SHOW_MS = 1_100L
     /** How many apps "Hide in these apps" offers from what was used lately. */
     const val RECENT_MAX = 12
 

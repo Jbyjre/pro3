@@ -874,10 +874,29 @@ internal fun MiniIslandHost(
     // The padlock's shackle springs up and over as you unlock.
     val opening = (place as? ScreenApp.Place.Locked)?.opening == true
     val lockOpen = remember { Animatable(if (stillSwap != null && opening) stillSwap else 0f) }
+    // Unlocking, choreographed (Jake, 2026-10-11: "abrupt and uninspired"): the shackle lifts and
+    // swings on a fluid spring, a band of light glides across the glass, and the island takes a
+    // small breath (wider, a touch thinner, like liquid) before the app's icon springs in.
+    val unlockSweep = remember { Animatable(if (stillSwap != null && opening) stillSwap else 0f) }
+    val unlockSwell = remember { Animatable(0f) }
     LaunchedEffect(opening) {
         if (still != null) return@LaunchedEffect
         val to = if (opening) 1f else 0f
-        if (reduce) lockOpen.snapTo(to) else lockOpen.animateTo(to, spring(dampingRatio = 0.5f, stiffness = 300f))
+        if (reduce) lockOpen.snapTo(to) else lockOpen.animateTo(to, spring(dampingRatio = UNLOCK_DAMPING, stiffness = UNLOCK_STIFFNESS))
+    }
+    LaunchedEffect(opening) {
+        if (still != null || reduce || !opening) return@LaunchedEffect
+        coroutineScope {
+            launch {
+                unlockSweep.snapTo(0f)
+                unlockSweep.animateTo(1f, androidx.compose.animation.core.tween(UNLOCK_SWEEP_MS, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                unlockSweep.snapTo(0f)
+            }
+            launch {
+                unlockSwell.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = 420f))
+                unlockSwell.animateTo(0f, spring(dampingRatio = 0.9f, stiffness = 260f))
+            }
+        }
     }
     // The smart glance: the one thing worth a look (a timer, charging, headphones, low battery).
     val glanceItem = GlanceRules.pill(timer, phone, budsUp, pods.budsLevel, pods.headphones)
@@ -1402,10 +1421,14 @@ internal fun MiniIslandHost(
             val w = wide.value
             if (a <= 0.001f) return@Canvas
             val cx = size.width / 2f
-            val compactW = lerp(geometry.seedW, bodyW.value, a)
+            // The unlock's breath: a few dp wider for a moment (the height gives a little, as liquid does).
+            val swell = unlockSwell.value * UNLOCK_SWELL_DP * density
+            val compactW = lerp(geometry.seedW, bodyW.value, a) + swell
             // Like a drop: when a spring carries the width past its target, the height gives a
             // little instead of swelling as well (both at once looked like a balloon round the camera).
-            val compactH = lerp(geometry.seedH, s.height, a.coerceAtMost(1f + me.kavishdevar.librepods.services.IslandMotion.MAX_HEIGHT_OVERSHOOT)) * me.kavishdevar.librepods.services.IslandMotion.volumeGive(a)
+            val compactH = lerp(geometry.seedH, s.height, a.coerceAtMost(1f + me.kavishdevar.librepods.services.IslandMotion.MAX_HEIGHT_OVERSHOOT)) *
+                me.kavishdevar.librepods.services.IslandMotion.volumeGive(a) *
+                me.kavishdevar.librepods.services.IslandMotion.volumeGive(1f + swell / bodyW.value.coerceAtLeast(1f))
             val pillW = lerp(compactW, s.wideWidth, w)
             val pillH = lerp(compactH, s.wideHeight, w.coerceAtMost(1f + me.kavishdevar.librepods.services.IslandMotion.MAX_HEIGHT_OVERSHOOT)) * me.kavishdevar.librepods.services.IslandMotion.volumeGive(w) + pull.value
             // The camera line stays put; the wide pill grows downward under it.
@@ -1454,6 +1477,22 @@ internal fun MiniIslandHost(
                             listOf(Color.White.copy(alpha = 0.16f * p), Color.White.copy(alpha = 0f)), Offset(fx, top + pillH / 2f), glowR
                         ),
                         glowR, Offset(fx, top + pillH / 2f),
+                    )
+                }
+            }
+            // The unlock's light: a soft diagonal band gliding across the glass, brightest mid-way.
+            val sweep = unlockSweep.value
+            if (sweep > 0.001f && sweep < 0.999f) {
+                val band = pillH * 1.2f
+                val x = lerp(left - band, left + pillW + band, sweep)
+                val la = UNLOCK_SWEEP_ALPHA * kotlin.math.sin(Math.PI.toFloat() * sweep)
+                clipPath(body) {
+                    drawRect(
+                        androidx.compose.ui.graphics.Brush.linearGradient(
+                            listOf(Color.White.copy(alpha = 0f), Color.White.copy(alpha = la), Color.White.copy(alpha = 0f)),
+                            Offset(x - band * 0.5f, top), Offset(x + band * 0.5f, top + pillH),
+                        ),
+                        Offset(left, top), Size(pillW, pillH),
                     )
                 }
             }
@@ -1901,7 +1940,17 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
             drawText(wd, color = Color(0xFFFF453A), alpha = alpha, topLeft = Offset(c.x - wd.size.width / 2f, y0 - wd.size.height * 0.08f))
             drawText(num, alpha = alpha, topLeft = Offset(c.x - num.size.width / 2f, y0 + wd.size.height * 0.72f))
         }
-        IslandLook.Slot.Lock -> drawPadlock(c, side * 0.62f, d.lockOpen, Color.White.copy(alpha = alpha * (0.75f + 0.25f * d.swap)))
+        IslandLook.Slot.Lock -> {
+            // A soft bloom behind the padlock while it opens, gone once it's open.
+            val bloom = kotlin.math.sin(Math.PI.toFloat() * d.lockOpen.coerceIn(0f, 1f))
+            if (bloom > 0.01f) drawCircle(
+                androidx.compose.ui.graphics.Brush.radialGradient(
+                    listOf(Color.White.copy(alpha = 0.22f * bloom * alpha), Color.White.copy(alpha = 0f)), c, side * 0.6f,
+                ),
+                side * 0.6f, c,
+            )
+            drawPadlock(c, side * 0.62f, d.lockOpen, Color.White.copy(alpha = alpha * (0.75f + 0.25f * d.swap)))
+        }
         IslandLook.Slot.Glance -> when (val g = d.glance) {
             is GlanceRules.Item.Timer -> if (g.state.ringing) {
                 // Done: an orange bell that shakes until it's stopped (a tap on the pill stops it).
@@ -2281,6 +2330,14 @@ internal fun accentOfPixels(pixels: IntArray): Color {
 private const val FULL_SCREEN_MS = 1_200L
 /** The app icon's swap spring (see [IslandMotion.settleMs]: about 250 ms). */
 internal const val APP_SWAP_DAMPING = 0.8f
+/** The padlock's spring as it opens: fluid, a little give, settled in about half a second. */
+internal const val UNLOCK_DAMPING = 0.62f
+internal const val UNLOCK_STIFFNESS = 240f
+/** The light's glide across the island as you unlock, and how bright it gets at its brightest. */
+internal const val UNLOCK_SWEEP_MS = 720
+internal const val UNLOCK_SWEEP_ALPHA = 0.26f
+/** How much wider the island breathes as you unlock. */
+internal const val UNLOCK_SWELL_DP = 8f
 internal const val APP_SWAP_STIFFNESS = 560f
 /** The longest the Dynamic Island's leaving may take before its window is removed regardless. */
 private const val LEAVE_SAFETY_MS = 1_500L
