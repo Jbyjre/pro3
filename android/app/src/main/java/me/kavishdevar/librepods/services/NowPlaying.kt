@@ -103,6 +103,7 @@ object NowPlaying {
 
     private const val TAG = "NowPlaying"
     private val main = Handler(Looper.getMainLooper())
+    private val memory = java.util.concurrent.Executors.newSingleThreadExecutor()
     private val _state = MutableStateFlow(Track())
     val state: StateFlow<Track> = _state.asStateFlow()
 
@@ -191,6 +192,11 @@ object NowPlaying {
         val sameSong = old.title == title && old.artist == artist && old.fromSession
         val art = if (sameSong && old.art != null) old.art else artwork(md)
         val ps = c.playbackState
+        // Remembered for that app's idle card ("your recent songs"), off the main thread.
+        if (!sameSong && title != null) {
+            val pkg = c.packageName
+            memory.execute { MusicMemory.saw(context, pkg, title, artist) }
+        }
         _state.value = Track(
             playing = ps?.state.let { it == PlaybackState.STATE_PLAYING || it == PlaybackState.STATE_BUFFERING },
             title = title,

@@ -51,8 +51,11 @@ object ScreenApp {
 
     @Immutable
     sealed interface Place {
-        /** An app is in front. [pkg] is its package; [label] and [icon] as the launcher shows them. */
-        data class App(val pkg: String, val label: String?, val icon: ImageBitmap?) : Place
+        /**
+         * An app is in front. [pkg] is its package; [label] and [icon] as the launcher shows them;
+         * [kind] what sort of app it is ([AppKinds]), for the controls that fit it.
+         */
+        data class App(val pkg: String, val label: String?, val icon: ImageBitmap?, val kind: AppKinds.Kind = AppKinds.Kind.Other) : Place
         data object Home : Place
         /** The lock screen. [opening] for a moment right after unlocking (the padlock springs open). */
         data class Locked(val opening: Boolean = false) : Place
@@ -263,8 +266,13 @@ object ScreenApp {
         }
     }
 
+    /** When the app in front came there (elapsedRealtime), for "Playing for 42 min" in a game. */
+    @Volatile var frontSince: Long = 0L
+        private set
+
     private fun publishApp(c: Context, pkg: String, info: SoundSource.AppInfo) {
-        set(Place.App(pkg, info.label, info.icon))
+        frontSince = android.os.SystemClock.elapsedRealtime()
+        set(Place.App(pkg, info.label, info.icon, info.kind))
         _recent.value = ScreenRules.remember(_recent.value, pkg, own = c.packageName)
     }
 

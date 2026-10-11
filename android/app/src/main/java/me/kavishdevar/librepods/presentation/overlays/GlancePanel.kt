@@ -77,6 +77,15 @@ import kotlinx.coroutines.delay
 import me.kavishdevar.librepods.presentation.glint.drawHeadphones
 import me.kavishdevar.librepods.presentation.navigation.AppLinks
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
+import me.kavishdevar.librepods.services.AppActions
+import me.kavishdevar.librepods.services.AppControls
+import me.kavishdevar.librepods.services.AppKinds
+import me.kavishdevar.librepods.services.GameStats
+import me.kavishdevar.librepods.services.MusicMemory
+import me.kavishdevar.librepods.services.NowPlaying
+import me.kavishdevar.librepods.services.SoundSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import me.kavishdevar.librepods.services.GlanceRules
 import me.kavishdevar.librepods.services.GlintStatus
 import me.kavishdevar.librepods.services.HeadphoneLink
@@ -137,6 +146,28 @@ internal fun GlancePanel(
     var choosingTimer by remember { mutableStateOf(false) }
     LaunchedEffect(active) { if (!active) choosingTimer = false }
 
+    // ---- The app you're in, and what fits it (AppKinds, AppActions) ----
+    val app = place as? ScreenApp.Place.App
+    val kind = app?.kind
+    val track by NowPlaying.state.collectAsState()
+    val game = kind == AppKinds.Kind.Game
+    // A music app open with nothing playing: its own card (Play, Search, your recent songs from it).
+    val idleMusic = app != null && AppActions.musicIdle(kind, track.playing)
+    // Everything that asks Android (the saved songs, which chat app is installed, the phone's
+    // temperature) is read off the main thread, so opening the glance never waits for it.
+    val songs by androidx.compose.runtime.produceState(emptyList<MusicMemory.Song>(), app?.pkg, idleMusic) {
+        value = if (idleMusic && app != null) withContext(Dispatchers.IO) { MusicMemory.recent(context, app.pkg) } else emptyList()
+    }
+    val chat by androidx.compose.runtime.produceState<String?>(null, app?.pkg, kind) {
+        value = withContext(Dispatchers.IO) { AppControls.chatApp(context, game, app?.pkg) }
+    }
+    val health by androidx.compose.runtime.produceState<AppControls.Health?>(null, game, active) {
+        while (game && active) {
+            value = withContext(Dispatchers.IO) { AppControls.health(context) }
+            delay(10_000L)
+        }
+    }
+
     Column(Modifier.fillMaxSize().padding(start = 20.dp, end = 16.dp, top = 16.dp, bottom = 14.dp)) {
         // ---- Where you are, and today ----
         Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -161,7 +192,9 @@ internal fun GlancePanel(
                     ScreenApp.Place.Unknown -> "This phone"
                 }
                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 21.sp, color = content))
-                Text(longDate(wall), maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, lineHeight = 16.sp, color = secondary))
+                // What kind of app it is, so the buttons below make sense ("Game · Saturday 11 October").
+                val sub = if (kind != null && kind != AppKinds.Kind.Other) "${kind.label} · ${longDate(wall)}" else longDate(wall)
+                Text(sub, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, lineHeight = 16.sp, color = secondary))
             }
             // Straight to the Island tab in pro, to change what the island shows and does.
             PressableGlyph(size = 34.dp, description = "Customize the Dynamic Island", enabled = active, dark = dark, onClick = {
@@ -174,10 +207,14 @@ internal fun GlancePanel(
         Spacer(Modifier.height(10.dp))
 
         // ---- What's live ----
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (idleMusic && app != null) MusicIdleCard(app, songs, content, secondary, dark, active, onTouch, onClose, context)
+        else Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            // In a game: how the phone is coping comes first (heat, battery, how long you've played).
+            if (game) GameRow(app, health, content, secondary)
+            val shown = if (game) rows.take(1) else rows
             // One thing going on: it gets the room (bigger ring, bigger words), not a lonely line.
-            val hero = rows.size == 1
-            rows.forEach { item ->
+            val hero = !game && shown.size == 1
+            shown.forEach { item ->
                 if (hero && item is GlanceRules.Item.Timer && item.state.ringing) {
                     // Ringing on its own: big words, and Stop / one more minute in a row under them.
                     LiveRow(item, now, wall, toFull, pods, content, secondary, dark, active, onTouch, context, hero = true, buttons = false, heightDp = 64)
@@ -222,26 +259,131 @@ internal fun GlancePanel(
             } else {
                 Row(Modifier.fillMaxWidth().height(66.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     val system = PhoneControls.canUseSystemActions()
-                    Control("Torch", on = torch, enabled = active && PhoneControls.hasTorch(context), content, secondary, dark, {
-                        onTouch(); PhoneControls.toggleTorch(context)
-                    }) { c, on -> drawTorch(c, size.minDimension * 0.5f, if (on) Color.Black else content) }
-                    Control("Timer", on = timer != null, enabled = active, content, secondary, dark, {
-                        onTouch(); choosingTimer = true
-                    }) { c, on -> drawStopwatch(c, size.minDimension * 0.46f, if (on) Color.Black else content) }
                     var ring by remember { mutableStateOf(PhoneControls.ring(context)) }
-                    Control(ring.label, on = ring != PhoneControls.Ring.Sound, enabled = active, content, secondary, dark, {
-                        onTouch(); PhoneControls.toggleRing(context)?.let { ring = it }
-                    }) { c, on -> if (ring == PhoneControls.Ring.Sound) drawRinger(c, size.minDimension * 0.46f, content) else drawVibrate(c, size.minDimension * 0.46f, if (on) Color.Black else content) }
-                    Control("Capture", on = false, enabled = active, content, secondary, dark, {
-                        onTouch()
-                        // Needs the accessibility switch; without it, straight to where it's turned on.
-                        if (system) { onClose(); PhoneControls.screenshot() } else { GlintOverlays.openApp(context, AppLinks.ISLANDS); onClose() }
-                    }, dim = !system) { c, _ -> drawScreenshot(c, size.minDimension * 0.46f, content) }
-                    Control("Lock", on = false, enabled = active, content, secondary, dark, {
-                        onTouch()
-                        if (system) { onClose(); PhoneControls.lockScreen() } else { GlintOverlays.openApp(context, AppLinks.ISLANDS); onClose() }
-                    }, dim = !system) { c, _ -> drawPadlock(c, size.minDimension * 0.46f, 0f, content) }
+                    var muted by remember { mutableStateOf(AppControls.muted(context)) }
+                    var quiet by remember { mutableStateOf(AppControls.quiet(context)) }
+                    val ink = { on: Boolean -> if (on) Color.Black else content }
+                    // Five buttons that fit the app you're in (the phone's own five elsewhere).
+                    AppActions.row(kind).forEach { action ->
+                        when (action) {
+                            AppActions.Action.Torch -> Control("Torch", on = torch, enabled = active && PhoneControls.hasTorch(context), content, secondary, dark, {
+                                onTouch(); PhoneControls.toggleTorch(context)
+                            }) { c, on -> drawTorch(c, size.minDimension * 0.5f, ink(on)) }
+                            AppActions.Action.Timer -> Control("Timer", on = timer != null, enabled = active, content, secondary, dark, {
+                                onTouch(); choosingTimer = true
+                            }) { c, on -> drawStopwatch(c, size.minDimension * 0.46f, ink(on)) }
+                            AppActions.Action.Ring -> Control(ring.label, on = ring != PhoneControls.Ring.Sound, enabled = active, content, secondary, dark, {
+                                onTouch(); PhoneControls.toggleRing(context)?.let { ring = it }
+                            }) { c, on -> if (ring == PhoneControls.Ring.Sound) drawRinger(c, size.minDimension * 0.46f, content) else drawVibrate(c, size.minDimension * 0.46f, ink(on)) }
+                            AppActions.Action.Capture -> Control("Capture", on = false, enabled = active, content, secondary, dark, {
+                                onTouch()
+                                // Needs the accessibility switch; without it, straight to where it's turned on.
+                                if (system) { onClose(); PhoneControls.screenshot() } else { GlintOverlays.openApp(context, AppLinks.ISLANDS); onClose() }
+                            }, dim = !system) { c, _ -> drawScreenshot(c, size.minDimension * 0.46f, content) }
+                            AppActions.Action.Lock -> Control("Lock", on = false, enabled = active, content, secondary, dark, {
+                                onTouch()
+                                if (system) { onClose(); PhoneControls.lockScreen() } else { GlintOverlays.openApp(context, AppLinks.ISLANDS); onClose() }
+                            }, dim = !system) { c, _ -> drawPadlock(c, size.minDimension * 0.46f, 0f, content) }
+                            AppActions.Action.Mute -> Control(if (muted) "Muted" else "Mute", on = muted, enabled = active, content, secondary, dark, {
+                                onTouch(); muted = AppControls.toggleMute(context)
+                            }) { c, on -> drawSpeaker(c, size.minDimension * 0.46f, ink(on), crossed = on) }
+                            AppActions.Action.Quiet -> Control("Focus", on = quiet, enabled = active, content, secondary, dark, {
+                                onTouch()
+                                // Without Do Not Disturb access, Android's page to allow it opens (once).
+                                val now = AppControls.toggleQuiet(context)
+                                if (now == null) onClose() else quiet = now
+                            }, dim = !AppControls.canQuiet(context)) { c, on -> drawMoon(c, size.minDimension * 0.42f, ink(on)) }
+                            AppActions.Action.Chat -> Control(AppActions.chatLabel(chat), on = false, enabled = active && chat != null, content, secondary, dark, {
+                                onTouch(); chat?.let { SoundSource.openApp(context, it) }; onClose()
+                            }, dim = chat == null) { c, _ -> drawBubble(c, size.minDimension * 0.44f, content) }
+                            AppActions.Action.Resume -> Control("Play", on = false, enabled = active && app != null, content, secondary, dark, {
+                                onTouch(); app?.let { AppControls.resume(context, it.pkg) }
+                            }) { c, _ -> drawPlayTriangle(c, size.minDimension * 0.24f, content) }
+                            AppActions.Action.Search -> Control("Search", on = false, enabled = active && app != null, content, secondary, dark, {
+                                onTouch(); app?.let { AppControls.search(context, it.pkg) }; onClose()
+                            }) { c, _ -> drawMagnifier(c, size.minDimension * 0.42f, content) }
+                            AppActions.Action.Camera -> Control("Camera", on = false, enabled = active, content, secondary, dark, {
+                                onTouch(); AppControls.openCamera(context); onClose()
+                            }) { c, _ -> drawCamera(c, size.minDimension * 0.46f, content) }
+                        }
+                    }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * In a game: the game, how hot the phone is running and its battery, and how long you've played.
+ * Android doesn't let one app read another's frame rate (not without root), so this is what the
+ * phone itself reports; past "Hot", games usually slow themselves down to cool off.
+ */
+@Composable
+private fun GameRow(app: ScreenApp.Place.App?, health: AppControls.Health?, content: Color, secondary: Color) {
+    val since = ScreenApp.frontSince
+    val playedFor = if (since > 0L) SystemClock.elapsedRealtime() - since else 0L
+    val hot = health?.let { GameStats.throttling(it.thermal) } == true
+    val heatColor = when {
+        health == null -> content
+        health.thermal >= 3 -> Color(0xFFFF453A)
+        hot -> Color(0xFFFFB340)
+        else -> Color(0xFF30D158)
+    }
+    val line = health?.let { GameStats.line(it.thermal, it.tempTenths, it.battery) } ?: "Checking the phone…"
+    Row(
+        Modifier.fillMaxWidth().height(50.dp).semantics { contentDescription = "${GameStats.played(playedFor)}. $line" },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Canvas(Modifier.size(36.dp)) {
+            val r = size.minDimension / 2f - 2.dp.toPx()
+            val st = Stroke(3.dp.toPx(), cap = StrokeCap.Round)
+            val tl = Offset(center.x - r, center.y - r); val sz = Size(r * 2, r * 2)
+            // A gauge: how far toward "too hot" the phone is (Android's 0..4 scale).
+            drawArc(content.copy(alpha = 0.18f), 135f, 270f, false, tl, sz, style = st)
+            val t = ((health?.thermal ?: 0).coerceIn(0, 4) + 1) / 5f
+            drawArc(heatColor, 135f, 270f * t, false, tl, sz, style = st)
+            drawGamepad(center, r * 1.0f, content)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(GameStats.played(playedFor), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 18.sp, color = content))
+            Text(if (hot) "$line · may slow down" else line, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, lineHeight = 15.sp, color = if (hot) heatColor else secondary))
+        }
+    }
+}
+
+/**
+ * A music app open with nothing playing: pick up where you left off. Its recent songs (the ones
+ * pro saw it play) are one tap each; with none yet, a line says how to fill them.
+ */
+@Composable
+private fun MusicIdleCard(
+    app: ScreenApp.Place.App, songs: List<MusicMemory.Song>, content: Color, secondary: Color, dark: Boolean,
+    active: Boolean, onTouch: () -> Unit, onClose: () -> Unit, context: Context,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().height(46.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Nothing playing", maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(fontFamily = glintFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 18.sp, color = content))
+                Text(
+                    if (songs.isEmpty()) "Play something in ${app.label ?: "this app"} and it shows up here"
+                    else "Pick up where you left off in ${app.label ?: "this app"}",
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 12.sp, lineHeight = 15.sp, color = secondary),
+                )
+            }
+        }
+        if (songs.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Up to three, sharing the width evenly; long names end in "…" instead of spilling.
+            songs.take(3).forEach { song ->
+                GlassPillButton(
+                    text = song.title, textColor = content, dark = dark, height = 34.dp, fontSize = 13.sp, horizontalPadding = 12.dp,
+                    modifier = Modifier.weight(1f),
+                    onClick = { if (active) { onTouch(); AppControls.play(context, app.pkg, song); onClose() } },
+                )
             }
         }
     }
@@ -520,3 +662,82 @@ private fun DrawScope.drawPlayTriangle(c: Offset, size: Float, color: Color) {
         moveTo(c.x - size * 0.32f, c.y - size / 2f); lineTo(c.x + size * 0.48f, c.y); lineTo(c.x - size * 0.32f, c.y + size / 2f); close()
     }, color)
 }
+
+// ---- Glyphs for the app-aware buttons (2026-10-11) ----
+
+/** A speaker; [crossed] adds the line through it (muted). */
+private fun DrawScope.drawSpeaker(c: Offset, size: Float, color: Color, crossed: Boolean) {
+    val u = size / 2f
+    val body = Path().apply {
+        moveTo(c.x - u * 0.9f, c.y - u * 0.32f)
+        lineTo(c.x - u * 0.45f, c.y - u * 0.32f)
+        lineTo(c.x + u * 0.1f, c.y - u * 0.8f)
+        lineTo(c.x + u * 0.1f, c.y + u * 0.8f)
+        lineTo(c.x - u * 0.45f, c.y + u * 0.32f)
+        lineTo(c.x - u * 0.9f, c.y + u * 0.32f)
+        close()
+    }
+    drawPath(body, color, style = androidx.compose.ui.graphics.drawscope.Fill)
+    drawPath(body, color, style = Stroke(u * 0.12f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+    val w = u * 0.16f
+    if (crossed) {
+        drawLine(color, Offset(c.x + u * 0.38f, c.y - u * 0.34f), Offset(c.x + u * 0.98f, c.y + u * 0.34f), w, StrokeCap.Round)
+        drawLine(color, Offset(c.x + u * 0.98f, c.y - u * 0.34f), Offset(c.x + u * 0.38f, c.y + u * 0.34f), w, StrokeCap.Round)
+    } else {
+        drawArc(color, -45f, 90f, false, Offset(c.x - u * 0.3f, c.y - u * 0.55f), Size(u * 1.1f, u * 1.1f), style = Stroke(w, cap = StrokeCap.Round))
+    }
+}
+
+/** A crescent moon (Do Not Disturb, like the phone's own). */
+private fun DrawScope.drawMoon(c: Offset, size: Float, color: Color) {
+    val r = size / 2f
+    val moon = Path.combine(
+        androidx.compose.ui.graphics.PathOperation.Difference,
+        Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, r)) },
+        Path().apply { addOval(androidx.compose.ui.geometry.Rect(Offset(c.x + r * 0.55f, c.y - r * 0.45f), r * 0.82f)) },
+    )
+    drawPath(moon, color)
+}
+
+/** A speech bubble (chat). */
+private fun DrawScope.drawBubble(c: Offset, size: Float, color: Color) {
+    val w = size; val h = size * 0.78f
+    val bubble = Path().apply {
+        addRoundRect(androidx.compose.ui.geometry.RoundRect(c.x - w / 2f, c.y - h / 2f - size * 0.06f, c.x + w / 2f, c.y + h / 2f - size * 0.06f, CornerRadius(h * 0.42f)))
+        moveTo(c.x - w * 0.22f, c.y + h * 0.3f)
+        lineTo(c.x - w * 0.34f, c.y + h * 0.62f)
+        lineTo(c.x + w * 0.02f, c.y + h * 0.36f)
+        close()
+    }
+    drawPath(bubble, color, style = Stroke(size * 0.1f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+}
+
+/** A magnifying glass (search). */
+private fun DrawScope.drawMagnifier(c: Offset, size: Float, color: Color) {
+    val r = size * 0.32f
+    val o = Offset(c.x - size * 0.1f, c.y - size * 0.1f)
+    drawCircle(color, r, o, style = Stroke(size * 0.11f))
+    drawLine(color, Offset(o.x + r * 0.72f, o.y + r * 0.72f), Offset(c.x + size * 0.42f, c.y + size * 0.42f), size * 0.13f, StrokeCap.Round)
+}
+
+/** A camera body with its lens. */
+private fun DrawScope.drawCamera(c: Offset, size: Float, color: Color) {
+    val w = size; val h = size * 0.7f
+    val st = Stroke(size * 0.09f, join = androidx.compose.ui.graphics.StrokeJoin.Round)
+    drawRoundRect(color, Offset(c.x - w / 2f, c.y - h / 2f + size * 0.06f), Size(w, h), CornerRadius(h * 0.22f), style = st)
+    drawRoundRect(color, Offset(c.x - w * 0.18f, c.y - h / 2f - size * 0.08f), Size(w * 0.36f, size * 0.16f), CornerRadius(size * 0.05f))
+    drawCircle(color, h * 0.26f, Offset(c.x, c.y + size * 0.06f), style = st)
+}
+
+/** A game controller, small enough to sit inside the heat gauge. */
+private fun DrawScope.drawGamepad(c: Offset, size: Float, color: Color) {
+    val w = size; val h = size * 0.58f
+    drawRoundRect(color, Offset(c.x - w / 2f, c.y - h / 2f), Size(w, h), CornerRadius(h / 2f), style = Stroke(size * 0.09f))
+    val d = size * 0.14f
+    val lx = c.x - w * 0.22f
+    drawLine(color, Offset(lx - d, c.y), Offset(lx + d, c.y), size * 0.08f, StrokeCap.Round)
+    drawLine(color, Offset(lx, c.y - d), Offset(lx, c.y + d), size * 0.08f, StrokeCap.Round)
+    drawCircle(color, size * 0.055f, Offset(c.x + w * 0.2f, c.y - size * 0.05f))
+    drawCircle(color, size * 0.055f, Offset(c.x + w * 0.3f, c.y + size * 0.07f))
+}
+

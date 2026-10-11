@@ -40,6 +40,11 @@ object IslandPrefs {
     const val PREF_MINI_ALWAYS = "glint_mini_always"
     /** Keep the mini island up all the time, even with nothing playing and nothing connected. */
     const val PREF_MINI_ANYTIME = "glint_mini_anytime"
+    /**
+     * In a full-screen game, a small black ring stays round the camera (instead of the island
+     * hiding): tap or hold it for the game's controls. On by default (Jake, 2026-10-11).
+     */
+    const val PREF_MINI_GAMES = "glint_mini_games"
     /** Pop the Dynamic Island for any sound (alerts, calls, voice notes), not only music. */
     const val PREF_MINI_ANY_SOUND = "glint_mini_any_sound"
     /** Show the app's icon for a sound (off: a symbol for the kind of sound instead). */
@@ -116,6 +121,7 @@ object IslandPrefs {
     fun miniAirPodsOnly(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_AIRPODS_ONLY, false)
     fun miniAlways(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ALWAYS, true)
     fun miniAnytime(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ANYTIME, true)
+    fun miniGames(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_GAMES, true)
     fun anySound(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ANY_SOUND, true)
     fun messages(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MSG, true)
     fun messagesOthers(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MSG_OTHERS, false)

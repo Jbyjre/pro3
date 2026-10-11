@@ -76,7 +76,8 @@ object SoundSource {
 
     /** An app's name and small icon, as the island and Settings show them. */
     @Immutable
-    data class AppInfo(val label: String?, val icon: ImageBitmap?)
+    /** An app's name, icon and kind ([AppKinds]), as looked up once off the main thread. */
+    data class AppInfo(val label: String?, val icon: ImageBitmap?, val kind: AppKinds.Kind = AppKinds.Kind.Other)
 
     private val main = Handler(Looper.getMainLooper())
     private val _heard = MutableStateFlow<Heard?>(null)
@@ -255,7 +256,14 @@ object SoundSource {
         val icon = runCatching {
             (launcherIcon(context, pkg) ?: context.packageManager.getApplicationIcon(pkg)).toBitmap(ICON_PX, ICON_PX).asImageBitmap()
         }.getOrNull()
-        val info = AppInfo(label, icon)
+        // Its kind, from what the app declares to Android (its category and game flag) and the
+        // known-apps tables: worked out here, with the icon, so it costs nothing later.
+        val kind = runCatching {
+            val ai = context.packageManager.getApplicationInfo(pkg, 0)
+            @Suppress("DEPRECATION")
+            AppKinds.classify(pkg, ai.category, ai.flags and android.content.pm.ApplicationInfo.FLAG_IS_GAME != 0)
+        }.getOrElse { AppKinds.classify(pkg) }
+        val info = AppInfo(label, icon, kind)
         // A failed lookup isn't kept: the app may become visible a moment later.
         if (label != null || icon != null) infos[pkg] = info
         return info

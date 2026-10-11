@@ -58,6 +58,8 @@
 <!--        android:maxSdkVersion="30" />-->
     <uses-permission android:name="com.android.vending.BILLING" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- The Dynamic Island's "Focus" button (Do Not Disturb) in games and videos; Android asks once. -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
 
     <!-- Companion-device link: lets Android wake Glint when the AirPods connect and start the
          foreground service from the background (survives Samsung's app sleeping). -->

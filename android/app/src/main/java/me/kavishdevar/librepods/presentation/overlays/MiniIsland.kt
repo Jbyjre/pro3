@@ -568,6 +568,11 @@ internal class MiniIslandController(private val context: Context) {
         maybeSuggestTaps()
     }
 
+    /** The island is the small ring of a full-screen game (status bar hidden, a game in front). */
+    private fun inGameRing(): Boolean =
+        !window.statusBarVisible.value && IslandPrefs.miniGames(prefs) &&
+            (ScreenApp.place.value as? ScreenApp.Place.App)?.kind == me.kavishdevar.librepods.services.AppKinds.Kind.Game
+
     /** Does what a gesture on the pill is set to do. The Try-it sample never touches real music. */
     private fun perform(a: IslandGestures.Action) {
         val sampling = sample.value != null
@@ -575,6 +580,8 @@ internal class MiniIslandController(private val context: Context) {
             IslandGestures.Action.Expand -> {
                 // A ringing timer: the tap you'd reach for silences it.
                 if (!sampling && IslandTimer.state.value?.ringing == true) { IslandTimer.cancel(context); return }
+                // The ring in a full-screen game: its controls (mute, Focus, chat, stats).
+                if (!sampling && inGameRing()) { GlintOverlays.showIsland(context, IslandEvent.Glance, expand = true); return }
                 when (MiniIslandRules.tapOpens(content.value)) {
                     // A tap on a sound or a message opens the app it came from (nothing when pro can't tell which).
                     MiniIslandRules.TapOpens.SoundApp -> if (!sampling && sampleMessage.value == null) {
@@ -594,7 +601,9 @@ internal class MiniIslandController(private val context: Context) {
             IslandGestures.Action.PlayPause -> if (!sampling) NowPlaying.playPause(context)
             IslandGestures.Action.Next -> if (!sampling) NowPlaying.skip(context, true)
             IslandGestures.Action.Previous -> if (!sampling) NowPlaying.skip(context, false)
-            IslandGestures.Action.OpenApp -> GlintOverlays.openApp(context)
+            // Holding the ring in a full-screen game opens its controls too, never leaves the game.
+            IslandGestures.Action.OpenApp -> if (!sampling && inGameRing()) GlintOverlays.showIsland(context, IslandEvent.Glance, expand = true)
+                else GlintOverlays.openApp(context)
             IslandGestures.Action.ListeningMode -> if (!sampling) GlintOverlays.cycleListeningMode(context)
             IslandGestures.Action.Notifications -> IslandAccess.openNotifications()
             IslandGestures.Action.Nothing -> {}
@@ -767,7 +776,11 @@ internal fun MiniIslandHost(
     LaunchedEffect(hidden) { if (hidden) { delay(FULL_SCREEN_MS); fullScreen = true } else fullScreen = false }
     // A screenshot from the island's Capture button: out of the picture at once.
     val capturing = GlintOverlays.capturing.value
-    val visible = !leaving && !fullScreen && !panelOpen && !capturing
+    // In a full-screen game the island doesn't vanish: a small black ring stays round the camera,
+    // nothing in it (it never covers the game), and a tap or hold opens the game's controls.
+    val inGames by rememberPref(prefs, IslandPrefs.PREF_MINI_GAMES, true)
+    val gameRing = fullScreen && inGames && (place as? ScreenApp.Place.App)?.kind == me.kavishdevar.librepods.services.AppKinds.Kind.Game
+    val visible = !leaving && (!fullScreen || gameRing) && !panelOpen && !capturing
 
     // ---- What it shows right now ----
     val musicContent = content == MiniIslandRules.Content.Music
@@ -811,9 +824,10 @@ internal fun MiniIslandHost(
     // Two things at once, the iPhone way: music stays on the island (cover and bars) and the
     // timer splits off into a detached circle beside it, instead of taking the bars' place.
     val detached = iphone && timerHere && (under == IslandLook.Situation.Music || under == IslandLook.Situation.Paused) &&
-        baseL != IslandLook.Slot.Nothing
-    val wantL = baseL
-    val wantR = if (blipping) (if (blipPhone) IslandLook.Slot.Phone else IslandLook.Slot.App)
+        baseL != IslandLook.Slot.Nothing && !gameRing
+    val wantL = if (gameRing) IslandLook.Slot.Nothing else baseL
+    val wantR = if (gameRing) IslandLook.Slot.Nothing
+        else if (blipping) (if (blipPhone) IslandLook.Slot.Phone else IslandLook.Slot.App)
         else if (detached) baseR
         else if (timerHere) IslandLook.Slot.Glance else baseR
     // The music, sound and phone situations are black, at one with the camera; the AirPods ones a dark graphite.

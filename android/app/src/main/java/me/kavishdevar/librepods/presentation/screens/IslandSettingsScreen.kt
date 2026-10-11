@@ -204,6 +204,17 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
                     GlintOverlays.refreshMiniIsland(context)
                 },
             )
+            var inGames by remember { mutableStateOf(IslandPrefs.miniGames(prefs)) }
+            StyledToggle(
+                label = "Stay in games",
+                description = "A small ring round the camera in full-screen games. Tap it for mute, Focus, chat and how hot the phone is",
+                checked = inGames,
+                onCheckedChange = {
+                    inGames = it
+                    prefs.edit { putBoolean(IslandPrefs.PREF_MINI_GAMES, it) }
+                    GlintOverlays.refreshMiniIsland(context)
+                },
+            )
             StyledToggle(
                 label = "Sound bars follow the music",
                 description = if (hearMusic) "The bars move with what's playing, in any app"

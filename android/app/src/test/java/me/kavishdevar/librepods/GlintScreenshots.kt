@@ -203,6 +203,10 @@ class GlintScreenshots {
         split: Float? = null,
         /** How far it has grown out of the camera (1 = fully there). */
         appear: Float = 1f,
+        /** The status bar is hidden (a full-screen app). */
+        hidden: Boolean = false,
+        /** How long to let it settle before the picture, in ms. */
+        settle: Long = 600L,
     ) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")
         rule.mainClock.autoAdvance = false
@@ -237,7 +241,7 @@ class GlintScreenshots {
                         androidx.compose.ui.unit.DpSize(s.width.toDp(), s.height.toDp())
                     }).align(Alignment.TopCenter)) {
                         me.kavishdevar.librepods.presentation.overlays.MiniIslandHost(
-                            geometry = geo, track = track, leaving = false, hidden = false,
+                            geometry = geo, track = track, leaving = false, hidden = hidden,
                             content = content ?: if (airPods != null) me.kavishdevar.librepods.services.MiniIslandRules.Content.AirPods else me.kavishdevar.librepods.services.MiniIslandRules.Content.Music,
                             heard = heard, message = message, phoneBlip = phoneBlip,
                             pods = airPods ?: PodsSnapshot(), heartBpm = heart, talking = talking,
@@ -262,7 +266,7 @@ class GlintScreenshots {
                 }
             }
         }
-        rule.mainClock.advanceTimeBy(600)
+        rule.mainClock.advanceTimeBy(settle)
         rule.onRoot().captureRoboImage("$out/$name.png")
     }
 
@@ -983,6 +987,25 @@ class GlintScreenshots {
         phone = me.kavishdevar.librepods.services.PhoneStatus.Info(58, true))
     @Test fun islandGlanceAirPods() = connectedLink { glance("island_glance_airpods", dark = false, place = claude, snapshot = demo,
         phone = me.kavishdevar.librepods.services.PhoneStatus.Info(14, false)) }
+    // ---- 2026-10-11: controls that fit the app you're in ----
+    private val cod by lazy {
+        me.kavishdevar.librepods.services.ScreenApp.Place.App("com.activision.callofduty.shooter", "Call of Duty", fakeIcon(0xFF3A3F2A.toInt(), "C"),
+            me.kavishdevar.librepods.services.AppKinds.Kind.Game)
+    }
+    @Test fun islandGlanceGame() = glance("island_glance_game", dark = true, place = cod)
+    @Test fun islandGlanceMusicIdle() {
+        val app = RuntimeEnvironment.getApplication()
+        me.kavishdevar.librepods.services.NowPlaying.preview(me.kavishdevar.librepods.services.NowPlaying.Track())
+        for ((t, a) in listOf("Wait" to "M83", "Outro" to "M83", "Midnight City" to "M83")) me.kavishdevar.librepods.services.MusicMemory.saw(app, "com.spotify.music", t, a)
+        glance("island_glance_music_idle", dark = true, place = spotify.copy(kind = me.kavishdevar.librepods.services.AppKinds.Kind.Music))
+    }
+    @Test fun islandGlanceMusicIdleEmpty() {
+        me.kavishdevar.librepods.services.NowPlaying.preview(me.kavishdevar.librepods.services.NowPlaying.Track())
+        glance("island_glance_music_idle_empty", dark = false, place = me.kavishdevar.librepods.services.ScreenApp.Place.App("com.example.radio", "Radio", fakeIcon(0xFFE0453A.toInt(), "R"),
+            me.kavishdevar.librepods.services.AppKinds.Kind.Music))
+    }
+    @Test fun miniIslandGameRing() = mini("mini_island_game_ring", playing = false, wide = 0f, art = false, dark = true, content = screen, place = cod,
+        hidden = true, settle = 2_000L)
     @Test fun islandTimerDone() = glance("island_timer_done", dark = true, place = spotify, event = IslandEvent.TimerDone,
         timer = me.kavishdevar.librepods.services.IslandTimer.State(total = 300_000L, ringing = true))
 
