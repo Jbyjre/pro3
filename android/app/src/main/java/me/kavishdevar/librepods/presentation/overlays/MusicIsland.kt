@@ -262,17 +262,15 @@ internal fun SharedMusicArt(
 
 /** Four sound bars centred at [c] in a spot [side] across, like the Dynamic Island's. */
 internal fun DrawScope.drawSoundBars(c: Offset, side: Float, color: Color, level: Float, live: FloatArray?, clock: Long, moving: Boolean, density: Float) {
-    val t = clock / 1000f
     val barW = 2.6f * density * (side / (28f * density)).coerceIn(0.5f, 1.4f)
     val gap = barW * 0.92f
     val maxH = side * 0.62f
     val startX = c.x - (4 * barW + 3 * gap) / 2f + barW / 2f
-    val order = intArrayOf(1, 0, 2, 3)
     for (i in 0 until 4) {
-        val wiggle = 0.35f + 0.65f * abs(sin(t * (2.3f + i * 0.73f) + i * 1.7f))
+        val ambient = me.kavishdevar.librepods.services.PulseShaper.ambient(clock, i)
         val rest = if (i % 2 == 0) 0.62f else 0.42f
-        val l = live?.let { 0.22f + 0.78f * it[order[i]] }
-        val h = lerp(barW, maxH * (l ?: if (moving) wiggle else rest), level)
+        val l = live?.let { 0.22f + 0.78f * it[i] }
+        val h = lerp(barW, maxH * (l ?: if (moving) ambient else rest), level)
         val x = startX + i * (barW + gap)
         drawLine(color, Offset(x, c.y - h / 2f), Offset(x, c.y + h / 2f), barW, StrokeCap.Round)
     }

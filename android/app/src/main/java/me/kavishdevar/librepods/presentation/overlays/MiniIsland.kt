@@ -1681,7 +1681,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
             val artFit = if (p != null) fit - ringW - 1.8f * dp else fit
             // The beat: a soft glow in the cover's colour that swells with the bass.
             d.bars?.let { b ->
-                val kick = b[0].coerceIn(0f, 1f)
+                val kick = b.getOrElse(MusicPulse.KICK) { 0f }.coerceIn(0f, 1f)
                 if (kick > 0.05f) drawCircle(
                     androidx.compose.ui.graphics.Brush.radialGradient(
                         listOf(d.accent.copy(alpha = 0.32f * kick * alpha), d.accent.copy(alpha = 0f)), c, fit * 1.2f
@@ -1724,18 +1724,17 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
         }
         IslandLook.Slot.Bars -> {
             // Sound bars in the cover's colour; flat dots while paused.
-            val t = d.clock / 1000f
             val barW = 2.6f * dp * (side / (28f * dp)).coerceIn(0.8f, 1.2f)
             val gap = barW * 0.92f
             val maxH = side * 0.62f
             val startX = c.x - (4 * barW + 3 * gap) / 2f + barW / 2f
-            // Bass, low mids, high mids, treble, laid out so the middle bars lead like a real meter.
-            val order = intArrayOf(1, 0, 2, 3)
+            // Left to right as PulseShaper lays them out: the voice in the middle while someone
+            // sings, the beat rippling out when nobody does; its steady beat when pro can't hear.
             for (i in 0 until 4) {
-                val wiggle = 0.35f + 0.65f * abs(sin(t * (2.3f + i * 0.73f) + i * 1.7f))
+                val ambient = me.kavishdevar.librepods.services.PulseShaper.ambient(d.clock, i)
                 val rest = if (i % 2 == 0) 0.62f else 0.42f // Reduce motion: steady bars
-                val live = d.bars?.let { 0.22f + 0.78f * it[order[i]] }
-                val hgt = lerp(barW, maxH * (live ?: if (d.moving) wiggle else rest), d.level)
+                val live = d.bars?.let { 0.22f + 0.78f * it[i] }
+                val hgt = lerp(barW, maxH * (live ?: if (d.moving) ambient else rest), d.level)
                 val x = startX + i * (barW + gap)
                 drawLine(d.accent.copy(alpha = alpha), Offset(x, c.y - hgt / 2f), Offset(x, c.y + hgt / 2f), barW, StrokeCap.Round)
             }
