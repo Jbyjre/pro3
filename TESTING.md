@@ -237,3 +237,12 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 9. **Beats model:** the headphones page shows the turning Solo 4; drag it to spin; pick your finish.
 10. **Unlock:** unlock the phone: the padlock opens with a soft light across the island, then the app's icon.
 11. **Bars:** play a song with vocals, then an instrumental: the middle bars follow the singing; without vocals the beat ripples out from the middle.
+
+## N. 2026-10-11 (third message): the island reflects the app; battery
+
+1. **Reading the screen:** open an article in Chrome, then tap the island: its title, the website and "N min read", with Open and Listen. Open a text with a code: "Copy 123456" (then "Copied"; paste it). A page with a phone number or address: Call / Map open the dialler / Maps.
+2. **Listen:** tap Listen on an article with music playing: the music pauses, the article is read into your AirPods, the music carries on after. Open another app's island meanwhile: "Stop reading aloud" stops it.
+3. **Never read:** open your bank app and tap the island: just the app's name (no card). Settings > Island > Read the screen off: no card anywhere.
+4. **The fixed window check:** pull down the notification shade with the pill showing: it should step aside; let go: it comes back. Using apps normally it must never vanish by itself (tell me if it does).
+5. **Battery:** a long music session should drain no more than before (Settings > Battery shows pro's share); on Battery Saver the bars move a little less smoothly and the headphones model stops turning by itself (a finger still spins it); plugged in, both are at full smoothness.
+

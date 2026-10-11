@@ -17,6 +17,10 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.HOME" />
         </intent>
+        <!-- Listen (the opened island reads an article aloud): Android's rule for finding its voice engine. -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
     </queries>
 
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />

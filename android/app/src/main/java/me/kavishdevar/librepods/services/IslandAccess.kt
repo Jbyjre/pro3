@@ -43,9 +43,14 @@ import kotlinx.coroutines.flow.asStateFlow
  * sit above the status bar, so while this service is on the Dynamic Island lives there and gets
  * its taps (and can show on the lock screen).
  *
- * It only looks at where the phone's own panels are (so the island steps aside while you pull
- * down notifications) and at which app's window came to the front (so a sound can be matched to
- * its app); it never reads what's on the screen.
+ * It looks at where the phone's own panels are (so the island steps aside while you pull down
+ * notifications) and at which app's window came to the front (so a sound can be matched to its
+ * app). Only when you open the island inside an app does it read that app's screen, once
+ * ([ScreenInsights], off with Settings > Island > Read the screen); passwords and typing never.
+ *
+ * Seeing the window list at all needs canRetrieveWindowContent and flagRetrieveInteractiveWindows
+ * in its config (Android's own rule for getWindows()); before 2026-10-11 both were missing, so the
+ * window checks here and in [ScreenApp.look] always saw an empty list.
  */
 class IslandAccessService : AccessibilityService() {
     private val main = Handler(Looper.getMainLooper())

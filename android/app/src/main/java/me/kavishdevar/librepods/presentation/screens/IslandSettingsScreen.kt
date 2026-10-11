@@ -215,6 +215,17 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
                     me.kavishdevar.librepods.services.LiveActivities.settingChanged(context)
                 },
             )
+            var readScreen by remember { mutableStateOf(IslandPrefs.readScreen(prefs)) }
+            StyledToggle(
+                label = "Read the screen",
+                description = "When you open the island in an app, it reads that screen once for its title and quick actions (call, map, copy a code). Never saved or sent; passwords never read",
+                checked = readScreen,
+                onCheckedChange = {
+                    readScreen = it
+                    prefs.edit { putBoolean(IslandPrefs.PREF_READ_SCREEN, it) }
+                    if (!it) me.kavishdevar.librepods.services.ScreenInsights.clear()
+                },
+            )
             var inGames by remember { mutableStateOf(IslandPrefs.miniGames(prefs)) }
             StyledToggle(
                 label = "Stay in games",
