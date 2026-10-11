@@ -61,18 +61,30 @@ fun Modifier.edgeFade(fade: Dp = 10.dp, left: Boolean = true, right: Boolean = t
 /**
  * A line that scrolls once when it's too long, with soft ends, and sits exactly where a plain line
  * would at rest: the fade on the left lives just outside the line's own space, so the first letter
- * is never dimmed while it's still.
+ * is never dimmed while it's still. A line that fits isn't faded at all.
  */
 fun Modifier.scrollingLine(enabled: Boolean, fade: Dp = 10.dp, delayMs: Int = 1_400): Modifier {
     if (!enabled) return this
+    // Whether the words are wider than their space (worked out while measuring, used when drawing).
+    var overflow = false
     return this
         .layout { measurable, c ->
             val extra = fade.roundToPx()
             val max = if (c.hasBoundedWidth) c.maxWidth + extra else c.maxWidth
+            overflow = c.hasBoundedWidth && measurable.maxIntrinsicWidth(if (c.hasBoundedHeight) c.maxHeight else Int.MAX_VALUE) > max
             val p = measurable.measure(c.copy(minWidth = minOf(c.minWidth + extra, max), maxWidth = max))
             layout((p.width - extra).coerceAtLeast(0), p.height) { p.place(-extra, 0) }
         }
-        .edgeFade(fade)
+        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+        .drawWithContent {
+            drawContent()
+            if (!overflow) return@drawWithContent
+            val f = (fade.toPx() / size.width.coerceAtLeast(1f)).coerceIn(0f, 0.45f)
+            drawRect(
+                Brush.horizontalGradient(0f to Color.Transparent, f to Color.Black, 1f - f to Color.Black, 1f to Color.Transparent),
+                blendMode = BlendMode.DstIn,
+            )
+        }
         .padding(start = fade)
         .basicMarquee(iterations = 1, initialDelayMillis = delayMs)
 }

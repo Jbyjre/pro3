@@ -207,6 +207,8 @@ class GlintScreenshots {
         hidden: Boolean = false,
         /** How long to let it settle before the picture, in ms. */
         settle: Long = 600L,
+        title: String = "Midnight City",
+        artist: String = "M83",
     ) {
         if (dark) RuntimeEnvironment.setQualifiers("+night")
         rule.mainClock.autoAdvance = false
@@ -227,7 +229,7 @@ class GlintScreenshots {
             })
         }.asImageBitmap() else null
         val track = me.kavishdevar.librepods.services.NowPlaying.Track(
-            playing = playing, title = "Midnight City", artist = "M83", app = "Spotify", art = cover, fromSession = true,
+            playing = playing, title = title, artist = artist, app = "Spotify", art = cover, fromSession = true,
             durationMs = 243_000L, positionMs = 90_000L, positionAtMs = android.os.SystemClock.elapsedRealtime().coerceAtLeast(1L),
         )
         rule.setContent {
@@ -1068,6 +1070,10 @@ class GlintScreenshots {
         mini("mini_island_live_route", playing = false, wide = 0f, art = false, dark = true, content = screen, place = me.kavishdevar.librepods.services.ScreenApp.Place.Home, phone = calmPhone)
     }
     @Test fun miniIslandRightSideNeverEmpty() = mini("mini_island_right_side", playing = false, wide = 0f, art = false, dark = true, content = screen, place = claude, phone = calmPhone)
+    // The song's moment stretches sideways (half-way, settled, and a long name).
+    @Test fun miniIslandSongStretching() = mini("mini_island_song_stretching", playing = true, wide = 0.5f, art = true, dark = true)
+    @Test fun miniIslandSongLongName() = mini("mini_island_song_long", playing = true, wide = 1f, art = true, dark = false,
+        title = "Pneumonoultramicroscopic (Extended Mix)", artist = "The Very Long Band Name")
     @Test fun miniIslandGameRing() = mini("mini_island_game_ring", playing = false, wide = 0f, art = false, dark = true, content = screen, place = cod,
         hidden = true, settle = 2_000L)
     @Test fun islandTimerDone() = glance("island_timer_done", dark = true, place = spotify, event = IslandEvent.TimerDone,

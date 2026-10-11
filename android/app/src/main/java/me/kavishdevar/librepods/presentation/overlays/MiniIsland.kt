@@ -48,6 +48,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -1070,7 +1071,7 @@ internal fun MiniIslandHost(
             androidx.compose.runtime.snapshotFlow { boxW }.first { it >= geometry.wideWindow.width }
         }
         androidx.compose.runtime.withFrameNanos { }
-        if (reduce) wide.snapTo(1f) else wide.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = 300f))
+        if (reduce) wide.snapTo(1f) else wide.animateTo(1f, spring(dampingRatio = STRETCH_DAMPING, stiffness = STRETCH_STIFFNESS))
         // Stays for the time chosen in Settings, or until you swipe up.
         val t0 = collapseTick
         kotlinx.coroutines.withTimeoutOrNull(IslandPrefs.nameLinger(prefs).ms) {
@@ -1193,7 +1194,7 @@ internal fun MiniIslandHost(
             androidx.compose.runtime.snapshotFlow { boxW }.first { it >= geometry.wideWindow.width }
         }
         androidx.compose.runtime.withFrameNanos { }
-        if (reduce) wide.snapTo(1f) else wide.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = 300f))
+        if (reduce) wide.snapTo(1f) else wide.animateTo(1f, spring(dampingRatio = STRETCH_DAMPING, stiffness = STRETCH_STIFFNESS))
         delay(MiniMoment.SHOW_MS)
         if (reduce) wide.snapTo(0f) else wide.animateTo(0f, spring(dampingRatio = 1f, stiffness = 340f))
         onWindowSize(restWindow())
@@ -1621,27 +1622,43 @@ internal fun MiniIslandHost(
             }
             }
         }
-        // The song's name under the camera line while wide.
+        // While stretched: the song's title left of the camera and its artist right of it (a phone
+        // moment's words the same way: "Charging" | "76%"), on the camera's own line, balanced like
+        // the iPhone's two sides. They drift out from the camera as the pill stretches.
         if (wide.value > 0.05f && textLine.isNotEmpty()) {
-            val dpW = (s.wideWidth - 28f * density) / density
-            // The name line has a fixed height: follow big system font sizes only up to 115%.
+            val (leftWords, rightWords) = if (momentShown != null) MiniIslandRules.splitLine(textLine)
+                else (track.title ?: textLine) to track.artist
             val ld = LocalDensity.current
+            val cx = boxW / 2f
+            val endRoom = s.inset + s.side + 10f * density
+            val camHalf = s.center / 2f + 8f * density
+            val zoneW = (s.wideWidth / 2f - endRoom - camHalf).coerceAtLeast(0f)
+            val drift = (1f - wide.value.coerceIn(0f, 1f)) * 14f * density
+            val alphaNow = { ((wide.value - 0.35f) / 0.5f).coerceIn(0f, 1f) }
+            val ink = momentShown?.color ?: Color.White
+            // The words keep a fixed height: big system font sizes are followed only up to 115%.
             androidx.compose.runtime.CompositionLocalProvider(
                 LocalDensity provides androidx.compose.ui.unit.Density(ld.density, ld.fontScale.coerceAtMost(1.15f))
             ) {
-            Text(
-                textLine,
-                maxLines = 1,
-                overflow = TextOverflow.Clip,
-                textAlign = TextAlign.Center,
-                style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = momentShown?.color ?: Color.White),
-                modifier = Modifier
-                    .offset { IntOffset((m + 14f * density).roundToInt(), (m + s.height + 3f * density).roundToInt()) }
-                    .width(androidx.compose.ui.unit.Dp(dpW))
-                    .graphicsLayer { alpha = ((wide.value - 0.4f) / 0.6f).coerceIn(0f, 1f) }
-                    // A long name scrolls once with soft ends instead of being cut at the pill's edge.
-                    .scrollingLine(!reduce, delayMs = 900),
-            )
+                @Composable
+                fun zone(words: String, toCamera: Boolean, x: Float, color: Color, weight: FontWeight) {
+                    Box(
+                        Modifier
+                            .offset { IntOffset(x.roundToInt(), m.roundToInt()) }
+                            .width(with(ld) { zoneW.toDp() }).height(with(ld) { s.height.toDp() })
+                            .graphicsLayer { alpha = alphaNow(); translationX = if (toCamera) drift else -drift },
+                        contentAlignment = if (toCamera) androidx.compose.ui.Alignment.CenterEnd else androidx.compose.ui.Alignment.CenterStart,
+                    ) {
+                        Text(
+                            words, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, fontWeight = weight, color = color),
+                            // A long name scrolls once with soft ends instead of being cut.
+                            modifier = Modifier.scrollingLine(!reduce, delayMs = 900),
+                        )
+                    }
+                }
+                zone(leftWords, toCamera = true, x = cx - camHalf - zoneW, color = ink, weight = FontWeight.SemiBold)
+                rightWords?.let { zone(it, toCamera = false, x = cx + camHalf, color = ink.copy(alpha = 0.62f), weight = FontWeight.Medium) }
             }
         }
         }
@@ -2366,6 +2383,9 @@ internal fun accentOfPixels(pixels: IntArray): Color {
 private const val FULL_SCREEN_MS = 1_200L
 /** The app icon's swap spring (see [IslandMotion.settleMs]: about 250 ms). */
 internal const val APP_SWAP_DAMPING = 0.8f
+/** The sideways stretch for a song's name or a moment: a soft settle with a hint of bounce, nothing wobbly. */
+internal const val STRETCH_DAMPING = 0.8f
+internal const val STRETCH_STIFFNESS = 320f
 /** The padlock's spring as it opens: fluid, a little give, settled in about half a second. */
 internal const val UNLOCK_DAMPING = 0.62f
 internal const val UNLOCK_STIFFNESS = 240f

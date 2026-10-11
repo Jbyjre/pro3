@@ -51,8 +51,10 @@ class MiniIslandTest {
         val s = MiniIslandRules.size(holeW = 26 * d, holeH = 26 * d, density = d, screenW = 412 * d)
         assertTrue(s.height > 26 * d) // taller than the camera
         assertTrue(s.compactWidth > 26 * d + 2 * (s.height - 8 * d)) // cover and bars fit beside it
-        assertTrue(s.wideWidth <= 412 * d - 24 * d)
-        assertTrue(s.wideHeight > s.height)
+        // A song's name stretches it sideways toward the corners, never down (2026-10-11).
+        assertTrue(s.wideWidth <= 412 * d - 20 * d)
+        assertTrue(s.wideWidth >= 412 * d - 21 * d)
+        assertEquals(s.height, s.wideHeight, 0f)
         // No camera hole: still a sensible small pill.
         val none = MiniIslandRules.size(0f, 0f, d, 412 * d)
         assertEquals(28 * d, none.height, 0.01f)

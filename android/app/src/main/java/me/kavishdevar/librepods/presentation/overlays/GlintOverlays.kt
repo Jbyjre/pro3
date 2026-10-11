@@ -151,6 +151,11 @@ object GlintOverlays {
     }
 
     fun showIsland(context: Context, event: IslandEvent, expand: Boolean = false) = main.post {
+        // A new song while the Dynamic Island is up: the pill itself stretches sideways with its
+        // name, so no second pop-up drops below it (both used to show, the pop-up as a "bulb").
+        if (event == IslandEvent.Music && !expand && miniOrigin != null &&
+            me.kavishdevar.librepods.services.IslandPrefs.miniNames(me.kavishdevar.librepods.services.IslandPrefs.prefs(context))
+        ) return@post
         val c = island ?: IslandController(context.applicationContext).also { island = it }
         c.show(event, expand)
     }

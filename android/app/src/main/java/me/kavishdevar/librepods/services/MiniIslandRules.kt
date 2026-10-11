@@ -241,6 +241,16 @@ object MiniIslandRules {
      * side of it in every situation. With the default look this is exactly the original size: a
      * round cover on one side, the sound bars on the other.
      */
+    /** A moment's words for either side of the camera: "Charging  ·  76%" becomes "Charging" and "76%". */
+    fun splitLine(line: String): Pair<String, String?> {
+        val i = line.indexOf('·')
+        if (i < 0) return line.trim() to null
+        return line.substring(0, i).trim() to line.substring(i + 1).trim().takeIf { it.isNotEmpty() }
+    }
+
+    /** How close to each side of the screen the stretched pill comes, in dp. */
+    const val WIDE_EDGE_DP = 10f
+
     /** The situations an app's live activity shows in (no music, sound or message is the news). */
     val LIVE_SITUATIONS = setOf(IslandLook.Situation.App, IslandLook.Situation.Home, IslandLook.Situation.Locked, IslandLook.Situation.Rest)
 
@@ -265,8 +275,11 @@ object MiniIslandRules {
         // Messages look has its own, temporary, window).
         val c = widths.filterKeys { it != IslandLook.Situation.Message }.values.max().coerceAtMost(fit)
         val messageW = (widths[IslandLook.Situation.Message] ?: c).coerceAtLeast(c)
-        val wide = minOf(screenW - 24f * density, 280f * density).coerceIn(c, fit)
-        return Size(h, c, wide, h + 26f * density * f, side, inset, gap, center, widths, messageW)
+        // A song's name (or a phone moment) stretches the pill sideways toward the screen's corners
+        // at its own height, the title left of the camera and the artist right of it, instead of
+        // growing a second line under it (Jake, 2026-10-11: it "looks bulbous").
+        val wide = minOf(screenW - 2f * WIDE_EDGE_DP * density, 440f * density).coerceIn(c, fit)
+        return Size(h, c, wide, h, side, inset, gap, center, widths, messageW)
     }
 
     /** A rectangle in screen pixels (Android's Rect, without needing Android in tests). */
