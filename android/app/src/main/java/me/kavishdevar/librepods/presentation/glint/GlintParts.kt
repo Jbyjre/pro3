@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -189,21 +190,64 @@ fun androidx.compose.ui.graphics.drawscope.DrawScope.drawListeningMode(mode: Int
 }
 
 /**
- * Headphones art for the islands, sized like the AirPods clip it stands in for: the drawn
- * headphones with a soft light behind them (the studio glow the AirPods video has), so the
- * pop-ups keep the same weight whichever device you chose.
+ * Headphones art for the islands and the headphones page, sized like the AirPods clip it stands
+ * in for: shaded on-ear headphones (a lit headband, rounded cups with their own highlight and
+ * cushions) on [DeviceStage], so they turn with the phone, catch the light and sit on a soft
+ * shadow, instead of the flat outline they were before 2026-10-11. [color] is the island's
+ * content colour (white on the black island, graphite on light glass): the shading is built from it.
  */
 @Composable
-fun HeadphonesArt(width: Dp, color: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier.size(width, width * 0.56f)) {
-        val r = size.height * 0.48f
-        drawCircle(
+fun HeadphonesArt(width: Dp, color: Color, modifier: Modifier = Modifier, draggable: Boolean = false) {
+    DeviceStage(modifier, enter = true, draggable = draggable, shadow = width >= 64.dp, shadowStrength = if (color.luminance() > 0.5f) 0.6f else 1f) {
+        // The stage's own light and shadow give the depth (a glow here showed as a grey square).
+        Canvas(Modifier.size(width, width * 0.56f)) {
+            drawHeadphonesShaded(center, size.height * 0.48f, color)
+        }
+    }
+}
+
+/**
+ * Shaded on-ear headphones at [c] within radius [r], lit from the upper left: a headband whose
+ * top catches the light, cups with a soft highlight and a darker cushion where they meet the ear.
+ */
+fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHeadphonesShaded(c: Offset, r: Float, color: Color) {
+    val light = androidx.compose.ui.graphics.lerp(color, Color.White, 0.55f)
+    val shade = androidx.compose.ui.graphics.lerp(color, Color.Black, 0.55f)
+    val deep = androidx.compose.ui.graphics.lerp(color, Color.Black, 0.78f)
+    val band = r * 0.78f
+    val sw = r * 0.2f
+    val bandTop = c.y - band + r * 0.12f
+    // The headband: brighter along its top, darker toward its ends.
+    drawArc(
+        androidx.compose.ui.graphics.Brush.verticalGradient(listOf(light, color, shade), bandTop - sw, c.y + r * 0.2f),
+        180f, 180f, false, Offset(c.x - band, bandTop), Size(band * 2f, band * 2f), style = Stroke(sw, cap = StrokeCap.Round),
+    )
+    // A thin highlight running along the band's crown.
+    drawArc(
+        Color.White.copy(alpha = 0.35f * color.alpha), 205f, 70f, false,
+        Offset(c.x - band + sw * 0.28f, bandTop + sw * 0.28f), Size((band - sw * 0.28f) * 2f, (band - sw * 0.28f) * 2f),
+        style = Stroke(sw * 0.22f, cap = StrokeCap.Round),
+    )
+    val cupW = r * 0.5f
+    val cupH = r * 0.82f
+    val top = c.y + r * 0.0f
+    val rad = androidx.compose.ui.geometry.CornerRadius(cupW * 0.48f)
+    for (side in intArrayOf(-1, 1)) {
+        val x = c.x + side * band - cupW / 2f
+        // The cushion, a little proud of the cup on the inside, darker.
+        val cushionX = if (side < 0) x + cupW * 0.42f else x - cupW * 0.02f
+        drawRoundRect(deep, Offset(cushionX, top + cupH * 0.06f), Size(cupW * 0.6f, cupH * 0.88f), androidx.compose.ui.geometry.CornerRadius(cupW * 0.3f))
+        // The cup: lit from the upper left.
+        drawRoundRect(
             androidx.compose.ui.graphics.Brush.radialGradient(
-                listOf(color.copy(alpha = 0.16f), Color.Transparent), center, r * 1.5f,
+                listOf(light, color, shade), Offset(x + cupW * 0.3f, top + cupH * 0.25f), cupH * 0.95f,
             ),
-            r * 1.5f, center,
+            Offset(x, top), Size(cupW, cupH), rad,
         )
-        drawHeadphones(center, r, color)
+        // Its specular glint.
+        drawOval(Color.White.copy(alpha = 0.4f * color.alpha), Offset(x + cupW * 0.2f, top + cupH * 0.12f), Size(cupW * 0.3f, cupH * 0.16f))
+        // The hinge where the band meets the cup.
+        drawRoundRect(shade, Offset(c.x + side * band - sw * 0.5f, top - sw * 0.7f), Size(sw, sw), androidx.compose.ui.geometry.CornerRadius(sw * 0.3f))
     }
 }
 

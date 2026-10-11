@@ -273,9 +273,8 @@ private fun HeadphonesHero(state: HeadphoneState, onRefresh: () -> Unit, onOpenB
                     contentAlignment = Alignment.Center
                 ) {
                     val art by animateFloatAsState(if (state.connected) 1f else 0.45f, if (reduceMotion) tween(0) else spring(1f, 200f), label = "artAlpha")
-                    Canvas(Modifier.size(84.dp)) {
-                        drawHeadphones(center, size.minDimension * 0.46f, ink.copy(alpha = 0.86f * art))
-                    }
+                    // Shaded headphones on the stage: they turn with the tilt (and a finger), catch the light.
+                    me.kavishdevar.librepods.presentation.glint.HeadphonesArt(118.dp, ink.copy(alpha = 0.92f * art), draggable = true)
                 }
             }
             Spacer(Modifier.height(14.dp))

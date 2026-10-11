@@ -363,16 +363,19 @@ private fun CardContent(
         // The 3D clip sits straight on the glass: its edges fade into the card (no inner
         // panel), and the card's own tint matches the clip's backdrop, so the card reads as
         // one continuous surface instead of a box inside a box.
-        PodsVideo(
-            video = R.raw.connected,
-            poster = R.drawable.connected_poster,
-            aspectRatio = PodsVideoConfig.CONNECTED_ASPECT,
-            loopFromMs = PodsVideoConfig.CONNECTED_LOOP_FROM_MS,
-            modifier = Modifier
-                .padding(top = 18.dp)
-                .fillMaxWidth()
-                .featherEdges(),
-        )
+        // On the stage: it springs in and turns a little with the phone's tilt. The clip has its own
+        // backdrop, so no extra highlight or shadow (they'd light and darken the backdrop too).
+        me.kavishdevar.librepods.presentation.glint.DeviceStage(Modifier.padding(top = 18.dp).fillMaxWidth(), shadow = false, sheen = false) {
+            PodsVideo(
+                video = R.raw.connected,
+                poster = R.drawable.connected_poster,
+                aspectRatio = PodsVideoConfig.CONNECTED_ASPECT,
+                loopFromMs = PodsVideoConfig.CONNECTED_LOOP_FROM_MS,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .featherEdges(),
+            )
+        }
         Spacer(Modifier.height(14.dp))
         Text(
             title, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,

@@ -977,14 +977,17 @@ private fun IslandLayout(
 private fun IslandPods(budsWidth: Dp, play: Boolean) {
     val frame = budsWidth / 0.88f
     Box(Modifier.size(budsWidth, frame * 0.56f), contentAlignment = Alignment.Center) {
-        PodsVideo(
-            video = R.raw.island,
-            poster = R.drawable.island_poster,
-            aspectRatio = PodsVideoConfig.ISLAND_ASPECT,
-            keyBlack = true,
-            play = play,
-            modifier = Modifier.requiredSize(frame),
-        )
+        // On the stage: it turns with the phone's tilt and catches the light (no shadow on the black island).
+        me.kavishdevar.librepods.presentation.glint.DeviceStage(Modifier.requiredSize(frame), shadow = false) {
+            PodsVideo(
+                video = R.raw.island,
+                poster = R.drawable.island_poster,
+                aspectRatio = PodsVideoConfig.ISLAND_ASPECT,
+                keyBlack = true,
+                play = play,
+                modifier = Modifier.requiredSize(frame),
+            )
+        }
     }
 }
 
