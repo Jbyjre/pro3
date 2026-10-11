@@ -38,6 +38,8 @@ object IslandPrefs {
     const val PREF_MINI_AIRPODS_ONLY = "glint_mini_airpods_only"
     /** Keep the mini island up the whole time the AirPods are connected (not only for music). */
     const val PREF_MINI_ALWAYS = "glint_mini_always"
+    /** The Dynamic Island's mode: "on", "music" or "off" ([MiniIslandRules.Mode], [mode]). */
+    const val PREF_DI_MODE = "glint_di_mode"
     /** Keep the mini island up all the time, even with nothing playing and nothing connected. */
     const val PREF_MINI_ANYTIME = "glint_mini_anytime"
     /**
@@ -120,7 +122,17 @@ object IslandPrefs {
     /** Song names and the music app's own controls (needs Notification access). */
     fun songNames(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_SONG_NAMES, true)
 
-    fun mini(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI, true)
+    /**
+     * On, Music only or Off. Before this choice existed there was one on/off switch ([PREF_MINI]):
+     * switched off, it now means Off (the tiny ring), which is what "off" is now.
+     */
+    fun mode(prefs: SharedPreferences): MiniIslandRules.Mode =
+        MiniIslandRules.Mode.of(prefs.getString(PREF_DI_MODE, null))
+            ?: if (prefs.getBoolean(PREF_MINI, true)) MiniIslandRules.Mode.On else MiniIslandRules.Mode.Off
+
+    fun setMode(prefs: SharedPreferences, mode: MiniIslandRules.Mode) {
+        prefs.edit().putString(PREF_DI_MODE, mode.key).apply()
+    }
     fun miniNames(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_NAMES, true)
     fun miniAirPodsOnly(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_AIRPODS_ONLY, false)
     fun miniAlways(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ALWAYS, true)

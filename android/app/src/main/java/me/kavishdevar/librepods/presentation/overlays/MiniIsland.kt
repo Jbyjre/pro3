@@ -210,6 +210,8 @@ internal class MiniIslandController(private val context: Context) {
     private var dismissedAt = 0L
     /** Music or the AirPods themselves. */
     private val content = mutableStateOf(MiniIslandRules.Content.Music)
+    /** On, Music only or Off (the tiny ring): read on every refresh, so a change in Settings applies at once. */
+    private val mode = mutableStateOf(MiniIslandRules.Mode.On)
     /** A short moment with words under the camera (the phone plugged in), or null. */
     private val moment = mutableStateOf<MiniMoment?>(null)
 
@@ -225,7 +227,7 @@ internal class MiniIslandController(private val context: Context) {
     }
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
-        if (key == IslandPrefs.PREF_MINI || key == IslandPrefs.PREF_MINI_AIRPODS_ONLY || key == IslandPrefs.PREF_MINI_ALWAYS ||
+        if (key == IslandPrefs.PREF_MINI || key == IslandPrefs.PREF_DI_MODE || key == IslandPrefs.PREF_MINI_AIRPODS_ONLY || key == IslandPrefs.PREF_MINI_ALWAYS ||
             key == IslandPrefs.PREF_MINI_ANYTIME || key == IslandPrefs.PREF_MINI_ANY_SOUND || key == IslandPrefs.PREF_SOUND_LINGER ||
             key == IslandPrefs.PREF_SOUND_IGNORED || key == IslandPrefs.PREF_HIDE_IN) refresh()
         if (IslandGestures.Gesture.entries.any { it.key == key }) actions.value = IslandGestures.all(p)
@@ -401,6 +403,11 @@ internal class MiniIslandController(private val context: Context) {
         }
         val previewingMusic = sample.value != null
         val previewing = previewingMusic || sampleSound.value != null
+        // Settings' Try-it samples always show in full, whatever the mode.
+        val m = if (previewing) MiniIslandRules.Mode.On else IslandPrefs.mode(prefs)
+        mode.value = m
+        // Sounds, messages, phone moments: only in On (Music only shows the music and nothing else).
+        val everything = m == MiniIslandRules.Mode.On
         val playing = previewingMusic || NowPlaying.state.value.playing
         val now = SystemClock.elapsedRealtime()
         val pausedFor = if (playing) 0L else if (play.stoppedAt == 0L) Long.MAX_VALUE else now - play.stoppedAt
@@ -413,23 +420,24 @@ internal class MiniIslandController(private val context: Context) {
             heard.pkg != null && heard.pkg == SoundSource.foreground
         val heardOn = heard != null && (sampled || IslandPrefs.anySound(prefs)) && !inUse && heard.startedAt > dismissedAt &&
             SoundRules.showing(heard.active, heard.endedAt, now, linger)
-        val soundOnly = !previewingMusic && MiniIslandRules.showAsSound(heardOn, heard?.musicLike == true, playing, play.counted)
+        val soundOnly = everything && !previewingMusic && MiniIslandRules.showAsSound(heardOn, heard?.musicLike == true, playing, play.counted)
         // A message that just arrived: its own look (or, over music, its icon in the right-hand spot).
         val msg = sampleMessage.value ?: SoundSource.message.value
-        val msgOn = msg != null && msg.at > dismissedAt && SoundRules.showing(false, msg.at, now, linger)
+        val msgOn = everything && msg != null && msg.at > dismissedAt && SoundRules.showing(false, msg.at, now, linger)
         val messageOnly = !previewingMusic && msgOn && !playing
-        val phoneMoment = !previewingMusic && now < phoneMomentUntil
+        val phoneMoment = everything && !previewingMusic && now < phoneMomentUntil
         phoneBlip.value = phoneMoment && playing
         messageShown.value = if (msgOn) msg else null
         // An alert popping over music: the app's icon shows in the right-hand spot for a moment.
-        val blip = heardOn && heard!!.kind.blip && playing
+        val blip = everything && heardOn && heard!!.kind.blip && playing
         soundShown.value = if (soundOnly || blip) heard else null
         val place = ScreenApp.place.value
-        val timerOn = !previewing && IslandTimer.state.value != null
+        val timerOn = everything && !previewing && IslandTimer.state.value != null
         val hiddenHere = !previewing && place is ScreenApp.Place.App && place.pkg in IslandPrefs.hideIn(prefs)
         val want = MiniIslandRules.wanted(
             MiniIslandRules.Inputs(
-                enabled = previewing || IslandPrefs.mini(prefs),
+                enabled = true,
+                mode = m,
                 canDraw = window.canShow(),
                 playing = playing,
                 pausedForMs = pausedFor,
@@ -445,7 +453,9 @@ internal class MiniIslandController(private val context: Context) {
                 hiddenHere = hiddenHere,
             )
         )
-        content.value = if (previewingMusic) MiniIslandRules.Content.Music else MiniIslandRules.content(
+        content.value = if (previewingMusic || m == MiniIslandRules.Mode.MusicOnly) MiniIslandRules.Content.Music
+            else if (m == MiniIslandRules.Mode.Off) MiniIslandRules.Content.Rest
+            else MiniIslandRules.content(
             playing = playing, pausedForMs = pausedFor, playedRecently = play.played,
             airPodsUp = airPodsUp(), sound = soundOnly, message = messageOnly, phoneMoment = phoneMoment,
             placeKnown = place !is ScreenApp.Place.Unknown,
@@ -470,7 +480,7 @@ internal class MiniIslandController(private val context: Context) {
         lingerJob?.cancel()
         // The soonest of the things that are about to run out (a sound, a message, a phone moment).
         val soundLeft = listOfNotNull(
-            if (heardOn && !heard!!.active) linger - (now - heard.endedAt) else null,
+            if (everything && heardOn && !heard!!.active) linger - (now - heard.endedAt) else null,
             if (msgOn) linger - (now - msg!!.at) else null,
             if (phoneMoment) phoneMomentUntil - now else null,
         ).filter { it > 0L }.minOrNull()
@@ -540,7 +550,8 @@ internal class MiniIslandController(private val context: Context) {
                 handOff = GlintOverlays.islandVisible.value,
                 onVisible = { width ->
                     // Tells the big island where (and how wide) to grow from while the pill is up.
-                    GlintOverlays.miniOrigin = width?.let { geo.origin(it) }
+                    // (The tiny ring of Off is a circle: narrower than the pill is tall, so as tall as it is wide.)
+                    GlintOverlays.miniOrigin = width?.let { geo.origin(it, if (it < geo.size.height) it else geo.size.height) }
                 },
                 look = look.value,
                 talking = talking,
@@ -560,10 +571,12 @@ internal class MiniIslandController(private val context: Context) {
                 },
                 onPullOutside = { IslandAccess.openNotifications() },
                 place = place,
-                timer = timer,
+                // Timers and moments are On-only (Music only is just the music; Off shows nothing).
+                timer = timer.takeIf { mode.value == MiniIslandRules.Mode.On },
                 budsUp = airPodsUp(),
                 wallpaper = wallpaper,
-                moment = moment.value,
+                moment = moment.value.takeIf { mode.value == MiniIslandRules.Mode.On },
+                mode = mode.value,
             )
         }
         maybeSuggestTaps()
@@ -582,7 +595,10 @@ internal class MiniIslandController(private val context: Context) {
                 // A ringing timer: the tap you'd reach for silences it.
                 if (!sampling && IslandTimer.state.value?.ringing == true) { IslandTimer.cancel(context); return }
                 // The ring in a full-screen game: its controls (mute, Focus, chat, stats).
-                if (!sampling && inGameRing()) { GlintOverlays.showIsland(context, IslandEvent.Glance, expand = true); return }
+                // The tiny ring (Off) too: nothing on it to open but your controls.
+                if (!sampling && (inGameRing() || mode.value == MiniIslandRules.Mode.Off)) {
+                    GlintOverlays.showIsland(context, IslandEvent.Glance, expand = true); return
+                }
                 when (MiniIslandRules.tapOpens(content.value)) {
                     // A tap on a sound or a message opens the app it came from (nothing when pro can't tell which).
                     MiniIslandRules.TapOpens.SoundApp -> if (!sampling && sampleMessage.value == null) {
@@ -683,14 +699,24 @@ internal class MiniGeometry(
     }
 
     /** The resting pill, for a pop-up to grow out of. */
-    fun origin(width: Float = size.compactWidth) = GlintOverlays.MiniOrigin(
+    fun origin(width: Float = size.compactWidth, height: Float = size.height) = GlintOverlays.MiniOrigin(
         dx = offsetX.toFloat(),
-        top = centerY - size.height / 2f,
+        top = centerY - height / 2f,
         width = width,
-        height = size.height,
+        height = height,
         side = size.side,
-        lensBottom = hole?.let { (it.bottom - (centerY - size.height / 2f)).coerceIn(0f, size.height) } ?: (size.height * 0.5f),
+        lensBottom = hole?.let { (it.bottom - (centerY - height / 2f)).coerceIn(0f, height) } ?: (height * 0.5f),
     )
+
+    /**
+     * The tiny ring of Off (and of a full-screen game): a black circle hugging the camera, 2 dp
+     * round it (its smaller side, so a wide notch gets a small circle, not one as wide as the notch),
+     * never taller than the pill. Phones without a centred camera get a small dot.
+     */
+    val ringD: Float = (hole?.let { minOf(it.width(), it.height()).toFloat() + 4f * density } ?: (size.height * 0.55f))
+        .coerceAtMost(size.height)
+    /** Its window: just the ring and the usual room round it, so it never takes taps meant for the status bar. */
+    val ringWindow = IntSize((ringD + margin * 2).roundToInt(), compactWindow.height)
 }
 
 @Composable
@@ -760,6 +786,8 @@ internal fun MiniIslandHost(
     onDetachedTap: () -> Unit = {},
     /** Screenshots only: how far the detached circle has split off, 0..1. */
     stillSplit: Float? = null,
+    /** On, Music only, or Off: Off is only the tiny ring round the camera ([MiniGeometry.ringD]). */
+    mode: MiniIslandRules.Mode = MiniIslandRules.Mode.On,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -790,6 +818,8 @@ internal fun MiniIslandHost(
     val inGames by rememberPref(prefs, IslandPrefs.PREF_MINI_GAMES, true)
     val gameRing = fullScreen && inGames && (place as? ScreenApp.Place.App)?.kind == me.kavishdevar.librepods.services.AppKinds.Kind.Game
     val visible = !leaving && (!fullScreen || gameRing) && !panelOpen && !capturing
+    // The tiny ring: Off, or a full-screen game. Nothing in it, nothing ever widens out of it.
+    val ring = mode == MiniIslandRules.Mode.Off || gameRing
 
     // ---- What it shows right now ----
     val musicContent = content == MiniIslandRules.Content.Music
@@ -823,7 +853,7 @@ internal fun MiniIslandHost(
     // news. The app in front's own wins, then navigation, then the newest (LiveActivities.pick).
     val liveAll by me.kavishdevar.librepods.services.LiveActivities.all.collectAsState()
     val livePref by rememberPref(prefs, IslandPrefs.PREF_LIVE_APPS, true)
-    val live = if (!livePref || forceSituation != null) null
+    val live = if (!livePref || forceSituation != null || mode != MiniIslandRules.Mode.On || ring) null
         else me.kavishdevar.librepods.services.LiveActivities.pick((place as? ScreenApp.Place.App)?.pkg, liveAll)
     val liveWanted = live != null && situation in MiniIslandRules.LIVE_SITUATIONS
     // Its window widens first, then it shows (so its number is never cut off); it narrows after.
@@ -849,9 +879,9 @@ internal fun MiniIslandHost(
     // Two things at once, the iPhone way: music stays on the island (cover and bars) and the
     // timer splits off into a detached circle beside it, instead of taking the bars' place.
     val detached = iphone && timerHere && (under == IslandLook.Situation.Music || under == IslandLook.Situation.Paused || liveHere) &&
-        baseL != IslandLook.Slot.Nothing && !gameRing
-    val wantL = if (gameRing) IslandLook.Slot.Nothing else if (liveHere) IslandLook.Slot.App else baseL
-    val wantR = if (gameRing) IslandLook.Slot.Nothing
+        baseL != IslandLook.Slot.Nothing && !ring
+    val wantL = if (ring) IslandLook.Slot.Nothing else if (liveHere) IslandLook.Slot.App else baseL
+    val wantR = if (ring) IslandLook.Slot.Nothing
         else if (liveHere) (if (timerHere && !detached) IslandLook.Slot.Glance else IslandLook.Slot.Live)
         else if (blipping) (if (blipPhone) IslandLook.Slot.Phone else IslandLook.Slot.App)
         else if (detached) baseR
@@ -942,12 +972,14 @@ internal fun MiniIslandHost(
         if (reduce || still != null) mix.snapTo(1f) else { mix.snapTo(0f); mix.animateTo(1f, spring(dampingRatio = 1f, stiffness = 260f)) }
     }
     // The Messages look may use the wider window that is there only while a message shows.
-    val targetW = geometry.widthFor(wantL, wantR, when {
+    val targetW = if (ring) geometry.ringD else geometry.widthFor(wantL, wantR, when {
         messageShown -> geometry.size.messageWidth
         liveHere -> geometry.size.liveWidth
         else -> geometry.size.compactWidth
     })
     val bodyW = remember { Animatable(targetW) }
+    // 0: the pill's own height, 1: the tiny ring's (the width follows targetW on its own spring).
+    val shrink = remember { Animatable(if (ring) 1f else 0f) }
     LaunchedEffect(targetW) {
         if (reduce || still != null) bodyW.snapTo(targetW) else bodyW.animateTo(targetW, spring(dampingRatio = 0.78f, stiffness = 360f))
     }
@@ -1022,11 +1054,31 @@ internal fun MiniIslandHost(
     val detachedNow by androidx.compose.runtime.rememberUpdatedState(detached)
     /** The window to go back to after the name, a moment or a message: room for the detached circle when it's out. */
     val liveNow by androidx.compose.runtime.rememberUpdatedState(liveWanted)
+    val ringNow by androidx.compose.runtime.rememberUpdatedState(ring)
     fun restWindow() = when {
+        ringNow -> geometry.ringWindow
         liveNow && detachedNow -> geometry.liveDetachedWindow
         liveNow -> geometry.liveWindow
         detachedNow -> geometry.detachedWindow
         else -> geometry.compactWindow
+    }
+
+    // Into the tiny ring: it shrinks first, then its window does (so nothing is cut off); out of it,
+    // the window grows first, then the pill.
+    LaunchedEffect(ring, visible) {
+        if (still != null) { shrink.snapTo(if (ring) 1f else 0f); return@LaunchedEffect }
+        if (ring) {
+            if (reduce) shrink.snapTo(1f) else shrink.animateTo(1f, spring(dampingRatio = 0.86f, stiffness = 320f))
+            if (visible) onWindowSize(geometry.ringWindow)
+        } else if (shrink.value > 0f) {
+            if (visible && wide.value < 0.01f && !messageContent) {
+                onWindowSize(restWindow())
+                kotlinx.coroutines.withTimeoutOrNull(250) {
+                    androidx.compose.runtime.snapshotFlow { boxW }.first { it >= geometry.compactWindow.width }
+                }
+            }
+            if (reduce) shrink.snapTo(0f) else shrink.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 300f))
+        }
     }
 
     // An app's live activity: the window widens before it shows, and narrows after it has gone.
@@ -1100,7 +1152,8 @@ internal fun MiniIslandHost(
     // Each song is announced once: coming back after the big island closes doesn't repeat it.
     var announced by remember { mutableStateOf<Pair<String?, String?>?>(null) }
     LaunchedEffect(songKey, visible) {
-        if (still != null || forceSituation != null || !visible || !names || track.title == null || songKey == announced) return@LaunchedEffect
+        // Not out of the tiny ring (Off, or over a full-screen game, which it must never cover).
+        if (still != null || forceSituation != null || !visible || !names || ring || track.title == null || songKey == announced) return@LaunchedEffect
         announced = songKey
         delay(if (appear.value < 0.9f) 380 else 0)
         onWindowSize(geometry.wideWindow)
@@ -1225,7 +1278,7 @@ internal fun MiniIslandHost(
             }
             return@LaunchedEffect
         }
-        if (still != null || !visible || m.id == momentDone) return@LaunchedEffect
+        if (still != null || !visible || ring || m.id == momentDone) return@LaunchedEffect
         momentDone = m.id
         momentShown = m
         delay(if (appear.value < 0.9f) 380 else 0)
@@ -1344,7 +1397,7 @@ internal fun MiniIslandHost(
     fun pillBounds(): androidx.compose.ui.geometry.Rect {
         val a = appear.value.coerceAtLeast(0f)
         val compactW = lerp(geometry.seedW, bodyW.value, a)
-        val compactH = lerp(geometry.seedH, s.height, a.coerceAtMost(1.15f))
+        val compactH = lerp(geometry.seedH, lerp(s.height, geometry.ringD, shrink.value), a.coerceAtMost(1.15f))
         val pillW = lerp(compactW, s.wideWidth, wide.value)
         val pillH = lerp(compactH, s.wideHeight, wide.value)
         val top = m + (s.height - compactH) / 2f
@@ -1374,7 +1427,9 @@ internal fun MiniIslandHost(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     // Taps count as soon as the pill is there at all, even while it's still growing.
-                    val inside = appear.value > 0.15f && pillBounds().inflate(6f * density).contains(down.position)
+                    // At least a 44 dp target, however small the ring is.
+                    val pb = pillBounds()
+                    val inside = appear.value > 0.15f && pb.inflate(maxOf(6f * density, (44f * density - pb.height) / 2f)).contains(down.position)
                     // The detached circle (the timer beside the music) is its own button: a tap opens it.
                     val circleC = Offset(pillBounds().right + geometry.detachedGap + geometry.detachedD / 2f, m + s.height / 2f)
                     if (!inside && split.value > 0.6f && wide.value < 0.5f && (down.position - circleC).getDistance() <= geometry.detachedD / 2f + 6f * density) {
@@ -1481,7 +1536,7 @@ internal fun MiniIslandHost(
             val compactW = lerp(geometry.seedW, bodyW.value, a) + swell
             // Like a drop: when a spring carries the width past its target, the height gives a
             // little instead of swelling as well (both at once looked like a balloon round the camera).
-            val compactH = lerp(geometry.seedH, s.height, a.coerceAtMost(1f + me.kavishdevar.librepods.services.IslandMotion.MAX_HEIGHT_OVERSHOOT)) *
+            val compactH = lerp(geometry.seedH, lerp(s.height, geometry.ringD, shrink.value), a.coerceAtMost(1f + me.kavishdevar.librepods.services.IslandMotion.MAX_HEIGHT_OVERSHOOT)) *
                 me.kavishdevar.librepods.services.IslandMotion.volumeGive(a) *
                 me.kavishdevar.librepods.services.IslandMotion.volumeGive(1f + swell / bodyW.value.coerceAtLeast(1f))
             val pillW = lerp(compactW, s.wideWidth, w)
@@ -1656,7 +1711,7 @@ internal fun MiniIslandHost(
             if (fromL == shownL) slot(shownL, true, c0) else { slot(fromL, true, c0 * (1f - k)); slot(shownL, true, c0 * k) }
             val rs = 1f - ak
             if (fromR == shownR) slot(shownR, false, c0 * rs) else { slot(fromR, false, c0 * (1f - k) * rs); slot(shownR, false, c0 * k * rs) }
-            if (ak > 0.01f) ack?.let {
+            if (ak > 0.01f && !ring) ack?.let {
                 val at = if (shownR == IslandLook.Slot.Nothing) Offset(right - endInset * grow, lineY) else slotCentre(shownR, false)
                 drawAck(it, at, s.side * grow * (0.6f + 0.4f * ak), Color.White.copy(alpha = ak))
             }

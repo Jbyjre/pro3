@@ -97,7 +97,9 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
     var access by remember { mutableStateOf(NowPlaying.hasAccess(context)) }
     var duration by remember { mutableIntStateOf(IslandPrefs.duration(prefs).ordinal) }
     var haptics by remember { mutableStateOf(IslandPrefs.haptics(prefs)) }
-    var mini by remember { mutableStateOf(IslandPrefs.mini(prefs)) }
+    var mode by remember { mutableStateOf(IslandPrefs.mode(prefs)) }
+    val on = mode == me.kavishdevar.librepods.services.MiniIslandRules.Mode.On
+    val ringOnly = mode == me.kavishdevar.librepods.services.MiniIslandRules.Mode.Off
     var miniNames by remember { mutableStateOf(IslandPrefs.miniNames(prefs)) }
     var miniAirPodsOnly by remember { mutableStateOf(IslandPrefs.miniAirPodsOnly(prefs)) }
     var miniAlways by remember { mutableStateOf(IslandPrefs.miniAlways(prefs)) }
@@ -148,6 +150,24 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
         if (tapsAvailable) TapAccessCard(enabled = tapsEnabled, running = tapsService != null, ink = ink, dark = dark)
 
         // What it shows in each situation, live: the Dynamic Island is this tab's main thing.
+        // On, Music only or Off (the tiny ring): the one choice that says how much it does.
+        SectionLabel("Dynamic Island", ink)
+        val modes = me.kavishdevar.librepods.services.MiniIslandRules.Mode.entries
+        LiquidSegments(
+            modes.map { it.label }, modes.indexOf(mode),
+            {
+                mode = modes[it]
+                IslandPrefs.setMode(prefs, mode)
+                GlintOverlays.refreshMiniIsland(context)
+            },
+        )
+        Text(
+            mode.description + if (mode == me.kavishdevar.librepods.services.MiniIslandRules.Mode.MusicOnly)
+                ". Sounds, messages, timers and moments below wait until you switch back to On." else ".",
+            style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = ink.copy(alpha = 0.55f)),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+
         SectionLabel("Look", ink)
         DynamicIslandStudio(ink, dark)
 
@@ -183,18 +203,9 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
             )
         }
 
-        StyledList(title = "Dynamic Island") {
-            StyledToggle(
-                label = "Dynamic Island around the camera",
-                description = "The app you're in, music, any sound, a timer, your headphones",
-                checked = mini,
-                onCheckedChange = {
-                    mini = it
-                    prefs.edit { putBoolean(IslandPrefs.PREF_MINI, it) }
-                    GlintOverlays.refreshMiniIsland(context)
-                },
-            )
-            StyledToggle(
+        // Off shows only the ring, so none of these apply then; Music only uses the music ones.
+        if (!ringOnly) StyledList(title = "What it does") {
+            if (on) StyledToggle(
                 label = "Always on",
                 description = "Stays round the camera even with nothing playing",
                 checked = miniAnytime,
@@ -205,7 +216,7 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
                 },
             )
             var liveApps by remember { mutableStateOf(IslandPrefs.liveFromApps(prefs)) }
-            StyledToggle(
+            if (on) StyledToggle(
                 label = "Live from apps",
                 description = "A Maps route, a ride or a download on the island, in the app's own words. Needs Notification access",
                 checked = liveApps,
@@ -216,7 +227,7 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
                 },
             )
             var readScreen by remember { mutableStateOf(IslandPrefs.readScreen(prefs)) }
-            StyledToggle(
+            if (on) StyledToggle(
                 label = "Read the screen",
                 description = "When you open the island in an app, it reads that screen once for its title and quick actions (call, map, copy a code). Never saved or sent; passwords never read",
                 checked = readScreen,
@@ -247,7 +258,7 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
                     else open(context, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null)))
                 },
             )
-            StyledToggle(
+            if (on) StyledToggle(
                 label = "Always while AirPods are connected",
                 description = "Off: only while music plays",
                 checked = miniAlways,

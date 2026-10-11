@@ -127,6 +127,8 @@
   Call/Map/Open/Add/Copy, Listen = `ScreenVoice` text-to-speech). The accessibility config now has canRetrieveWindowContent +
   flagRetrieveInteractiveWindows (without them `getWindows()` was always empty). Battery: `services/PowerPlan.kt` (automatic, no setting;
   paces bars, the 3D model, the visualiser and background heart; never springs/morphs). New redraw loops must use `PowerPlan`.
+- Modes (2026-10-11, Jake): Dynamic Island On / Music only / Off (`MiniIslandRules.Mode`, `IslandPrefs.mode`, top of the Island tab).
+  Off = a tiny ring 2 dp round the camera, always there to tap (glance), nothing shown (`MiniGeometry.ringD`); games use the same ring.
 - **`docs/REQUESTS.md` is the ledger of everything Jake has asked for and how finished each thing is: read it first and update it
   whenever he asks for something or a status changes.** Folder READMEs (`android/`, `services/`, `overlays/`, `glint/`, `screens/`,
   tests) map the code: update them with the code. Check a README doesn't already exist before writing one (`git ls-files | grep -i readme`).

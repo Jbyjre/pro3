@@ -254,6 +254,17 @@ Jake: "whenever I open a dynamic Island in an app it just says the app name and 
 | Found bug: the island's window checks never worked | DONE | `res/xml/app_listener_service_config.xml`, `IslandAccess.kt` | Android only lists windows to an accessibility service that asks to see window content (its own docs, checked in its source 2026-10-11). pro didn't ask, so the "which app is in front" double-check and the "step aside for the notification shade" check always saw nothing. Now asked; Android keeps the switch on across the update (checked in its source). |
 | Battery efficient automatically, without losing anything | DONE, PHONE CHECK | `services/PowerPlan.kt` | No setting: always on. Anything you touch or watch move once (opening, morphing, springs, unlock) stays full speed. Things that redraw for hours on their own are paced: the pill's sound bars at 30 a second (they were 60; the music is only heard 20 times a second), the spinning headphones at 30, both full speed while charging. On Battery Saver, at 20% or less, or when the phone is warm: bars 20, the model rests (still spins with a finger), the music listener hears half as often, the glass lightens in the islands too, and a continuous background heart stream rests between minutes. Already so before (checked): everything stops with the screen off; the tilt sensor runs only for seconds after a touch. |
 
+## 16. 2026-10-11, fourth message: On, Music only, Off
+
+Jake, in short: replace the switch that turns the Dynamic Island off with one choice: normally on; only on while music plays and only about music; and an off that's a very small circle round the camera, still there to tap, showing nothing. Fix any bugs found on the way. Context-efficient skill. Details: `DECISIONS.md` section 48.
+
+| Request | Status | Where | Notes |
+|---|---|---|---|
+| One choice: On / Music only / Off | DONE, PHONE CHECK | `MiniIslandRules.Mode`, `IslandPrefs.mode`, `IslandSettingsScreen.kt` (top of the Island tab) | Replaces the old "Dynamic Island around the camera" switch (switched off, it now means Off). Settings that don't apply in a mode are hidden. The Phone tab's Island tile shows the mode. |
+| Music only: on only while music plays, only music | DONE, PHONE CHECK | `MiniIslandRules.wanted`, controller `refresh()` | Up while music plays and 30 s after a pause; cover, bars, song name. No sounds, messages, timers, moments, apps, live activities, "always on". |
+| Off: a very small circle round the camera, still tappable, nothing shown | DONE, PHONE CHECK | `MiniGeometry.ringD` / `ringWindow`, `MiniIslandHost(mode)` | 2 dp round the camera; tap = your controls (the glance), hold = open pro, double tap still plays/pauses. Its window is only as wide as the ring, so the status bar around it stays free. |
+| Fix bugs found | DONE | DECISIONS 48 | A new song over a full-screen game widened the island over the game; with the ring, a new song showed nothing at all. |
+
 ## Not done or not verifiable from the cloud
 
 - Everything marked PHONE CHECK. `TESTING.md` lists the steps.

@@ -201,6 +201,8 @@ class GlintScreenshots {
         phoneBlip: Boolean = false,
         /** How far the detached circle (a timer beside the music) has split off; null: the usual window. */
         split: Float? = null,
+        /** On, Music only or Off (the tiny ring). */
+        mode: me.kavishdevar.librepods.services.MiniIslandRules.Mode = me.kavishdevar.librepods.services.MiniIslandRules.Mode.On,
         /** How far it has grown out of the camera (1 = fully there). */
         appear: Float = 1f,
         /** The status bar is hidden (a full-screen app). */
@@ -253,6 +255,7 @@ class GlintScreenshots {
                             look = look, forceSituation = situation,
                             place = place, timer = timer, budsUp = budsUp, wallpaper = wallpaper, stillSwap = swap,
                             stillSplit = split,
+                            mode = mode,
                         )
                     }
                     // The camera, on top, where the real one would be.
@@ -272,6 +275,14 @@ class GlintScreenshots {
         rule.mainClock.advanceTimeBy(settle)
         rule.onRoot().captureRoboImage("$out/$name.png")
     }
+
+    // ---- Off: the tiny ring round the camera (music playing underneath, nothing shown) ----
+    @Test fun miniIslandOffRing() = mini("mini_island_off_ring", playing = true, wide = 0f, art = true,
+        mode = me.kavishdevar.librepods.services.MiniIslandRules.Mode.Off)
+    @Test fun miniIslandOffRingDark() = mini("mini_island_off_ring_dark", playing = false, wide = 0f, art = false, dark = true,
+        mode = me.kavishdevar.librepods.services.MiniIslandRules.Mode.Off)
+    @Test fun miniIslandOffRingNotch() = mini("mini_island_off_ring_notch", playing = true, wide = 0f, art = true, shape = "notch",
+        mode = me.kavishdevar.librepods.services.MiniIslandRules.Mode.Off)
 
     @Test fun miniIslandPlaying() = mini("mini_island_playing", playing = true, wide = 0f, art = true)
     @Test fun miniIslandSongName() = mini("mini_island_song_name", playing = true, wide = 1f, art = true, dark = true)
