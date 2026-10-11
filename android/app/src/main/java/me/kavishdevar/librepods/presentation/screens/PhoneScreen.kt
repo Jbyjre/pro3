@@ -239,10 +239,12 @@ fun PhoneScreen(navigateToIsland: () -> Unit, navigateToHeadphones: (() -> Unit)
             }) { c, on ->
                 drawKindGlyph(me.kavishdevar.librepods.services.SoundRules.Kind.Alert, c, size.minDimension * 0.46f, if (on) Color.Black else ink)
             }
-            val islandOn = canDraw && IslandPrefs.mini(IslandPrefs.prefs(context))
-            ControlTile("Island", if (islandOn) "On" else "Off", false, true, ink, dark, Modifier.weight(1f), {
-                // Off: there's no island to open, so this goes to where it's switched on.
-                if (islandOn) GlintOverlays.showIsland(context, IslandEvent.Glance, expand = true) else navigateToIsland()
+            // On, Music only or Off: even Off keeps its tiny ring, so the glance opens in every mode.
+            // Without "Display over other apps" there's no island at all: go to where that's fixed.
+            val islandMode = IslandPrefs.mode(IslandPrefs.prefs(context))
+            ControlTile("Island", if (!canDraw) "Off" else if (islandMode == me.kavishdevar.librepods.services.MiniIslandRules.Mode.MusicOnly) "Music" else islandMode.label,
+                false, true, ink, dark, Modifier.weight(1f), {
+                if (canDraw) GlintOverlays.showIsland(context, IslandEvent.Glance, expand = true) else navigateToIsland()
             }) { c, _ ->
                 val w = size.minDimension * 0.62f; val h = w * 0.42f
                 drawRoundRect(ink, Offset(c.x - w / 2f, c.y - h / 2f), Size(w, h), androidx.compose.ui.geometry.CornerRadius(h / 2f))

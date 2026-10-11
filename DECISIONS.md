@@ -731,3 +731,18 @@ Sections 23–29 listed problems, several "not verified on your phone". Each is 
 - **Not verified on a phone:** how well each app marks its headings, the detector's results on Jake's phone, the voice engine installed, the real battery saved (no way to measure from the cloud).
 - **Checked:** new tests `ScreenInsightsTest`, `PowerPlanTest`; pictures `island_glance_screen_article`, `_code`, `_route`, `fit_glance_screen`.
 
+
+## 48. On, Music only, Off (2026-10-11, fourth message)
+
+- **Your ask:** instead of the switch that turns the Dynamic Island off, one choice with three settings: normally on; on only while music plays and only about music; and off, which is a very small circle round the camera, still there to tap, showing nothing. Do it the right way, and fix bugs or anything that could cause problems later. Context-efficient skill.
+- **What it does now** (Island tab, at the top, "Dynamic Island: On / Music only / Off"):
+  - **On:** as before, everything.
+  - **Music only:** it appears only while music plays and for 30 s after a pause (so you can tap it to carry on), with the cover, the sound bars and each new song's name. Sounds, messages, battery moments, the app you're in, timers and apps' live activities don't bring it up or show on it. "Only with AirPods connected" still applies.
+  - **Off:** a black circle just 2 dp bigger than the camera, always there while the phone is unlocked (except in apps you hide it in). Nothing shows in it and it never widens. Tap it for your controls (the glance), hold to open pro, double tap still plays/pauses. Its window is only as wide as the ring, so the status bar round it isn't blocked. It shrinks into the ring and grows back smoothly when you change modes.
+- **Before:** the old switch turned it off completely. If you had it off, that now reads as Off (the ring). Settings that don't apply in a mode are hidden ("Always on", "Live from apps" and so on only show under On; Off shows none). The Phone tab's Island tile shows the mode and opens the glance in every mode.
+- **Bugs found and fixed:**
+  - A new song during a full-screen game widened the island over the game with the song's name. The game's ring is meant to never cover the game. The ring never widens now.
+  - With the ring, a new song would have shown nothing at all. Song pop-ups are skipped only while the full pill is there to stretch, so with the ring the pop-up comes (if "Pops up when > Each new song" is on).
+  - Full-screen games now use the same tiny ring as Off (it was the full pill's height with nothing in it).
+- **Checked:** new `IslandModeTest` (each mode's rules, the old switch carried over, the ring's size, window, and that the pill is never mistaken for it); pictures of the ring on a punch-hole, in dark mode and on a notch; the Island tab. All tests, lint and the release build pass. **Not verified on your phone.**
+- Code: `services/MiniIslandRules.kt` (`Mode`, `wanted`), `services/IslandPrefs.kt` (`mode`, `setMode`, `PREF_DI_MODE`), `overlays/MiniIsland.kt` (controller `refresh`, `ring`, `shrink`, `ringD`, `ringWindow`), `overlays/GlintOverlays.kt` (`MiniOrigin.isRing`), `screens/IslandSettingsScreen.kt`, `screens/PhoneScreen.kt`.

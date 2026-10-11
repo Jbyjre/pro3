@@ -153,7 +153,8 @@ object GlintOverlays {
     fun showIsland(context: Context, event: IslandEvent, expand: Boolean = false) = main.post {
         // A new song while the Dynamic Island is up: the pill itself stretches sideways with its
         // name, so no second pop-up drops below it (both used to show, the pop-up as a "bulb").
-        if (event == IslandEvent.Music && !expand && miniOrigin != null &&
+        // (The tiny ring never stretches, so with it the pop-up still comes, if switched on.)
+        if (event == IslandEvent.Music && !expand && miniOrigin?.isRing == false &&
             me.kavishdevar.librepods.services.IslandPrefs.miniNames(me.kavishdevar.librepods.services.IslandPrefs.prefs(context))
         ) return@post
         val c = island ?: IslandController(context.applicationContext).also { island = it }
@@ -182,7 +183,13 @@ object GlintOverlays {
         val side: Float = height * 0.78f,
         /** The camera's lowest point, measured from the pill's top: content opening around it starts below this. */
         val lensBottom: Float = height,
-    )
+    ) {
+        /**
+         * The tiny ring (Off, or a full-screen game): a circle, as wide as it's tall. The pill is
+         * always wider than tall (the camera's zone plus a margin each side).
+         */
+        val isRing: Boolean get() = width <= height + 0.5f
+    }
 
     @Volatile var miniOrigin: MiniOrigin? = null
 

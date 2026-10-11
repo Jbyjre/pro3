@@ -13,6 +13,10 @@ Everything pro draws **over other apps**. Android lets an app do this with the "
 | `IslandEdge.kt` | The black island's edge, shared by the pill and the pop-ups: Apple's key line, or the Liquid Glass rim (`IslandSpec.Edge`, Settings > Island > Edge). |
 | `Card.kt` | The bottom "case opened" card (off by default; `services/CardGate.kt` decides when) and `GlassPillButton`, the glass button the settings pages also use. |
 
+## Modes: On, Music only, Off
+
+`MiniIslandRules.Mode`, stored by `IslandPrefs.mode` (`PREF_DI_MODE`; the old `PREF_MINI` switch off reads as Off). **On:** everything below. **Music only:** the controller passes only the music (no sounds, messages, moments, timer, live activities) and the pill exists only while music plays or just paused. **Off:** the pill is always there as the tiny ring (`MiniGeometry.ringD`, window `ringWindow`), nothing in it, never widening; tap opens the glance. Full-screen games use the same ring (`ring` in `MiniIslandHost`). `MiniOrigin.isRing` tells the pop-ups the pill is the ring (a new song then still gets its pop-up, since the ring can't stretch).
+
 ## What the Dynamic Island shows
 
 `MiniIslandRules.Content` says what it is about, `IslandLook.Situation` which left/right slots apply:

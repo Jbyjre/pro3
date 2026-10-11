@@ -6,7 +6,7 @@ The brains of pro. Files are small and named for what they decide. "Pure" means 
 
 | File | What it does | Pure? |
 |---|---|---|
-| `MiniIslandRules.kt` | When the camera pill is wanted (a timer always; never in a "hide in" app otherwise), what it is about (Music, Sound, Screen, AirPods, Rest), what a tap opens (`tapOpens`: never an empty music player), its sizes around any camera, camera picking, how long things linger, `PlayTracker` (when music counts as played), `nextCheck` (the safe "look again" timer) | yes |
+| `MiniIslandRules.kt` | The three modes (`Mode`: On, Music only, Off = the tiny ring); when the camera pill is wanted (a timer always; never in a "hide in" app otherwise), what it is about (Music, Sound, Screen, AirPods, Rest), what a tap opens (`tapOpens`: never an empty music player), its sizes around any camera, camera picking, how long things linger, `PlayTracker` (when music counts as played), `nextCheck` (the safe "look again" timer) | yes |
 | `IslandLook.kt` | What goes left and right of the camera in each situation, size, width, glow, colour; stored in the `settings` preferences under `glint_di_*`; `clockText` | storage only |
 | `IslandSpec.kt` | Apple's own Dynamic Island numbers and rules, quoted from its design guidelines (44 dp corner, black, key line only on dark, opened width = screen minus 11 dp each side, detached circle), the `Style` (iPhone / Glass), the `Edge` (key line / Liquid Glass), when a pop-up opens around the camera, and the concentric-placement helpers (`roundedSquareHalf`, `cornerGap`, `insetFromCorner`) | yes |
 | `IslandMotion.kt` | The island's springs (`Feel`: Smooth, Snappy, Bouncy), with `settleMs` and `overshoot` so tests keep every feel inside Apple's 2 s and every close bounce-free | yes |

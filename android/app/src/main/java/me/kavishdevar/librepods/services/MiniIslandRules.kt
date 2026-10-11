@@ -82,6 +82,21 @@ object MiniIslandRules {
     fun showAsSound(heardOn: Boolean, musicLike: Boolean, playing: Boolean, musicCounted: Boolean): Boolean =
         heardOn && !playing && (!musicLike || !musicCounted)
 
+    /**
+     * How much the Dynamic Island does (Settings > Island, Jake 2026-10-11): everything (On), only
+     * music (Music only), or nothing but a tiny ring round the camera that's still there to tap (Off).
+     * [key] is what's stored, so the order can change without breaking anyone's choice.
+     */
+    enum class Mode(val key: String, val label: String, val description: String) {
+        On("on", "On", "Music, sounds, messages, the app you're in, timers and more"),
+        MusicOnly("music", "Music only", "Only while music plays, and only the music"),
+        Off("off", "Off", "A tiny ring round the camera. Tap it for your controls, hold to open pro");
+
+        companion object {
+            fun of(key: String?): Mode? = entries.firstOrNull { it.key == key }
+        }
+    }
+
     data class Inputs(
         val enabled: Boolean,
         val canDraw: Boolean,
@@ -103,11 +118,23 @@ object MiniIslandRules {
         val timer: Boolean = false,
         /** The app in front is one Jake chose to hide the island in (Settings > Island). */
         val hiddenHere: Boolean = false,
+        /** On, Music only or Off ([Mode]). */
+        val mode: Mode = Mode.On,
     )
 
     /** Whether the pill should exist at all. */
     fun wanted(i: Inputs): Boolean {
         if (!i.enabled || !i.canDraw || !i.screenUnlocked) return false
+        when (i.mode) {
+            // The tiny ring is always there to tap (except in the apps it's hidden in).
+            Mode.Off -> return !i.hiddenHere
+            // Music and nothing else: no timer, sound, message, AirPods or "always on".
+            Mode.MusicOnly -> {
+                if (i.hiddenHere || (i.airPodsOnly && !i.airPodsUp)) return false
+                return i.playing || (i.playedRecently && i.pausedForMs < PAUSED_LINGER_MS)
+            }
+            Mode.On -> {}
+        }
         // A ringing or running timer beats "hide in this app": it must be seen and stopped.
         if (i.timer) return true
         if (i.hiddenHere) return false
