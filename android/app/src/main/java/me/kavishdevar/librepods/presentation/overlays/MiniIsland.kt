@@ -1387,9 +1387,11 @@ internal fun MiniIslandHost(
             if (a <= 0.001f) return@Canvas
             val cx = size.width / 2f
             val compactW = lerp(geometry.seedW, bodyW.value, a)
-            val compactH = lerp(geometry.seedH, s.height, a.coerceAtMost(1.15f))
+            // Like a drop: when a spring carries the width past its target, the height gives a
+            // little instead of swelling as well (both at once looked like a balloon round the camera).
+            val compactH = lerp(geometry.seedH, s.height, a.coerceAtMost(1f + me.kavishdevar.librepods.services.IslandMotion.MAX_HEIGHT_OVERSHOOT)) * me.kavishdevar.librepods.services.IslandMotion.volumeGive(a)
             val pillW = lerp(compactW, s.wideWidth, w)
-            val pillH = lerp(compactH, s.wideHeight, w) + pull.value
+            val pillH = lerp(compactH, s.wideHeight, w.coerceAtMost(1f + me.kavishdevar.librepods.services.IslandMotion.MAX_HEIGHT_OVERSHOOT)) * me.kavishdevar.librepods.services.IslandMotion.volumeGive(w) + pull.value
             // The camera line stays put; the wide pill grows downward under it.
             val top = m + (s.height - compactH) / 2f
             val left = cx - pillW / 2f
@@ -1401,7 +1403,9 @@ internal fun MiniIslandHost(
             // with the camera. Glow Off keeps it black always. The iPhone look is always black.
             val idle = if (iphone) 0f else tone.value * minOf(1f, glow)
             val fill = androidx.compose.ui.graphics.lerp(Color.Black, Color(0xFF1D1D20), idle)
-            drawRoundRect(fill, Offset(left, top), Size(pillW, pillH), CornerRadius(r, r))
+            // Apple's continuous corners: a capsule while compact, easing into its curves as it widens.
+            val body = me.kavishdevar.librepods.presentation.glint.smoothRectPath(androidx.compose.ui.geometry.Rect(left, top, left + pillW, top + pillH), r)
+            drawPath(body, fill)
             // The detached circle (a timer beside the music): buds off the pill's right end with a
             // liquid neck, then floats a small gap away. Black like the island, with the same key line.
             val sp = split.value
@@ -1420,15 +1424,15 @@ internal fun MiniIslandHost(
             // Pressed: the glass lights up a little, most where it's held.
             if (press.value > 0.01f) {
                 val p = press.value
-                drawRoundRect(
+                drawPath(
+                    body,
                     androidx.compose.ui.graphics.Brush.verticalGradient(
                         listOf(Color.White.copy(alpha = 0.10f * p), Color.White.copy(alpha = 0.03f * p)), top, top + pillH
                     ),
-                    Offset(left, top), Size(pillW, pillH), CornerRadius(r, r),
                 )
                 val fx = ((pressAt?.x ?: (left + pillW / 2f)) - nudge.value).coerceIn(left + r, left + pillW - r)
                 val glowR = pillH * 1.4f
-                clipPath(Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(left, top, left + pillW, top + pillH, CornerRadius(r, r))) }) {
+                clipPath(body) {
                     drawCircle(
                         androidx.compose.ui.graphics.Brush.radialGradient(
                             listOf(Color.White.copy(alpha = 0.16f * p), Color.White.copy(alpha = 0f)), Offset(fx, top + pillH / 2f), glowR
@@ -1446,9 +1450,7 @@ internal fun MiniIslandHost(
                     else me.kavishdevar.librepods.services.IslandSpec.keylineAlpha(darkBg, glow)) * (1f - makeWay.value)
                 if (kl > 0f) {
                     val tint = androidx.compose.ui.graphics.lerp(Color.White, accent, 0.55f)
-                    val outline = Path().apply {
-                        addRoundRect(androidx.compose.ui.geometry.RoundRect(left + 0.5f, top + 0.5f, left + pillW - 0.5f, top + pillH - 0.5f, CornerRadius(r - 0.5f, r - 0.5f)))
-                    }
+                    val outline = me.kavishdevar.librepods.presentation.glint.smoothRectPath(androidx.compose.ui.geometry.Rect(left + 0.5f, top + 0.5f, left + pillW - 0.5f, top + pillH - 0.5f), r - 0.5f)
                     drawIslandEdge(outline, androidx.compose.ui.geometry.Rect(left, top, left + pillW, top + pillH), glassEdge, kl, tint, density)
                     if (circleOut && sp > 0.85f) {
                         val ca = kl * ((sp - 0.85f) / 0.15f).coerceIn(0f, 1f)
@@ -1491,7 +1493,7 @@ internal fun MiniIslandHost(
             // Everything inside stays inside the black shape (and the detached circle), and off
             // the camera itself: Apple's content never runs into the island's edge or under the lens.
             val inside = Path().apply {
-                addRoundRect(androidx.compose.ui.geometry.RoundRect(left, top, right, top + pillH, CornerRadius(r, r)))
+                addPath(body)
                 if (circleOut) addOval(androidx.compose.ui.geometry.Rect(circleC, circleD / 2f))
             }
             val lens = geometry.hole?.let { hole ->
@@ -1533,7 +1535,6 @@ internal fun MiniIslandHost(
                     screenIcon = curIcon, prevIcon = prevIcon, swap = swap.value, wallpaper = wallpaper,
                     today = today, lockOpen = lockOpen.value, glance = glanceItem,
                     timerAt = if (still != null) 0L else timerNow,
-                    squareArt = iphone,
                 )
                 if (grow >= 0.999f || at != null) drawSlot(slot, centre, geometry.slotW(slot), leftSide, alpha, data)
                 else scale(grow, grow, centre) { drawSlot(slot, centre, geometry.slotW(slot), leftSide, alpha, data) }
@@ -1643,28 +1644,7 @@ private class SlotData(
     val glance: GlanceRules.Item? = null,
     /** elapsedRealtime the timer is drawn for (0: its still state, for screenshots). */
     val timerAt: Long = 0L,
-    /** The iPhone look: the cover is a small rounded square, as in Apple's pictures, not a circle. */
-    val squareArt: Boolean = false,
 )
-
-/**
- * A rounded square's outline centred at [c] (half its width [h], corner [cr]), drawn clockwise
- * from the middle of its top edge, so a part of it reads like a clock hand's sweep.
- */
-private fun squareRing(c: Offset, h: Float, cr: Float): Path = Path().apply {
-    val l = c.x - h; val t = c.y - h; val r = c.x + h; val b = c.y + h
-    val k = cr.coerceAtMost(h)
-    moveTo(c.x, t)
-    lineTo(r - k, t)
-    arcTo(androidx.compose.ui.geometry.Rect(r - 2 * k, t, r, t + 2 * k), -90f, 90f, false)
-    lineTo(r, b - k)
-    arcTo(androidx.compose.ui.geometry.Rect(r - 2 * k, b - 2 * k, r, b), 0f, 90f, false)
-    lineTo(l + k, b)
-    arcTo(androidx.compose.ui.geometry.Rect(l, b - 2 * k, l + 2 * k, b), 90f, 90f, false)
-    lineTo(l, t + k)
-    arcTo(androidx.compose.ui.geometry.Rect(l, t, l + 2 * k, t + 2 * k), 180f, 90f, false)
-    lineTo(c.x, t)
-}
 
 /** One thing beside the camera, centred at [c] in a spot [w] wide. */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
@@ -1695,12 +1675,11 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
                     fit * 1.2f, c,
                 )
             }
-            // The cover (or a note when there's no picture), greyed and dimmed while paused.
-            val h = if (d.squareArt) me.kavishdevar.librepods.services.IslandSpec.roundedSquareHalf(artFit, SQUARE_ART_CORNER) else artFit
-            val shape = Path().apply {
-                if (d.squareArt) addRoundRect(androidx.compose.ui.geometry.RoundRect(c.x - h, c.y - h, c.x + h, c.y + h, CornerRadius(h * SQUARE_ART_CORNER)))
-                else addOval(androidx.compose.ui.geometry.Rect(c, h))
-            }
+            // The cover (or a note when there's no picture), greyed and dimmed while paused. A
+            // circle on the round end's own centre: the one shape that fits a round end exactly,
+            // so no corner can ever poke into the island's curve (a square did, 2026-10-11).
+            val h = artFit
+            val shape = Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, h)) }
             clipPath(shape) {
                 val art = d.track.art ?: d.coverIcon
                 if (art != null) {
@@ -1723,18 +1702,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
             p?.let { pr ->
                 val stroke = androidx.compose.ui.graphics.drawscope.Stroke(ringW, cap = StrokeCap.Round)
                 val lineFit = fit - ringW / 2f
-                if (d.squareArt) {
-                    val lh = me.kavishdevar.librepods.services.IslandSpec.roundedSquareHalf(lineFit, SQUARE_ART_CORNER)
-                    val outline = squareRing(c, lh, lh * SQUARE_ART_CORNER)
-                    drawPath(outline, Color.White.copy(alpha = 0.16f * alpha), style = stroke)
-                    if (pr > 0f) {
-                        val measure = androidx.compose.ui.graphics.PathMeasure().apply { setPath(outline, false) }
-                        val done = Path()
-                        measure.getSegment(0f, measure.length * pr.coerceIn(0f, 1f), done, true)
-                        drawPath(done, d.accent.copy(alpha = 0.95f * alpha), style = stroke)
-                    }
-                    return@let
-                }
                 val tl = Offset(c.x - lineFit, c.y - lineFit)
                 val ring = Size(lineFit * 2f, lineFit * 2f)
                 drawArc(Color.White.copy(alpha = 0.16f * alpha), 0f, 360f, false, tl, ring, style = stroke)
@@ -1965,7 +1932,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
 }
 
 /** The cover's corner, as a share of the square's half-width (about a fifth of its width, like Apple's small album art). */
-private const val SQUARE_ART_CORNER = 0.42f
 
 /**
  * The middle square of a picture, so a wide or tall cover (a video's frame, a podcast banner) is

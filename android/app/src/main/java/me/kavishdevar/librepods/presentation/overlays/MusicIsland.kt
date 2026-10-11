@@ -92,6 +92,7 @@ import kotlinx.coroutines.delay
 import me.kavishdevar.librepods.presentation.glint.drawHeadphones
 import me.kavishdevar.librepods.presentation.glint.lerp
 import me.kavishdevar.librepods.presentation.glint.roundRectPath
+import me.kavishdevar.librepods.presentation.glint.smoothRectPath
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.services.GlintStatus
 import me.kavishdevar.librepods.services.HeartRate
@@ -193,7 +194,8 @@ internal fun SharedMusicArt(
         val pillT = geometry.seedTop
         val ring = track.progress(SystemClock.elapsedRealtime()) != null
         val pillFit = (o?.side ?: 0f) / 2f
-        val pHalf = IslandSpec.roundedSquareHalf(if (ring) pillFit - 3.4f * density else pillFit, 0.42f)
+        // The Dynamic Island's own round cover (inside its progress ring when it has one).
+        val pHalf = if (ring) pillFit - 3.4f * density else pillFit
         val pCover = Offset(pillL + pillH / 2f, pillT + pillH / 2f)
         val pBars = Offset(pillL + (o?.width ?: 0f) - pillH / 2f, pillT + pillH / 2f)
         // 2. The compact pop-up's cover (a new song).
@@ -222,13 +224,14 @@ internal fun SharedMusicArt(
             startCover.y * wP + cCover.y * wC + eCover.y * wE,
         )
         val half = startHalf * wP + cHalf * wC + eHalf * wE
-        val corner = startHalf * 0.42f * wP + 8f * density * wC + geometry.artCorner * fit * wE
+        // Round in every place it sits (pill, pop-up, opened), so it never changes shape in flight.
+        val corner = startHalf * wP + cHalf * wC + geometry.artCorner * fit * wE
 
-        clipPath(roundRectPath(f.main, f.radius)) {
+        clipPath(smoothRectPath(f.main, f.radius)) {
             // The cover: the same picture all the way, cropped to a square.
             if (half > 0.5f && fade * away > 0.001f) {
                 val alpha = fade * away
-                val shape = Path().apply { addRoundRect(RoundRect(cover.x - half, cover.y - half, cover.x + half, cover.y + half, CornerRadius(corner))) }
+                val shape = smoothRectPath(Rect(cover.x - half, cover.y - half, cover.x + half, cover.y + half), corner)
                 clipPath(shape) {
                     if (art != null) {
                         val (so, ss) = centreSquare(art)
@@ -241,7 +244,7 @@ internal fun SharedMusicArt(
                             colorFilter = if (level < 0.5f && wP > 0.5f) grey else null,
                         )
                     } else {
-                        drawRect(Color(0xFF2C2C2E), Offset(cover.x - half, cover.y - half), Size(2f * half, 2f * half), alpha = alpha)
+                        drawPath(shape, Color(0xFF2C2C2E), alpha = alpha)
                         drawNote(cover, half * 1.1f, Color.White.copy(alpha = alpha * 0.9f))
                     }
                 }

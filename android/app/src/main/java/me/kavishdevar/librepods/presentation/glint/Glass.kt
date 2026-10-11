@@ -148,6 +148,43 @@ fun roundRectPath(rect: Rect, radius: Float): Path = Path().apply {
 }
 
 /**
+ * A rounded rectangle with Apple's continuous corners ([me.kavishdevar.librepods.services.SmoothCorner]):
+ * each corner eases out of the straight edge instead of bending all at once. At a full capsule it
+ * is exactly [roundRectPath]'s capsule.
+ */
+fun smoothRectPath(rect: Rect, radius: Float, smoothing: Float = me.kavishdevar.librepods.services.SmoothCorner.IOS): Path {
+    val k = me.kavishdevar.librepods.services.SmoothCorner.corner(radius, smoothing, rect.minDimension)
+    if (k.radius <= 0.01f) return Path().apply { addRect(rect) }
+    if (smoothing <= 0f) return roundRectPath(rect, radius)
+    val path = Path()
+    // Corners clockwise from the top right, each as (where it starts, along-edge, inward).
+    val corners = listOf(
+        Triple(Offset(rect.right - k.p, rect.top), Offset(1f, 0f), Offset(0f, 1f)),
+        Triple(Offset(rect.right, rect.bottom - k.p), Offset(0f, 1f), Offset(-1f, 0f)),
+        Triple(Offset(rect.left + k.p, rect.bottom), Offset(-1f, 0f), Offset(0f, -1f)),
+        Triple(Offset(rect.left, rect.top + k.p), Offset(0f, -1f), Offset(1f, 0f)),
+    )
+    val edgeDeg = floatArrayOf(0f, 90f, 180f, 270f)
+    path.moveTo(rect.left + k.p, rect.top)
+    corners.forEachIndexed { i, (o, e1, e2) ->
+        fun at(u: Float, v: Float) = Offset(o.x + e1.x * u + e2.x * v, o.y + e1.y * u + e2.y * v)
+        val s = at(0f, 0f)
+        path.lineTo(s.x, s.y)
+        val x1 = k.a + k.b + k.c
+        val h1 = at(k.a, 0f); val h2 = at(k.a + k.b, 0f); val m1 = at(x1, k.d)
+        path.cubicTo(h1.x, h1.y, h2.x, h2.y, m1.x, m1.y)
+        // The circle in the middle: its centre sits one radius in from both edges.
+        val centre = at(k.p - k.radius, k.radius)
+        path.arcTo(Rect(centre, k.radius), edgeDeg[i] + k.startDeg, k.arcDeg, false)
+        val qx = x1 + k.arcLen; val qy = k.d + k.arcLen
+        val h3 = at(qx + k.d, qy + k.c); val h4 = at(qx + k.d, qy + k.b + k.c); val e = at(qx + k.d, qy + x1)
+        path.cubicTo(h3.x, h3.y, h4.x, h4.y, e.x, e.y)
+    }
+    path.close()
+    return path
+}
+
+/**
  * Asks the system to blur what's behind the window inside [rect] (rounded by [cornerRadius]).
  * Must be drawn before anything else in that area: it clears our own pixels there so the
  * blurred backdrop shows through, which also keeps shadows from darkening the glass.

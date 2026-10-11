@@ -136,6 +136,7 @@ import me.kavishdevar.librepods.presentation.glint.listeningModeName
 import me.kavishdevar.librepods.presentation.glint.metaballNeck
 import me.kavishdevar.librepods.presentation.glint.rememberTiltLight
 import me.kavishdevar.librepods.presentation.glint.roundRectPath
+import me.kavishdevar.librepods.presentation.glint.smoothRectPath
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -321,7 +322,13 @@ internal class IslandGeometry(
     val artInset = dp(ART_INSET_DP)
     val artTop = dp(ART_TOP_DP)
     val artSize = dp(ART_SIZE_DP)
-    val artCorner = dp(ART_CORNER_DP)
+    /**
+     * Concentric with the island's 44 dp corner (inner = outer minus the smaller of the two
+     * gaps, the Liquid Glass rule): on a 52 dp cover that is a full circle, which hugs the curve.
+     */
+    val artCorner = dp(me.kavishdevar.librepods.services.IslandSpec.concentric(
+        me.kavishdevar.librepods.services.IslandSpec.CORNER_DP, minOf(ART_INSET_DP, ART_TOP_DP),
+    ).coerceAtMost(ART_SIZE_DP / 2f))
     /** The song's name and artist: bottom-aligned with the cover, never higher than just under the camera. */
     val textTop = maxOf(artTop + artSize - dp(40f), if (around && origin != null) origin.lensBottom + dp(3f) else 0f)
     val headerBottom = maxOf(artTop + artSize, textTop + dp(40f))
@@ -586,15 +593,20 @@ private fun IslandHostContent(
         val eh = expandH.value
         val s = split.value
         val mainW0 = lerp(geometry.seedW, geometry.compactMainW, a)
-        val mainH0 = lerp(geometry.seedH, geometry.compactH, a)
+        val mainH0 = lerp(geometry.seedH, geometry.compactH, a.coerceAtMost(1f + me.kavishdevar.librepods.services.IslandMotion.MAX_HEIGHT_OVERSHOOT))
         val sq = squish.value
         val p = pull.value
         // Pulling down stretches the glass (with resistance), keeping its volume roughly constant.
         val stretch = (p.coerceAtLeast(0f) * 0.22f).coerceAtMost(26f * density)
         val fullH = expandedHeight()
+        // Like a drop of liquid, it keeps its volume: while the width springs past its target
+        // the height gives a little instead of swelling too (both at once read as a balloon).
+        val give = me.kavishdevar.librepods.services.IslandMotion.volumeGive(maxOf(a, e))
         val w = lerp(mainW0, geometry.expandedW, e) * sq - stretch * 0.35f
-        val h = (lerp(mainH0, fullH, eh) * sq + stretch).coerceAtLeast(1f)
-        val radius = lerp(h / 2f, geometry.expandedRadius, e).coerceAtMost(h / 2f)
+        val h = (lerp(mainH0, fullH, eh.coerceAtMost(1f + me.kavishdevar.librepods.services.IslandMotion.MAX_HEIGHT_OVERSHOOT)) * sq * give + stretch).coerceAtLeast(1f)
+        // The corner grows from the pill's own curve to the opened island's 44 dp, instead of
+        // staying half the height on the way (which made the half-grown shape a fat capsule).
+        val radius = me.kavishdevar.librepods.services.IslandMotion.morphRadius(mainH0 / 2f, geometry.expandedRadius, e, h)
         val satR = geometry.satD / 2f * a * (1f - e)
         // Satellite travels from tucked inside the pill's right cap to a small gap beside it.
         val tucked = -geometry.satD
@@ -720,7 +732,7 @@ private fun IslandHostContent(
                 // so the handover never shows a gap.
                 if (f.appear <= 0.001f && geometry.origin == null) return@drawBehind
                 val alpha = (f.appear * 1.4f).coerceAtMost(1f)
-                val mainPath = roundRectPath(f.main, f.radius)
+                val mainPath = smoothRectPath(f.main, f.radius)
                 val satRect = Rect(f.satCenter.x - f.satR, f.satCenter.y - f.satR, f.satCenter.x + f.satR, f.satCenter.y + f.satR)
                 val satVisible = f.satR > 1f && f.satCenter.x + f.satR > f.main.right + 0.5f
                 val outline = if (satVisible) {
@@ -788,7 +800,7 @@ private fun IslandHostContent(
                         // Dynamic Island's own cover and on into the opened island's.
                         Spacer(Modifier.size(42.dp, 30.dp))
                     } else if (event == IslandEvent.Music && art != null) {
-                        Box(Modifier.width(42.dp), contentAlignment = Alignment.Center) { CoverArt(art, 30.dp, 8.dp) }
+                        Box(Modifier.width(42.dp), contentAlignment = Alignment.Center) { CoverArt(art, 30.dp, 15.dp) }
                     } else if (event.isGlance()) {
                         Box(Modifier.width(42.dp), contentAlignment = Alignment.Center) {
                             if (placeIcon != null) CoverArt(placeIcon, 30.dp, 8.dp)
@@ -1900,13 +1912,14 @@ internal fun glanceIslandText(place: me.kavishdevar.librepods.services.ScreenApp
 internal const val GLANCE_H_DP = 252f
 /** The opened music island's cover: its size, corner and place (see [IslandGeometry.musicPage]). */
 internal const val ART_SIZE_DP = 52f
-internal const val ART_CORNER_DP = 12f
 internal const val ART_INSET_DP = 18f
 internal const val ART_TOP_DP = 16f
 
-/** Clips expanded content to the island's current (growing) shape, anchored top-left. */
-/** The island's outline in the content's own units: content outside it is cut off. */
+/**
+ * Clips expanded content to the island's current (growing) shape, anchored top-left, in the
+ * content's own units: content outside it is cut off. The same continuous corners as the island.
+ */
 private class RevealShape(private val l: Float, private val t: Float, private val r: Float, private val b: Float, private val radius: Float) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
-        Outline.Rounded(RoundRect(l, t, r, b, CornerRadius(radius)))
+        Outline.Generic(smoothRectPath(Rect(l, t, r, b), radius))
 }
