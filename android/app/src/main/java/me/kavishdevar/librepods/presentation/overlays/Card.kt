@@ -147,7 +147,8 @@ internal class CardGeometry(context: Context) {
     private fun dp(v: Float) = v * density
     private val screen = GlintOverlays.screenSize(context)
     val margin = dp(26f)
-    val cardW = minOf(screen.width - dp(24f), dp(440f))
+    // 12 dp from each side; more on a curved screen (the Pixel 6 Pro), off the curve (PhoneProfile).
+    val cardW = minOf(screen.width - dp(2f * maxOf(12f, me.kavishdevar.librepods.services.PhoneProfile.edgeDp)), dp(440f))
     val cardH = dp(376f)
     val cardRadius = dp(RADIUS_DP)
     val pillW = dp(156f)

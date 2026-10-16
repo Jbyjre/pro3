@@ -158,7 +158,7 @@ const val PREF_HR_ALERT_BPM = "glint_hr_alert_bpm"
 /** Measure quietly whenever the AirPods are worn (no button press needed). */
 const val PREF_HR_ALWAYS = "glint_hr_always"
 private const val PREF_HR_VARIANT = "glint_hr_variant"
-/** Background measuring pace: 0 continuous (about every 5 s), 1 balanced, 2 saver. */
+/** Background measuring pace: 0 continuous (about every 5 s), 1 smart, 2 saver ([HeartPace]). */
 const val PREF_HR_PACE = "glint_hr_pace"
 /** Your age, for effort zones (0 = not set). */
 const val PREF_HR_AGE = "glint_hr_age"
@@ -175,17 +175,6 @@ const val HR_GLANCE_TAP_MS = 120_000L
 const val HR_WARMUP_MS = 3_000L
 /** Turn Conversation Awareness on only while the AirPods are in Adaptive. */
 const val PREF_CA_ADAPTIVE_ONLY = "glint_ca_adaptive_only"
-
-/** How often background measuring reads: all the time, or one-minute bursts with rests. */
-enum class HeartPace(val restMs: Long) {
-    Continuous(0L),
-    Balanced(4 * 60_000L),
-    Saver(14 * 60_000L);
-    companion object {
-        const val BURST_MS = 60_000L
-        fun of(v: Int) = entries.getOrElse(v) { Continuous }
-    }
-}
 
 object ServiceManager {
     private var service: AirPodsService? = null
@@ -1892,37 +1881,69 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 aacpManager.sendSensorInterval(hrService, interval)
                 HeartRate.status(HeartRate.Status.NoSignal)
             }
-            // Battery-saving pace (background only): one minute of readings, then the sensor
-            // rests for a few minutes. Continuous keeps the stream on.
-            // On Battery Saver, a low battery or a warm phone, a continuous background stream rests
-            // between minutes by itself (PowerPlan); in the app it's always continuous.
-            val pace = PowerPlan.heartPace(
+            // Battery-saving pace (background only): short spot checks with rests between
+            // (HeartPacing). Continuous keeps the stream on. On Battery Saver, a low battery or a
+            // warm phone, a continuous background stream becomes Smart by itself (PowerPlan); in
+            // the app it's always continuous. Looked at again on every check, so a new pace (yours,
+            // or the battery plan's) applies within seconds, not at the next start.
+            fun paceNow() = PowerPlan.heartPace(
                 if (background) HeartPace.of(sharedPreferences.getInt(PREF_HR_PACE, 0)) else HeartPace.Continuous,
                 PowerPlan.level.value, background,
             )
             // Readings stop when the buds come out; say so instead of showing an old number.
             val quietAfter = interval / 1000 * 3 + 7_000
-            // Check less often in the background: fewer wake-ups, same result.
-            val tick = if (background) 10_000L else 3_000L
-            var burstStarted = System.currentTimeMillis()
             var lastSave = System.currentTimeMillis()
+            var lastSpot: Int? = null
+            var steady = 0
+            var spotStarted = 0L
+            var wasSpots = false
+            hrSpotting = false
+            hrSpot.clear()
+            hrSpotFirstAt = 0L
             while (true) {
-                delay(tick)
+                val pace = paceNow()
+                val spots = found && pace != HeartPace.Continuous
+                if (spots != wasSpots) {
+                    // Into spot checks (or out of them): start counting afresh. Readings are only
+                    // collected for a spot while spot checks are on.
+                    wasSpots = spots
+                    hrSpot.clear()
+                    hrSpotFirstAt = 0L
+                    hrSpotting = spots
+                    spotStarted = System.currentTimeMillis()
+                }
+                // Check less often in the background: fewer wake-ups, same result. A spot check lasts
+                // about 20 s, so it's checked every 5 s while the sensor is on (and not at all at rest).
+                delay(if (spots) 5_000L else if (background) 10_000L else 3_000L)
                 val now = System.currentTimeMillis()
                 // Save every 10 minutes so a long session survives the app being closed.
                 if (now - lastSave >= 10 * 60_000L) { lastSave = now; HeartRate.saveSession(this@AirPodsService) }
                 val st = HeartRate.state.value
-                if (found && pace != HeartPace.Continuous && now - burstStarted >= HeartPace.BURST_MS) {
-                    // Rest the sensor, then start the next burst if the buds are still in.
-                    aacpManager.sendSensorInterval(hrService, 0L)
-                    HeartRate.resting(now + pace.restMs)
-                    delay(pace.restMs)
-                    if (BluetoothConnectionManager.aacpSocket?.isConnected != true || !budsWorn()) continue
-                    hrFirstRawAt = 0L // the sensor warms up again
-                    aacpManager.sendSensorInterval(hrService, interval)
-                    burstStarted = System.currentTimeMillis()
-                    HeartRate.status(HeartRate.Status.Starting)
-                    continue
+                if (spots) {
+                    val got = synchronized(hrSpot) { hrSpot.toList() }
+                    val value = HeartPacing.spotValue(got)
+                    val done = value != null && HeartPacing.spotDone(got.size, hrSpotFirstAt, now)
+                    if (done || now - spotStarted >= HeartPacing.SPOT_GIVE_UP_MS) {
+                        val rest = if (value != null && done) {
+                            steady = HeartPacing.steadyRun(value, lastSpot, steady)
+                            HeartPacing.restAfter(pace, value, lastSpot, steady, HeartPacing.podsLow(wornBudLevels())).also { lastSpot = value }
+                        } else if (pace == HeartPace.Saver) HeartPacing.SAVER_REST_MS else HeartPacing.SMART_REST_MS
+                        hrSpot.clear()
+                        hrSpotFirstAt = 0L
+                        spotStarted = now
+                        // Changing or high (Smart): keep the sensor on and start the next spot at once.
+                        if (rest == 0L) continue
+                        // Rest the sensor, then start the next spot if the buds are still in.
+                        aacpManager.sendSensorInterval(hrService, 0L)
+                        HeartRate.resting(now + rest)
+                        delay(rest)
+                        if (BluetoothConnectionManager.aacpSocket?.isConnected != true || !budsWorn()) continue
+                        hrFirstRawAt = 0L // the sensor warms up again
+                        aacpManager.sendSensorInterval(hrService, interval)
+                        spotStarted = System.currentTimeMillis()
+                        HeartRate.status(HeartRate.Status.Starting)
+                        continue
+                    }
                 }
                 val quiet = now - st.lastReadingMs > quietAfter
                 if (st.status == HeartRate.Status.Live && quiet) HeartRate.status(HeartRate.Status.NoSignal)
@@ -1987,6 +2008,11 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     /** When the current stream's first reading arrived, and the latest one (kept or not). */
     private var hrFirstRawAt = 0L
     private var hrLastRawAt = 0L
+    /** The current spot check's good readings and when the first came (battery-saving pace). */
+    private val hrSpot = java.util.Collections.synchronizedList(mutableListOf<Int>())
+    @Volatile private var hrSpotFirstAt = 0L
+    /** Spot checks are on for the current stream: only then are readings collected into [hrSpot]. */
+    @Volatile private var hrSpotting = false
 
     /**
      * "Only in Adaptive": Conversation Awareness on while the AirPods are in Adaptive (mode 4),
@@ -2002,6 +2028,16 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         val now = aacpManager.getControlCommandStatus(id)?.value?.firstOrNull()
         if (now == (if (want) 0x01.toByte() else 0x02.toByte())) return
         aacpManager.sendControlCommand(id.value, want)
+    }
+
+    /** Battery levels of the buds in an ear and not charging (for the heart pace), else empty. */
+    private fun wornBudLevels(): List<Int> {
+        val b = runCatching { batteryNotification.getBattery() }.getOrNull() ?: return emptyList()
+        val ears = earDetectionNotification.status
+        return b.filter { it.component == BatteryComponent.LEFT || it.component == BatteryComponent.RIGHT }
+            .filter { it.status != BatteryStatus.CHARGING && it.status != BatteryStatus.DISCONNECTED }
+            .map { it.level }
+            .takeIf { ears.any { e -> e == 0x00.toByte() } }.orEmpty()
     }
 
     /** True while at least one bud is in an ear. */
@@ -2111,6 +2147,10 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             HeartRate.rollOver(now)
         }
         HeartRate.reading(bpm, now)
+        if (hrSpotting) {
+            if (hrSpotFirstAt == 0L) hrSpotFirstAt = now
+            hrSpot.add(bpm)
+        }
         val limit = sharedPreferences.getInt(PREF_HR_ALERT_BPM, 140)
         if (sharedPreferences.getBoolean(PREF_HR_ALERT, false) && bpm > limit && now - lastHrAlertAt > 10 * 60_000L) {
             lastHrAlertAt = now
@@ -2596,6 +2636,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         val appWidgetManager = AppWidgetManager.getInstance(this)
         val componentName = ComponentName(this, BatteryWidget::class.java)
         val widgetIds = appWidgetManager.getAppWidgetIds(componentName)
+        // No battery widget on the home screen: nothing to draw (this runs on every battery change).
+        if (widgetIds.isEmpty()) return
 
         val remoteViews = RemoteViews(packageName, R.layout.battery_widget).also { it ->
             val openActivityIntent = PendingIntent.getActivity(
@@ -2686,6 +2728,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         val appWidgetManager = AppWidgetManager.getInstance(this)
         val componentName = ComponentName(this, NoiseControlWidget::class.java)
         val widgetIds = appWidgetManager.getAppWidgetIds(componentName)
+        // No listening-mode widget placed: nothing to draw.
+        if (widgetIds.isEmpty()) return
         val remoteViews = RemoteViews(packageName, R.layout.noise_control_widget).also { it ->
             val ancStatus = ancNotification.status
             val allowOffModeValue =

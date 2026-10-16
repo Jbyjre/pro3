@@ -41,8 +41,8 @@ object HeartRate {
         /** The AirPods' control connection isn't up, so the sensor can't be reached. */
         NotConnected,
         /**
-         * Measuring in short bursts to save battery (the Balanced or Saver pace): the sensor
-         * is off until the next burst. The last reading stays on screen.
+         * Measuring in short spot checks to save battery (the Smart or Saver pace): the sensor
+         * is off until the next spot check. The last reading stays on screen.
          */
         Resting,
     }
@@ -203,15 +203,19 @@ object HeartInsights {
      * any one burst with at least 10 readings over 45 seconds or more.
      */
     fun restingEstimate(samples: List<HeartRate.Sample>): Int? {
-        if (samples.size < 10) return null
+        if (samples.size < 9) return null
         val span = samples.last().timeMs - samples.first().timeMs
         val sparse = span > 0 && samples.size * 60_000.0 / span < 6.0 // under 6 readings a minute
         if (sparse) {
-            // Split into bursts at gaps of over 90 seconds.
-            val bursts = mutableListOf(mutableListOf(samples.first()))
-            samples.zipWithNext().forEach { (a, b) -> if (b.timeMs - a.timeMs > 90_000) bursts.add(mutableListOf(b)) else bursts.last().add(b) }
-            return bursts.filter { it.size >= 10 && it.last().timeMs - it.first().timeMs >= 45_000 }
-                .minOfOrNull { b -> b.map { it.bpm }.average() }?.let { kotlin.math.round(it).toInt() }
+            val bursts = clusters(samples)
+            // Old minute-long bursts: the calmest burst.
+            bursts.filter { it.size >= 10 && it.last().timeMs - it.first().timeMs >= 45_000 }
+                .minOfOrNull { b -> b.map { it.bpm }.average() }?.let { return kotlin.math.round(it).toInt() }
+            // Spot checks (a few readings each): the calmest three spots in a row, about 6 to 12
+            // minutes, which is as long as the 3-minute rule's window or longer.
+            val spots = bursts.filter { it.size >= 3 }.map { b -> HeartPacing.spotValue(b.map { it.bpm })!! }
+            if (spots.size < 3) return null
+            return spots.windowed(3).minOf { it.average() }.let { kotlin.math.round(it).toInt() }
         }
         val window = 180_000L
         var best: Double? = null
@@ -229,6 +233,58 @@ object HeartInsights {
         }
         return best?.let { kotlin.math.round(it).toInt() }
     }
+
+    /** Readings split wherever they're more than [gapMs] apart (a rest between spot checks, or buds out). */
+    fun clusters(samples: List<HeartRate.Sample>, gapMs: Long = 90_000L): List<List<HeartRate.Sample>> {
+        if (samples.isEmpty()) return emptyList()
+        val out = mutableListOf(mutableListOf(samples.first()))
+        for (i in 1 until samples.size) {
+            if (samples[i].timeMs - samples[i - 1].timeMs > gapMs) out.add(mutableListOf(samples[i])) else out.last().add(samples[i])
+        }
+        return out
+    }
+
+    /**
+     * One point on the graph. A [spot] stands for a whole spot check (or an old minute-long
+     * burst): its middle reading at its middle time, with its lowest and highest as [low]..[high].
+     * Other points are single readings from continuous measuring.
+     */
+    data class ChartPoint(val timeMs: Long, val bpm: Int, val low: Int, val high: Int, val spot: Boolean)
+
+    /** A short run of readings with rests around it is drawn as one point. */
+    const val SPOT_MAX_MS = 75_000L
+    /** Two continuous readings further apart than this are a break in the line. */
+    const val DENSE_BREAK_MS = 3 * 60_000L
+    /**
+     * A spot check joins its neighbours up to this far away: the Saver pace's 5 minutes with room
+     * to spare, but not across the buds being out for a while.
+     */
+    const val SPOT_JOIN_MS = 20 * 60_000L
+
+    /**
+     * The graph's points for [samples] (oldest first): spot checks summarised, continuous stretches
+     * kept as they are. Pure, so it's tested; the screen draws whatever this says.
+     */
+    fun chartPoints(samples: List<HeartRate.Sample>): List<ChartPoint> {
+        if (samples.isEmpty()) return emptyList()
+        val parts = clusters(samples)
+        if (parts.size == 1 && parts[0].last().timeMs - parts[0].first().timeMs > SPOT_MAX_MS) {
+            return samples.map { ChartPoint(it.timeMs, it.bpm, it.bpm, it.bpm, false) }
+        }
+        val out = ArrayList<ChartPoint>(samples.size)
+        for (c in parts) {
+            val span = c.last().timeMs - c.first().timeMs
+            if (span <= SPOT_MAX_MS) {
+                val bpms = c.map { it.bpm }
+                out.add(ChartPoint((c.first().timeMs + c.last().timeMs) / 2, HeartPacing.spotValue(bpms)!!, bpms.min(), bpms.max(), true))
+            } else c.forEach { out.add(ChartPoint(it.timeMs, it.bpm, it.bpm, it.bpm, false)) }
+        }
+        return out
+    }
+
+    /** Whether the graph's line runs from [a] to [b] (else it breaks: a real gap in the readings). */
+    fun joined(a: ChartPoint, b: ChartPoint): Boolean =
+        b.timeMs - a.timeMs <= if (a.spot || b.spot) SPOT_JOIN_MS else DENSE_BREAK_MS
 
     /**
      * Recovery: how far your heart rate fell in the minute after the session's highest point,

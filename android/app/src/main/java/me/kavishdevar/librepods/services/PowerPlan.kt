@@ -47,7 +47,7 @@ import me.kavishdevar.librepods.presentation.glint.GlassBudget
  *   times a second, so nothing is lost), the model at 30.
  * - [Level.Saver] on Battery Saver, at 20% or less, or when the phone is warm: bars at 20,
  *   the model rests (still turns with your finger), the listener hears 10 times a second, the glass
- *   lightens, and background heart readings come in bursts.
+ *   lightens, and background heart readings become spot checks.
  * Everything here pauses when the screen is off or the thing isn't on show (each part's own rule).
  */
 object PowerPlan {
@@ -60,9 +60,13 @@ object PowerPlan {
     /** At or below this battery (and not charging), pro saves like Battery Saver. */
     const val LOW_BATTERY = 20
 
-    /** The pure rule, unit-tested. [thermal] is Android's THERMAL_STATUS_* (0 none … 6 shutdown). */
-    fun levelFor(charging: Boolean, battery: Int, powerSave: Boolean, thermal: Int): Level = when {
-        powerSave || thermal >= PowerManager.THERMAL_STATUS_MODERATE -> Level.Saver
+    /**
+     * The pure rule, unit-tested. [thermal] is Android's THERMAL_STATUS_* (0 none … 6 shutdown);
+     * [warmFrom] is where "warm" starts for this phone ([PhoneProfile]: the Pixel 6 Pro's Tensor
+     * runs warm, so it saves from the first, "light" level; other phones from "moderate").
+     */
+    fun levelFor(charging: Boolean, battery: Int, powerSave: Boolean, thermal: Int, warmFrom: Int = PowerManager.THERMAL_STATUS_MODERATE): Level = when {
+        powerSave || thermal >= warmFrom -> Level.Saver
         !charging && battery in 0..LOW_BATTERY -> Level.Saver
         charging -> Level.Full
         else -> Level.Balanced
@@ -88,9 +92,9 @@ object PowerPlan {
     /** How many times a second the music listener hears, from Android's most ([maxMilliHz] is mHz). */
     fun listenRateMilliHz(level: Level, maxMilliHz: Int): Int = if (level == Level.Saver) maxMilliHz / 2 else maxMilliHz
 
-    /** Background heart readings: on Saver, a continuous stream becomes one minute in five (the "Balanced" pace). */
+    /** Background heart readings: on Saver, a continuous stream becomes Smart spot checks. */
     fun heartPace(chosen: HeartPace, level: Level, background: Boolean): HeartPace =
-        if (background && level == Level.Saver && chosen == HeartPace.Continuous) HeartPace.Balanced else chosen
+        if (background && level == Level.Saver && chosen == HeartPace.Continuous) HeartPace.Smart else chosen
 
     /**
      * Waits about [ms] and returns on the screen's next frame, so a paced animation still lands on
@@ -130,6 +134,7 @@ object PowerPlan {
         if (attached) return
         attached = true
         val app = context.applicationContext
+        PhoneProfile.load(app)
         val sticky = runCatching {
             ContextCompat.registerReceiver(
                 app, receiver,
@@ -145,15 +150,20 @@ object PowerPlan {
         update(app)
     }
 
+    /** Looks again now (the phone profile changed what counts as warm). */
+    fun recheck(context: Context) = update(context.applicationContext)
+
     private fun update(context: Context) {
         val pm = context.getSystemService(PowerManager::class.java)
-        val next = levelFor(charging, battery, pm?.isPowerSaveMode == true, pm?.currentThermalStatus ?: 0)
+        val saving = pm?.isPowerSaveMode == true
+        val thermal = pm?.currentThermalStatus ?: 0
+        val next = levelFor(charging, battery, saving, thermal, PhoneProfile.warmFrom)
         if (next != _level.value) {
             _level.value = next
             MusicPulse.replan(context)
         }
         // The glass's lighter recipe follows the same signs, in the overlays too (not only in the app).
-        GlassBudget.update(context)
+        GlassBudget.set(saving, thermal)
     }
 
     /** Tests and screenshots. */

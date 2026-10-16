@@ -15,6 +15,9 @@ Unit tests (plain JUnit and Robolectric) and the screenshot renderers. Run them 
 | `LiveActivitiesTest` | Which notifications are live, the one number from the app's words ("5 min" is never five miles), running clocks, which one shows |
 | `ScreenInsightsTest` | Reading an app's screen: headlines (never chrome, clocks or the app's name), site and reading time, codes, the fallback patterns, which apps are never read, button words, card sizes, Listen's pieces |
 | `PowerPlanTest` | The battery plan's levels (charging, Battery Saver, low, warm) and what each paces |
+| `PhoneProfileTest` | Recognising the S26 FE and the Pixel 6 Pro (and nothing else), each phone's tuning, heat counting earlier on the Pixel, the island's margin; pictures `phone_profile_*` and `heart_graph_paces` |
+| `HeartPacingTest` | Spot checks: the stored pace carried over, when a spot is done, its value, Smart's rests (steady, moving, high, low AirPods), Saver's sensor time, the graph's points and breaks, resting from spots |
+| `BatteryAuditTest` | The beacon scan's power by screen state and its restart limit |
 | `PulseShaperTest` | Silence flat, a voice leads the middle bars, noise isn't a voice, the kick ripples out, the ambient beat moves smoothly |
 | `Headphones3DTest` | The 3D model fits one batch and its box, unit normals, mirror-symmetric, cups under the band, a calm turn |
 | `MomentsUiTest` | Real swipes and window timing on the real pill: swipe up tucks the song name back at once, puts a moment away, the song name's time setting, the message window growing before and shrinking after |

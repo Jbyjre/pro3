@@ -43,7 +43,7 @@ class PowerPlanTest {
     @Test fun listeningAndHeartEaseOffOnlyWhenSaving() {
         assertEquals(20_000, PowerPlan.listenRateMilliHz(Level.Balanced, 20_000))
         assertEquals(10_000, PowerPlan.listenRateMilliHz(Level.Saver, 20_000))
-        assertEquals(HeartPace.Balanced, PowerPlan.heartPace(HeartPace.Continuous, Level.Saver, background = true))
+        assertEquals(HeartPace.Smart, PowerPlan.heartPace(HeartPace.Continuous, Level.Saver, background = true))
         assertEquals(HeartPace.Continuous, PowerPlan.heartPace(HeartPace.Continuous, Level.Saver, background = false))
         assertEquals(HeartPace.Saver, PowerPlan.heartPace(HeartPace.Saver, Level.Saver, background = true))
         assertEquals(HeartPace.Continuous, PowerPlan.heartPace(HeartPace.Continuous, Level.Balanced, background = true))

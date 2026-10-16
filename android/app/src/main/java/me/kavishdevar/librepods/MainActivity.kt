@@ -106,7 +106,6 @@ class MainActivity : ComponentActivity() {
             }
             ProvideAppearance(this) {
             me.kavishdevar.librepods.presentation.glint.TrackGlassTilt()
-            me.kavishdevar.librepods.presentation.glint.TrackGlassBudget()
             val dark = isSystemInDarkTheme()
             LaunchedEffect(dark) {
                 // Status and navigation bar icons follow the chosen appearance, not just the phone's.
@@ -136,9 +135,9 @@ class MainActivity : ComponentActivity() {
         // Permissions may have just been granted (setup, Android's settings): let the mini
         // island around the camera catch up.
         me.kavishdevar.librepods.presentation.overlays.GlintOverlays.refreshMiniIsland(this)
-        // Smoother motion: the screen's fastest refresh rate while pro is open (not on Battery
-        // Saver or a hot phone; checked again every time pro comes back).
-        me.kavishdevar.librepods.presentation.glint.FrameRate.apply(window, this)
+        // Smoother motion: the screen's fastest refresh rate while you touch pro and for a moment
+        // after, then the phone's own choice (not on Battery Saver or a warm phone).
+        frames.boost()
         // Just allowed to hear the music (here or in Android's settings): the bars can follow it now.
         me.kavishdevar.librepods.services.MusicPulse.retry(this)
         askToHearMusicOnce()
@@ -155,6 +154,19 @@ class MainActivity : ComponentActivity() {
         p.edit().putBoolean("asked_hear_music", true).apply()
         // The answer needs no handling here: pro resumes after the prompt and onResume catches up.
         requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 4107)
+    }
+
+    /** The fast refresh rate follows your touches (FrameRate.Booster). */
+    private val frames by lazy { me.kavishdevar.librepods.presentation.glint.FrameRate.Booster(this) }
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        frames.onTouch(ev)
+        return super.dispatchTouchEvent(ev)
+    }
+
+    override fun onPause() {
+        frames.stop()
+        super.onPause()
     }
 
     override fun onDestroy() {

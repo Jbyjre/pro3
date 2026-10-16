@@ -132,7 +132,8 @@ fun PhoneScreen(navigateToIsland: () -> Unit, navigateToHeadphones: (() -> Unit)
     var ring by remember { mutableStateOf(PhoneControls.ring(context)) }
     var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     var wall by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
+    // Only while the page is on screen (it used to keep checking with pro in the background).
+    me.kavishdevar.librepods.presentation.glint.WhileShown {
         while (true) {
             val draw = Settings.canDrawOverlays(context)
             if (draw && !canDraw) GlintOverlays.refreshMiniIsland(context)

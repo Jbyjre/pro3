@@ -102,8 +102,8 @@ fun SoundsSection(ink: Color, dark: Boolean, onApps: (() -> Unit)? = null) {
     var notifications by remember { mutableStateOf(NowPlaying.hasAccess(context)) }
     val screenAvailable = remember { IslandAccess.isAvailable(context) }
     var screenOn by remember { mutableStateOf(IslandAccess.isEnabled(context)) }
-    // Picks up the switches being flipped on Android's own pages while this is open.
-    LaunchedEffect(Unit) {
+    // Picks up the switches being flipped on Android's own pages while this is on screen.
+    me.kavishdevar.librepods.presentation.glint.WhileShown {
         while (true) {
             val n = NowPlaying.hasAccess(context)
             if (n != notifications) { notifications = n; NowPlaying.attach(context) }
@@ -250,8 +250,7 @@ fun RecentSounds(ink: Color, dark: Boolean) {
     val prefs = remember { IslandPrefs.prefs(context) }
     val recent by SoundSource.recent.collectAsState()
     var ignored by remember { mutableStateOf(IslandPrefs.soundIgnored(prefs)) }
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) { while (true) { delay(20_000); now = System.currentTimeMillis() } }
+    val now by me.kavishdevar.librepods.presentation.glint.rememberNow(20_000)
 
     Column(
         Modifier

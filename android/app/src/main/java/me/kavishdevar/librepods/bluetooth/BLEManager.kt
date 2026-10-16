@@ -126,8 +126,54 @@ class BLEManager(private val context: Context) {
         airPodsStatusListener = listener
     }
 
-    @SuppressLint("MissingPermission")
+    // ---- How hard to listen (battery) ----
+    // The scan used to run at Android's most power-hungry setting all day, screen off included.
+    // Now: full speed while the screen is on (the case-open pop-up and battery show at once),
+    // Android's low-power scan while it's off (nobody sees a pop-up then). See [modeFor].
+    @Volatile private var screenOn = true
+    @Volatile private var currentMode = -1
+    private val starts = ArrayDeque<Long>()
+    private var screenReceiver: android.content.BroadcastReceiver? = null
+    private val applyMode = Runnable {
+        if (mScanCallback == null) return@Runnable // stopped meanwhile
+        if (modeFor(screenOn) != currentMode) beginScan()
+    }
+
+    private fun followScreen() {
+        if (screenReceiver != null) return
+        screenOn = context.getSystemService(android.os.PowerManager::class.java)?.isInteractive ?: true
+        val r = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context, i: android.content.Intent) {
+                screenOn = i.action != android.content.Intent.ACTION_SCREEN_OFF
+                cleanupHandler.removeCallbacks(applyMode)
+                // Screen on: full speed at once. Off: wait a little, so a quick look at the
+                // lock screen doesn't restart the scan twice.
+                val settle = if (screenOn) 0L else SCREEN_OFF_SETTLE_MS
+                val wait = synchronized(starts) { waitBeforeStart(starts.toList(), System.currentTimeMillis()) }
+                cleanupHandler.postDelayed(applyMode, maxOf(settle, wait))
+            }
+        }
+        runCatching {
+            androidx.core.content.ContextCompat.registerReceiver(
+                context.applicationContext, r,
+                android.content.IntentFilter().apply {
+                    addAction(android.content.Intent.ACTION_SCREEN_ON)
+                    addAction(android.content.Intent.ACTION_SCREEN_OFF)
+                },
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+            screenReceiver = r
+        }
+    }
+
     fun startScanning() {
+        followScreen()
+        beginScan()
+    }
+
+    @SuppressLint("MissingPermission")
+    @Synchronized
+    private fun beginScan() {
         try {
             Log.d(TAG, "Starting BLE scanner")
 
@@ -151,8 +197,9 @@ class BLEManager(private val context: Context) {
 
             mBluetoothLeScanner = btAdapter.bluetoothLeScanner
 
+            val mode = modeFor(screenOn)
             val scanSettings = ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .setScanMode(mode)
                 .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
                 .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                 .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
@@ -190,8 +237,15 @@ class BLEManager(private val context: Context) {
             }
 
             mBluetoothLeScanner?.startScan(listOf(scanFilter), scanSettings, mScanCallback)
-            Log.d(TAG, "BLE scanner started successfully")
+            currentMode = mode
+            synchronized(starts) {
+                starts.addLast(System.currentTimeMillis())
+                while (starts.size > SCAN_STARTS_ALLOWED) starts.removeFirst()
+            }
+            Log.d(TAG, "BLE scanner started (mode $mode)")
 
+            // One cleanup tick at a time (starting again used to add a second one).
+            cleanupHandler.removeCallbacks(cleanupRunnable)
             cleanupHandler.postDelayed(cleanupRunnable, CLEANUP_INTERVAL_MS)
         } catch (t: Throwable) {
             Log.e(TAG, "Error starting BLE scanner", t)
@@ -208,6 +262,10 @@ class BLEManager(private val context: Context) {
             }
 
             cleanupHandler.removeCallbacks(cleanupRunnable)
+            cleanupHandler.removeCallbacks(applyMode)
+            currentMode = -1
+            screenReceiver?.let { r -> runCatching { context.applicationContext.unregisterReceiver(r) } }
+            screenReceiver = null
         } catch (t: Throwable) {
             Log.e(TAG, "Error stopping BLE scanner", t)
         }
@@ -501,6 +559,23 @@ class BLEManager(private val context: Context) {
     }
 
     companion object {
+        /** Full speed with the screen on; Android's low-power scan with it off. */
+        fun modeFor(screenOn: Boolean): Int = if (screenOn) ScanSettings.SCAN_MODE_LOW_LATENCY else ScanSettings.SCAN_MODE_LOW_POWER
+
+        /**
+         * Android refuses an app's 6th scan start within 30 seconds (it quietly stops scanning).
+         * How long to wait before the next start so that never happens, given the last starts.
+         */
+        fun waitBeforeStart(recent: List<Long>, now: Long): Long {
+            if (recent.size < SCAN_STARTS_ALLOWED) return 0L
+            val oldest = recent[recent.size - SCAN_STARTS_ALLOWED]
+            return (oldest + SCAN_START_WINDOW_MS + 500L - now).coerceAtLeast(0L)
+        }
+
+        /** We allow ourselves 4 of Android's 5 starts per 30 s, leaving room for Bluetooth turning back on. */
+        const val SCAN_STARTS_ALLOWED = 4
+        const val SCAN_START_WINDOW_MS = 30_000L
+        const val SCREEN_OFF_SETTLE_MS = 10_000L
         private const val TAG = "AirPodsBLE"
         private const val CLEANUP_INTERVAL_MS = 10000L
         private const val STALE_DEVICE_TIMEOUT_MS = 15000L

@@ -145,7 +145,7 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 
 1. **Warm-up:** tap Start measuring. The first number should appear after a few seconds and should *not* start high and then drop (the first 3 seconds are thrown away).
 2. **Background + island:** turn on Measure whenever worn, close pro, put the AirPods in. Within about 20 seconds the island should show "Heart rate · NN BPM" with a beating heart.
-3. **Pace:** pick Balanced, take the buds out and back in. The Heart rate screen should alternate between "Live" and "Last reading · next in about N min".
+3. **Pace:** pick Smart (it was called Balanced before 2026-10-15), take the buds out and back in. The Heart rate screen should alternate between "Live" and "Last spot check · next in about N min".
 4. **History:** Heart rate > History. Every session of a minute or more is listed by day; tap one to see its graph.
 5. **GitHub backup (into pro3):** first make pro3 private on github.com (pro3 > Settings > scroll to Danger Zone > Change visibility > Private). Then History > Back up to GitHub > Set up > Open GitHub. The token page opens already filled in: under **Repository access** pick **Only select repositories** and choose **pro3**, tap **Generate token**, copy it, paste it in the app, tap Connect. On github.com, open pro3 and switch the branch menu (top left, says "main") to **heart-backup**: you should see a `heart` folder. End a session: a new file should appear there within a minute. If pro3 is still public, the app says so and won't upload.
    - Offline test: turn on airplane mode, end a session (the line says "Waiting for internet"), turn airplane mode off: it should back up by itself within a few seconds.
@@ -246,3 +246,15 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 4. **The fixed window check:** pull down the notification shade with the pill showing: it should step aside; let go: it comes back. Using apps normally it must never vanish by itself (tell me if it does).
 5. **Battery:** a long music session should drain no more than before (Settings > Battery shows pro's share); on Battery Saver the bars move a little less smoothly and the headphones model stops turning by itself (a finger still spins it); plugged in, both are at full smoothness.
 
+
+## O. 2026-10-15: your phone, heart spot checks, battery
+
+1. **Your phone:** Settings > Your phone. On the Pixel 6 Pro it should say "Automatic: this is a Pixel 6 Pro" (on the S26 FE, "this is a Galaxy S26 FE"). Switch between the three: the drawing at the top eases the curve and the margin across.
+2. **Pixel 6 Pro edges:** play a song with the Dynamic Island on: when the song's name stretches the pill sideways, its ends stay clear of the curved glass (not bending round it). The opened island and the bottom card should also sit off the curve. Tell me if 18 dp looks too far in or not far enough.
+3. **S26 FE edges:** the same stretch comes closer to the sides (10 dp), on the flat screen.
+4. **Keep running:** on the Your phone page, tap the battery row(s): Android's battery page (and on the Samsung, Samsung's sleeping-apps page) opens; after allowing, the row says "Battery use: Unrestricted".
+5. **Smooth but lighter:** in pro, scroll and tap around: it should feel as smooth as before. With Developer options > "Show refresh rate" on, the number should be the top rate while you touch, then drop a couple of seconds after you stop.
+6. **Heart Smart pace:** Heart page > Measure whenever worn > Pace > Smart. Wear the AirPods for half an hour, sitting, with a 10-minute walk in the middle. The graph: one smooth line with small dots (spot checks) while sitting, and full detail during the walk. Touch a dot: "72 BPM (69–75) · time".
+7. **Heart Saver pace:** a dot every 5 minutes, joined into one line (no more short squiggles 15 minutes apart).
+8. **Low AirPods:** with the AirPods at 20% or less, Smart should space its checks like Saver (a dot every 5 minutes).
+9. **Battery overall:** after a normal day, Settings > Battery: pro's share should be lower than before, mainly with the screen off (the Bluetooth scan now goes to low power with the screen off). The real saving hasn't been measured.

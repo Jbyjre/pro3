@@ -147,8 +147,7 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
     val measuring = state.status != HeartRate.Status.Off
     val live = state.status == HeartRate.Status.Live
     var age by remember { mutableIntStateOf(prefs.getInt(PREF_HR_AGE, 0)) }
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) { while (true) { delay(5_000); now = System.currentTimeMillis() } }
+    val now by me.kavishdevar.librepods.presentation.glint.rememberNow(5_000)
     val historyVersion by HeartHistory.version.collectAsState()
     val history = remember(historyVersion) { HeartRate.history(context) }
     val usual = remember(history) { HeartInsights.usualResting(history, System.currentTimeMillis()) ?: 0 }
@@ -244,7 +243,7 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
                         if (recovery != null) Insight("1-min recovery", if (recovery > 0) "−$recovery" else "$recovery", ink, muted, Modifier.weight(1f))
                         InfoTip(
                             "Resting and recovery",
-                            "Resting, est.: your lowest 3-minute average this session (10-minute with a battery-saving pace); closest to your true resting rate when you've sat still for a while. " +
+                            "Resting, est.: your lowest 3-minute average this session (with spot checks, your calmest three in a row); closest to your true resting rate when you've sat still for a while. " +
                                 "1-min recovery: how far your heart rate fell in the minute after this session's highest reading (shown once that reading is 100 BPM or more). " +
                                 "Bigger drops generally go with better fitness. In a well-known 1999 study, a drop of 12 BPM or less one minute after a treadmill test was linked with higher health risk. " +
                                 "These are estimates, not a medical test."
@@ -317,7 +316,7 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
                 label = "Measure whenever worn",
                 description = when {
                     !always -> "Even with pro closed, no notification"
-                    state.background && state.status == HeartRate.Status.Resting -> "Resting the sensor between readings"
+                    state.background && state.status == HeartRate.Status.Resting -> "Resting the sensor between spot checks"
                     state.background && live -> paceWords(HeartPace.of(pace))
                     else -> "Starts when you put your AirPods in"
                 },
@@ -335,14 +334,15 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
                         InfoTip(
                             "Measuring pace",
                             "Every 5 s: the sensor stays on while you wear your AirPods, with a reading about every 5 seconds (every second if your AirPods don't accept that). " +
-                                "Balanced: one minute of readings every 5 minutes, so the sensor is on about 80% less. " +
-                                "Saver: one minute every 15 minutes, about 93% less. " +
+                                "Smart: a quick spot check (about 20 seconds) every 2 minutes, every 4 when your heart rate is steady, and nonstop while it's changing or 100 BPM and over, so the graph has detail where it matters. The sensor is on roughly 8 to 17% of the time when you're still. When your AirPods are at 20% or less, Smart slows to Saver's rhythm by itself. " +
+                                "Saver: a spot check every 5 minutes, always: about 7% of the time, the same as the old one-minute-in-15. " +
+                                "Each spot check is one point on the graph, joined into a smooth line; the faint bar behind a point is its lowest to highest reading. " +
                                 "Fewer readings mean less battery on your AirPods and less Bluetooth traffic; the exact saving hasn't been measured. " +
-                                "Manual sessions (Start measuring) always read continuously. A new pace applies from the next time measuring starts."
+                                "Manual sessions (Start measuring) always read continuously. A new pace applies within a few seconds (after the current rest, if the sensor is resting)."
                         )
                     }
                     LiquidSegments(
-                        listOf("Every 5 s", "Balanced", "Saver"), pace,
+                        listOf("Every 5 s", "Smart", "Saver"), pace,
                         { pace = it; prefs.edit { putInt(PREF_HR_PACE, it) } },
                         track = if (dark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.04f),
                     )
@@ -410,8 +410,8 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
 
 internal fun paceWords(p: HeartPace) = when (p) {
     HeartPace.Continuous -> "A reading about every 5 seconds"
-    HeartPace.Balanced -> "1 minute of readings every 5 minutes"
-    HeartPace.Saver -> "1 minute of readings every 15 minutes"
+    HeartPace.Smart -> "Spot checks every 2 to 4 minutes, nonstop while it changes"
+    HeartPace.Saver -> "A spot check every 5 minutes"
 }
 
 /**
@@ -538,7 +538,7 @@ private fun statusLine(state: HeartRate.State, connected: Boolean): String = whe
     HeartRate.Status.NotConnected -> "Waiting for the AirPods"
     HeartRate.Status.Resting -> {
         val mins = ((state.nextBurstMs - System.currentTimeMillis()) / 60_000L + 1).coerceAtLeast(1)
-        "Last reading · next in about $mins min"
+        "Last spot check · next in about $mins min"
     }
 }
 

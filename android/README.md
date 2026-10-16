@@ -43,7 +43,7 @@ All code is under `app/src/main/java/me/kavishdevar/librepods/` (the old LibrePo
 | `presentation/components/` | Shared pieces: lists, toggles, buttons, banners, cards | |
 | `presentation/navigation/` | Routes (`Screen.kt`), the page switcher (`AppNavGraph.kt`), the top bar and the tabs' state (`NavigationRoot.kt`), the three tabs and their Liquid Glass bar (`Tabs.kt`: Phone first, Island, Headphones), deep links from pop-ups (`AppLinks.kt`, `ISLAND_TAB`) | |
 | `presentation/theme/` | Colours, the Inter font, light/dark (`Appearance.kt`), the light/dark reveal, the home-screen icon choice | |
-| `bluetooth/` | Talking to the AirPods: the Apple accessory protocol (AACP), detection, reconnect timing, the heart sensor stream, the Beats beacon | |
+| `bluetooth/` | Talking to the AirPods: the Apple accessory protocol (AACP), detection, reconnect timing, the heart sensor stream, the Beats beacon, the beacon scan (`BLEManager`: full speed with the screen on, low power with it off) | |
 | `audio/` | The AirPods microphone recorder | |
 | `data/` | Protocol data classes and settings storage | |
 | `utils/` | Media-key control, Conversation Awareness timing, the companion-device link, "will this phone connect" wording | |

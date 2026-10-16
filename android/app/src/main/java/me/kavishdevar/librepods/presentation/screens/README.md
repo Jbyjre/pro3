@@ -13,9 +13,10 @@ One file per page of the app. Routes are in `../navigation/Screen.kt`, the page 
 | Sound settings | `SoundsSection.kt` | `SoundsSection` (pop for any sound, app icons, how long, which clues are on) and `RecentSounds` ("Heard lately" with one switch per app). Used on This phone and in Settings > Islands. `AppBadge` draws an app icon in a circle (a symbol when the app isn't known). |
 | Islands | `IslandSettingsScreen.kt` | The Island tab: the "See your apps, tap the island" switch card, the look editor first, the Dynamic Island switches, Moments (charging, app icon springs in), Hide in these apps, gestures, `SoundsSection`, which pop-ups appear, music, duration, haptics, "Try it" buttons (including the glance). |
 | Look editor | `IslandStudio.kt` | `DynamicIslandStudio` (live preview, situation chips starting with In an app, left and right slots, size, width, glow, colour, reset), `IslandGestureSettings`, `LiveIslandStrip` (the preview with your own look, used by the Phone tab). |
-| Settings | `AppSettingsScreen.kt` | Appearance, app icon, This phone, Your devices, name, Dynamic Island, Stay connected, Troubleshooting, About. Hidden "pro Lab" (`GlintLabScreen.kt`): Settings > About > tap "Version code" 7 times. |
+| Settings | `AppSettingsScreen.kt` | Appearance, app icon, This phone, Your phone, Your devices, name, Dynamic Island, Stay connected, Troubleshooting, About. Hidden "pro Lab" (`GlintLabScreen.kt`): Settings > About > tap "Version code" 7 times. |
 | Stay connected and appearance | `StayConnectedScreen.kt` | Samsung background setup and the glass and motion comfort switches. |
 | Your devices | `DevicesScreen.kt` | Which headphones pro follows (AirPods, Beats Solo 4, others). |
+| Your phone | `PhoneProfileScreen.kt` | Automatic / Galaxy S26 FE / Pixel 6 Pro (`services/PhoneProfile`): a drawing of the phone's top edge with the island stretched as far as it goes there, what changes on that phone, and the battery settings that keep pro running. |
 | Troubleshooting, Version, Licences | `TroubleshootingScreen.kt`, `VersionInfoScreen.kt`, `OpenSourceLicensesScreen.kt` | |
 | First-run setup | `onboarding/` | Welcome, This phone, Permissions, Stay connected (no agreement step). |
 

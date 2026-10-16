@@ -256,6 +256,10 @@ class AACPManager {
         fun onMicrophonePacket(packet: ByteArray) {}
     }
 
+    /** True when [packet] starts with the accessory protocol's 04 00 04 00 header. */
+    internal fun hasHeader(packet: ByteArray): Boolean =
+        packet.size >= 4 && packet[0] == 0x04.toByte() && packet[1] == 0x00.toByte() && packet[2] == 0x04.toByte() && packet[3] == 0x00.toByte()
+
     fun parseStemPressResponse(data: ByteArray): Pair<StemPressType, StemPressBudType> {
         Log.d(TAG, "Parsing Stem Press Response: ${data.joinToString(" ") { "%02X".format(it) }}")
         if (data.size != 8) {
@@ -407,7 +411,8 @@ class AACPManager {
 
     @OptIn(ExperimentalStdlibApi::class)
     fun receivePacket(packet: ByteArray) {
-        if (!packet.toHexString().startsWith("04000400")) {
+        // The 04 00 04 00 header, checked byte by byte (it used to turn every packet into text first).
+        if (!hasHeader(packet)) {
             Log.w(
                 TAG, "Received packet does not start with expected header: ${
                 packet.joinToString(" ") {

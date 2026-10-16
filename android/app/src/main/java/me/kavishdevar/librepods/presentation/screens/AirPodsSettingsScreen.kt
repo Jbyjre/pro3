@@ -579,7 +579,7 @@ fun AirPodsSettingsScreen(
                             HeartRate.Status.Starting -> "Starting…"
                             HeartRate.Status.NoSignal -> "No reading"
                             HeartRate.Status.NotConnected -> "Waiting"
-                            HeartRate.Status.Resting -> "${hr.bpm} BPM · resting the sensor"
+                            HeartRate.Status.Resting -> "${hr.bpm} BPM · last spot check"
                         },
                         onClick = navigateToHeartRate
                     )
