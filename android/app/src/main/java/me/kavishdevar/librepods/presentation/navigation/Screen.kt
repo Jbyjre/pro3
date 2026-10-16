@@ -100,5 +100,7 @@ sealed interface Screen: NavKey {
     data object Phone: Screen
     @Serializable
     data object Apps: Screen
+    @Serializable
+    data object PhoneProfile: Screen
 
 }

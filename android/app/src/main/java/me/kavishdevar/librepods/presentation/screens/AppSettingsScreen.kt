@@ -115,6 +115,7 @@ fun AppSettingsScreen(
     navigateToGlintLab: () -> Unit = {},
     navigateToRename: () -> Unit = {},
     navigateToDevices: () -> Unit = {},
+    navigateToPhoneProfile: () -> Unit = {},
     navigateToPhone: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -164,6 +165,18 @@ fun AppSettingsScreen(
                 description = "Battery, sounds and the Dynamic Island, no headphones needed",
                 orientation = ListItemOrientation.Vertical,
                 onClick = navigateToPhone,
+            )
+            val profileChoice by me.kavishdevar.librepods.services.PhoneProfile.choice.collectAsState()
+            val profile by me.kavishdevar.librepods.services.PhoneProfile.current.collectAsState()
+            StyledListItem(
+                name = "Your phone",
+                description = when {
+                    profile.phone == me.kavishdevar.librepods.services.PhoneProfile.Phone.Other -> "General settings · tune for the Galaxy S26 FE or Pixel 6 Pro"
+                    profileChoice == me.kavishdevar.librepods.services.PhoneProfile.Choice.Auto -> "Tuned for the ${profile.phone.label} · automatic"
+                    else -> "Tuned for the ${profile.phone.label}"
+                },
+                orientation = ListItemOrientation.Vertical,
+                onClick = navigateToPhoneProfile,
             )
             StyledListItem(
                 name = "Your devices",

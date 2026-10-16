@@ -277,13 +277,16 @@ object MiniIslandRules {
         return line.substring(0, i).trim() to line.substring(i + 1).trim().takeIf { it.isNotEmpty() }
     }
 
-    /** How close to each side of the screen the stretched pill comes, in dp. */
-    const val WIDE_EDGE_DP = 10f
+    /**
+     * How close to each side of the screen the stretched pill comes, in dp, on a flat screen.
+     * Curved screens (the Pixel 6 Pro) keep further in: [size]'s edgeDp, from [PhoneProfile].
+     */
+    const val WIDE_EDGE_DP = PhoneProfile.FLAT_EDGE_DP
 
     /** The situations an app's live activity shows in (no music, sound or message is the news). */
     val LIVE_SITUATIONS = setOf(IslandLook.Situation.App, IslandLook.Situation.Home, IslandLook.Situation.Locked, IslandLook.Situation.Rest)
 
-    fun size(holeW: Float, holeH: Float, density: Float, screenW: Float, look: IslandLook.Look = IslandLook.Look()): Size {
+    fun size(holeW: Float, holeH: Float, density: Float, screenW: Float, look: IslandLook.Look = IslandLook.Look(), edgeDp: Float = WIDE_EDGE_DP): Size {
         val f = look.size.factor
         val floor = holeH + 4f * density
         val h = ((holeH + 10f * density) * f).coerceIn(maxOf(28f * density * f, floor), maxOf(40f * density * f, floor))
@@ -291,7 +294,8 @@ object MiniIslandRules {
         val inset = 4f * density * f
         val gap = look.width.gapDp * density * f
         val center = maxOf(holeW, h)
-        val fit = screenW - 16f * density
+        // Never wider than the screen less its edges (16 dp in all on a flat screen, as before).
+        val fit = screenW - 2f * (edgeDp - 2f) * density
         val widths = IslandLook.Situation.entries.associateWith { sit ->
             val (l, r) = look.slots(sit, if (sit == IslandLook.Situation.Talking) IslandLook.Situation.Music else sit)
             val half = maxOf(IslandLook.slotWidth(l, side, density, f), IslandLook.slotWidth(r, side, density, f))
@@ -304,7 +308,7 @@ object MiniIslandRules {
         // A song's name (or a phone moment) stretches the pill sideways toward the screen's corners
         // at its own height, the title left of the camera and the artist right of it, instead of
         // growing a second line under it (Jake, 2026-10-11: it "looks bulbous").
-        val wide = minOf(screenW - 2f * WIDE_EDGE_DP * density, 440f * density).coerceIn(c, fit)
+        val wide = minOf(screenW - 2f * edgeDp * density, 440f * density).coerceIn(c, fit)
         // An app's live activity (its picture left, "200 m" right) gets its own, wider window only
         // while it shows, like a message: a permanently wider window would take taps from the status bar.
         val liveHalf = maxOf(IslandLook.slotWidth(IslandLook.Slot.App, side, density, f), IslandLook.slotWidth(IslandLook.Slot.Live, side, density, f))

@@ -231,9 +231,10 @@ internal class MiniIslandController(private val context: Context) {
             key == IslandPrefs.PREF_MINI_ANYTIME || key == IslandPrefs.PREF_MINI_ANY_SOUND || key == IslandPrefs.PREF_SOUND_LINGER ||
             key == IslandPrefs.PREF_SOUND_IGNORED || key == IslandPrefs.PREF_HIDE_IN) refresh()
         if (IslandGestures.Gesture.entries.any { it.key == key }) actions.value = IslandGestures.all(p)
-        if (key in IslandLook.keys) {
+        if (key in IslandLook.keys || key == me.kavishdevar.librepods.services.PhoneProfile.PREF) {
             look.value = IslandLook.read(p)
-            // A new size, width or a wider choice changes the window: measure and place it again.
+            // A new size, width or a wider choice (or the phone profile's edge) changes the window:
+            // measure and place it again.
             if (window.isShowing && MiniGeometry(context, look = look.value).key != shownFor) window.dismiss()
             refresh()
         }
@@ -658,7 +659,8 @@ internal class MiniGeometry(
         // without a cutout get the pill in the middle of the status bar instead.
         val cam = MiniIslandRules.pickCamera(cutouts, screen.width, screen.height)
         hole = cam?.let { android.graphics.Rect(it.left, it.top, it.right, it.bottom) }
-        size = MiniIslandRules.size(cam?.width?.toFloat() ?: 0f, cam?.height?.toFloat() ?: 0f, density, screen.width.toFloat(), look)
+        size = MiniIslandRules.size(cam?.width?.toFloat() ?: 0f, cam?.height?.toFloat() ?: 0f, density, screen.width.toFloat(), look,
+            me.kavishdevar.librepods.services.PhoneProfile.edgeDp)
         centerY = MiniIslandRules.centerY(cam, GlintOverlays.statusBarHeight(context), size.height, density)
         offsetX = cam?.let { (it.centerX - screen.width / 2f).roundToInt() } ?: 0
         key = listOf(screen, density, context.resources.configuration.orientation, size.height, size.compactWidth, size.wideWidth)

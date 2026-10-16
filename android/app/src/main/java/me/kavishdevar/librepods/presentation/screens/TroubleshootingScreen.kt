@@ -138,13 +138,6 @@ fun TroubleshootingScreen() {
     var isLoadingLogContent by remember { mutableStateOf(false) }
     var logContentLoaded by remember { mutableStateOf(false) }
 
-    LaunchedEffect(isCollectingLogs) {
-        while (isCollectingLogs) {
-            delay(250)
-            delay(250)
-        }
-    }
-
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var showBottomSheet by remember { mutableStateOf(false) }
 

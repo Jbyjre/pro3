@@ -279,6 +279,8 @@ internal fun HeartScale(bpm: Int, usual: Int, age: Int, dark: Boolean, ink: Colo
 
 /**
  * A session as one 2dp line over a soft fill, drawn in from the left when it first appears.
+ * Spot checks (the Smart and Saver paces) are single points joined by a smooth curve, each with a
+ * faint bar from its lowest to its highest reading; continuous readings are drawn as they came.
  * Touch and drag to read any point: a thin crosshair and the value and time appear above.
  */
 @Composable
@@ -300,27 +302,34 @@ internal fun HeartChart(
     LaunchedEffect(Unit) { reveal.animateTo(1f, tween(900, easing = FastOutSlowInEasing)) }
     val measurer = rememberTextMeasurer()
     var probe by remember { mutableStateOf<Float?>(null) }
-    val lo = (floor((samples.minOf { it.bpm } - 5) / 10.0) * 10).toInt()
-    val hi = (ceil((samples.maxOf { it.bpm } + 5) / 10.0) * 10).toInt().coerceAtLeast(lo + 20)
-    val t0 = samples.first().timeMs
-    val t1 = samples.last().timeMs.coerceAtLeast(t0 + 1)
+    val points = remember(samples) { HeartInsights.chartPoints(samples) }
+    if (points.isEmpty()) return
+    val lo = (floor((points.minOf { it.low } - 5) / 10.0) * 10).toInt()
+    val hi = (ceil((points.maxOf { it.high } + 5) / 10.0) * 10).toInt().coerceAtLeast(lo + 20)
+    // A single spot check still gets a little width, so it's a dot in the middle, not at an edge.
+    val t0 = points.first().timeMs - if (points.size == 1) 60_000L else 0L
+    val t1 = (points.last().timeMs + if (points.size == 1) 60_000L else 0L).coerceAtLeast(t0 + 1)
     val multiDay = t1 - t0 > 20 * 3_600_000L
     val timeFmt = remember(multiDay) { if (multiDay) DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT) else DateFormat.getTimeInstance(DateFormat.SHORT) }
     val grid = ink.copy(alpha = if (dark) 0.12f else 0.08f)
     val label = heartText(11, ink.copy(alpha = 0.55f))
+    val spots = points.count { it.spot }
     Canvas(
         Modifier
             .fillMaxWidth()
             .height(height)
-            .semantics { contentDescription = "Heart rate from ${samples.minOf { it.bpm }} to ${samples.maxOf { it.bpm }} beats per minute" }
-            .pointerInput(samples.size) {
+            .semantics {
+                contentDescription = "Heart rate from ${points.minOf { it.low }} to ${points.maxOf { it.high }} beats per minute" +
+                    if (spots > 0) ", $spots spot checks" else ""
+            }
+            .pointerInput(points.size) {
                 detectDragGestures(
                     onDragStart = { probe = it.x },
                     onDragEnd = { probe = null },
                     onDragCancel = { probe = null },
                 ) { change, _ -> probe = change.position.x }
             }
-            .pointerInput(samples.size) { detectTapGestures(onPress = { probe = it.x; tryAwaitRelease(); probe = null }) }
+            .pointerInput(points.size) { detectTapGestures(onPress = { probe = it.x; tryAwaitRelease(); probe = null }) }
     ) {
         val left = 34.dp.toPx()
         val top = 22.dp.toPx()
@@ -338,24 +347,34 @@ internal fun HeartChart(
         drawText(start, topLeft = Offset(left, bottom + 3.dp.toPx()))
         val end = measurer.measure(timeFmt.format(Date(t1)), label)
         drawText(end, topLeft = Offset(right - end.size.width, bottom + 3.dp.toPx()))
-        // The line, thinned to about one point per pixel column. Gaps over 3 minutes (buds
-        // out, or a battery-saving pause) break the line instead of drawing a false slope.
-        val step = (samples.size / (right - left)).toInt().coerceAtLeast(1)
+        // The line. Continuous readings are thinned to about one per pixel column and joined
+        // straight; anything with a spot check is joined by a smooth S-curve that never overshoots
+        // (its handles sit level with each point). Real gaps (HeartInsights.joined) break the line
+        // instead of drawing a false slope.
         val path = Path()
         val fill = Path()
-        var prevT = Long.MIN_VALUE
+        var prev: HeartInsights.ChartPoint? = null
+        var px = 0f; var py = 0f
         var segStartX = 0f
-        var lastX = 0f
-        samples.forEachIndexed { i, s ->
-            if (i % step != 0 && i != samples.lastIndex) return@forEachIndexed
-            val px = x(s.timeMs); val py = y(s.bpm)
-            if (prevT == Long.MIN_VALUE || s.timeMs - prevT > 180_000L) {
-                if (prevT != Long.MIN_VALUE) { fill.lineTo(lastX, bottom); fill.lineTo(segStartX, bottom); fill.close() }
-                path.moveTo(px, py); fill.moveTo(px, py); segStartX = px
-            } else { path.lineTo(px, py); fill.lineTo(px, py) }
-            prevT = s.timeMs; lastX = px
+        points.forEachIndexed { i, p ->
+            val nx = x(p.timeMs); val ny = y(p.bpm)
+            val last = prev
+            when {
+                last == null || !HeartInsights.joined(last, p) -> {
+                    if (last != null) { fill.lineTo(px, bottom); fill.lineTo(segStartX, bottom); fill.close() }
+                    path.moveTo(nx, ny); fill.moveTo(nx, ny); segStartX = nx
+                }
+                last.spot || p.spot -> {
+                    val mx = (px + nx) / 2f
+                    path.cubicTo(mx, py, mx, ny, nx, ny); fill.cubicTo(mx, py, mx, ny, nx, ny)
+                }
+                // Thinning: skip a continuous reading less than a pixel on (never the last one).
+                nx - px < 1f && i != points.lastIndex -> return@forEachIndexed
+                else -> { path.lineTo(nx, ny); fill.lineTo(nx, ny) }
+            }
+            prev = p; px = nx; py = ny
         }
-        fill.lineTo(lastX, bottom); fill.lineTo(segStartX, bottom); fill.close()
+        fill.lineTo(px, bottom); fill.lineTo(segStartX, bottom); fill.close()
         average?.takeIf { it in lo..hi }?.let { avg ->
             val ay = y(avg)
             drawLine(ink.copy(alpha = 0.35f), Offset(left, ay), Offset(right, ay), 1.dp.toPx(),
@@ -378,7 +397,21 @@ internal fun HeartChart(
         } else androidx.compose.ui.graphics.SolidColor(line)
         clipRect(right = left + (right - left) * reveal.value + 8.dp.toPx()) {
             drawPath(fill, Brush.verticalGradient(listOf(line.copy(alpha = if (dark) 0.28f else 0.18f), line.copy(alpha = 0f)), top, bottom))
+            // Each spot check's spread (lowest to highest reading), faint, behind the line. Dots only
+            // while there's room for them (about one per 6 dp), so a long day stays a clean line.
+            val roomy = spots > 0 && (right - left) / spots >= 6.dp.toPx()
+            points.forEach { p ->
+                if (!p.spot) return@forEach
+                val cx = x(p.timeMs)
+                if (p.high > p.low) {
+                    drawLine(line.copy(alpha = if (dark) 0.30f else 0.22f), Offset(cx, y(p.high)), Offset(cx, y(p.low)),
+                        strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
+                }
+            }
             drawPath(path, lineBrush, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            if (roomy) points.forEach { p ->
+                if (p.spot) { drawCircle(surface, 3.dp.toPx(), Offset(x(p.timeMs), y(p.bpm))); drawCircle(line, 2.dp.toPx(), Offset(x(p.timeMs), y(p.bpm))) }
+            }
         }
         // The average's label on a small chip in the card's colour, above the line it names.
         average?.takeIf { it in lo..hi }?.let { avg ->
@@ -393,19 +426,20 @@ internal fun HeartChart(
             drawText(t, topLeft = tl)
         }
         if (reveal.value >= 1f) {
-            val lastP = Offset(x(samples.last().timeMs), y(samples.last().bpm))
+            val lastP = Offset(x(points.last().timeMs), y(points.last().bpm))
             drawCircle(surface, 6.dp.toPx(), lastP)
             drawCircle(line, 4.dp.toPx(), lastP)
         }
-        probe?.let { px ->
-            val target = t0 + ((px.coerceIn(left, right) - left) / (right - left) * (t1 - t0)).roundToInt()
-            val s = samples.minBy { kotlin.math.abs(it.timeMs - target) }
-            val sx = x(s.timeMs)
+        probe?.let { tx ->
+            val target = t0 + ((tx.coerceIn(left, right) - left) / (right - left) * (t1 - t0)).roundToInt()
+            val p = points.minBy { kotlin.math.abs(it.timeMs - target) }
+            val sx = x(p.timeMs)
             drawLine(ink.copy(alpha = 0.35f), Offset(sx, top), Offset(sx, bottom), strokeWidth = 1.dp.toPx())
-            drawCircle(surface, 6.dp.toPx(), Offset(sx, y(s.bpm)))
-            drawCircle(line, 4.dp.toPx(), Offset(sx, y(s.bpm)))
-            val read = measurer.measure("${s.bpm} BPM · ${timeFmt.format(Date(s.timeMs))}", label.copy(color = ink, fontWeight = FontWeight.Medium))
-            val rx = (sx - read.size.width / 2f).coerceIn(left, right - read.size.width)
+            drawCircle(surface, 6.dp.toPx(), Offset(sx, y(p.bpm)))
+            drawCircle(line, 4.dp.toPx(), Offset(sx, y(p.bpm)))
+            val range = if (p.spot && p.high > p.low) " (${p.low}–${p.high})" else ""
+            val read = measurer.measure("${p.bpm} BPM$range · ${timeFmt.format(Date(p.timeMs))}", label.copy(color = ink, fontWeight = FontWeight.Medium))
+            val rx = (sx - read.size.width / 2f).coerceIn(left, (right - read.size.width).coerceAtLeast(left))
             drawText(read, topLeft = Offset(rx, 0f))
         }
     }

@@ -120,8 +120,9 @@ fun IslandSettingsScreen(navigateToApps: () -> Unit = {}) {
     var tapsEnabled by remember { mutableStateOf(IslandAccess.isEnabled(context)) }
     val tapsService by IslandAccess.service.collectAsState()
 
-    // Picks up changes made on Android's settings pages while this screen is open or returning.
-    LaunchedEffect(Unit) {
+    // Picks up changes made on Android's settings pages while this screen is open or returning
+    // (only while it's on screen: nothing checks with pro in the background).
+    me.kavishdevar.librepods.presentation.glint.WhileShown {
         while (true) {
             val now = NowPlaying.hasAccess(context)
             if (now != access) { access = now; NowPlaying.attach(context) }

@@ -68,7 +68,7 @@ object HeartView {
                 val mins = if (hr.nextBurstMs > now) ((hr.nextBurstMs - now + 59_999) / 60_000).toInt() else 0
                 View(
                     Kind.Resting, hr.bpm, "${hr.bpm}",
-                    if (mins > 0) "Saving battery: next reading in $mins min" else "Saving battery: next reading soon",
+                    if (mins > 0) "Spot checks to save battery: next in $mins min" else "Spot checks to save battery: next one soon",
                     Tap.Explain,
                 )
             }

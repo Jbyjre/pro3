@@ -92,8 +92,8 @@
   `FreezeReport` saves Android's own record of a freeze or crash (Troubleshooting > Freezes and crashes, Copy details): ask Jake for it.
 - Messages and moments (round 2): `SoundRules.worthAMoment`/`Dedupe`, `SoundSource.message`, `IslandLook.Situation.Message`
   (its window is temporarily wider: `MiniGeometry.messageWindow`), `PhoneStatus.momentBetween`, swipe up (`Kind.SwipeUp`),
-  `screens/AppsScreen.kt` (switches are the same set as `IslandPrefs.soundIgnored`). The phone model in use is not verified (S25 FE in older
-  notes, Pixel 6 in Jake's message of 2026-10-06).
+  `screens/AppsScreen.kt` (switches are the same set as `IslandPrefs.soundIgnored`). Jake's phones (2026-10-15): Galaxy S26 FE and
+  Pixel 6 Pro (which one he uses day to day is not verified; older notes said S25 FE / Pixel 6).
 - Phone-first (session 2026-10-07, Jake: the app is now a Dynamic Island app first, AirPods second): three tabs (`navigation/Tabs.kt`,
   Liquid Glass bar; Phone opens first = `screens/PhoneScreen.kt`, Island = `IslandSettingsScreen.kt`, Headphones = the old main page;
   all inside root `Screen.AirPodsSettings`). The pill shows the app in front (`services/ScreenApp.kt`, via the accessibility service,
@@ -132,5 +132,11 @@
 - **`docs/REQUESTS.md` is the ledger of everything Jake has asked for and how finished each thing is: read it first and update it
   whenever he asks for something or a status changes.** Folder READMEs (`android/`, `services/`, `overlays/`, `glint/`, `screens/`,
   tests) map the code: update them with the code. Check a README doesn't already exist before writing one (`git ls-files | grep -i readme`).
-- Faster cloud build setup: `android/tools/cloud-setup.sh` (then `source <dir>/env.sh`); it does the steps in the two notes above.
+- Faster cloud build setup: `android/tools/cloud-setup.sh` (then `source <dir>/env.sh`); it does the steps in the two notes above
+  (it falls back to Google's Maven Central mirror when Maven Central rate-limits the Robolectric jar).
+- Session 2026-10-15 (DECISIONS 49): Settings > Your phone = `services/PhoneProfile.kt` (Automatic / Galaxy S26 FE / Pixel 6 Pro;
+  `edgeDp` 18 on the Pixel's curved sides, 10 flat; `warmFrom` heat level; keep-awake page). Islands and the card read `PhoneProfile.edgeDp`.
+  Heart pace = `services/HeartPacing.kt` (Every 5 s / Smart / Saver spot checks; stored 1 = old Balanced = Smart); the graph joins
+  spots (`HeartInsights.chartPoints`). Repeating checks on a page must use `glint/WhileShown.kt` (plain `LaunchedEffect` loops kept
+  running in the background). Refresh rate: `FrameRate.Booster` (fast while touching + 2.5 s). BLE beacon scan: low power with the screen off.
 - See `DECISIONS.md` and `TESTING.md` at the repo root.

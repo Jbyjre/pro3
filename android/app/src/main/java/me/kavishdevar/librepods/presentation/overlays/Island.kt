@@ -292,6 +292,8 @@ internal class IslandGeometry(
     val around = me.kavishdevar.librepods.services.IslandSpec.opensAroundCamera(style, origin != null, aboveStatusBar)
     private fun dp(v: Float) = v * density
     private val screen = GlintOverlays.screenSize(context)
+    /** Distance kept from the screen's sides: more on a curved screen (the Pixel 6 Pro; PhoneProfile). */
+    private val edge = me.kavishdevar.librepods.services.PhoneProfile.edgeDp
     val margin = dp(22f)
     val shadowDrop = dp(16f)
     val tiny = dp(34f)
@@ -303,7 +305,7 @@ internal class IslandGeometry(
     val compactH = dp(44f) + band
     // Wide enough for the buds, two readable lines and the bubble inside one pill.
     // Narrow phones: never wider than the screen (with a small margin each side).
-    val compactMainW = minOf(dp(268f), screen.width - dp(24f))
+    val compactMainW = minOf(dp(268f), screen.width - dp(maxOf(24f, 2f * edge)))
     val satD = dp(42f)
     val satGap = dp(9f)
     /**
@@ -314,8 +316,8 @@ internal class IslandGeometry(
     val restSplit = satD / (satGap + 2f * satD)
     // The iPhone's opened island: 11 dp from each side of the screen, at most 408 dp (Apple's
     // own sizes); pro's glass one is a little narrower.
-    val expandedW = if (iphone) minOf(screen.width - dp(2f * me.kavishdevar.librepods.services.IslandSpec.SIDE_MARGIN_DP), dp(me.kavishdevar.librepods.services.IslandSpec.EXPANDED_MAX_W_DP))
-        else minOf(screen.width - dp(28f), dp(368f))
+    val expandedW = if (iphone) minOf(screen.width - dp(2f * maxOf(me.kavishdevar.librepods.services.IslandSpec.SIDE_MARGIN_DP, edge)), dp(me.kavishdevar.librepods.services.IslandSpec.EXPANDED_MAX_W_DP))
+        else minOf(screen.width - dp(maxOf(28f, 2f * edge)), dp(368f))
     /**
      * Music, the iPhone way: Apple's Now Playing layout, wrapped round the camera. The cover sits
      * in the top-left corner beside the camera (18 dp in, a 12 dp corner: by
@@ -425,7 +427,7 @@ private fun IslandHostContent(
     val reduceTransparency = remember { GlintComfort.reduceTransparency(context) }
     val light by rememberTiltLight(GlintComfort.tiltLight(context))
     // The same lighter glass as the app on Battery Saver or a hot phone (checked as it appears).
-    LaunchedEffect(Unit) { me.kavishdevar.librepods.presentation.glint.GlassBudget.update(context) }
+    LaunchedEffect(Unit) { me.kavishdevar.librepods.services.PowerPlan.recheck(context) }
     val dark = androidx.compose.foundation.isSystemInDarkTheme()
     // The iPhone's island is black in light and dark alike, so its words are always light.
     val iphone = geometry.iphone

@@ -46,6 +46,7 @@ import me.kavishdevar.librepods.presentation.screens.IslandSettingsScreen
 import me.kavishdevar.librepods.presentation.screens.PhoneScreen
 import me.kavishdevar.librepods.presentation.screens.AppsScreen
 import me.kavishdevar.librepods.presentation.screens.DevicesScreen
+import me.kavishdevar.librepods.presentation.screens.PhoneProfileScreen
 import me.kavishdevar.librepods.presentation.screens.HeartRateScreen
 import me.kavishdevar.librepods.presentation.screens.HeartShareScreen
 import me.kavishdevar.librepods.presentation.screens.HeartHistoryScreen
@@ -183,6 +184,7 @@ fun AppNavGraph(
                                 navigateToIsland = { navigate(Screen.IslandSettings) },
                                 navigateToDevices = { navigate(Screen.Devices) },
                                 navigateToPhone = { navigate(Screen.Phone) },
+                                navigateToPhoneProfile = { navigate(Screen.PhoneProfile) },
                                 navigateToGlintLab = { navigate(Screen.GlintLab) },
                                 navigateToRename = { navigate(Screen.Rename) },
                             )
@@ -195,6 +197,8 @@ fun AppNavGraph(
                                 if (backStack.size > 1 && backStack.last() == Screen.Devices) backStack.removeAt(backStack.lastIndex)
                             })
                         }
+                    Screen.PhoneProfile ->
+                        NavEntry(screen) { PhoneProfileScreen() }
                     Screen.StayConnected ->
                         NavEntry(screen) { StayConnectedScreen() }
 

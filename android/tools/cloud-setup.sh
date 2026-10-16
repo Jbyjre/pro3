@@ -26,7 +26,10 @@ LAYERS="${CIMG_LAYERS:-12 13 14 17 19}"
 ROBO_JAR="${ROBO_JAR:-android-all-instrumented-16-robolectric-13921718-i7.jar}"
 # The folder on Maven Central is the jar name without "android-all-instrumented-" and ".jar".
 ROBO_VERSION="${ROBO_JAR#android-all-instrumented-}"; ROBO_VERSION="${ROBO_VERSION%.jar}"
-ROBO_URL="https://repo1.maven.org/maven2/org/robolectric/android-all-instrumented/${ROBO_VERSION}/${ROBO_JAR}"
+ROBO_PATH="org/robolectric/android-all-instrumented/${ROBO_VERSION}/${ROBO_JAR}"
+ROBO_URL="https://repo1.maven.org/maven2/${ROBO_PATH}"
+# Google's copy of Maven Central: used when Maven Central answers "rate limited" (checked 2026-10-15).
+ROBO_MIRROR="https://maven-central.storage-download.googleapis.com/maven2/${ROBO_PATH}"
 
 mkdir -p "$WORK"/{dl,gradle-home,sdkroot,robo}
 cd "$WORK"
@@ -68,6 +71,8 @@ if ! robo_ok; then
   rm -f "robo/$ROBO_JAR"
   for wait in 2 4 8 16 32; do
     curl -sS -L -f -o "robo/$ROBO_JAR" "$ROBO_URL" && robo_ok && break
+    rm -f "robo/$ROBO_JAR"
+    curl -sS -L -f -o "robo/$ROBO_JAR" "$ROBO_MIRROR" && robo_ok && break
     echo "   download failed or rate-limited; trying again in ${wait}s"
     rm -f "robo/$ROBO_JAR"; sleep "$wait"
   done

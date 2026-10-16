@@ -405,8 +405,7 @@ private fun Plot() {
 private fun HeadPosition() {
     val orientation by HeadTracking.orientation.collectAsState()
     val last by HeadTracking.lastUpdate.collectAsState()
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) { while (true) { delay(500); now = System.currentTimeMillis() } }
+    val now by me.kavishdevar.librepods.presentation.glint.rememberNow(500)
     val live = last != 0L && now - last < 2_000
     val dark = isSystemInDarkTheme()
     val ink = if (dark) Color.White else Color.Black
