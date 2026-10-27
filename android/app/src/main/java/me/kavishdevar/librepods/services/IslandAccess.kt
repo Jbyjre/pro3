@@ -54,8 +54,13 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class IslandAccessService : AccessibilityService() {
     private val main = Handler(Looper.getMainLooper())
+    /** Asking Android for the window list is a call to another process: never on the main thread, which draws the island. */
+    private val panelThread = android.os.HandlerThread("island-panels").apply { start() }
+    private val panels = Handler(panelThread.looper)
+    private val panelCheck = Runnable { IslandAccess.updatePanels(this) }
     private val check = Runnable {
-        IslandAccess.updatePanels(this)
+        panels.removeCallbacks(panelCheck)
+        panels.post(panelCheck)
         // And which app is in front now (the sturdy check, on its own thread).
         ScreenApp.look(this)
     }
@@ -64,7 +69,7 @@ class IslandAccessService : AccessibilityService() {
         super.onServiceConnected()
         ScreenApp.attach(this)
         IslandAccess.connected(this)
-        IslandAccess.updatePanels(this)
+        panels.post(panelCheck)
         // Show the app that's open right away, not only after the next app switch.
         ScreenApp.look(this)
     }
@@ -86,12 +91,15 @@ class IslandAccessService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         main.removeCallbacks(check)
+        panels.removeCallbacks(panelCheck)
         IslandAccess.disconnected(this)
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
         main.removeCallbacks(check)
+        panels.removeCallbacks(panelCheck)
+        panelThread.quitSafely()
         IslandAccess.disconnected(this)
         super.onDestroy()
     }

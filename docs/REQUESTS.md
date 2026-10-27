@@ -280,6 +280,16 @@ Jake, in short: two versions of the app to choose in Settings, one for the Samsu
 | Fill the graph with good information | DONE | `HeartInsights.chartPoints`, `HeartChart` | One smooth line through spot checks, each with a faint lowest-to-highest bar; continuous stretches in full; breaks only at real gaps. Older sessions draw better too. Picture `docs/heart-paces-2026-10-15.png`. |
 | Go through the app: clearer, smarter, nothing redundant | DONE | DECISIONS 49 | Heart words say "spot checks"; a dead loop, a duplicate battery listener and repeated questions to Android removed; the scan's cleanup timer no longer doubles. Every file was searched for repeating work, timers, sensors, scans, main-thread file reads and widget refreshes, and each hit read; the heart, battery, scan and island-size code was read in full (not all ~62,000 lines word by word). The Dynamic Island's own loops were already well behaved. |
 
+## 18. 2026-10-27: the Dynamic Island doesn't really work on the S26 FE; smoother, better
+
+Jake, in short: on his Galaxy S26 FE taps on the Dynamic Island don't work, it lags or stutters, pro freezes or closes, the island disappears after a while and the pop-ups look wrong (the accessibility switch is on). Make it smoother and better in general; ten minutes of work, then merge what's there. No freeze report was sent, so the exact cause of the freezes is not verified.
+
+| Request | Status | Where | Notes |
+|---|---|---|---|
+| Fewer freezes and stutters when switching apps | DONE, PHONE CHECK | `SoundSource.windowChanged`, `IslandAccessService` (`panelCheck`) | Found two calls to other processes on the main thread (the one that draws the island) on every app switch: the first-time "what kind of app is this" lookup, and the window list for "is the shade open". Both now run on their own threads. Whether these were the freezes Jake saw is not verified (needs the Freezes and crashes report). |
+| Taps don't work on the S26 FE | NOT FIXED | `MiniIslandHost` gestures, `OverlayWindow` | Not found in the time given. A main thread busy with the lookups above would delay taps, so the fix above may help; not verified. Needs Jake's Freezes and crashes report (Settings > Troubleshooting) and a description of what a tap does. |
+| Island disappears later; pop-ups look wrong | NOT FIXED | | Not looked into in the time given. |
+
 ## Not done or not verifiable from the cloud
 
 - Everything marked PHONE CHECK. `TESTING.md` lists the steps.
