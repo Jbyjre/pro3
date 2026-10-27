@@ -249,8 +249,19 @@ object SoundSource {
     fun windowChanged(pkg: CharSequence?) {
         val ctx = appContext ?: return
         val p = pkg?.toString()?.takeIf { it.isNotBlank() } ?: return
-        foreground = SoundRules.foregroundAfter(foreground, p, roleOf(ctx, p))
+        val serial = ++windowSerial
+        cachedRole(p)?.let { foreground = SoundRules.foregroundAfter(foreground, p, it); return }
+        // First time for this app: asking Android is a call to another process, so it happens off
+        // the main thread (this runs on every app switch, and the main thread draws the island).
+        roleLoader.execute {
+            val r = roleOf(ctx, p)
+            main.post { if (serial == windowSerial) foreground = SoundRules.foregroundAfter(foreground, p, r) }
+        }
     }
+
+    /** Counts app switches, so a slow first lookup never overwrites a newer switch. */
+    private var windowSerial = 0
+    private val roleLoader = java.util.concurrent.Executors.newSingleThreadExecutor()
 
     // ---- App names, icons and roles ----
 
