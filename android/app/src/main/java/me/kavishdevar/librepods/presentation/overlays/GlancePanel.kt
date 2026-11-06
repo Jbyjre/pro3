@@ -630,6 +630,20 @@ private fun LiveRow(
                     drawArc(content.copy(alpha = 0.18f), 0f, 360f, false, tl, sz, style = st)
                     drawArc(if (item.charging) green else levelColor(item.level, content), -90f, 360f * item.level / 100f, false, tl, sz, style = st)
                 }
+                is GlanceRules.Item.Code -> {
+                    val blue = Color(0xFF0A84FF)
+                    drawArc(blue.copy(alpha = 0.25f), 0f, 360f, false, tl, sz, style = st)
+                    drawArc(blue, 0f, 360f, false, tl, sz, style = st)
+                }
+                is GlanceRules.Item.AppContext -> {
+                    val accent = when (item.kind) {
+                        me.kavishdevar.librepods.services.AppKinds.Kind.Game -> orange
+                        me.kavishdevar.librepods.services.AppKinds.Kind.Fitness -> Color(0xFFFF2D55)
+                        else -> Color(0xFF30B0C7)
+                    }
+                    drawArc(accent.copy(alpha = 0.25f), 0f, 360f, false, tl, sz, style = st)
+                    drawArc(accent, 0f, 360f, false, tl, sz, style = st)
+                }
             }
         }
         Spacer(Modifier.width(if (hero) 14.dp else 12.dp))
@@ -683,6 +697,10 @@ private fun LiveRow(
                 runCatching { context.startActivity(Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 onClose()
             })
+            is GlanceRules.Item.Code -> GlassPillButton(text = "Copy", textColor = content, dark = dark, height = 32.dp, fontSize = 13.sp, onClick = {
+                onTouch()
+                ScreenInsights.copyCode(context, item.code)
+            })
             else -> {}
         }
     }
@@ -706,6 +724,8 @@ internal fun rowText(item: GlanceRules.Item, now: Long, wall: Long, toFull: Long
     is GlanceRules.Item.LowPhone -> "Battery low · ${item.level}%" to "Battery Saver makes it last longer"
     is GlanceRules.Item.Alarm -> "Alarm ${clockOf(item.at)}" to "Rings ${PhoneRules.inWords(item.at - wall)}"
     is GlanceRules.Item.Battery -> "Battery · ${item.level}%" to if (item.charging) "Charging" else "Not charging"
+    is GlanceRules.Item.Code -> "Code · ${item.code}" to "Tap to copy to clipboard"
+    is GlanceRules.Item.AppContext -> "${item.kind.name} · ${item.text}" to "Active on screen"
 }
 
 private fun clockOf(wallMs: Long): String = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(wallMs))

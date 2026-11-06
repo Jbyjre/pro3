@@ -47,5 +47,11 @@ class PowerPlanTest {
         assertEquals(HeartPace.Continuous, PowerPlan.heartPace(HeartPace.Continuous, Level.Saver, background = false))
         assertEquals(HeartPace.Saver, PowerPlan.heartPace(HeartPace.Saver, Level.Saver, background = true))
         assertEquals(HeartPace.Continuous, PowerPlan.heartPace(HeartPace.Continuous, Level.Balanced, background = true))
+        // Screen off: background continuous heart readings ease down to Smart spot checks
+        assertEquals(HeartPace.Smart, PowerPlan.heartPace(HeartPace.Continuous, Level.Balanced, background = true, screenOn = false))
+        PowerPlan.previewScreenOn(false)
+        assertEquals(false, PowerPlan.screenOn.value)
+        PowerPlan.previewScreenOn(true)
+        assertEquals(true, PowerPlan.screenOn.value)
     }
 }

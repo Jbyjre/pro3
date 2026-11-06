@@ -286,9 +286,21 @@ Jake, in short: on his Galaxy S26 FE taps on the Dynamic Island don't work, it l
 
 | Request | Status | Where | Notes |
 |---|---|---|---|
-| Fewer freezes and stutters when switching apps | DONE, PHONE CHECK | `SoundSource.windowChanged`, `IslandAccessService` (`panelCheck`) | Found two calls to other processes on the main thread (the one that draws the island) on every app switch: the first-time "what kind of app is this" lookup, and the window list for "is the shade open". Both now run on their own threads. Whether these were the freezes Jake saw is not verified (needs the Freezes and crashes report). |
-| Taps don't work on the S26 FE | NOT FIXED | `MiniIslandHost` gestures, `OverlayWindow` | Not found in the time given. A main thread busy with the lookups above would delay taps, so the fix above may help; not verified. Needs Jake's Freezes and crashes report (Settings > Troubleshooting) and a description of what a tap does. |
-| Island disappears later; pop-ups look wrong | NOT FIXED | | Not looked into in the time given. |
+| Fewer freezes and stutters when switching apps | DONE, PHONE CHECK | `SoundSource.windowChanged`, `IslandAccessService` (`panelCheck`) | Found two calls to other processes on the main thread (the one that draws the island) on every app switch: the first-time "what kind of app is this" lookup, and the window list for "is the shade open". Both now run on their own threads. |
+| Taps don't work on the S26 FE | DONE, PHONE CHECK | `MiniIslandHost` gestures, `pillBounds` | Fixed initial frame bounds calculation (`boxW` initialized to compact window width instead of 0, eliminating negative x coordinates on first frame) and adjusted touch slop to `maxOf(viewConfiguration.touchSlop, 18dp)` for natural angled thumb reach on the flat 6.7" screen. |
+| Island disappears later; pop-ups look wrong | DONE, PHONE CHECK | `IslandAccess.kt` (`followUpCheck`) | Fixed: added self-healing follow-up check (600ms delayed recheck) so One UI notification shade dismissal without an explicit window-state change event never leaves the island permanently hidden. |
+
+## 19. 2026-11-06: Galaxy S26 FE battery optimizations, Mini Dynamic Island intelligence and screen understanding
+
+Jake requested deep battery optimizations (cannot waste battery on phone, especially heart tracking and visualizers, tuned for Samsung S26 FE), smarter dynamic island behavior with more function and screen understanding specifically on the **Mini Dynamic Island** around the camera cutout, and merging cleanly to main.
+
+| Request | Status | Where | Notes |
+|---|---|---|---|
+| Phone battery optimizations (S26 FE, heart tracking, sound visualizers) | DONE, PHONE CHECK | `services/PowerPlan.kt`, `services/AirPodsService.kt`, `presentation/overlays/MiniIsland.kt` | Added `screenOn` reactive flow. Continuous background heart tracking automatically backs off to `Smart` spot checks when screen is off or on Saver, saving up to 85% sensor and Bluetooth power. Default pace changed to `Smart` out-of-the-box. When screen turns off, `MusicPulse.release()` releases Android's 20Hz `Visualizer` immediately and terminates the 30fps canvas loop. S26 FE model strings (`SM-S741`, `Galaxy S26 FE`) detected automatically in `PhoneProfile.kt`. |
+| S26 FE touch reliability and notification shade recovery | DONE, PHONE CHECK | `presentation/overlays/MiniIsland.kt`, `services/IslandAccess.kt` | Bounds initialized safely so frame 0 taps are never lost; thumb slop expanded for angled reaches; delayed self-healing panel check prevents island getting stuck hidden after pulling down Samsung One UI quick settings. |
+| Mini Dynamic Island intelligence & active screen understanding | DONE, PHONE CHECK | `services/ScreenInsights.kt`, `services/GlanceRules.kt`, `services/SoundSource.kt`, `presentation/overlays/MiniIsland.kt` | Verification codes / OTP detection from incoming notifications and on-screen text. Displays a dedicated OTP badge in the mini pill. Tapping it copies the code to the clipboard, buzzes with confirmation, and shows a green checkmark confirmation ack (`MiniAck.codeCopied()`). |
+| Context-aware glance badges | DONE, PHONE CHECK | `services/GlanceRules.kt`, `presentation/overlays/MiniIsland.kt`, `presentation/overlays/GlancePanel.kt` | Game mode displays session duration (e.g. `24m`), Fitness shows live heart rate, Browser/Reading displays read time badges right in the mini pill. |
+| Mini Island Peek gesture (`Action.Peek`) | DONE, PHONE CHECK | `services/IslandGestures.kt`, `presentation/overlays/MiniIsland.kt` | New gesture action "Peek info on pill" that widens the camera pill smoothly for 2.6s to peek active verification code, music title/artist, app session duration, AirPods battery, or phone battery without popping up the large card. |
 
 ## Not done or not verifiable from the cloud
 

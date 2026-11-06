@@ -124,6 +124,7 @@ import me.kavishdevar.librepods.services.SoundSource
 import me.kavishdevar.librepods.services.GlanceRules
 import me.kavishdevar.librepods.services.IslandTimer
 import me.kavishdevar.librepods.services.ScreenApp
+import me.kavishdevar.librepods.services.ScreenInsights
 import me.kavishdevar.librepods.services.TimerRules
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -624,8 +625,46 @@ internal class MiniIslandController(private val context: Context) {
                 else GlintOverlays.openApp(context)
             IslandGestures.Action.ListeningMode -> if (!sampling) GlintOverlays.cycleListeningMode(context)
             IslandGestures.Action.Notifications -> IslandAccess.openNotifications()
+            IslandGestures.Action.Peek -> peekMoment()
             IslandGestures.Action.Nothing -> {}
         }
+    }
+
+    /** Peeks current info (active verification code, song, app session, AirPods or phone battery) right on the mini pill. */
+    private fun peekMoment() {
+        val now = SystemClock.elapsedRealtime()
+        val code = ScreenInsights.activeCode.value
+        val m = when {
+            code != null -> MiniMoment.peek("Tap to copy  ·  $code", now, Color(0xFF0A84FF))
+            NowPlaying.state.value.playing && NowPlaying.state.value.title != null -> {
+                val t = NowPlaying.state.value
+                MiniMoment.peek("${t.title}  ·  ${t.artist ?: t.app ?: "Playing"}", now, Color.White)
+            }
+            ScreenApp.place.value is ScreenApp.Place.App -> {
+                val app = ScreenApp.place.value as ScreenApp.Place.App
+                val label = app.label ?: "App"
+                val insight = ScreenInsights.state.value?.takeIf { it.pkg == app.pkg }
+                val sub = insight?.headline ?: insight?.sub ?: when (app.kind) {
+                    me.kavishdevar.librepods.services.AppKinds.Kind.Game -> "Game mode"
+                    me.kavishdevar.librepods.services.AppKinds.Kind.Browser -> "Browser"
+                    me.kavishdevar.librepods.services.AppKinds.Kind.Fitness -> "Fitness"
+                    else -> "Active"
+                }
+                MiniMoment.peek("$label  ·  $sub", now, Color.White)
+            }
+            airPodsUp() -> {
+                val pods = GlintOverlays.snapshot.value
+                val lvl = pods.budsLevel?.let { "$it%" } ?: "Connected"
+                MiniMoment.peek("AirPods  ·  $lvl", now, Color.White)
+            }
+            PhoneStatus.state.value.known -> {
+                val p = PhoneStatus.state.value
+                val status = if (p.charging) "Charging" else "Battery"
+                MiniMoment.peek("$status  ·  ${p.level}%", now, if (p.charging) Color(0xFF30D158) else Color.White)
+            }
+            else -> MiniMoment.peek("Glint  ·  Ready", now, Color.White)
+        }
+        moment.value = m
     }
 }
 
@@ -882,8 +921,11 @@ internal fun MiniIslandHost(
     // timer splits off into a detached circle beside it, instead of taking the bars' place.
     val detached = iphone && timerHere && (under == IslandLook.Situation.Music || under == IslandLook.Situation.Paused || liveHere) &&
         baseL != IslandLook.Slot.Nothing && !ring
+    val activeCode by ScreenInsights.activeCode.collectAsState()
+    val codeHere = !activeCode.isNullOrBlank()
     val wantL = if (ring) IslandLook.Slot.Nothing else if (liveHere) IslandLook.Slot.App else baseL
     val wantR = if (ring) IslandLook.Slot.Nothing
+        else if (codeHere) IslandLook.Slot.Glance
         else if (liveHere) (if (timerHere && !detached) IslandLook.Slot.Glance else IslandLook.Slot.Live)
         else if (blipping) (if (blipPhone) IslandLook.Slot.Phone else IslandLook.Slot.App)
         else if (detached) baseR
@@ -956,8 +998,20 @@ internal fun MiniIslandHost(
             }
         }
     }
-    // The smart glance: the one thing worth a look (a timer, charging, headphones, low battery).
-    val glanceItem = GlanceRules.pill(timer, phone, budsUp, pods.budsLevel, pods.headphones)
+    val appContext = remember(place, heartBpm) {
+        when (val p = place) {
+            is ScreenApp.Place.App -> when (p.kind) {
+                me.kavishdevar.librepods.services.AppKinds.Kind.Game -> Pair(p.kind, "Game")
+                me.kavishdevar.librepods.services.AppKinds.Kind.Fitness -> Pair(p.kind, heartBpm?.let { "$it" } ?: "Fit")
+                me.kavishdevar.librepods.services.AppKinds.Kind.Reading,
+                me.kavishdevar.librepods.services.AppKinds.Kind.Browser -> Pair(p.kind, "Read")
+                else -> null
+            }
+            else -> null
+        }
+    }
+    // The smart glance: the one thing worth a look (a timer, verification code, charging, headphones, low battery).
+    val glanceItem = GlanceRules.pill(timer, phone, budsUp, pods.budsLevel, pods.headphones, code = activeCode, appContext = appContext)
     // Today's date for the calendar page, kept to the day.
     var today by remember { mutableStateOf(dayNow()) }
 
@@ -1022,7 +1076,7 @@ internal fun MiniIslandHost(
     val nudge = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     /** The window's real width (it changes when the pill widens for a song's name). */
-    var boxW by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var boxW by remember(geometry.compactWindow.width) { androidx.compose.runtime.mutableIntStateOf(geometry.compactWindow.width) }
 
     // Grow out of the camera, or shrink back into it.
     val currentWidth by androidx.compose.runtime.rememberUpdatedState(targetW)
@@ -1188,12 +1242,17 @@ internal fun MiniIslandHost(
     val phoneLowPulse = IslandLook.Slot.Phone in shows && phone.known && phone.level <= 10 && !phone.charging
     val animated = (lively && (IslandLook.Slot.Bars in shows || IslandLook.Slot.Cover in shows)) ||
         (appActive && IslandLook.Slot.App in shows) || IslandLook.Slot.Talk in shows || lowPulse || phoneLowPulse || ringing
-    val moving = visible && animated && !reduce && still == null
+    val screenOn by me.kavishdevar.librepods.services.PowerPlan.screenOn.collectAsState()
+    val moving = visible && screenOn && animated && !reduce && still == null
     // The bars follow the real music (whatever app plays it) while they're on show.
-    val listening = visible && track.playing && IslandLook.Slot.Bars in shows && still == null
+    val listening = visible && screenOn && track.playing && IslandLook.Slot.Bars in shows && still == null
     androidx.compose.runtime.DisposableEffect(listening) {
-        if (listening) MusicPulse.acquire(context)
-        onDispose { if (listening) MusicPulse.release() }
+        if (listening) {
+            MusicPulse.acquire(context)
+            onDispose { MusicPulse.release() }
+        } else {
+            onDispose { }
+        }
     }
     val pulseLive by MusicPulse.live.collectAsState()
     val synced = listening && pulseLive && !reduce
@@ -1381,6 +1440,22 @@ internal fun MiniIslandHost(
             }
             return
         }
+        val codeToCopy = (glanceItem as? GlanceRules.Item.Code)?.code ?: activeCode
+        if (codeToCopy != null && g == IslandGestures.Gesture.Tap1 && a == IslandGestures.Action.Expand) {
+            val copied = ScreenInsights.copyCode(context, codeToCopy)
+            if (copied) {
+                buzz.confirm()
+                val shownAck = MiniAck.codeCopied()
+                ack = shownAck
+                ackJob?.cancel()
+                ackJob = scope.launch {
+                    if (reduce) ackIn.snapTo(1f) else { ackIn.snapTo(0f); ackIn.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 520f)) }
+                    delay(ACK_SHOW_MS)
+                    if (reduce) ackIn.snapTo(0f) else ackIn.animateTo(0f, tween(240))
+                }
+                return
+            }
+        }
         buzz.confirm()
         val shown = MiniAck.of(a, playingNow, ListeningModes.next(modeNow, offAllowed))
         if (shown != null) {
@@ -1403,7 +1478,8 @@ internal fun MiniIslandHost(
         val pillW = lerp(compactW, s.wideWidth, wide.value)
         val pillH = lerp(compactH, s.wideHeight, wide.value)
         val top = m + (s.height - compactH) / 2f
-        val left = boxW / 2f - pillW / 2f + nudge.value
+        val currentBoxW = if (boxW > 0) boxW else geometry.compactWindow.width
+        val left = currentBoxW / 2f - pillW / 2f + nudge.value
         return androidx.compose.ui.geometry.Rect(left, top, left + pillW, top + pillH)
     }
 
@@ -1424,7 +1500,7 @@ internal fun MiniIslandHost(
                 // only pass a pull on to the notification shade.
                 val counter = IslandGestures.TapCounter(IslandGestures.TAP_GAP_MS)
                 var pending: Job? = null
-                val slop = viewConfiguration.touchSlop
+                val slop = maxOf(viewConfiguration.touchSlop.toFloat(), 18f * density)
                 val swipe = 30f * density
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -2124,6 +2200,27 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlot(
                 else drawBudPair(c, side * 0.5f, Color.White.copy(alpha = alpha))
             }
             is GlanceRules.Item.LowPhone -> batteryRing(g.level, false, false, c, side, alpha, d)
+            is GlanceRules.Item.Code -> {
+                val blue = Color(0xFF0A84FF)
+                drawCircle(blue.copy(alpha = 0.22f * alpha), side / 2f, c)
+                val rr = side / 2f - 1.5f * dp
+                drawArc(blue.copy(alpha = 0.85f * alpha), 0f, 360f, false, Offset(c.x - rr, c.y - rr), Size(rr * 2, rr * 2), style = androidx.compose.ui.graphics.drawscope.Stroke(1.8f * dp, cap = StrokeCap.Round))
+                val codeStr = if (g.code.length <= 4) g.code else g.code.take(4)
+                val t = text(codeStr, side * 0.32f, FontWeight.Bold)
+                drawText(t, color = Color.White, alpha = alpha, topLeft = Offset(c.x - t.size.width / 2f, c.y - t.size.height / 2f))
+            }
+            is GlanceRules.Item.AppContext -> {
+                val accentC = when (g.kind) {
+                    me.kavishdevar.librepods.services.AppKinds.Kind.Game -> Color(0xFFFF9F0A)
+                    me.kavishdevar.librepods.services.AppKinds.Kind.Fitness -> Color(0xFFFF2D55)
+                    else -> Color(0xFF30B0C7)
+                }
+                drawCircle(accentC.copy(alpha = 0.20f * alpha), side / 2f, c)
+                val rr = side / 2f - 1.5f * dp
+                drawArc(accentC.copy(alpha = 0.85f * alpha), 0f, 360f, false, Offset(c.x - rr, c.y - rr), Size(rr * 2, rr * 2), style = androidx.compose.ui.graphics.drawscope.Stroke(1.6f * dp, cap = StrokeCap.Round))
+                val t = text(g.text, side * (if (g.text.length > 3) 0.28f else 0.34f), FontWeight.SemiBold)
+                drawText(t, color = Color.White, alpha = alpha, topLeft = Offset(c.x - t.size.width / 2f, c.y - t.size.height / 2f))
+            }
             // Nothing else worth a glance: the phone's battery, never an empty space.
             else -> if (d.phone.known) batteryRing(d.phone.level, d.phone.charging, d.phoneLow, c, side, alpha, d)
         }
@@ -2275,6 +2372,8 @@ internal data class MiniMoment(val id: Long, val text: String, val color: Color)
     companion object {
         const val SHOW_MS = 2_600L
         fun charging(level: Int, now: Long) = MiniMoment(now, "Charging  ·  $level%", Color(0xFF30D158))
+        fun peek(text: String, now: Long, color: Color = Color.White) = MiniMoment(now, text, color)
+        fun codeCopied(code: String, now: Long) = MiniMoment(now, "Copied  ·  $code", Color(0xFF30D158))
         /** The words for each phone battery moment, in the battery ring's own colour. */
         fun of(kind: PhoneStatus.Moment, level: Int, now: Long) = when (kind) {
             PhoneStatus.Moment.Charging -> charging(level, now)
@@ -2391,7 +2490,7 @@ internal fun sampleIcon(): ImageBitmap {
 }
 
 /** What a gesture on the Dynamic Island just did, as shown for a moment in its right-hand spot. */
-internal data class MiniAck(val action: IslandGestures.Action, val playingAfter: Boolean = false, val mode: Int = 0) {
+internal data class MiniAck(val action: IslandGestures.Action, val playingAfter: Boolean = false, val mode: Int = 0, val codeCopied: Boolean = false) {
     companion object {
         /** The sign for [a] (null for actions that show themselves, like opening the island). */
         fun of(a: IslandGestures.Action, playingBefore: Boolean, nextMode: Int): MiniAck? = when (a) {
@@ -2400,11 +2499,22 @@ internal data class MiniAck(val action: IslandGestures.Action, val playingAfter:
             IslandGestures.Action.ListeningMode -> MiniAck(a, mode = nextMode)
             else -> null
         }
+        fun codeCopied(): MiniAck = MiniAck(IslandGestures.Action.Nothing, codeCopied = true)
     }
 }
 
 /** Play, pause, next or previous, drawn small at [c] in a box [size] wide. */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawAck(ack: MiniAck, c: Offset, size: Float, color: Color) {
+    if (ack.codeCopied) {
+        val checkColor = Color(0xFF30D158)
+        val p = Path().apply {
+            moveTo(c.x - size * 0.22f, c.y)
+            lineTo(c.x - size * 0.05f, c.y + size * 0.18f)
+            lineTo(c.x + size * 0.25f, c.y - size * 0.18f)
+        }
+        drawPath(p, checkColor, style = androidx.compose.ui.graphics.drawscope.Stroke(2.4f * size / 24f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        return
+    }
     val h = size * 0.5f
     fun tri(x: Float, w: Float, pointRight: Boolean) = Path().apply {
         if (pointRight) { moveTo(x, c.y - h / 2f); lineTo(x + w, c.y); lineTo(x, c.y + h / 2f) }

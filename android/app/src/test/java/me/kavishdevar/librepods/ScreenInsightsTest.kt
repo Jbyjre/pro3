@@ -126,4 +126,11 @@ class ScreenInsightsTest {
         val long = List(2_000) { "word" }.joinToString(" ")
         assertTrue(ScreenVoiceRules.parts(long, 4_000).all { it.length <= 3_900 && !it.startsWith("ord") })
     }
+
+    @Test fun screenInsightsTracksAndExtractsActiveCode() {
+        me.kavishdevar.librepods.services.ScreenInsights.checkCode("Your security code is 928412")
+        assertEquals("928412", me.kavishdevar.librepods.services.ScreenInsights.activeCode.value)
+        me.kavishdevar.librepods.services.ScreenInsights.setCode(null)
+        assertNull(me.kavishdevar.librepods.services.ScreenInsights.activeCode.value)
+    }
 }

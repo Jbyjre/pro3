@@ -57,6 +57,10 @@ object PowerPlan {
     /** The plan right now. */
     val level: StateFlow<Level> = _level.asStateFlow()
 
+    private val _screenOn = MutableStateFlow(true)
+    /** Whether the phone screen is currently on and interactive. */
+    val screenOn: StateFlow<Boolean> = _screenOn.asStateFlow()
+
     /** At or below this battery (and not charging), pro saves like Battery Saver. */
     const val LOW_BATTERY = 20
 
@@ -92,9 +96,9 @@ object PowerPlan {
     /** How many times a second the music listener hears, from Android's most ([maxMilliHz] is mHz). */
     fun listenRateMilliHz(level: Level, maxMilliHz: Int): Int = if (level == Level.Saver) maxMilliHz / 2 else maxMilliHz
 
-    /** Background heart readings: on Saver, a continuous stream becomes Smart spot checks. */
-    fun heartPace(chosen: HeartPace, level: Level, background: Boolean): HeartPace =
-        if (background && level == Level.Saver && chosen == HeartPace.Continuous) HeartPace.Smart else chosen
+    /** Background heart readings: on Saver or with screen off, a continuous stream becomes Smart spot checks. */
+    fun heartPace(chosen: HeartPace, level: Level, background: Boolean, screenOn: Boolean = true): HeartPace =
+        if (background && chosen == HeartPace.Continuous && (level == Level.Saver || !screenOn)) HeartPace.Smart else chosen
 
     /**
      * Waits about [ms] and returns on the screen's next frame, so a paced animation still lands on
@@ -114,7 +118,11 @@ object PowerPlan {
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) {
-            if (i.action == Intent.ACTION_BATTERY_CHANGED) readBattery(i)
+            when (i.action) {
+                Intent.ACTION_BATTERY_CHANGED -> readBattery(i)
+                Intent.ACTION_SCREEN_OFF -> _screenOn.value = false
+                Intent.ACTION_SCREEN_ON -> _screenOn.value = true
+            }
             update(c)
         }
     }
@@ -135,18 +143,22 @@ object PowerPlan {
         attached = true
         val app = context.applicationContext
         PhoneProfile.load(app)
+        val pm = app.getSystemService(PowerManager::class.java)
+        _screenOn.value = pm?.isInteractive != false
         val sticky = runCatching {
             ContextCompat.registerReceiver(
                 app, receiver,
                 IntentFilter().apply {
                     addAction(Intent.ACTION_BATTERY_CHANGED)
                     addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
+                    addAction(Intent.ACTION_SCREEN_OFF)
+                    addAction(Intent.ACTION_SCREEN_ON)
                 },
                 ContextCompat.RECEIVER_NOT_EXPORTED,
             )
         }.getOrNull()
         sticky?.let(::readBattery)
-        runCatching { app.getSystemService(PowerManager::class.java)?.addThermalStatusListener(app.mainExecutor) { update(app) } }
+        runCatching { pm?.addThermalStatusListener(app.mainExecutor) { update(app) } }
         update(app)
     }
 
@@ -168,4 +180,5 @@ object PowerPlan {
 
     /** Tests and screenshots. */
     internal fun preview(l: Level) { _level.value = l }
+    internal fun previewScreenOn(on: Boolean) { _screenOn.value = on }
 }

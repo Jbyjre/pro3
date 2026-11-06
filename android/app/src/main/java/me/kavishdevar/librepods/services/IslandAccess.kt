@@ -57,7 +57,21 @@ class IslandAccessService : AccessibilityService() {
     /** Asking Android for the window list is a call to another process: never on the main thread, which draws the island. */
     private val panelThread = android.os.HandlerThread("island-panels").apply { start() }
     private val panels = Handler(panelThread.looper)
-    private val panelCheck = Runnable { IslandAccess.updatePanels(this) }
+    private val followUpCheck: Runnable = Runnable {
+        IslandAccess.updatePanels(this)
+        if (IslandAccess.panelOpen.value) {
+            panels.postDelayed(followUpCheck, 600L)
+        }
+    }
+    private val panelCheck = Runnable {
+        IslandAccess.updatePanels(this)
+        if (IslandAccess.panelOpen.value) {
+            panels.removeCallbacks(followUpCheck)
+            panels.postDelayed(followUpCheck, 600L)
+        } else {
+            panels.removeCallbacks(followUpCheck)
+        }
+    }
     private val check = Runnable {
         panels.removeCallbacks(panelCheck)
         panels.post(panelCheck)
@@ -92,6 +106,7 @@ class IslandAccessService : AccessibilityService() {
     override fun onUnbind(intent: Intent?): Boolean {
         main.removeCallbacks(check)
         panels.removeCallbacks(panelCheck)
+        panels.removeCallbacks(followUpCheck)
         IslandAccess.disconnected(this)
         return super.onUnbind(intent)
     }
@@ -99,6 +114,7 @@ class IslandAccessService : AccessibilityService() {
     override fun onDestroy() {
         main.removeCallbacks(check)
         panels.removeCallbacks(panelCheck)
+        panels.removeCallbacks(followUpCheck)
         panelThread.quitSafely()
         IslandAccess.disconnected(this)
         super.onDestroy()

@@ -1887,8 +1887,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             // the app it's always continuous. Looked at again on every check, so a new pace (yours,
             // or the battery plan's) applies within seconds, not at the next start.
             fun paceNow() = PowerPlan.heartPace(
-                if (background) HeartPace.of(sharedPreferences.getInt(PREF_HR_PACE, 0)) else HeartPace.Continuous,
-                PowerPlan.level.value, background,
+                if (background) HeartPace.of(sharedPreferences.getInt(PREF_HR_PACE, 1)) else HeartPace.Continuous,
+                PowerPlan.level.value, background, PowerPlan.screenOn.value,
             )
             // Readings stop when the buds come out; say so instead of showing an old number.
             val quietAfter = interval / 1000 * 3 + 7_000
@@ -1937,7 +1937,10 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                         aacpManager.sendSensorInterval(hrService, 0L)
                         HeartRate.resting(now + rest)
                         delay(rest)
-                        if (BluetoothConnectionManager.aacpSocket?.isConnected != true || !budsWorn()) continue
+                        if (BluetoothConnectionManager.aacpSocket?.isConnected != true || !budsWorn()) {
+                            delay(30_000L)
+                            continue
+                        }
                         hrFirstRawAt = 0L // the sensor warms up again
                         aacpManager.sendSensorInterval(hrService, interval)
                         spotStarted = System.currentTimeMillis()

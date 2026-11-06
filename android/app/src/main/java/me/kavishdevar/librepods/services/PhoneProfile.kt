@@ -81,7 +81,11 @@ object PhoneProfile {
     /** Which of the two phones this is, from Android's own maker and model names. */
     fun detect(manufacturer: String, model: String): Phone = when {
         manufacturer.equals("google", ignoreCase = true) && model.trim().equals("Pixel 6 Pro", ignoreCase = true) -> Phone.Pixel6Pro
-        manufacturer.equals("samsung", ignoreCase = true) && model.trim().uppercase().startsWith("SM-S741") -> Phone.GalaxyS26FE
+        manufacturer.equals("samsung", ignoreCase = true) && (
+            model.trim().uppercase().startsWith("SM-S741") ||
+            model.contains("S26 FE", ignoreCase = true) ||
+            model.contains("S26FE", ignoreCase = true)
+        ) -> Phone.GalaxyS26FE
         else -> Phone.Other
     }
 

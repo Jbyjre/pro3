@@ -47,9 +47,11 @@ class PhoneProfileTest {
         assertEquals(Phone.Pixel6Pro, PhoneProfile.detect("Google", "Pixel 6 Pro"))
         assertEquals(Phone.Other, PhoneProfile.detect("Google", "Pixel 6"))      // the smaller, flat one
         assertEquals(Phone.Other, PhoneProfile.detect("Google", "Pixel 6a"))
-        // Every S26 FE variant shares SM-S741 (B, B/DS, U, U1 ...).
+        // Every S26 FE variant shares SM-S741 (B, B/DS, U, U1 ...) or marketing name.
         assertEquals(Phone.GalaxyS26FE, PhoneProfile.detect("samsung", "SM-S741B"))
         assertEquals(Phone.GalaxyS26FE, PhoneProfile.detect("samsung", "SM-S741U1"))
+        assertEquals(Phone.GalaxyS26FE, PhoneProfile.detect("samsung", "Galaxy S26 FE"))
+        assertEquals(Phone.GalaxyS26FE, PhoneProfile.detect("samsung", "S26FE"))
         assertEquals(Phone.Other, PhoneProfile.detect("samsung", "SM-S731B"))   // the S25 FE
         assertEquals(Phone.Other, PhoneProfile.detect("OnePlus", "SM-S741B"))
     }

@@ -32,9 +32,13 @@ object GlanceRules {
 
     sealed interface Item {
         data class Timer(val state: IslandTimer.State) : Item
+        /** A one-time verification / 2FA code detected on screen or in an alert. */
+        data class Code(val code: String) : Item
         data class Charging(val level: Int) : Item
         /** Headphones or AirPods connected: [level] is the buds' (or headphones') battery. */
         data class Buds(val level: Int?, val headphones: Boolean) : Item
+        /** Live context for the app on screen (e.g. Game duration, live reading time). */
+        data class AppContext(val kind: AppKinds.Kind, val text: String) : Item
         data class LowPhone(val level: Int) : Item
         /** The next alarm rings at [at] (wall-clock ms). */
         data class Alarm(val at: Long) : Item
@@ -51,19 +55,30 @@ object GlanceRules {
         headphones: Boolean,
         nextAlarm: Long?,
         wallNow: Long,
+        code: String? = null,
+        appContext: Pair<AppKinds.Kind, String>? = null,
     ): List<Item> = buildList {
         if (timer != null) add(Item.Timer(timer))
+        if (!code.isNullOrBlank()) add(Item.Code(code))
         if (phone.known && phone.charging) add(Item.Charging(phone.level))
         if (budsUp) add(Item.Buds(budsLevel, headphones))
+        if (appContext != null) add(Item.AppContext(appContext.first, appContext.second))
         if (phone.known && !phone.charging && phone.level <= LOW_PHONE) add(Item.LowPhone(phone.level))
         if (nextAlarm != null && nextAlarm > wallNow && nextAlarm - wallNow <= ALARM_AHEAD_MS) add(Item.Alarm(nextAlarm))
         if (isEmpty() && phone.known) add(Item.Battery(phone.level, phone.charging))
     }
 
     /** The one thing for the small "Smart glance" spot beside the camera, or null for nothing. */
-    fun pill(timer: IslandTimer.State?, phone: PhoneStatus.Info, budsUp: Boolean, budsLevel: Int?, headphones: Boolean): Item? =
-        live(timer, phone, budsUp, budsLevel, headphones, nextAlarm = null, wallNow = 0L)
-            .firstOrNull { it !is Item.Alarm && it !is Item.Battery }
+    fun pill(
+        timer: IslandTimer.State?,
+        phone: PhoneStatus.Info,
+        budsUp: Boolean,
+        budsLevel: Int?,
+        headphones: Boolean,
+        code: String? = null,
+        appContext: Pair<AppKinds.Kind, String>? = null,
+    ): Item? = live(timer, phone, budsUp, budsLevel, headphones, nextAlarm = null, wallNow = 0L, code = code, appContext = appContext)
+        .firstOrNull { it !is Item.Alarm && it !is Item.Battery }
 
     /** The rows the opened island shows: the two most important, with the phone's battery when there's nothing. */
     fun rows(items: List<Item>): List<Item> = items.take(2)

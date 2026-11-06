@@ -238,6 +238,7 @@ object SoundSource {
         val prev = _message.value
         val linger = IslandPrefs.soundLinger(prefs).ms
         val startedAt = if (prev != null && now - prev.at < linger) prev.startedAt else now
+        p.title?.let { ScreenInsights.checkCode(it) }
         _message.value = Message(p.key, pkg, info.label, info.icon, p.title?.trim()?.takeIf { it.isNotEmpty() }?.take(40), now, startedAt)
     }
 

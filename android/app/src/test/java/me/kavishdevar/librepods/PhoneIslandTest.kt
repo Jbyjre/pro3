@@ -399,6 +399,14 @@ class PhoneIslandTest {
         assertNull(GlanceRules.pill(null, PhoneStatus.Info(), false, null, false))
     }
 
+    @Test fun glancePrioritizesVerificationCodesAndAppContext() {
+        val codePill = GlanceRules.pill(null, PhoneStatus.Info(80, false), false, null, false, code = "4821")
+        assertEquals(GlanceRules.Item.Code("4821"), codePill)
+
+        val appPill = GlanceRules.pill(null, PhoneStatus.Info(80, false), false, null, false, appContext = Pair(me.kavishdevar.librepods.services.AppKinds.Kind.Game, "Game"))
+        assertEquals(GlanceRules.Item.AppContext(me.kavishdevar.librepods.services.AppKinds.Kind.Game, "Game"), appPill)
+    }
+
     // ---- The timer ----
 
     @Test fun timerArithmetic() {

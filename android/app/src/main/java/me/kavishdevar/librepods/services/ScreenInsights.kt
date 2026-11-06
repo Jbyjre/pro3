@@ -87,6 +87,37 @@ object ScreenInsights {
     private val _state = MutableStateFlow<Insight?>(null)
     val state: StateFlow<Insight?> = _state.asStateFlow()
 
+    private val _activeCode = MutableStateFlow<String?>(null)
+    /** The active one-time verification code detected from screen or notifications, for the mini pill. */
+    val activeCode: StateFlow<String?> = _activeCode.asStateFlow()
+    private var codeSetAt = 0L
+    private const val CODE_TTL_MS = 120_000L
+
+    fun setCode(code: String?) {
+        _activeCode.value = code
+        codeSetAt = if (code != null) SystemClock.elapsedRealtime() else 0L
+    }
+
+    /** Spot-checks incoming notification title or message for verification codes. */
+    fun checkCode(text: String?) {
+        if (text.isNullOrBlank()) return
+        val found = ScreenText.codes(text).firstOrNull()
+        if (found != null) {
+            _activeCode.value = found
+            codeSetAt = SystemClock.elapsedRealtime()
+        }
+    }
+
+    /** Copies the code to clipboard and clears the active code on the pill. */
+    fun copyCode(context: Context, code: String): Boolean {
+        return runCatching {
+            val cm = context.getSystemService(ClipboardManager::class.java)
+            cm?.setPrimaryClip(ClipData.newPlainText("Code", code))
+            _activeCode.value = null
+            true
+        }.getOrDefault(false)
+    }
+
     private val thread by lazy { HandlerThread("pro-screen-read").apply { start() } }
     private val worker by lazy { Handler(thread.looper) }
     private val main = Handler(Looper.getMainLooper())
@@ -102,12 +133,26 @@ object ScreenInsights {
         worker.removeCallbacksAndMessages(null)
         worker.post {
             val result = runCatching { look(app, service, pkg) }.onFailure { Log.w(TAG, "Couldn't read the screen", it) }.getOrNull()
-            main.post { _state.value = result }
+            main.post {
+                _state.value = result
+                val codeFound = result?.found?.firstOrNull { it.kind == Kind.Code }?.text
+                if (codeFound != null) {
+                    _activeCode.value = codeFound
+                    codeSetAt = SystemClock.elapsedRealtime()
+                }
+            }
         }
     }
 
     /** Forgets what was read (the island closed, or the switch went off). Listen keeps going if it was asked to. */
-    fun clear() { if (previewing) return; worker.removeCallbacksAndMessages(null); _state.value = null }
+    fun clear() {
+        if (previewing) return
+        worker.removeCallbacksAndMessages(null)
+        _state.value = null
+        if (_activeCode.value != null && SystemClock.elapsedRealtime() - codeSetAt > CODE_TTL_MS) {
+            _activeCode.value = null
+        }
+    }
 
     /** Screenshots and tests: [i] stays put (no real read replaces it) until preview(null). */
     @Volatile private var previewing = false

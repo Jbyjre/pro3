@@ -45,6 +45,7 @@ object IslandGestures {
         ListeningMode("mode", "Next listening mode"),
         Notifications("shade", "Notifications"),
         Nothing("none", "Nothing"),
+        Peek("peek", "Peek info on pill"),
     }
 
     /** The behaviour before customisation existed, kept as the defaults. */

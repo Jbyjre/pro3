@@ -307,7 +307,7 @@ fun HeartRateScreen(navigateToShare: () -> Unit = {}, navigateToHistory: () -> U
 
         // Always-on, its pace, and the island.
         var always by remember { mutableStateOf(prefs.getBoolean(PREF_HR_ALWAYS, false)) }
-        var pace by remember { mutableIntStateOf(prefs.getInt(PREF_HR_PACE, 0)) }
+        var pace by remember { mutableIntStateOf(prefs.getInt(PREF_HR_PACE, 1)) }
         var island by remember { mutableStateOf(prefs.getBoolean(PREF_HR_ISLAND, true)) }
         var glance by remember { mutableStateOf(prefs.getBoolean(me.kavishdevar.librepods.services.PREF_HR_GLANCE, true)) }
         var chip by remember { mutableStateOf(prefs.getBoolean(me.kavishdevar.librepods.services.PREF_HR_CHIP, true)) }

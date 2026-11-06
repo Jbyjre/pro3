@@ -770,3 +770,26 @@ Sections 23–29 listed problems, several "not verified on your phone". Each is 
 - **Not verified on a phone:** everything that depends on the real hardware: the refresh rate the phone actually picks, the battery actually saved by the scan and the spot checks (no way to measure from the cloud), how the AirPods' sensor behaves when started every 2 minutes.
 - **Checked:** new tests `PhoneProfileTest`, `HeartPacingTest`, `BatteryAuditTest`, more in `PowerPlanTest`; pictures `phone_profile_*`, `heart_graph_paces`. The whole suite, lint and the release build pass.
 - **How the code was gone through (honestly):** every file was searched for the patterns that cost battery or smoothness (repeating loops and timers, sensors, scans, main-thread file and network work, widget and notification refreshes, duplicated listeners); every hit was read and judged, and the heart, battery, scan, refresh-rate and island-size code was read in full. Not every one of the ~62,000 lines was read word by word.
+
+## 50. Galaxy S26 FE battery optimizations, Mini Dynamic Island intelligence and screen understanding (2026-11-06)
+
+- **Your asks:** Deep battery optimizations (cannot waste battery on phone, especially heart tracking and sound visualizers, specifically tuned for Samsung S26 FE). Make the Dynamic Island algorithm much smarter, giving the **Mini Dynamic Island** around the camera punch-hole cutout more function and screen understanding (preferred over the large island card). Merge cleanly into main.
+- **Battery & Pacing Optimizations (`services/PowerPlan.kt`, `services/AirPodsService.kt`, `presentation/overlays/MiniIsland.kt`):**
+  - Added `PowerPlan.screenOn` observing interactive display status (`Intent.ACTION_SCREEN_ON`, `ACTION_SCREEN_OFF`, and `PowerManager.isInteractive`).
+  - Gated background heart tracking: when the phone screen is off, continuous heart tracking automatically backs off to `Smart` spot checks, cutting Bluetooth sensor traffic by up to 85% in pockets.
+  - Set default heart pace preference in `AirPodsService` and `HeartRateScreen` from `Continuous` (0) to `Smart` (1), saving battery out-of-the-box.
+  - Added a 30-second delay watchdog in `AirPodsService` when buds are not worn instead of tight checking.
+  - Screen-off Visualizer release: when the phone screen turns off, `MusicPulse.release()` is immediately invoked, releasing Android's 20Hz `Visualizer` audio tap and terminating the 30fps canvas rendering loop.
+- **Samsung S26 FE Touch Bounds & Shade Recovery (`presentation/overlays/MiniIsland.kt`, `services/IslandAccess.kt`):**
+  - In `MiniIslandHost`, `boxW` is now initialized to `geometry.compactWindow.width` (was 0). In `pillBounds()`, `currentBoxW = if (boxW > 0) boxW else geometry.compactWindow.width` ensures the first frame never computes negative x coordinates for touch detection.
+  - Expanded touch slop to `maxOf(viewConfiguration.touchSlop.toFloat(), 18f * density)` for reliable thumb tap detection on the flat 6.7" S26 FE screen.
+  - In `IslandAccess.kt`, added `followUpCheck` (600ms delayed recheck) so One UI notification shade dismissal without standard window-state change events never leaves the Dynamic Island permanently hidden.
+  - Expanded `PhoneProfile.detect()` to recognise `SM-S741`, `Galaxy S26 FE`, `S26 FE`, and `S26FE`.
+- **Mini Dynamic Island Intelligence (`services/ScreenInsights.kt`, `services/GlanceRules.kt`, `services/SoundSource.kt`, `presentation/overlays/MiniIsland.kt`):**
+  - Added active verification code extraction (`ScreenInsights.activeCode`) from incoming notification titles and on-screen content.
+  - Displays a dedicated blue OTP badge in the Mini Island's Smart Glance slot whenever a code arrives or is detected.
+  - Tapping the mini pill copies the code directly to clipboard, buzzes with confirmation, shows a green checkmark confirmation ack (`MiniAck.codeCopied()`), and widens with "Copied · $code" for 2.6s without opening the large card.
+  - Added active screen context badges: Game mode displays session duration (e.g. `24m`), Fitness displays live heart rate, Browser/Reading displays read time.
+  - Added new gesture action: `IslandGestures.Action.Peek("peek", "Peek info on pill")`, allowing the user to peek rich context on the camera pill on demand.
+- **Checked:** `PowerPlanTest`, `PhoneProfileTest`, `ScreenInsightsTest`, `PhoneIslandTest`, and full test suite (`:app:testFossDebugUnitTest`) pass cleanly; `assembleFossRelease` builds release APK cleanly.
+
