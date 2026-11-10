@@ -85,7 +85,15 @@ object HeadphoneLink {
     private var lastConnectedPop = 0L
     private val settle = LinkSettle()
     private val recheck = Runnable { refresh() }
+    // One reconnect burst at a time. Samsung can report several Bluetooth profile broadcasts
+    // for one connection; each used to queue another four expensive profile/battery lookups.
+    private val pendingSettleChecks = mutableListOf<Runnable>()
     private var audioCallback: android.media.AudioDeviceCallback? = null
+
+    private fun cancelSettleChecks() {
+        pendingSettleChecks.forEach(main::removeCallbacks)
+        pendingSettleChecks.clear()
+    }
 
     /**
      * Answers "is this address connected for audio right now?" (the service's profile
@@ -132,6 +140,8 @@ object HeadphoneLink {
         audioCallback?.let { cb -> runCatching { app.getSystemService(AudioManager::class.java)?.unregisterAudioDeviceCallback(cb) } }
         audioCallback = null
         main.removeCallbacks(recheck)
+        cancelSettleChecks()
+        appContext = null
     }
 
     private fun AudioDeviceInfo.isBluetoothOut(): Boolean =
@@ -172,12 +182,24 @@ object HeadphoneLink {
 
     /** Android reports [address] connecting or disconnecting. */
     fun onConnectionEvent(context: Context, address: String) {
-        val chosen = DeviceChoice.current(context)
-        if (chosen.isAirPods || !address.equals(chosen.address, ignoreCase = true)) return
-        // Profile state settles a while after the broadcast (seconds, on some phones): look now
-        // and a few more times as it does, so a slow connection is never missed.
-        refresh(context)
-        for (wait in SETTLE_LOOKS_MS) main.postDelayed({ refresh(context) }, wait)
+        val app = context.applicationContext
+        val action = Runnable {
+            val chosen = DeviceChoice.current(app)
+            if (chosen.isAirPods || !address.equals(chosen.address, ignoreCase = true)) return@Runnable
+            // Replace an earlier burst: many A2DP/headset/ACL events describe the same link.
+            cancelSettleChecks()
+            refresh(app)
+            for (wait in SETTLE_LOOKS_MS) {
+                val check = Runnable {
+                    // Do not re-check an old pair after the user switches devices.
+                    val now = DeviceChoice.current(app)
+                    if (!now.isAirPods && now.address.equals(address, ignoreCase = true)) refresh(app)
+                }
+                pendingSettleChecks.add(check)
+                main.postDelayed(check, wait)
+            }
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) action.run() else main.post(action)
     }
 
     /** When to look again after a connection event, in ms (Android's profiles can take seconds). */
@@ -187,7 +209,9 @@ object HeadphoneLink {
         val chosen = _state.value.device ?: return
         if (!address.equals(chosen.address, ignoreCase = true)) return
         systemLevel = level.takeIf { it in 0..100 }
-        publish(chosen, _state.value.connected || systemLevel != null)
+        // A battery broadcast can arrive while the audio route is disconnected: battery data
+        // alone must never announce a connected headset.
+        publish(chosen, _state.value.connected)
     }
 
     /** A beacon from the BLE scanner (main thread). */
@@ -206,6 +230,7 @@ object HeadphoneLink {
     }
 
     private fun reset() {
+        cancelSettleChecks()
         systemLevel = null
         beaconLevel = null
         gate.clear()
