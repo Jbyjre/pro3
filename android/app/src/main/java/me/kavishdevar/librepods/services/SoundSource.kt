@@ -112,6 +112,10 @@ object SoundSource {
     }
     private const val INFO_MAX = 40
     private val roles = java.util.concurrent.ConcurrentHashMap<String, SoundRules.Role>()
+    /** Package-manager icon decoding must not run in the audio or notification callbacks. */
+    private val infoLoader = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val pendingInfos = mutableSetOf<String>() // main thread only
+    private var infoEpoch = 0L // invalidates callbacks from a previous test/service instance
     private var homeApps: Set<String>? = null
 
     /** Starts listening (safe to call often; the app's background service does it once at start). */
@@ -153,8 +157,10 @@ object SoundSource {
         var (pkg, basis) = SoundRules.attribute(s.kind, evidence(ctx, now), skipper(ctx))
         // The same sound keeps its app even if the clues thin out while it plays.
         if (pkg == null && keep?.pkg != null) { pkg = keep.pkg; basis = keep.basis }
-        val info = pkg?.let { appInfo(ctx, it) }
-        val next = Heard(s.kind, pkg, info?.label, info?.icon, keep?.startedAt ?: now, true, 0L, s.musicLike, basis)
+        val info = pkg?.let { cachedInfo(it) }
+        val next = Heard(s.kind, pkg, info?.label ?: keep?.takeIf { it.pkg == pkg }?.app,
+            info?.icon ?: keep?.takeIf { it.pkg == pkg }?.icon,
+            keep?.startedAt ?: now, true, 0L, s.musicLike, basis)
         if (pkg != null) record(next)
         if (pkg != null && pkg in IslandPrefs.soundIgnored(IslandPrefs.prefs(ctx))) {
             // An app Jake switched off in Settings: it doesn't pop the island.
@@ -162,6 +168,7 @@ object SoundSource {
             return
         }
         if (next != cur) _heard.value = next
+        if (pkg != null && info == null) loadInfoLater(ctx, pkg)
         // A notification can arrive a beat after its sound: look once more shortly.
         if (pkg == null && keep == null) {
             main.removeCallbacks(retry)
@@ -179,10 +186,11 @@ object SoundSource {
             record(h)
             return@Runnable
         }
-        val info = appInfo(ctx, pkg)
-        val next = h.copy(pkg = pkg, app = info.label, icon = info.icon, basis = basis)
+        val info = cachedInfo(pkg)
+        val next = h.copy(pkg = pkg, app = info?.label, icon = info?.icon, basis = basis)
         record(next)
         _heard.value = if (pkg in IslandPrefs.soundIgnored(IslandPrefs.prefs(ctx))) null else next
+        if (_heard.value != null && info == null) loadInfoLater(ctx, pkg)
     }
 
     /** Adds a sound to the recent list once (a long sound isn't counted again and again). */
@@ -234,12 +242,13 @@ object SoundSource {
         if (pkg in IslandPrefs.soundIgnored(prefs)) return
         if (IslandPrefs.skipInUse(prefs) && pkg == foreground) return
         if (!dedupe.fresh(p.key, p.flags, now)) return
-        val info = appInfo(ctx, pkg)
+        val info = cachedInfo(pkg)
         val prev = _message.value
         val linger = IslandPrefs.soundLinger(prefs).ms
         val startedAt = if (prev != null && now - prev.at < linger) prev.startedAt else now
         p.title?.let { ScreenInsights.checkCode(it) }
-        _message.value = Message(p.key, pkg, info.label, info.icon, p.title?.trim()?.takeIf { it.isNotEmpty() }?.take(40), now, startedAt)
+        _message.value = Message(p.key, pkg, info?.label, info?.icon, p.title?.trim()?.takeIf { it.isNotEmpty() }?.take(40), now, startedAt)
+        if (info == null) loadInfoLater(ctx, pkg)
     }
 
     /** Just an app and its flags (no category, importance or title): only explains a sound, never earns a moment. */
@@ -284,6 +293,28 @@ object SoundSource {
         // A failed lookup isn't kept: the app may become visible a moment later.
         if (label != null || icon != null) synchronized(infos) { infos[pkg] = info }
         return info
+    }
+
+    /**
+     * Resolve the icon once, off the UI thread; enrich only moments still attributed to that app.
+     * The island can appear immediately with its sound glyph instead of freezing during decoding.
+     */
+    private fun loadInfoLater(context: Context, pkg: String) {
+        if (!pendingInfos.add(pkg)) return
+        val epoch = infoEpoch
+        infoLoader.execute {
+            val info = appInfo(context, pkg)
+            main.post {
+                if (epoch != infoEpoch) return@post
+                pendingInfos.remove(pkg)
+                _heard.value?.takeIf { it.pkg == pkg }?.let { h ->
+                    _heard.value = h.copy(app = info.label, icon = info.icon)
+                }
+                _message.value?.takeIf { it.pkg == pkg }?.let { m ->
+                    _message.value = m.copy(app = info.label, icon = info.icon)
+                }
+            }
+        }
     }
 
     /** The app's name and icon if already looked up (never asks Android, so it's safe on the main thread). */
@@ -362,6 +393,8 @@ object SoundSource {
     /** Starts from nothing again (tests share one process, so each begins clean). */
     internal fun resetForTest() {
         main.removeCallbacks(retry)
+        infoEpoch++
+        pendingInfos.clear()
         appContext = null
         _heard.value = null
         _message.value = null
