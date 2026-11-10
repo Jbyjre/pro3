@@ -820,7 +820,9 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             GlintStatus.set(LinkState.NoPermission)
         }
 
-        CoroutineScope(Dispatchers.IO).launch {
+        // Keep scanner startup tied to this service. A detached IO coroutine could start a
+        // new scan after onDestroy() had already stopped it, leaving a battery-consuming scan.
+        serviceScope.launch(Dispatchers.IO) {
             bleManager.startScanning()
         }
 

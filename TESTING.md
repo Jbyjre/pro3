@@ -258,3 +258,15 @@ You can redo these steps any time in **Settings > Stay connected & appearance**.
 7. **Heart Saver pace:** a dot every 5 minutes, joined into one line (no more short squiggles 15 minutes apart).
 8. **Low AirPods:** with the AirPods at 20% or less, Smart should space its checks like Saver (a dot every 5 minutes).
 9. **Battery overall:** after a normal day, Settings > Battery: pro's share should be lower than before, mainly with the screen off (the Bluetooth scan now goes to low power with the screen off). The real saving hasn't been measured.
+
+## Galaxy S26 FE battery and Bluetooth regression checks — 2026-11-10
+
+Code and unit tests alone do not establish battery life or One UI behavior. Check these on the actual phone before calling the second battery pass verified:
+
+1. With AirPods paired and the screen initially off, wake/unlock the phone. The first case-open pop-up should appear promptly. Open and close the case again after 20–30 seconds of screen-on time (balanced scanning is then active); check that battery, lid and ear status still update within a usable interval.
+2. Leave the screen on for 15 minutes with pro's camera island displayed and no audio playing. Confirm the island remains tappable and there is no excessive warmth or battery use. Repeat while music plays and while the app is in the background.
+3. Turn the screen off for at least a minute, then wake it; confirm the island recovers, media controls work, and the AirPods case/battery view does not show a stale value. Try a rapid screen on/off/on sequence to exercise the BLE restart guard.
+4. With Beats or another chosen Bluetooth headset, connect, disconnect and reconnect quickly several times. Connection prompts should not pile up; a battery-level broadcast by itself must not cause a false connected indicator.
+5. Compare Android battery-usage and background-activity statistics over comparable periods on the Galaxy S26 FE. There is no measured reduction until this test is performed.
+
+Relevant automated coverage: `BatteryAuditTest.theBeaconScanBoostsBrieflyThenBalancesWhileScreenIsOn` and `theSameBeaconAddressIsAcceptedAcrossCallbacksButOnceWithinABatch`; existing `DeviceChoiceTest` covers the 2.5-second Bluetooth disconnect grace. Android's `ScanSettings` guidance supports balanced scan mode for ongoing work and discourages low latency outside foreground interaction.

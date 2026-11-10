@@ -29,6 +29,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import me.kavishdevar.librepods.utils.BluetoothCryptography
 import javax.crypto.Cipher
@@ -82,7 +83,7 @@ class BLEManager(private val context: Context) {
     private val sharedPreferences: SharedPreferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
     private var currentGlobalLidState: Boolean? = null
     private var lastBroadcastTime: Long = 0
-    private val processedAddresses = mutableSetOf<String>()
+
 
     private val lastValidCaseBatteryMap = mutableMapOf<String, Int>()
     private val modelNames = mapOf(
@@ -111,12 +112,22 @@ class BLEManager(private val context: Context) {
     )
 
     private val cleanupHandler = Handler(Looper.getMainLooper())
+    private var cleanupQueued = false
     private val cleanupRunnable = object : Runnable {
         override fun run() {
+            cleanupQueued = false
             cleanupStaleDevices()
             checkLidStateTimeout()
-            cleanupHandler.postDelayed(this, CLEANUP_INTERVAL_MS)
+            // Do not wake the phone every ten seconds when no beacon is being tracked.
+            ensureCleanup()
         }
+    }
+
+    private fun ensureCleanup() {
+        if (mScanCallback == null || cleanupQueued ||
+            (deviceStatusMap.isEmpty() && currentGlobalLidState != true)) return
+        cleanupQueued = true
+        cleanupHandler.postDelayed(cleanupRunnable, CLEANUP_INTERVAL_MS)
     }
 
     /** Beacons from non-AirPods headphones (model codes AirPods don't use), before any AirPods checks. */
@@ -127,30 +138,50 @@ class BLEManager(private val context: Context) {
     }
 
     // ---- How hard to listen (battery) ----
-    // The scan used to run at Android's most power-hungry setting all day, screen off included.
-    // Now: full speed while the screen is on (the case-open pop-up and battery show at once),
-    // Android's low-power scan while it's off (nobody sees a pop-up then). See [modeFor].
+    // Respond quickly just after the screen lights up; once the user is settled, keep finding
+    // case/battery beacons at balanced power. The screen-off scan remains low power.
+    // Android recommends low latency only for foreground interaction, not all-day scanning.
     @Volatile private var screenOn = true
     @Volatile private var currentMode = -1
+    private var boostUntilMs = 0L
+    private var screenOffAtMs = 0L
     private val starts = ArrayDeque<Long>()
     private var screenReceiver: android.content.BroadcastReceiver? = null
     private val applyMode = Runnable {
         if (mScanCallback == null) return@Runnable // stopped meanwhile
-        if (modeFor(screenOn) != currentMode) beginScan()
+        if (modeFor(screenOn, SystemClock.elapsedRealtime() < boostUntilMs) != currentMode) beginScan()
+        else planScanMode()
+    }
+
+    /** Plan one scan-mode transition; respect both screen-off settling and Android's start limit. */
+    private fun planScanMode() {
+        cleanupHandler.removeCallbacks(applyMode)
+        if (mScanCallback == null) return
+        val now = SystemClock.elapsedRealtime()
+        val boosted = screenOn && now < boostUntilMs
+        val desired = modeFor(screenOn, boosted)
+        val wait = when {
+            desired != currentMode -> maxOf(
+                if (screenOn) 0L else (screenOffAtMs + SCREEN_OFF_SETTLE_MS - now).coerceAtLeast(0L),
+                synchronized(starts) { waitBeforeStart(starts.toList(), System.currentTimeMillis()) },
+            )
+            boosted -> boostUntilMs - now + 20L
+            else -> return
+        }
+        cleanupHandler.postDelayed(applyMode, wait.coerceAtLeast(1L))
     }
 
     private fun followScreen() {
         if (screenReceiver != null) return
         screenOn = context.getSystemService(android.os.PowerManager::class.java)?.isInteractive ?: true
+        boostUntilMs = if (screenOn) SystemClock.elapsedRealtime() + SCREEN_BOOST_MS else 0L
         val r = object : android.content.BroadcastReceiver() {
             override fun onReceive(c: Context, i: android.content.Intent) {
+                val now = SystemClock.elapsedRealtime()
                 screenOn = i.action != android.content.Intent.ACTION_SCREEN_OFF
-                cleanupHandler.removeCallbacks(applyMode)
-                // Screen on: full speed at once. Off: wait a little, so a quick look at the
-                // lock screen doesn't restart the scan twice.
-                val settle = if (screenOn) 0L else SCREEN_OFF_SETTLE_MS
-                val wait = synchronized(starts) { waitBeforeStart(starts.toList(), System.currentTimeMillis()) }
-                cleanupHandler.postDelayed(applyMode, maxOf(settle, wait))
+                if (screenOn) boostUntilMs = now + SCREEN_BOOST_MS
+                else screenOffAtMs = now
+                planScanMode()
             }
         }
         runCatching {
@@ -168,7 +199,8 @@ class BLEManager(private val context: Context) {
 
     fun startScanning() {
         followScreen()
-        beginScan()
+        // Repeated startup calls must not tear down a healthy scan (or use the BLE restart quota).
+        if (mScanCallback == null) beginScan() else planScanMode()
     }
 
     @SuppressLint("MissingPermission")
@@ -197,7 +229,7 @@ class BLEManager(private val context: Context) {
 
             mBluetoothLeScanner = btAdapter.bluetoothLeScanner
 
-            val mode = modeFor(screenOn)
+            val mode = modeFor(screenOn, screenOn && SystemClock.elapsedRealtime() < boostUntilMs)
             val scanSettings = ScanSettings.Builder()
                 .setScanMode(mode)
                 .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
@@ -225,9 +257,11 @@ class BLEManager(private val context: Context) {
                 }
 
                 override fun onBatchScanResults(results: List<ScanResult>) {
-                    processedAddresses.clear()
+                    // Only dedupe within this batch. Remembering an address across callbacks
+                    // stopped subsequent battery/case updates from ever reaching the UI.
+                    val seen = HashSet<String>()
                     for (result in results) {
-                        processScanResult(result)
+                        if (acceptAddress(result.device.address, seen)) processScanResult(result)
                     }
                 }
 
@@ -244,9 +278,9 @@ class BLEManager(private val context: Context) {
             }
             Log.d(TAG, "BLE scanner started (mode $mode)")
 
-            // One cleanup tick at a time (starting again used to add a second one).
-            cleanupHandler.removeCallbacks(cleanupRunnable)
-            cleanupHandler.postDelayed(cleanupRunnable, CLEANUP_INTERVAL_MS)
+            // An idle scanner has nothing to expire: no ten-second background timer.
+            ensureCleanup()
+            planScanMode()
         } catch (t: Throwable) {
             Log.e(TAG, "Error starting BLE scanner", t)
         }
@@ -262,6 +296,7 @@ class BLEManager(private val context: Context) {
             }
 
             cleanupHandler.removeCallbacks(cleanupRunnable)
+            cleanupQueued = false
             cleanupHandler.removeCallbacks(applyMode)
             currentMode = -1
             screenReceiver?.let { r -> runCatching { context.applicationContext.unregisterReceiver(r) } }
@@ -315,10 +350,6 @@ class BLEManager(private val context: Context) {
             val scanRecord = result.scanRecord ?: return
             val address = result.device.address
 
-            if (processedAddresses.contains(address)) {
-                return
-            }
-
             val manufacturerData = scanRecord.getManufacturerSpecificData(76) ?: return
             if (manufacturerData.size <= 20) return
 
@@ -339,7 +370,6 @@ class BLEManager(private val context: Context) {
                 Log.d(TAG, "RPA verified and added to trusted list: $address")
             }
 
-            processedAddresses.add(address)
             lastBroadcastTime = System.currentTimeMillis()
 
             val encryptionKey = getEncryptionKeyFromPreferences()
@@ -352,6 +382,7 @@ class BLEManager(private val context: Context) {
 
             val previousStatus = deviceStatusMap[address]
             deviceStatusMap[address] = parsedStatus
+            ensureCleanup()
 
             airPodsStatusListener?.let { listener ->
                 if (previousStatus == null) {
@@ -559,8 +590,16 @@ class BLEManager(private val context: Context) {
     }
 
     companion object {
-        /** Full speed with the screen on; Android's low-power scan with it off. */
-        fun modeFor(screenOn: Boolean): Int = if (screenOn) ScanSettings.SCAN_MODE_LOW_LATENCY else ScanSettings.SCAN_MODE_LOW_POWER
+        /** Short fast-response window, then balanced power while awake; lowest power asleep. */
+        fun modeFor(screenOn: Boolean, quickResponse: Boolean = false): Int = when {
+            !screenOn -> ScanSettings.SCAN_MODE_LOW_POWER
+            quickResponse -> ScanSettings.SCAN_MODE_LOW_LATENCY
+            else -> ScanSettings.SCAN_MODE_BALANCED
+        }
+
+        /** Single result callbacks are never deduped across time; a batch only processes each address once. */
+        internal fun acceptAddress(address: String, seenInBatch: MutableSet<String>? = null): Boolean =
+            seenInBatch?.add(address) ?: true
 
         /**
          * Android refuses an app's 6th scan start within 30 seconds (it quietly stops scanning).
@@ -576,6 +615,7 @@ class BLEManager(private val context: Context) {
         const val SCAN_STARTS_ALLOWED = 4
         const val SCAN_START_WINDOW_MS = 30_000L
         const val SCREEN_OFF_SETTLE_MS = 10_000L
+        const val SCREEN_BOOST_MS = 12_000L
         private const val TAG = "AirPodsBLE"
         private const val CLEANUP_INTERVAL_MS = 10000L
         private const val STALE_DEVICE_TIMEOUT_MS = 15000L

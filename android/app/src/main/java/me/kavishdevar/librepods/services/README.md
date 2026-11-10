@@ -42,7 +42,7 @@ The brains of pro. Files are small and named for what they decide. "Pure" means 
 |---|---|
 | `AirPodsService.kt` | The foreground service: connection, packets, ear detection, listening modes, notification. **Also starts the pill, `NowPlaying`, `SoundSource`, `PhoneStatus`, `ScreenApp` and `IslandTimer` in `onCreate`, with or without headphones.** Large; search before reading. |
 | `AirPodsQSService.kt`, `CompanionPresenceService.kt` | Quick Settings tile; Android wakes pro when the linked AirPods connect |
-| `DeviceChoice.kt`, `HeadphoneLink.kt` | Which headphones pro follows (default AirPods) and the live state of non-AirPods ones (Beats Solo 4) |
+| `DeviceChoice.kt`, `HeadphoneLink.kt` | Which headphones pro follows (default AirPods) and the live state of non-AirPods ones (Beats Solo 4). Bluetooth connection broadcasts are coalesced into one series of settle checks; a battery broadcast alone never claims an audio connection. |
 | `HeartRate.kt`, `HeartView.kt`, `HeartHistory.kt`, `HeartBackup.kt`, `HeartLink.kt` | Heart rate: live reading and insights (`HeartInsights.chartPoints`: spot checks become one joined point each on the graph), the honest state to show, one CSV per session, GitHub backup into `pro3` (branch `heart-backup`), live sharing |
 | `HeartPacing.kt` | The background pace (`HeartPace`: Every 5 s, Smart, Saver) and the spot-check rules: 3 good readings over 10 s, then a rest that depends on the pace, how steady the rate is, whether it's changing or high, and the AirPods' battery. The service runs it (`startHeartRate`'s loop) |
 | `BatteryEstimator.kt` | Listening time left |
@@ -55,3 +55,7 @@ The brains of pro. Files are small and named for what they decide. "Pure" means 
 - Settings: the `settings` SharedPreferences (`IslandPrefs.prefs(context)`). Island looks use `glint_di_*` (2026-10-11: `glint_mini_games`, `glint_live_apps`; recent songs in the `music_memory` preferences; recent apps in `screen_app`; the Solo 4 finish `glint_beats_finish`) (also `glint_di_hide_in`, `glint_di_charge_moment`, `glint_di_app_pop`), sound switches `glint_mini_any_sound`, `glint_sound_icons`, `glint_sound_linger`, `glint_sound_ignored`; a running timer `glint_timer_*`.
 - Live state: `StateFlow`s on `object`s (`NowPlaying.state`, `SoundSource.heard`, `PhoneStatus.state`, `ScreenApp.place`, `IslandTimer.state`, `PhoneControls.torch`, `GlintStatus.link`). The pill collects them.
 - Never store a new setting without a default that equals the old behaviour, and a test that a bad stored value falls back instead of crashing (see `IslandLookTest`).
+
+## Bluetooth scanning power (2026-11-10)
+
+`bluetooth/BLEManager.kt` uses a short 12 s low-latency boost after screen-on, balanced scanning while the display stays awake, and low-power scanning after screen-off. It schedules mode changes without exceeding the scanner's restart guard; duplicate scan starts do not restart a healthy scan. The case/battery cleanup runs only while there is an active beacon to expire, rather than every ten seconds during an empty scan. The BLE address dedupe set is local to each batch so later updates from the same headphones are not discarded. `BatteryAuditTest` covers these pure policies. Galaxy S26 FE latency and battery consumption remain phone checks, not measured guarantees.
