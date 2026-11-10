@@ -140,6 +140,30 @@ class SoundSourceTest {
         assertNull(SoundSource.foreground)
     }
 
+    @Test fun notificationSoundIsPublishedBeforeItsIconFinishesLoading() {
+        // These packages aren't installed in Robolectric. The sound still needs to show
+        // immediately, instead of waiting for PackageManager's label/icon lookup.
+        SoundSource.notificationPosted("com.example.newmessenger", 0)
+        SoundSource.usagesChanged(listOf(AudioAttributes.USAGE_NOTIFICATION))
+        val heard = SoundSource.heard.value!!
+        assertEquals("com.example.newmessenger", heard.pkg)
+        assertEquals(Kind.Alert, heard.kind)
+        assertTrue(heard.active)
+        assertNull(heard.icon)
+        // The later lookup may fill in the icon, but must never create another sound.
+        assertEquals(1, SoundSource.recent.value.size)
+    }
+
+    @Test fun aLaterSoundDoesNotInheritThePreviousAppsIconOrName() {
+        SoundSource.notificationPosted("com.example.first", 0)
+        SoundSource.usagesChanged(listOf(AudioAttributes.USAGE_NOTIFICATION))
+        SoundSource.usagesChanged(emptyList())
+        SoundSource.notificationPosted("com.example.second", 0)
+        SoundSource.usagesChanged(listOf(AudioAttributes.USAGE_NOTIFICATION))
+        assertEquals("com.example.second", SoundSource.heard.value?.pkg)
+        assertNull(SoundSource.heard.value?.icon)
+    }
+
     @Test fun listeningStartsOnlyOnceAndCopesWithNoSoundsAtStart() {
         SoundSource.attach(app)
         SoundSource.attach(app)
