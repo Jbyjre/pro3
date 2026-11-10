@@ -307,3 +307,14 @@ Jake requested deep battery optimizations (cannot waste battery on phone, especi
 - Everything marked PHONE CHECK. `TESTING.md` lists the steps.
 - Real refraction of other apps behind the island: IMPOSSIBLE on Android (D5, D33).
 - A Wi-Fi heart-rate page, and heart data to Jake's other apps: NOT BUILT (above).
+
+## 20. 2026-11-10: audio and small-island response pass (Galaxy S26 FE)
+
+Requested: inspect pro3, improve responsiveness of the camera-cutout mini island, prioritize unreliable audio behavior and avoid needless battery use. This pass focuses on audio-event work that could delay the island. It does **not** claim full device verification.
+
+| Item | Status | Code / check |
+|---|---|---|
+| Audio app icons decoded during playback and notification callbacks | CODE UPDATED, CI / PHONE CHECK | `SoundSource.kt`: publish immediately with a glyph, fill cached app identity asynchronously; coalesce concurrent loads; don't overwrite another app's newer sound or message. `SoundSourceTest.kt` adds immediate-render and identity-isolation coverage. |
+| Redundant remote media-session work on the main thread | CODE UPDATED, CI / PHONE CHECK | `NowPlaying.kt`: use published session state for sound attribution; metadata callbacks don't fetch the entire session list; treat buffering as active when selecting; coalesce concurrent icon lookups; never reuse cover art across two apps with the same track title. |
+| Battery | EXPECTED IMPROVEMENT, NOT MEASURED | Fewer package-manager operations and remote session queries per callback. `PowerPlan` battery policy unchanged; no new background polling. Test on S26 FE with Android battery statistics. |
+| Island pop-up animations, AirPods audio controls and real-world reliability | NOT VERIFIED BY THIS PASS | Need physical S26 FE to confirm the UI and Bluetooth behavior, and a reproducible example of the reported audio failure. Do not claim fixed. |
