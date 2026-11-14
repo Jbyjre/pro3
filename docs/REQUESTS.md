@@ -19,7 +19,7 @@
 | Keep signing identity and data | VERIFIED KEY MATCH; OWNER SECRET SETUP | Recovered existing key matches downloadable build 228. Secret access denied (403); private backup and exact owner UI action provided. Cache retained, regeneration forbidden. |
 | Efficient integration, related research, future study extension | IMPLEMENTED / RESEARCHED | No breathing foreground service or app polling. Pause/Quick Settings added; schedules/study enforcement deferred. See linked report for platform evidence and test limits. |
 
-Full checklist, research links, setup and verification boundaries: [BREATHING_AND_UPDATES.md](BREATHING_AND_UPDATES.md). Test/build/delivery results are recorded there and in TESTING.md only when observed.
+Full checklist, research links, setup and verification boundaries: [BREATHING_AND_UPDATES.md](BREATHING_AND_UPDATES.md). Observed locally: 354 full-suite tests across 47 classes passed, then 11 focused final checks passed; lint (0 errors) and the final signed release build passed. Build 231 retains the existing release certificate. Physical Samsung checks and owner secret setup remain.
 
 ## Which phone
 

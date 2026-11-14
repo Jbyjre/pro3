@@ -131,4 +131,14 @@ class PhoneTabsUiTest {
         val due = TimerRules.restore(60_000L, 1_000_000L, -1L, 1_000_500L, 5_000L)!!
         assertEquals(5_000L, due.endsAt)
     }
+    @Test fun restartingRestoresAnActivePhoneTimerWithoutHeadphones() {
+        IslandTimer.start(context,60_000L)
+        val expected=IslandTimer.state.value!!.endsAt
+        IslandTimer.forgetForTest()
+        IslandTimer.attach(context)
+        // Restore converts the saved wall deadline to elapsed time; allow clock-sampling jitter.
+        assertTrue(kotlin.math.abs(expected-IslandTimer.state.value!!.endsAt) < 100L)
+        assertTrue(IslandTimer.state.value!!.running)
+    }
+
 }

@@ -132,17 +132,19 @@ jobs:
             ASSET=pro.apk
             POINTER=glint-latest
             FLAGS=(--latest)
+            IMMUTABLE_FLAGS=(--latest=false)
           else
             ASSET=pro-preview.apk
             POINTER=glint-preview
             FLAGS=(--prerelease --latest=false)
+            IMMUTABLE_FLAGS=(--prerelease --latest=false)
           fi
           cp android/app/build/outputs/apk/foss/release/app-foss-release.apk "out/$ASSET"
           AAPT=$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
           python3 android/tools/release-metadata.py "out/$ASSET" "$PRO_CHANNEL" "$AAPT" > out/update.json
           CODE=$(python3 -c "import json; print(json.load(open('out/update.json'))['versionCode'])")
           TAG="pro-$PRO_CHANNEL-$CODE"
-          gh release create "$TAG" "${FLAGS[@]}" --target "$GITHUB_SHA" \
+          gh release create "$TAG" "${IMMUTABLE_FLAGS[@]}" --target "$GITHUB_SHA" \
             --title "pro $PRO_CHANNEL · build $CODE" \
             --notes "Signed build $CODE from $GITHUB_SHA. Existing installations keep their data. Future updates are in pro > Phone > App updates." \
             "out/$ASSET" out/update.json

@@ -18,11 +18,13 @@ This supersedes every older request for a persistent camera island, including it
 | Recents / notification conversation / deep link | Direct launch. No interception or replacement intent; original destination and session remain Android's. |
 | Returning among activities, keyboard, permission sheets, shade | No observation service; these cannot create another intervention. |
 | Home, Back, screen lock, interruption | Cancels the pending launch. No deferred launch when returning or after process death. |
-| Rotation, landscape, resized/split window | Same deadline; the view remeasures. A destroyed/restored activity cancels instead of resurrecting a destination. Actual One UI behavior remains a phone check. |
+| Rotation, landscape, resized/split window | Same deadline; the view remeasures. A destroyed/restored activity cancels instead of resurrecting a destination. It blocks its own pane; another split-screen pane remains usable. Actual One UI behavior remains a phone check. |
 
 One second refers to the intervention, from its first draw to destination launch request, not OS cold-start/splash/task-start latency or rendering delays. The app does not wait for an animation coroutine to finish and does not multiply the deadline with animator duration settings. A late main-thread dispatch or slow package lookup can still add platform latency; there is no claimed phone measurement. Shortcut completion uses the destination's normal launcher intent with no CLEAR_TASK/CLEAR_TOP flags, preserving an existing task under Android's normal launcher rules. Apps themselves may reset their own state on a launcher intent. No conversation/deep-link context is fabricated or replaced.
 
-The production `BreathView` is also the preview. Six actual native-rendered transition states are captured by `BreathScreenshots`; these are rendering evidence, not a frame-rate measurement. Motion is one expansion, with no infinite animation. Reduced motion uses a still bloom for the same deadline, based on the existing system/comfort preference. Intervention touches are consumed by its activity; system navigation remains available.
+The production `BreathView` is also the preview. Rendered inspection caught and fixed painting beyond the preview bounds and large-text landscape spacing. Six actual native-rendered transition states are captured by `BreathScreenshots`; these are rendering evidence, not a frame-rate measurement. Motion is one expansion, with no infinite animation. Reduced motion uses a still bloom for the same deadline, based on the existing system/comfort preference. Intervention touches are consumed by its activity; system navigation remains available.
+
+![Native production transition renders: 0, 300 and 900 milliseconds, plus dark mode](breathing-preview.png)
 
 ## Requirements and verification map
 
@@ -62,3 +64,16 @@ The existing release certificate is `9dcdd1402e7eff958007957933847bf23bfcac1ec99
 The connected GitHub installation returned HTTP 403 for both listing secrets and obtaining the secret-encryption public key. The owner must add **PRO_SIGNING_KEY_B64** and **PRO_SIGNING_PASSWORD** at [repository Actions secrets](https://github.com/Jbyjre/pro3/settings/secrets/actions), using the correspondingly named text files in the privately delivered signing backup. Open each file, copy all its contents, and paste it as the secret value. No terminal is needed. Keep the backup private and outside GitHub issues/releases. Until then the existing cache remains the release fallback; if lost, the build stops rather than breaking upgrades.
 
 Only downloaded configuration/data can refresh without installation. Kotlin/Compose/native services, permissions and manifest changes require a signed APK update and Android process replacement. There is no remote native-code loader, web conversion, account, or new cloud backend.
+
+
+## Observed verification
+
+- Full regression run: **354 tests, 47 classes, zero failures/errors/skips**, including retained AirPods/Beats/UI/popup/shape/battery/heart coverage and the new launch/update/APK fixtures.
+- Final focused UI/renderer/timer run: **11 tests, zero failures**. This includes the independent timer-restoration change and rendered setup controls using the same production paint path. The restart test allows under 100 ms of wall-clock-to-monotonic sampling jitter; the breathing deadline tests still check 999/1,000 ms.
+- Production render states: 18 portrait/light/dark/landscape-large-text frames, plus setup-page and popup screenshots. Rendered evidence led to bounded preview painting, direct reuse of the native paint path from Compose, and smaller landscape bloom spacing. These do not measure device frame rate.
+- Local environment: JDK 21, Gradle 9.4.1, Android compile/target 37.0/API 37, NDK 29.0.14206865 and CMake 4.1.2 via the supported offline setup; Robolectric API 36. CI uses its configured NDK 30. No emulator or physical Samsung was attached (`adb devices` was empty).
+- Release identity: package **io.github.jbyjre.glint**, versionName **1.0.0**, numeric build **231**. Downloadable prior stable **228** and the recovered release key have the identical certificate fingerprint above. The phone's currently installed build was not read.
+
+Silent install, physical upgrade-in-place, One UI overlays/gestures, exact cold/warm startup latency, destination-app state and smoothness remain device checks in TESTING.md. No measured Samsung timing or battery gain is claimed.
+
+Final local lint and signed release rebuild passed after the preview and timer fixes: **0 lint errors**. APK SHA-256: `332920a8fddd27bd754d53fa4243c58fa3b503aec776c565118c11e7ef47694f` (10820288 bytes). Workflow YAML/shell syntax and metadata generation from the prior signed APK also passed.

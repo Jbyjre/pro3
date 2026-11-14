@@ -38,7 +38,10 @@ class BreathView(context: Context) : View(context) {
     }
     override fun onTouchEvent(event: MotionEvent): Boolean = true
     override fun performClick(): Boolean { super.performClick(); return true }
-    override fun onDraw(canvas: Canvas) {
+    override fun onDraw(canvas: Canvas) = renderFrame(canvas)
+
+    /** The same paint path is used directly by the Compose preview, without an embedded window. */
+    fun renderFrame(canvas: Canvas) {
         val now = SystemClock.elapsedRealtime()
         if (start == null) { start = now; onFirstFrame?.invoke() }
         val elapsed = renderAt ?: (now - start!!)

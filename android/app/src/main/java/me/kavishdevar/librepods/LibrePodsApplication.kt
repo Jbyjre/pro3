@@ -24,8 +24,12 @@ class LibrePodsApplication: Application(), XposedServiceHelper.OnServiceListener
 
         // Android keeps a note of why pro last stopped (a freeze, a crash): save a readable copy
         // for Troubleshooting. Off the main thread: it asks Android and may read a trace.
-        Thread({ me.kavishdevar.librepods.updates.UpdateJob.schedule(this); me.kavishdevar.librepods.services.FeatureMigration.retireCamera(this); runCatching { me.kavishdevar.librepods.services.FreezeReport.check(this) } }, "pro-freeze-check")
-            .apply { isDaemon = true }.start()
+        Thread({
+            runCatching { me.kavishdevar.librepods.updates.UpdateJob.schedule(this) }
+            runCatching { me.kavishdevar.librepods.services.FeatureMigration.retireCamera(this) }
+            runCatching { me.kavishdevar.librepods.services.IslandTimer.attach(this) }
+            runCatching { me.kavishdevar.librepods.services.FreezeReport.check(this) }
+        }, "pro-startup-check").apply { isDaemon = true }.start()
     }
 
     override fun onResume(owner: LifecycleOwner) {
