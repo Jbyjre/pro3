@@ -57,11 +57,13 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -154,9 +156,18 @@ fun AppSettingsScreen(
             onCheckedChange = viewModel::setm3eEnabled,
         )
 
-        // Your AirPods' name (moved here from the main page). Read fresh each time this screen
-        // opens, so a rename shows straight away when you come back.
-        val podsName = remember { context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).getString("name", null) }
+        // Your AirPods' name (moved here from the main page). Listen for changes so a rename
+        // from RenameScreen shows straight away when coming back through the backstack.
+        val settingsPrefs = remember { context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE) }
+        var podsName by remember { mutableStateOf(settingsPrefs.getString("name", null)) }
+        DisposableEffect(settingsPrefs) {
+            podsName = settingsPrefs.getString("name", null)
+            val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+                if (key == "name" || key == null) podsName = prefs.getString("name", null)
+            }
+            settingsPrefs.registerOnSharedPreferenceChangeListener(listener)
+            onDispose { settingsPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
+        }
         val followed by me.kavishdevar.librepods.services.DeviceChoice.chosen.collectAsState()
         androidx.compose.runtime.LaunchedEffect(Unit) { me.kavishdevar.librepods.services.DeviceChoice.load(context) }
         StyledList(title = "pro") {

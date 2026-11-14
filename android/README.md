@@ -41,7 +41,7 @@ All code is under `app/src/main/java/me/kavishdevar/librepods/` (the old LibrePo
 | `presentation/glint/` | The glass material, motion, haptics, symbols, row icons | [`presentation/glint/README.md`](app/src/main/java/me/kavishdevar/librepods/presentation/glint/README.md) |
 | `presentation/screens/` | One file per page of the app | [`presentation/screens/README.md`](app/src/main/java/me/kavishdevar/librepods/presentation/screens/README.md) |
 | `presentation/components/` | Shared pieces: lists, toggles, buttons, banners, cards | |
-| `presentation/navigation/` | Routes (`Screen.kt`), the page switcher (`AppNavGraph.kt`), the top bar and the tabs' state (`NavigationRoot.kt`), the three tabs and their Liquid Glass bar (`Tabs.kt`: Phone first, Island, Headphones), deep links from pop-ups (`AppLinks.kt`, `ISLAND_TAB`) | |
+| `presentation/navigation/` | Routes (`Screen.kt`), the page switcher (`AppNavGraph.kt`), the top bar and the tabs' state (`NavigationRoot.kt`), the three tabs and their Liquid Glass bar (`Tabs.kt`: Headphones first and home, Phone, Island), deep links from pop-ups (`AppLinks.kt`, `ISLAND_TAB`) | |
 | `presentation/theme/` | Colours, the Inter font, light/dark (`Appearance.kt`), the light/dark reveal, the home-screen icon choice | |
 | `bluetooth/` | Talking to the AirPods: the Apple accessory protocol (AACP), detection, reconnect timing, the heart sensor stream, the Beats beacon, the beacon scan (`BLEManager`: full speed with the screen on, low power with it off) | |
 | `audio/` | The AirPods microphone recorder | |

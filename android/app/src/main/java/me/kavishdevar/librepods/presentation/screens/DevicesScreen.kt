@@ -58,13 +58,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.presentation.components.StyledList
 import me.kavishdevar.librepods.presentation.components.StyledListItem
+import me.kavishdevar.librepods.presentation.glint.WhileShown
 import me.kavishdevar.librepods.presentation.theme.DesignSystem
 import me.kavishdevar.librepods.presentation.theme.LocalDesignSystem
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
@@ -83,15 +83,12 @@ fun DevicesScreen(onChosen: () -> Unit = {}) {
     val context = LocalContext.current
     val chosen by DeviceChoice.chosen.collectAsState()
     LaunchedEffect(Unit) { DeviceChoice.load(context) }
-    var devices by remember { mutableStateOf(DeviceChoice.pairedAudioDevices(context)) }
-    // Connection dots change as headphones come and go: look again while the page is open.
-    val lifecycle = LocalLifecycleOwner.current
-    LaunchedEffect(lifecycle) {
-        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            while (true) {
-                devices = DeviceChoice.pairedAudioDevices(context)
-                delay(3_000)
-            }
+    var devices by remember { mutableStateOf<List<KnownDevice>>(emptyList()) }
+    // Connection dots change as headphones come and go: look again off the main thread while open.
+    WhileShown {
+        while (true) {
+            devices = withContext(Dispatchers.IO) { DeviceChoice.pairedAudioDevices(context) }
+            delay(3_000)
         }
     }
     val view = LocalView.current
@@ -101,7 +98,6 @@ fun DevicesScreen(onChosen: () -> Unit = {}) {
         onChoose = { d ->
             view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
             DeviceChoice.choose(context, ChosenDevice(d.kind, d.address, d.name))
-            devices = DeviceChoice.pairedAudioDevices(context)
             onChosen()
         },
         onOpenBluetooth = {

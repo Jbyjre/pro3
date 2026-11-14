@@ -486,7 +486,8 @@ class PhoneIslandTest {
     // ---- Tabs ----
 
     @Test fun theHeadphonesTabIsNamedAfterTheChosenDevice() {
-        assertEquals(listOf(AppTab.Phone, AppTab.Island, AppTab.Headphones), AppTab.entries.toList())
+        assertEquals(listOf(AppTab.Headphones, AppTab.Phone, AppTab.Island), AppTab.entries.toList())
+        assertEquals(AppTab.Headphones, AppTab.Home)
         assertEquals("AirPods", AppTab.Headphones.label(ChosenDevice(DeviceKind.AIRPODS, "", "Jake's AirPods Pro")))
         assertEquals("Beats", AppTab.Headphones.label(ChosenDevice(DeviceKind.BEATS_SOLO_4, "x", "Beats Solo 4")))
         assertEquals("Headphones", AppTab.Headphones.label(ChosenDevice(DeviceKind.HEADPHONES, "x", "Car audio")))

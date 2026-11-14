@@ -7,7 +7,7 @@ A short checklist. Tick things off, and for anything that looks wrong, take a sc
 Install the new `pro.apk` (section A), open pro once, then:
 
 **Newest (7 October): pro is a Dynamic Island app first**
-1. Open pro. It now opens on the **Phone** tab, with a glass tab bar at the bottom: **Phone**, **Island**, **AirPods** (or **Beats** if you chose the Solo 4). Tap each; the page should fade over smoothly and the glass bubble should slide to the tab. Back on Island or AirPods should take you to Phone first.
+1. Open pro. It now opens on the **AirPods** tab (2026-11-13), with a glass tab bar at the bottom: **AirPods** (or **Beats** if you chose the Solo 4), **Phone**, **Island**. Tap each; the page should fade over smoothly and the glass bubble should slide to the tab. Back on Phone or Island should take you to AirPods first.
 2. On the Phone tab, **Make it work fully** lists anything still missing. Tap **Allow** on each until the card disappears. The important one is **See your apps, and tap the island** (pro Dynamic Island in Accessibility; if Samsung says "Restricted setting": App info, ⋮, Allow restricted settings, then again).
 3. Leave pro and open **Spotify**: the island should show Spotify's icon left of the camera. Open **Claude**: the icon should swap with a little spring. Pull down the notification shade and let it go: the icon should stay Spotify/Claude (not change). Go to the **home screen**: four small tiles in your wallpaper's colours and today's date. If the icon never changes, tell Claude: it means One UI doesn't send the app-switch signal pro listens for.
 4. Lock the phone, turn the screen on: a **padlock**. Unlock: the padlock springs open, then the island goes back to where you were.
@@ -270,3 +270,13 @@ Code and unit tests alone do not establish battery life or One UI behavior. Chec
 5. Compare Android battery-usage and background-activity statistics over comparable periods on the Galaxy S26 FE. There is no measured reduction until this test is performed.
 
 Relevant automated coverage: `BatteryAuditTest.theBeaconScanBoostsBrieflyThenBalancesWhileScreenIsOn` and `theSameBeaconAddressIsAcceptedAcrossCallbacksButOnceWithinABatch`; existing `DeviceChoiceTest` covers the 2.5-second Bluetooth disconnect grace. Android's `ScanSettings` guidance supports balanced scan mode for ongoing work and discourages low latency outside foreground interaction.
+
+## AirPods tab default and usability fixes — 2026-11-13
+
+Check these on your real phone (not verified in cloud tests):
+
+1. Open pro: confirm it lands directly on the **AirPods** (or **Beats**) tab on the left, finish setup if needed (should end on the AirPods tab), and press Back from **Phone** or **Island** to confirm it returns to **AirPods** first before exiting.
+2. With AirPods connected: confirm the everyday controls sit at the top (listening mode + Off option, audio settings, heart rate), **drag sideways** across the listening-mode slider and tap options to verify smooth switching, and test tapping **Disconnect** to confirm the dialog appears before disconnecting.
+3. Rename your AirPods in **Settings > Name**: confirm no lag or loading spinner on opening, and when pressing Back to Settings the updated name shows right away (and still says `"AirPods"` in the main top bar if cleared/blank).
+4. With AirPods waiting and your Beats connected (or controls offline): confirm the waiting card sits calmly without constant pulsing animation, **Controls offline · Tap to retry** triggers a reconnect, and **Switch to Beats / Switch to AirPods** appears in one tap without stuttering the screen.
+

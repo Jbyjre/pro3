@@ -79,13 +79,19 @@ import me.kavishdevar.librepods.services.ChosenDevice
 import me.kavishdevar.librepods.services.DeviceKind
 
 /**
- * pro's three main pages, along the bottom: the phone itself (first, the main page), the Dynamic
- * Island's own page, and your headphones (AirPods or Beats, whichever you chose).
+ * pro's three main pages, along the bottom: your headphones (first, the home tab the app opens on;
+ * AirPods or Beats, whichever you chose), the phone itself, and the Dynamic Island's own page.
+ * (Jake, 2026-11-13: open on the AirPods tab. It was Phone first from 2026-10-07.)
  */
 enum class AppTab(val title: String) {
+    Headphones("Headphones"),
     Phone("Phone"),
-    Island("Island"),
-    Headphones("Headphones");
+    Island("Island");
+
+    companion object {
+        /** The tab pro opens on, and the one Back returns to from the others. */
+        val Home: AppTab = Headphones
+    }
 
     /** The tab's word under its picture: the headphones tab is named after the chosen device. */
     fun label(device: ChosenDevice): String = when (this) {

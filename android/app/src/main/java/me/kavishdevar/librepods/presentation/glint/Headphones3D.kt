@@ -86,8 +86,10 @@ fun Headphones3D(
     val plan by me.kavishdevar.librepods.services.PowerPlan.level.collectAsState()
     val frameMs = me.kavishdevar.librepods.services.PowerPlan.spinFrameMs(plan)
     val turning = spin && !reduce && PodsVideoConfig.enabled && frameMs != null
-    LaunchedEffect(turning, frameMs) {
-        if (!turning || frameMs == null) return@LaunchedEffect
+    // Only turn while the page is actually in front: a plain LaunchedEffect keeps waking on every
+    // frame after you leave pro for another app.
+    WhileShown(turning, frameMs) {
+        if (!turning || frameMs == null) return@WhileShown
         var last = 0L
         while (true) {
             if (frameMs > 16L) me.kavishdevar.librepods.services.PowerPlan.nextFrame(frameMs)

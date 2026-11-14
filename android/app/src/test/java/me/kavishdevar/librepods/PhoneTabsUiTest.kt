@@ -9,10 +9,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import me.kavishdevar.librepods.billing.BillingManager
 import me.kavishdevar.librepods.billing.FOSSBillingProvider
 import me.kavishdevar.librepods.presentation.glint.PodsVideoConfig
@@ -61,25 +63,52 @@ class PhoneTabsUiTest {
 
     private fun tab(label: String) = rule.onNode(hasText(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
 
-    @Test fun opensOnPhoneAndTheTabsSwitchPagesAndBackReturnsToPhone() {
+    @Test fun opensOnAirPodsAndTheTabsSwitchPagesAndBackReturnsToAirPods() {
         rule.setContent { LibrePodsTheme(m3eEnabled = false) { NavigationRoot(airPodsViewModel = AirPodsViewModel()) } }
         rule.waitForIdle()
-        // The Phone tab is the main page.
+        // The AirPods tab is the home tab (Jake, 2026-11-13): first in the bar and the page pro opens on.
+        tab("AirPods").assertIsSelected()
+        rule.onNode(hasText("Make it work fully")).assertDoesNotExist()
+        rule.onNode(hasText("Hide in these apps")).assertDoesNotExist()
+        tab("Phone").performClick()
+        rule.waitForIdle()
         rule.onNode(hasText("Make it work fully")).assertExists()
         tab("Island").performClick()
         rule.waitForIdle()
         // The Island page itself is showing (not only its title), and the Phone page is gone.
         rule.onNode(hasText("Hide in these apps")).assertExists()
         rule.onNode(hasText("Make it work fully")).assertDoesNotExist()
-        tab("AirPods").performClick()
-        rule.waitForIdle()
-        rule.onNode(hasText("Hide in these apps")).assertDoesNotExist()
-        rule.onNode(hasText("Make it work fully")).assertDoesNotExist()
-        // Back from a tab other than Phone goes to Phone, not out of the app.
+        // Back from a tab other than AirPods goes to AirPods, not out of the app.
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
         rule.waitForIdle()
-        rule.onNode(hasText("Make it work fully")).assertExists()
-        assertTrue("Back on the Phone tab should leave the app as usual", !rule.activity.isFinishing)
+        tab("AirPods").assertIsSelected()
+        rule.onNode(hasText("Hide in these apps")).assertDoesNotExist()
+        rule.onNode(hasText("Make it work fully")).assertDoesNotExist()
+        assertTrue("Back on the AirPods tab should leave the app as usual", !rule.activity.isFinishing)
+    }
+
+    @Test fun disconnectAsksFirst() {
+        val vm = AirPodsViewModel().apply { activateDemoMode() }
+        rule.setContent { LibrePodsTheme(m3eEnabled = false) { NavigationRoot(airPodsViewModel = vm) } }
+        rule.waitForIdle()
+        val disconnect = hasText("Disconnect") and androidx.compose.ui.test.hasClickAction()
+        rule.onNode(androidx.compose.ui.test.hasScrollToNodeAction()).performScrollToNode(disconnect)
+        rule.onNode(disconnect).performClick()
+        rule.waitForIdle()
+        // A question first, and still connected.
+        rule.onNode(hasText("Cancel")).assertExists()
+        assertTrue(vm.uiState.value.isLocallyConnected)
+        rule.onNode(hasText("Cancel")).performClick()
+        rule.waitForIdle()
+        assertTrue(vm.uiState.value.isLocallyConnected)
+        // Asked again and confirmed: now it disconnects.
+        rule.onNode(androidx.compose.ui.test.hasScrollToNodeAction()).performScrollToNode(disconnect)
+        rule.onAllNodes(disconnect)[0].performClick()
+        rule.waitForIdle()
+        val buttons = rule.onAllNodes(disconnect).fetchSemanticsNodes().size
+        rule.onAllNodes(disconnect)[buttons - 1].performClick()
+        rule.waitForIdle()
+        assertTrue(!vm.uiState.value.isLocallyConnected)
     }
 
     @Test fun theGlanceStartsATimerFromItsPresets() {

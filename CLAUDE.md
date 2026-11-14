@@ -95,7 +95,7 @@
   `screens/AppsScreen.kt` (switches are the same set as `IslandPrefs.soundIgnored`). Jake's phones (2026-10-15): Galaxy S26 FE and
   Pixel 6 Pro (which one he uses day to day is not verified; older notes said S25 FE / Pixel 6).
 - Phone-first (session 2026-10-07, Jake: the app is now a Dynamic Island app first, AirPods second): three tabs (`navigation/Tabs.kt`,
-  Liquid Glass bar; Phone opens first = `screens/PhoneScreen.kt`, Island = `IslandSettingsScreen.kt`, Headphones = the old main page;
+  Liquid Glass bar; Phone = `screens/PhoneScreen.kt`, Island = `IslandSettingsScreen.kt`, Headphones = the old main page;
   all inside root `Screen.AirPodsSettings`). The pill shows the app in front (`services/ScreenApp.kt`, via the accessibility service,
   only real activities count), wallpaper-coloured home tiles + date on the home screen, a padlock that springs open on unlock; never
   the time by default (Jake has it in the status bar). A tap with nothing playing opens the glance (`overlays/GlancePanel.kt`,
@@ -139,4 +139,8 @@
   Heart pace = `services/HeartPacing.kt` (Every 5 s / Smart / Saver spot checks; stored 1 = old Balanced = Smart); the graph joins
   spots (`HeartInsights.chartPoints`). Repeating checks on a page must use `glint/WhileShown.kt` (plain `LaunchedEffect` loops kept
   running in the background). Refresh rate: `FrameRate.Booster` (fast while touching + 2.5 s). BLE beacon scan: low power with the screen off.
+- Session 2026-11-13 (DECISIONS 51): **the AirPods/Beats tab is first and the home tab** (`AppTab.Home`): pro opens on it, setup
+  ends on it, Back from Phone/Island returns to it (Jake's choice; it was Phone first). AirPods page order: listening mode + Off option,
+  audio, heart rate, buttons, health, connection/charging, rare rows last. Disconnect asks first. Infinite animations and frame loops
+  must stop when not needed (`WhileShown`, no `rememberInfiniteTransition` while idle).
 - See `DECISIONS.md` and `TESTING.md` at the repo root.

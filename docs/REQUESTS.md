@@ -302,12 +302,6 @@ Jake requested deep battery optimizations (cannot waste battery on phone, especi
 | Context-aware glance badges | DONE, PHONE CHECK | `services/GlanceRules.kt`, `presentation/overlays/MiniIsland.kt`, `presentation/overlays/GlancePanel.kt` | Game mode displays session duration (e.g. `24m`), Fitness shows live heart rate, Browser/Reading displays read time badges right in the mini pill. |
 | Mini Island Peek gesture (`Action.Peek`) | DONE, PHONE CHECK | `services/IslandGestures.kt`, `presentation/overlays/MiniIsland.kt` | New gesture action "Peek info on pill" that widens the camera pill smoothly for 2.6s to peek active verification code, music title/artist, app session duration, AirPods battery, or phone battery without popping up the large card. |
 
-## Not done or not verifiable from the cloud
-
-- Everything marked PHONE CHECK. `TESTING.md` lists the steps.
-- Real refraction of other apps behind the island: IMPOSSIBLE on Android (D5, D33).
-- A Wi-Fi heart-rate page, and heart data to Jake's other apps: NOT BUILT (above).
-
 ## 21. 2026-11-10: another S26 FE battery + phone usability pass
 
 Requested: a thorough follow-up prioritizing battery efficiency and using pro as a dependable everyday phone companion, then merge once verified. This is independent of the audio-response work in PR #45.
@@ -320,4 +314,22 @@ Requested: a thorough follow-up prioritizing battery efficiency and using pro as
 | Reliable case and battery updates | BUG FIXED IN CODE, CI / PHONE CHECK | `BLEManager.kt`: a processed BLE address is no longer permanently skipped in individual callbacks. Deduplicate addresses within a received batch only. `BatteryAuditTest` covers repeated address updates and all scan modes. |
 | Smoother Samsung reconnect bursts | CODE COMPLETE, CI / PHONE CHECK | `services/HeadphoneLink.kt`: repeated ACL/A2DP/headset broadcasts now replace previous scheduled refreshes instead of multiplying them. A battery broadcast cannot imply the headphones are connected for audio. Scheduled checks are removed when switching back to AirPods or stopping. |
 | Real phone behavior and battery gains | PHONE CHECK REQUIRED | Check Galaxy S26 FE screen on/off, case-open arrival latency, notifications, Beats/Bluetooth reconnection and battery statistics. Do not claim measured gains or functional verification from cloud tests. |
+
+## 22. 2026-11-13: open on the AirPods tab; better and more effective to use
+
+Jake: "make the default tab on open the airport [AirPods] tab", find ways to make the app better, more effective and easier to use, and merge when done. Details: `DECISIONS.md` section 51.
+
+| Request | Status | Where | Notes |
+|---|---|---|---|
+| Open on the AirPods tab | DONE | `navigation/Tabs.kt` (`AppTab.Home`), `NavigationRoot.kt`, `AppNavGraph.kt` | Opens on it, setup ends on it, Back from Phone/Island goes to it. Moved to the first place in the bar (AirPods/Beats, Phone, Island) with `"AirPods"` title fallback when name is blank. Tested in `PhoneTabsUiTest`. |
+| Easier to use | DONE, PHONE CHECK | `screens/AirPodsSettingsScreen.kt`, `NoiseControlSettings.kt`, `NoiseControlButton.kt`, `ConnectionStatusPanel.kt`, `HeadphonesScreen.kt`, `AppSettingsScreen.kt`, `RenameScreen.kt` | Everyday controls first (listening mode + Off option, audio, heart rate); Disconnect asks first; "Controls offline" retries on tap; one-tap switch between AirPods and other connected headphones; single clickable row + horizontal drag + TalkBack labels in Apple-style listening modes; live rename sync without spurious BT writes or blocking spinner. Tested in `PhoneTabsUiTest` and `AirPodsUiFixesTest`. |
+| More effective (battery, stability, bugs) | DONE, PHONE CHECK | `ConnectionStatusPanel.kt`, `DevicesScreen.kt`, `HeadphonesScreen.kt`, `Headphones3D.kt`, `HeartParts.kt`, `WhileShown.kt`, `AirPodsViewModel.kt`, `AirPodsService.kt` | Waiting panel stops idle frame animation; 3D turntable & heart clock pause in background (`WhileShown`); paired Bluetooth queries run off main thread (`Dispatchers.IO`); Adaptive Audio gated on `Capability.ADAPTIVE_AUDIO` instead of `ADAPTIVE_VOLUME`; pre-init/demo/payload guards in `AirPodsViewModel` and permission/adapter guards in `AirPodsService.reconnectFromSavedMac`/`retryConnectionNow`. All 617 unit tests (49 classes), lint (0 errors), and release APK build pass locally; physical-device behavior not verified. |
+| Merge | DONE | main | |
+
+## Not done or not verifiable from the cloud
+
+- Everything marked PHONE CHECK. `TESTING.md` lists the steps.
+- Real refraction of other apps behind the island: IMPOSSIBLE on Android (D5, D33).
+- A Wi-Fi heart-rate page, and heart data to Jake's other apps: NOT BUILT (above).
+
 

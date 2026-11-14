@@ -51,6 +51,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -103,9 +104,6 @@ fun ConnectionStatusPanel(
     }
     val look = remember(dark) { GlassLooks.card(dark, density) }
     val light by rememberTiltLight(GlintComfort.tiltLight(context))
-    val pulse by rememberInfiniteTransition(label = "pulse").animateFloat(
-        0.35f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "pulse"
-    )
 
     fun retry() {
         try {
@@ -164,6 +162,13 @@ fun ConnectionStatusPanel(
         // On the stage: it turns with the tilt, catches the light, sits on a soft shadow, and a
         // finger can turn it.
         Box(Modifier.size(width = 146.dp, height = 96.dp), contentAlignment = Alignment.Center) {
+            // Only animate while busy: an infinite animation asks for a new frame every refresh
+            // for as long as it exists, and this panel can sit on screen for minutes.
+            val pulse: androidx.compose.runtime.State<Float> = if (panel.busy) {
+                rememberInfiniteTransition(label = "pulse").animateFloat(
+                    0.35f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "pulse"
+                )
+            } else remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
             DeviceStage(draggable = true) {
                 Image(
                     bitmap = ImageBitmap.imageResource(R.drawable.airpods_pro_2_buds),
@@ -171,7 +176,7 @@ fun ConnectionStatusPanel(
                     modifier = Modifier
                         .requiredSize(150.dp)
                         .offset(y = 6.dp)
-                        .graphicsLayer { alpha = if (panel.busy) 0.45f + 0.55f * pulse else 1f }
+                        .graphicsLayer { alpha = if (panel.busy) 0.45f + 0.55f * pulse.value else 1f }
                 )
             }
         }
@@ -187,6 +192,34 @@ fun ConnectionStatusPanel(
         Spacer(Modifier.height(4.dp))
         panel.action?.let { (label, onClick) ->
             GlassPillButton(label, look.content, Modifier.fillMaxWidth(), dark = dark, onClick = onClick)
+        }
+        // If another pair (for example Beats Solo 4) is connected right now while pro is waiting
+        // for AirPods, offer a one-tap switch right here instead of hiding it behind Your devices.
+        var otherHere by remember {
+            androidx.compose.runtime.mutableStateOf<me.kavishdevar.librepods.services.KnownDevice?>(null)
+        }
+        WhileShown(link) {
+            while (true) {
+                otherHere = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    me.kavishdevar.librepods.services.DeviceChoice.pairedAudioDevices(context)
+                        .firstOrNull { it.connected && it.kind != me.kavishdevar.librepods.services.DeviceKind.AIRPODS }
+                }
+                kotlinx.coroutines.delay(3_000)
+            }
+        }
+        otherHere?.let { other ->
+            GlassPillButton(
+                "Switch to ${other.name}",
+                look.content,
+                Modifier.fillMaxWidth(),
+                dark = dark,
+                onClick = {
+                    me.kavishdevar.librepods.services.DeviceChoice.choose(
+                        context,
+                        me.kavishdevar.librepods.services.ChosenDevice(other.kind, other.address, other.name),
+                    )
+                },
+            )
         }
         GlassPillButton("Troubleshooting", look.contentSecondary, Modifier.fillMaxWidth().padding(horizontal = 24.dp), dark = dark, onClick = onTroubleshoot)
         Spacer(Modifier.width(1.dp))

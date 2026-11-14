@@ -3545,6 +3545,10 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             HeadphoneLink.refresh(this)
             return
         }
+        if (!hasBluetoothConnectPermission()) {
+            GlintStatus.set(LinkState.NoPermission)
+            return
+        }
         userRequestedDisconnect = false
         val adapter = bluetoothAdapterOrNull() ?: return
         if (!adapter.isEnabled) {
@@ -3560,7 +3564,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             ?: connected.firstOrNull {
                 AirPodsDetection.match(it.address, try { it.name } catch (_: SecurityException) { null }, it.uuids?.map { u -> u.uuid.toString() }, saved) != AirPodsDetection.Match.NONE
             }
-            ?: try { adapter.bondedDevices.firstOrNull { it.address == saved } } catch (_: SecurityException) { null }
+            ?: try { adapter.bondedDevices.orEmpty().firstOrNull { it.address == saved } } catch (_: SecurityException) { null }
         if (target != null) startReconnectLoop(target, likelyOnly = false, force = true)
         else GlintStatus.set(LinkState.Idle)
     }
@@ -3917,7 +3921,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     fun connectAudio(context: Context, device: BluetoothDevice?) {
-        val bluetoothAdapter = context.getSystemService(BluetoothManager::class.java).adapter
+        val bluetoothAdapter = context.getSystemService(BluetoothManager::class.java)?.adapter
 
         bluetoothAdapter?.getProfileProxy(context, object : BluetoothProfile.ServiceListener {
             override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
@@ -4101,19 +4105,32 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             HeadphoneLink.refresh(this)
             return
         }
-        val bluetoothAdapter = getSystemService(BluetoothManager::class.java).adapter
-        device = bluetoothAdapter.bondedDevices.find {
-            it.address == macAddress
+        if (!hasBluetoothConnectPermission()) {
+            GlintStatus.set(LinkState.NoPermission)
+            return
         }
-        if (device != null) {
-            val target = device!!
+        val bluetoothAdapter = bluetoothAdapterOrNull() ?: return
+        if (!bluetoothAdapter.isEnabled) {
+            GlintStatus.set(LinkState.BluetoothOff)
+            return
+        }
+        val saved = macAddress.ifBlank { sharedPreferences.getString("mac_address", "") ?: "" }
+        val target = try {
+            bluetoothAdapter.bondedDevices.orEmpty().find { it.address == saved }
+        } catch (_: SecurityException) {
+            null
+        }
+        if (target != null) {
+            device = target
             userRequestedDisconnect = false
             serviceScope.launch(connectLane) {
-                Log.d(TAG, "connecting to $macAddress")
+                Log.d(TAG, "connecting to $saved")
                 val error = connectToSocket(bluetoothAdapter, target, manual = true)
                 GlintStatus.set(if (error == null) LinkState.Connected(config.deviceName) else LinkState.GaveUp(config.deviceName, error))
                 connectAudio(this@AirPodsService, target)
             }
+        } else {
+            retryConnectionNow()
         }
     }
 }

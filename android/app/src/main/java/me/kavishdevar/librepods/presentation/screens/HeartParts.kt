@@ -119,8 +119,8 @@ internal fun heartText(size: Int, color: Color, weight: FontWeight = FontWeight.
 @Composable
 internal fun rememberFrameTime(running: Boolean): MutableLongState {
     val t = remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(running) {
-        if (!running) return@LaunchedEffect
+    me.kavishdevar.librepods.presentation.glint.WhileShown(running) {
+        if (!running) return@WhileShown
         val wall = System.currentTimeMillis()
         var first = -1L
         // An "infinite animation" frame: tests and Android's animation-off setting pause it.

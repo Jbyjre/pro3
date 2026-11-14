@@ -361,6 +361,42 @@ private fun HeadphonesHero(state: HeadphoneState, onRefresh: () -> Unit, onOpenB
                         "Turn them on: pro picks them up by itself.",
                         style = TextStyle(fontFamily = glintFontFamily, fontSize = 13.sp, color = muted, textAlign = TextAlign.Center)
                     )
+                    // And the other way round: if your AirPods are connected right now while Beats
+                    // are chosen, offer a one-tap switch back.
+                    var airPodsHere by remember {
+                        androidx.compose.runtime.mutableStateOf<me.kavishdevar.librepods.services.KnownDevice?>(null)
+                    }
+                    me.kavishdevar.librepods.presentation.glint.WhileShown(state.connected) {
+                        if (state.connected) {
+                            airPodsHere = null
+                            return@WhileShown
+                        }
+                        while (true) {
+                            airPodsHere = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                me.kavishdevar.librepods.services.DeviceChoice.pairedAudioDevices(context)
+                                    .firstOrNull { it.connected && it.kind == DeviceKind.AIRPODS }
+                            }
+                            kotlinx.coroutines.delay(3_000)
+                        }
+                    }
+                    airPodsHere?.let { airPods ->
+                        Spacer(Modifier.height(10.dp))
+                        Box(
+                            Modifier
+                                .glintGlass(backdrop, dark, solid, CapsuleShape, GlassTier.Inline, tint = if (dark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.5f))
+                                .clip(CapsuleShape)
+                                .semantics { role = Role.Button }
+                                .pressable {
+                                    me.kavishdevar.librepods.services.DeviceChoice.choose(
+                                        context,
+                                        me.kavishdevar.librepods.services.ChosenDevice(DeviceKind.AIRPODS, airPods.address, airPods.name),
+                                    )
+                                }
+                                .padding(horizontal = 22.dp, vertical = 11.dp),
+                        ) {
+                            Text("Switch to ${airPods.name}", style = TextStyle(fontFamily = glintFontFamily, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = ink))
+                        }
+                    }
                 }
             }
         }

@@ -104,8 +104,8 @@ fun AppNavGraph(
                                 onboardingComplete()
                                 navigate(Screen.AirPodsSettings)
                                 backStack.remove(screen)
-                                // Setup done: start on the Phone tab, the main page.
-                                onTab(AppTab.Phone)
+                                // Setup done: start on the home tab (AirPods).
+                                onTab(AppTab.Home)
                             }
                         }
                     Screen.AirPodsSettings ->
@@ -130,7 +130,9 @@ fun AppNavGraph(
                                     )
                                     AppTab.Island -> IslandSettingsScreen(navigateToApps = { navigate(Screen.Apps) })
                                     AppTab.Headphones -> {
-                                        if (!airPodsViewModel.isReady) LoadingScreen()
+                                        // Don't cover the page with a full-screen spinner while the
+                                        // background service binds in the first moment: the waiting
+                                        // panel is already the right resting view.
                                         AirPodsSettingsRoute(
                                             viewModel = airPodsViewModel,
                                             navigateToRename = { navigate(Screen.Rename) },
@@ -168,7 +170,6 @@ fun AppNavGraph(
 
                     Screen.Rename ->
                         NavEntry(screen) {
-                            if (!airPodsViewModel.isReady) LoadingScreen()
                             RenameScreen(airPodsViewModel)
                         }
 

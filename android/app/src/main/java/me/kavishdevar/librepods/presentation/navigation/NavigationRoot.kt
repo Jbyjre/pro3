@@ -38,10 +38,10 @@ fun NavigationRoot(
     airPodsViewModel: AirPodsViewModel,
     /** Screens to open on top of the first one; used by the screenshot tour in tests. */
     initialStack: List<Screen> = emptyList(),
-    /** The tab the app opens on (the Phone tab, the main page; tests pick others). */
-    initialTab: AppTab = AppTab.Phone,
+    /** The tab the app opens on (the AirPods tab, [AppTab.Home]; tests pick others). */
+    initialTab: AppTab = AppTab.Home,
 ) {
-    // Which main page is showing: Phone (first), Island, or the headphones.
+    // Which main page is showing: the headphones (first, home), Phone, or Island.
     var tab by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(initialTab) }
     val backStack = remember {
         mutableStateListOf(
@@ -92,7 +92,7 @@ fun NavigationRoot(
             AppTab.Island -> "Dynamic Island"
             AppTab.Headphones -> when {
                 !chosenDevice.isAirPods -> chosenDevice.name
-                state.isLocallyConnected -> state.deviceName
+                state.isLocallyConnected -> state.deviceName.ifBlank { "AirPods" }
                 else -> "AirPods"
             }
         }
@@ -241,8 +241,8 @@ fun NavigationRoot(
 
     // The tab bar shows on the main pages only (not over a page opened from them, nor during setup).
     val tabsVisible = backStack.size == 1 && currentScreen == Screen.AirPodsSettings
-    // Back on the Island or headphones tab goes to the Phone tab first, then out of the app.
-    androidx.activity.compose.BackHandler(enabled = tabsVisible && tab != AppTab.Phone) { tab = AppTab.Phone }
+    // Back on the Phone or Island tab goes to the home tab (AirPods) first, then out of the app.
+    androidx.activity.compose.BackHandler(enabled = tabsVisible && tab != AppTab.Home) { tab = AppTab.Home }
     val navBottom = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     StyledScaffold(
         visible = currentScreen.showTopBar,
