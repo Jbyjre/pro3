@@ -1,66 +1,11 @@
-# presentation/overlays/
+# Temporary pop-ups
 
-Everything pro draws **over other apps**. Android lets an app do this with the "Display over other apps" permission (and, for the Dynamic Island, above the status bar through an accessibility service). Overlays are Compose content in a transparent system window.
+`Island.kt` / `IslandController` / `IslandHost` and `MusicIsland.kt` implement retained, short-lived headphone and music pop-ups. They are separate from the removed persistent camera feature (`MiniIsland.kt`). No camera ring, accessibility overlay, invisible status-bar probe, screen reader or continuous sound-attribution listener remains.
 
-| File | What it is |
-|---|---|
-| `GlintOverlays.kt` | The front door: `GlintOverlays.showIsland(...)`, `startMiniIsland`, `refreshMiniIsland`, `previewMiniIsland(sound = ...)`, `showCard`, `capturing` (true for the instant of a screenshot from the glance, so the pill isn't in the picture). Also `PodsSnapshot` (everything the overlays show about the AirPods or headphones), `IslandEvent` (what a pop-up announces), and the phone-geometry helpers (status bar height, camera cutouts, screen size). Safe to call from any thread: work is posted to the main thread. |
-| `OverlayWindow.kt` | One transparent window hosting Compose: which layer it goes in (above the status bar when the accessibility service runs), showing and removing it, becoming fully transparent and untouchable while hidden, noticing when Android removes it, and the status-bar probe that tells when a full-screen app hides the bar. `CappedFontScale` stops big system fonts from overflowing fixed-height pills. |
-| `MiniIsland.kt` | **The Dynamic Island** (the pill around the camera). Three parts: `MiniIslandController` (decides when it exists and what it is about; reads the rules in `services/MiniIslandRules.kt`, the look in `IslandLook`, the sound in `SoundSource`; owns the window), `MiniGeometry` (where the camera is and the pill's pixel sizes), and `MiniIslandHost` (the composable that draws it: the grow-out-of-the-camera animation, the width spring, slot cross-fades, touch feedback, gestures). `drawSlot` draws one thing beside the camera; `drawKindGlyph` draws the sound symbols; `batteryRing` is shared by the AirPods and phone battery slots. |
-| `GlancePanel.kt` | **The opened Dynamic Island** when nothing plays (`IslandEvent.Glance`, also `TimerDone`): the app you're in and the date, up to two live rows from `GlanceRules` (timer with pause/+1/cancel, charging with time to full, headphones with Open, low battery with Saver, next alarm; one row alone gets a big "hero" layout), and five controls (Torch, Timer presets, Sound/Vibrate, Capture, Lock; Capture and Lock need the accessibility switch and say so). Also the small glyphs (`drawTorch`, `drawStopwatch`). |
-| `Island.kt` | **The pop-ups** ("mini island"): connected, low battery, music, mode change, heart, the glance and the ringing timer, and so on. The glance and the ringing timer use a taller window (`IslandGeometry(tall = true)`, `GLANCE_H_DP`); a pop-up already up at the other size is replaced at once. `IslandController` shows them, `IslandGeometry` places them so they never cover the camera, the clock or the pill, `IslandHost` draws them (compact, then expanded on tap, then the heart detail page). They grow out of the Dynamic Island and shrink back into it. |
-| `MusicIsland.kt` | **The opened music island, the iPhone way** (iPhone style, `IslandGeometry.musicPage`): Apple's Now Playing layout wrapped round the camera (cover top-left, song and artist just under the camera, sound bars top right, the song bar if `PREF_MUSIC_BAR`, back / play-pause / next, the heart (`MusicHeart`) and the headphones' battery or the music app on the sides). `SharedMusicArt` draws the cover and bars as **one element all the way**: they start as the Dynamic Island's own (same place and size, from `MiniOrigin.side`), grow into the opened island's, and fly back as it closes. `SongBar` drags to seek (`NowPlaying.seekTo`, only when the app allows it). |
-| `IslandEdge.kt` | The black island's edge, shared by the pill and the pop-ups: Apple's key line, or the Liquid Glass rim (`IslandSpec.Edge`, Settings > Island > Edge). |
-| `Card.kt` | The bottom "case opened" card (off by default; `services/CardGate.kt` decides when) and `GlassPillButton`, the glass button the settings pages also use. |
+`GlintOverlays` posts show requests to main, checks screen/lock/overlay access, suppresses routine events during a breathing interaction and deduplicates repeated events through `PopupGate`. Urgent timer/problem/high-heart events cancel the pending controlled launch. Suppressed routine events are dropped, never queued to extend the pause. Music no longer depends on a camera pill or its song-name suppression.
 
-## Modes: On, Music only, Off
+`OverlayWindow` owns one ordinary TYPE_APPLICATION_OVERLAY. Dismissal removes the actual window and composition. The test suite preserves permission loss/system-removal recovery and hidden-window transparency/touch checks. IslandController registers screen-off/configuration listeners only while showing. Popups rest below the reported status-bar/cutout; orientation or lock clears them. One UI shade ordering still needs the phone because normal overlays sit below system UI.
 
-`MiniIslandRules.Mode`, stored by `IslandPrefs.mode` (`PREF_DI_MODE`; the old `PREF_MINI` switch off reads as Off). **On:** everything below. **Music only:** the controller passes only the music (no sounds, messages, moments, timer, live activities) and the pill exists only while music plays or just paused. **Off:** the pill is always there as the tiny ring (`MiniGeometry.ringD`, window `ringWindow`), nothing in it, never widening; tap opens the glance. Full-screen games use the same ring (`ring` in `MiniIslandHost`). `MiniOrigin.isRing` tells the pop-ups the pill is the ring (a new song then still gets its pop-up, since the ring can't stretch).
+`PopupArt.kt` contains artwork/crop/accent helpers shared by headphone/music pop-ups and navigation, extracted from the retired camera file. `IslandGeometry`, `IslandSpec`, `IslandMotion`, `IslandEdge` and shared glass code still size/style these pop-ups. `Card.kt` remains the optional case card. The timer's Stop/+1 controls are in `GlancePanel.kt` as TimerPanel; old glance/screen-reading contents are removed.
 
-## What the Dynamic Island shows
-
-`MiniIslandRules.Content` says what it is about, `IslandLook.Situation` which left/right slots apply:
-
-| Content | Situation(s) | When | Default slots (left, right) |
-|---|---|---|---|
-| Music | Playing, Paused | Music plays; for 30 s after it pauses (only if it played 1.5 s or more) | Cover, Sound bars |
-| Sound | Sounds | Any other sound plays, and for 2.2 / 3.8 / 6.5 s after it ends; a short musical blip counts too | App icon, Sound bars |
-| Screen | In an app, Home screen, Lock screen | Nothing playing and pro knows where you are (`services/ScreenApp.kt`: the app needs the accessibility switch; locked needs nothing) | App on screen + Smart glance; Home tiles + Date; Padlock + Smart glance |
-| AirPods | AirPods, Charging | AirPods or the chosen headphones are connected, nothing playing, and pro can't tell the app | Battery, Heart (else the listening mode) |
-| Message | Messages | A text or chat message just arrived (Notification access) and no music plays; the window is wider only for those seconds | App icon, Title (the sender, or the app's name) |
-| Rest | Nothing on | Nothing playing or connected and the app unknown (stays because "Always on" is on by default); also for 4 s when the phone starts charging, gets full or runs low (with a line of words, `MiniMoment`) | Phone battery, Date |
-| (any) | Talking | Conversation Awareness has the music down | Keep the left, talking dots on the right |
-
-While music plays, an alert, a message or a phone battery moment swaps the right-hand slot for the app's icon (or the phone's ring) for a moment (`blipping` in `MiniIslandHost`).
-
-**Swipe up** (`IslandGestures.Kind.SwipeUp`) tucks the song's name back at once (`collapseTick`), or puts away a message, sound or battery moment (`putAway` in the controller; `dismissedAt` hides moments that began before it).
-
-**The Messages window.** The Messages look needs more width than the usual window, so the window grows first (`onWindowSize(messageWindow)`), then the name slides in, and it shrinks after the pill has narrowed. It is never permanently wider: a wider window swallows taps meant for the status bar. The phone's own heads-up notification drops from below the status bar, so the island never grows downward for a message and never overlaps it.
-
-While music plays, an alert (a message ding) swaps the right-hand slot for the app's icon for a moment (`blipping` in `MiniIslandHost`). A running or ringing timer always takes the right-hand slot as the Smart glance (`timerHere`), except during a sound or talking. The time is never a default: the status bar already shows it (Jake).
-
-A tap opens, by content (`MiniIslandRules.tapOpens`): Music the music island, AirPods the AirPods island, Sound the app that made it, Screen and Rest the glance (`GlancePanel`). A ringing timer is silenced by the tap instead. Changing apps springs the new icon in (`swap`, Settings > Island > Moments > "App icon springs in"); unlocking springs the padlock open (`ScreenApp.Place.Locked(opening)`); plugging the phone in widens the pill with "Charging · N%" (`MiniMoment`).
-
-## The iPhone style (default) and the Glass style
-
-`IslandSpec.Style` (Settings > Island > Style, `PREF_IPHONE_LOOK`). **iPhone:** opaque black in light and dark, Apple's key line only on a dark background (`IslandSpec.keylineAlpha`, tinted with the content), corner `IslandSpec.cornerPx` (44 dp or a capsule), opened width `screen - 22 dp` (max 408). With the pill up and the accessibility layer available (`IslandGeometry.around`), a pop-up's window starts at the **pill's top**, grows out of exactly the pill and keeps the camera in a clear top band (`IslandGeometry.band`; compact content, the bubble and the opened page all sit below it); a pull down beside it still opens notifications. Under it the pill's contents step back (`makeWay`). Without the accessibility layer the pop-up drops out under the pill as before (the clock would draw over it otherwise). A timer while music plays goes into a **detached circle** beside the pill (`detached`, `split`, `MiniGeometry.detachedWindow`; any code that shrinks the window back must use `restWindow()`). Content changes in the pop-ups melt through a blur (`IslandLayout.focus`). **Glass:** the earlier frosted look, dropping out under the pill.
-
-## Inside the shape (2026-10-10)
-
-- **Everything stays inside the black shape and off the camera.** `MiniIslandHost` clips its contents to the pill (and the detached circle) minus the camera's own hole (`geometry.hole`), and the pop-ups clip theirs to the island (`RevealShape`).
-- **Concentric with the ends.** Each spot beside the camera is centred on the pill's round end (`inset + side / 2 == height / 2`), and anything round or square in it stays inside a circle of `side / 2` (`IslandSpec.roundedSquareHalf` for the square cover). When the pill widens for a song's name its corners get rounder, so the end spots slide in (`IslandSpec.insetFromCorner`, `endInset`). Wide spots (Title, L/R/case) keep their outer part concentric too.
-- **Contents grow with the shape.** While the pill grows out of the camera, its contents are drawn smaller (`grow`) and fade in late; the pop-ups' opened content is scaled to the shape that's there (`IslandLayout`, `fit`) instead of being drawn full size and cut off.
-- **Pictures are cropped, never squashed** (`centreSquare`).
-- **Motion:** `IslandMotion.Feel` (Settings > Island > Motion). Opening may overshoot a little; closing never does (a close that overshoots shrinks smaller than the pill for a moment).
-
-## Rules for changes here
-
-- The pill is on screen for hours: nothing may animate, tick or read sensors when it doesn't have to.
-- A pop-up's window starts **below** the pill so the pill stays tappable (taps in the camera strip otherwise go to the status bar), except in the iPhone style around the camera, where it covers the pill on purpose (it is the same shape, and handles the taps).
-- Hidden windows must be fully transparent and untouchable, or they eat taps meant for the app underneath.
-- Anything that schedules a recheck with a computed wait must make sure the wait is above zero (`MiniIslandRules.nextCheck`).
-- Draw with the shared light: `GlintLight.rim()`, never a hand-made diagonal.
-- Changing the default look changes `IslandLookTest` and the screenshots; the default pill window size must stay the original (`defaultSizeIsUnchanged`).
-- Screenshots: `GlintScreenshots` has a `mini(...)` helper that draws the real `MiniIslandHost` on a wallpaper with a drawn camera, in any look and any content.
-- 2026-10-11: the glance (`GlancePanel.kt`) shows the phone's five buttons only on the home screen; in an app it shows the app itself (`LiveCard` from `LiveActivities`, a game's heat and pills, a music app's idle card). The Dynamic Island's song name and phone moments stretch it sideways at its own height (title left of the camera, artist right); a live activity shows its picture left and its number right (`Slot.Live`); the right side never draws nothing. A song pop-up isn't shown while the pill announces the song (`GlintOverlays.showIsland`).
-- 2026-10-11 (third message): in an app the glance shows what its screen is about (`ScreenCard`: headline, site / reading time, Call / Map / Open / Add / Copy / Listen, its edge in the app's colour from `accentOf`) and how long the app has been open; the rows under it fit by `ScreenText.cardDp` / `rowsLeft`. The pill's bars and the opened music island's bars keep `PowerPlan`'s pace.
+Keep original AirPods renders/video. Visualizer capture is acquired only by visible music content and released on disposal. `dismissAll` removes windows synchronously on main, including when the breathing activity begins. Do not reintroduce a permanent controller, preview or Off-mode ring.

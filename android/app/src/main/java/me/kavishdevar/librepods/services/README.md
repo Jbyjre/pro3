@@ -1,61 +1,19 @@
-# services/
+# Services and active rules
 
-The brains of pro. Files are small and named for what they decide. "Pure" means it has no Android in it and is unit-tested without a phone. Why things are this way: `DECISIONS.md` at the repository root. What Jake asked for: `docs/REQUESTS.md`.
+Current behavior supersedes the historical camera-island notes: [breathing and updates](../../../../../../../../../docs/BREATHING_AND_UPDATES.md).
 
-## The Dynamic Island and sound
-
-| File | What it does | Pure? |
-|---|---|---|
-| `MiniIslandRules.kt` | The three modes (`Mode`: On, Music only, Off = the tiny ring); when the camera pill is wanted (a timer always; never in a "hide in" app otherwise), what it is about (Music, Sound, Screen, AirPods, Rest), what a tap opens (`tapOpens`: never an empty music player), its sizes around any camera, camera picking, how long things linger, `PlayTracker` (when music counts as played), `nextCheck` (the safe "look again" timer) | yes |
-| `IslandLook.kt` | What goes left and right of the camera in each situation, size, width, glow, colour; stored in the `settings` preferences under `glint_di_*`; `clockText` | storage only |
-| `IslandSpec.kt` | Apple's own Dynamic Island numbers and rules, quoted from its design guidelines (44 dp corner, black, key line only on dark, opened width = screen minus 11 dp each side, detached circle), the `Style` (iPhone / Glass), the `Edge` (key line / Liquid Glass), when a pop-up opens around the camera, and the concentric-placement helpers (`roundedSquareHalf`, `cornerGap`, `insetFromCorner`) | yes |
-| `IslandMotion.kt` | The island's springs (`Feel`: Smooth, Snappy, Bouncy), with `settleMs` and `overshoot` so tests keep every feel inside Apple's 2 s and every close bounce-free | yes |
-| `SmoothCorner.kt` | Apple-style continuous corners (Figma's corner smoothing, 0.6): the numbers for every island shape (drawn by `glint/Glass.kt` `smoothRectPath`); a capsule stays an exact capsule | yes |
-| `LiveActivities.kt` | Apps' live activities from their ongoing notifications (a Maps route, a ride, a download, a call; never messages or the music player): the app's picture, words, one live number and its own buttons, for the island's `Live` slot and the glance's live card. `LiveRules` (which notifications count, the number from the app's words, the running clock, which one to show) is pure. Setting `glint_live_apps` | rules yes |
-| `ScreenInsights.kt` | The app's screen, read once when the glance opens in it (off its own thread, 250 ms budget): headline, site and reading time, and up to three things to tap (call, map, open, add, email, copy a code) via Android's on-device text detector. `ScreenText` is the pure part (headline, codes, patterns, which apps are never read, card sizes). Setting `glint_read_screen` | `ScreenText` yes |
-| `ScreenVoice.kt` | Listen: an article read aloud with the phone's text-to-speech, music paused meanwhile; `ScreenVoiceRules` cuts it into pieces the engine takes | rules yes |
-| `PowerPlan.kt` | The automatic battery plan (no setting): Full while charging, Balanced, Saver (Battery Saver, 20% or less, warm; "warm" starts where `PhoneProfile` says). Paces what redraws on its own (bars, the 3D model, the music listener, background heart); never springs or morphs. `nextFrame` sleeps then lands on a screen frame. Also tells `GlassBudget` (one listener for the whole app) | rules yes |
-| `PhoneProfile.kt` | pro tuned for the Galaxy S26 FE or the Pixel 6 Pro (Settings > Your phone; Automatic by default, from Android's maker and model names): how far the islands keep from the screen's sides (18 dp off the Pixel's curve, 10 dp on the S26 FE's flat screen), the heat level where saving starts (Pixel: "light"), which battery page keeps pro running. Any other phone keeps the general settings. Setting `glint_phone_profile` | `detect`, `tuning` yes |
-| `AppKinds.kt` | What kind of app every app is (known-apps table, makers' prefixes, the app's own Android category, words in its name) | yes |
-| `AppActions.kt` | What the glance offers inside an app beyond its live activity (games: chat app; music idle), `GameStats` (heat, played time in words), `MusicMemory` (recent songs per app) | mostly |
-| `AppControls.kt` | The Android side: media mute, Do Not Disturb, play / search / play-from-search in a music app, the phone's health for a game | no |
-| `PulseShaper.kt` | Spectrum captures to the four bars: follows the voice while someone sings, the kick's ripple when nobody does, `ambient` beat with nothing to hear | yes |
-| `IslandPrefs.kt` | Every on/off switch for the islands and the sound settings (`PREF_*`), the per-moment pop-up switches, the ignored-apps list | storage only |
-| `IslandGestures.kt` | Tap counting, hold, swipe, pull: one recogniser; what each gesture does (configurable) | yes |
-| `IslandAccess.kt` | The accessibility service "pro Dynamic Island" (puts the pill above the status bar so taps reach it; reports the app on screen and open system panels) and `PanelRules` | rules yes |
-| `SoundRules.kt` | Any-sound rules: usage numbers to kinds, which app made it, notification log, app on screen, linger lengths, recent list, wording | yes |
-| `SoundSource.kt` | Listens to every sound the phone plays and publishes `heard` and `recent`; app names and icons (cached); test seams (`usagesChanged`, `roleOverride`, `preview*`, `resetForTest`) | no |
-| `NowPlaying.kt` | Music: playing or paused, cover and title (with Notification access), play/pause/skip, `seekTo` (the song bar; only when the app allows `canSeek`), `positionAt` and `clock` ("3:42"); also hosts `MediaAccessService` (Notification access, notes which app posted a notification) | partly |
-| `MusicPulse.kt` | Sound bar levels from the real music (Android Visualizer on the whole output, four bands; needs the microphone permission, nothing is recorded) | no |
-| `FreezeReport.kt` | Android's own record of why pro last stopped (freeze, crash) turned into a readable saved report; shown in Troubleshooting with Copy details and as a main-page banner | `labelFor`, `mainThread`, `compose` yes |
-| `PhoneStatus.kt` | The phone's own battery (level, charging; plugged in counts as charging, so battery-protection pauses aren't new plug-ins) for the Phone battery slot and the This phone page | `parse` yes |
-| `ScreenApp.kt` | Where you are: `Place.App` (package, name, icon), `Home`, `Locked(opening)`, `Unknown`. Fed by the accessibility service's window events; only real app screens (activities) count, so toasts and bubbles don't. The icon is the real one from Android (the app's launcher entry via `SoundSource.appInfo`, else its general icon), looked up off the main thread (`showApp`); `look` asks Android which application window is in front after every window change, on its own thread (`ScreenRules.front`); the window messages are only the fast path. Locked/unlocked follows the phone right now (`reconcile`, `ScreenRules.lockNow`), never the order of Android's screen messages. The same check sets `SoundSource.foreground` ("skip the app I'm using"). Also the apps used lately (`recent`, for "Hide in these apps") and the wallpaper's colours (for the home tiles). `ScreenRules` is the pure part. | `ScreenRules` yes |
-| `GlanceRules.kt` | What's worth a glance, in order: ringing timer, timer, charging, headphones, low phone battery, next alarm (within a day), else the battery. `pill` for the small spot beside the camera, `live`/`rows` for the opened island. | yes |
-| `IslandTimer.kt` | The island's timer: start/pause/resume/+1 min/cancel, saved across restarts, rung by Android's alarm clock (`TimerReceiver`; exact with `USE_EXACT_ALARM`, declared in the GitHub build only), alarm sound and buzz until stopped (at most a minute), a notification with Stop. `TimerRules` is the arithmetic. | `TimerRules` yes |
-| `PhoneControls.kt` | The glance's controls: torch (no permission; follows the Quick Settings tile), sound/vibrate (never Do Not Disturb), screenshot and lock (accessibility switch), next alarm, time to full. `PhoneRules` (ring order, "in 3 h 05 min"). | `PhoneRules` yes |
-| `MiniIslandRules`, `CardGate.kt` | `CardGate` decides when the bottom "case opened" card may appear | yes |
-| `GlintStatus.kt` | One shared status for "what is happening with the AirPods link" | |
-
-## AirPods, headphones and the rest
-
-| File | What it does |
+| Area | Source and lifetime |
 |---|---|
-| `AirPodsService.kt` | The foreground service: connection, packets, ear detection, listening modes, notification. **Also starts the pill, `NowPlaying`, `SoundSource`, `PhoneStatus`, `ScreenApp` and `IslandTimer` in `onCreate`, with or without headphones.** Large; search before reading. |
-| `AirPodsQSService.kt`, `CompanionPresenceService.kt` | Quick Settings tile; Android wakes pro when the linked AirPods connect |
-| `DeviceChoice.kt`, `HeadphoneLink.kt` | Which headphones pro follows (default AirPods) and the live state of non-AirPods ones (Beats Solo 4). Bluetooth connection broadcasts are coalesced into one series of settle checks; a battery broadcast alone never claims an audio connection. |
-| `HeartRate.kt`, `HeartView.kt`, `HeartHistory.kt`, `HeartBackup.kt`, `HeartLink.kt` | Heart rate: live reading and insights (`HeartInsights.chartPoints`: spot checks become one joined point each on the graph), the honest state to show, one CSV per session, GitHub backup into `pro3` (branch `heart-backup`), live sharing |
-| `HeartPacing.kt` | The background pace (`HeartPace`: Every 5 s, Smart, Saver) and the spot-check rules: 3 good readings over 10 s, then a rest that depends on the pace, how steady the rate is, whether it's changing or high, and the AirPods' battery. The service runs it (`startHeartRate`'s loop) |
-| `BatteryEstimator.kt` | Listening time left |
-| `CommandFeedback.kt` | Whether a change reached the AirPods |
-| `VolumeGuard.kt` | Hearing protection without root: keeps media volume at or below your limit |
-| `AppListenerService.kt` | Unused (commented out in the manifest) |
+| Headphone control | AirPodsService, AACPManager, HeadphoneLink, DeviceChoice; existing connectedDevice foreground service and bounded reconnect work. AirPods/Beats controls and normal Bluetooth-on use are preserved. |
+| Temporary events | IslandPrefs retains master/duration/haptics/song names and headphone triggers. AirPodsService and HeadphoneLink supply connection/music/battery events to GlintOverlays; no permanent camera window. |
+| Music | NowPlaying uses media-session callbacks with optional Notification access and media-key fallback. MediaAccessService does not read or attribute other notifications. SoundSource is now only a bounded real-app name/icon cache, with no playback or screen listeners. MusicPulse is acquired/released by visible music pop-ups. |
+| Heart | HeartRate, HeartView, HeartPacing, HeartHistory/Backup/Link, CommandFeedback; existing Smart pacing and screen-off/battery behavior remain. |
+| Phone | PhoneStatus/PhoneControls battery and torch observation is owned by the visible Phone page and detached when paused/disposed. IslandTimer/TimerReceiver preserves the timer across restarts and its notification Stop action. |
+| Breathing | ../breathing: activity + first-frame deadline + shortcuts, independent of Bluetooth, foreground services and app observation. No accessibility service. |
+| Updates | ../updates: sparse persisted JobScheduler work, bounded HTTP/downloads, APK signature validation, PackageInstaller sessions/results. Optional idle install uses platform constraints on API 34+. |
+| Migration | FeatureMigration deletes camera-only keys once, preserving unrelated preferences. No whole-settings reset. |
+| Efficiency | PowerPlan, GlassBudget, WhileShown, FrameRate, BLEManager scanning policies, VolumeGuard, BatteryEstimator and existing recovery work remain. No measured battery-saving percentages are claimed. |
 
-## Where state lives
+Removed: MiniIslandRules, IslandLook, camera gestures/editor, IslandAccessService, screen observation/reading/voice, live-notification glance, audio/source attribution and related popup suppression. Their dedicated tests were retired with the feature; mixed popup/phone/heart/battery coverage was retained and updated. Never reintroduce these through a hidden setting.
 
-- Settings: the `settings` SharedPreferences (`IslandPrefs.prefs(context)`). Island looks use `glint_di_*` (2026-10-11: `glint_mini_games`, `glint_live_apps`; recent songs in the `music_memory` preferences; recent apps in `screen_app`; the Solo 4 finish `glint_beats_finish`) (also `glint_di_hide_in`, `glint_di_charge_moment`, `glint_di_app_pop`), sound switches `glint_mini_any_sound`, `glint_sound_icons`, `glint_sound_linger`, `glint_sound_ignored`; a running timer `glint_timer_*`.
-- Live state: `StateFlow`s on `object`s (`NowPlaying.state`, `SoundSource.heard`, `PhoneStatus.state`, `ScreenApp.place`, `IslandTimer.state`, `PhoneControls.torch`, `GlintStatus.link`). The pill collects them.
-- Never store a new setting without a default that equals the old behaviour, and a test that a bad stored value falls back instead of crashing (see `IslandLookTest`).
-
-## Bluetooth scanning power (2026-11-10)
-
-`bluetooth/BLEManager.kt` uses a short 12 s low-latency boost after screen-on, balanced scanning while the display stays awake, and low-power scanning after screen-off. It schedules mode changes without exceeding the scanner's restart guard; duplicate scan starts do not restart a healthy scan. The case/battery cleanup runs only while there is an active beacon to expire, rather than every ten seconds during an empty scan. The BLE address dedupe set is local to each batch so later updates from the same headphones are not discarded. `BatteryAuditTest` covers these pure policies. Galaxy S26 FE latency and battery consumption remain phone checks, not measured guarantees.
+No sockets, package scans, icon decoding, files, network or root waits on main. Keep background work owned and cancellable. Test service/model behavior and true failure paths rather than merely mirroring implementation.

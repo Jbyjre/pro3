@@ -181,7 +181,7 @@ fun PhoneProfileContent(
             StyledListItem(
                 name = if (keptAwake) "Battery use: Unrestricted" else "Set battery use to Unrestricted",
                 description = if (keptAwake) "Done. Android won't pause pro in the background"
-                    else "Without it, Android may pause pro in the background, which stops the island and the AirPods link",
+                    else "Without it, Android may pause pro in the background, which can stop the AirPods link",
                 orientation = me.kavishdevar.librepods.presentation.components.ListItemOrientation.Vertical,
                 onClick = { onKeepAwake(false) },
             )
@@ -219,7 +219,7 @@ private fun PhoneEdgeDiagram(tuning: PhoneProfile.Tuning, ink: Color, dark: Bool
             .fillMaxWidth()
             .height(132.dp)
             .semantics {
-                contentDescription = "The Dynamic Island stretched across the top of the screen, " +
+                contentDescription = "The top edge of the phone, " +
                     "${tuning.edgeDp.toInt()} dp from each side" + if (tuning.phone == PhoneProfile.Phone.Pixel6Pro) ", clear of the curved edges" else ""
             }
     ) {
@@ -255,36 +255,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPhoneTop(
             drawRect(Brush.horizontalGradient(listOf(lit, Color.Transparent), sx, sx + roll), Offset(sx, sy + corner * 0.6f), Size(roll, size.height))
             drawRect(Brush.horizontalGradient(listOf(Color.Transparent, lit), sx + sw - roll, sx + sw), Offset(sx + sw - roll, sy + corner * 0.6f), Size(roll, size.height))
         }
-        // The stretched Dynamic Island, centred on the camera, edge dp from each side.
-        val pillH = 30f * scale
-        val pillY = sy + 10f * scale
-        val pillL = sx + edge * scale
-        val pillW = sw - 2 * edge * scale
-        drawRoundRect(Color.Black, Offset(pillL, pillY), Size(pillW, pillH), CornerRadius(pillH / 2))
-        drawRoundRect(Color.White.copy(alpha = if (dark) 0.14f else 0.10f), Offset(pillL, pillY), Size(pillW, pillH), CornerRadius(pillH / 2), style = Stroke(1.dp.toPx()))
-        // The camera, then a cover on the left and sound bars on the right, as on the real thing.
-        val cx = sx + sw / 2; val cy = pillY + pillH / 2
-        drawCircle(Color(0xFF1A1A22), pillH * 0.30f, Offset(cx, cy))
-        drawCircle(Color(0xFF3A3A55), pillH * 0.12f, Offset(cx - pillH * 0.06f, cy - pillH * 0.06f))
-        val cover = pillH * 0.62f
-        drawRoundRect(Brush.linearGradient(listOf(Color(0xFFB8B8C8), Color(0xFF6C6C80))), Offset(pillL + (pillH - cover) / 2, cy - cover / 2), Size(cover, cover), CornerRadius(cover / 2))
-        val barW = 2.5.dp.toPx()
-        listOf(0.45f, 0.8f, 0.6f, 0.95f).forEachIndexed { i, h ->
-            val bh = pillH * 0.5f * h
-            val bx = pillL + pillW - pillH * 0.5f - (3 - i) * (barW * 1.9f)
-            drawRoundRect(Color.White.copy(alpha = 0.85f), Offset(bx, cy - bh / 2), Size(barW, bh), CornerRadius(barW / 2))
-        }
-        // The distance kept from each side: a dashed guide and its number.
-        val dash = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx()))
-        val gy = pillY + pillH + 18.dp.toPx()
-        for (side in listOf(-1f, 1f)) {
-            val outer = if (side < 0) sx else sx + sw
-            val inner = if (side < 0) pillL else pillL + pillW
-            drawLine(Color.White.copy(alpha = 0.55f), Offset(inner, pillY + pillH + 4.dp.toPx()), Offset(inner, gy + 4.dp.toPx()), 1.dp.toPx(), pathEffect = dash)
-            drawLine(Color.White.copy(alpha = 0.55f), Offset(outer, gy), Offset(inner, gy), 1.dp.toPx())
-        }
-        val words = measurer.measure("${edge.toInt()} dp from each side" + if (curve > 0.5f) " · off the curve" else "", label.copy(color = Color.White.copy(alpha = 0.75f)))
-        drawText(words, topLeft = Offset(cx - words.size.width / 2f, gy + 8.dp.toPx()))
+        // Physical camera only. The former persistent island preview has been removed.
+        drawCircle(Color.Black, 8f * scale, Offset(sx + sw / 2f, sy + 20f * scale))
+
 }
 
 private fun specLine(phone: PhoneProfile.Phone): String = when (phone) {
@@ -296,19 +269,19 @@ private fun specLine(phone: PhoneProfile.Phone): String = when (phone) {
 /** What pro does differently on [phone], in plain words. Every claim here is in DECISIONS 49. */
 internal fun notes(phone: PhoneProfile.Phone): List<Pair<String, String>> = when (phone) {
     PhoneProfile.Phone.GalaxyS26FE -> listOf(
-        "Island to the edges" to "The screen is flat, so the stretched Dynamic Island and the pop-ups come to 10 dp from the sides: room for longer song names.",
+        "Pop-up spacing" to "Temporary pop-ups keep 10 dp clear of the flat screen’s sides.",
         "120 Hz when it moves" to "pro asks for 120 Hz while you touch it and for 2.5 seconds after, then hands back to One UI's adaptive rate so a still page costs less.",
-        "Kept awake" to "Samsung puts apps it thinks are unused to sleep, which stops the island and the AirPods link. Below: Android's battery setting and Samsung's Never sleeping apps (both are needed).",
+        "Kept awake" to "Samsung puts apps it thinks are unused to sleep, which can stop the AirPods link. Below: Android's battery setting and Samsung's Never sleeping apps (both are needed).",
         "Saves when warm" to "Lighter glass, calmer sound bars and heart spot checks from Android's \"moderate\" heat level, the same as before.",
     )
     PhoneProfile.Phone.Pixel6Pro -> listOf(
-        "Off the curved edges" to "The screen curves into its sides, so the stretched Dynamic Island and the pop-ups stay 18 dp in, where nothing looks bent or gets touched by your palm.",
+        "Off the curved edges" to "Pop-ups stay 18 dp clear of the curved sides.",
         "LTPO screen, 10 to 120 Hz" to "pro asks for 120 Hz while you touch it and for 2.5 seconds after; when the page is still, the phone can drop as low as 10 Hz.",
         "Tensor runs warm" to "pro starts saving (lighter glass, calmer sound bars, heart spot checks) at Android's first heat level, \"light\", instead of waiting for \"moderate\".",
-        "Kept awake" to "Set pro's battery use to Unrestricted below, so the island and heart readings carry on with the screen off.",
+        "Kept awake" to "Set pro's battery use to Unrestricted below, so headphone controls and heart readings carry on with the screen off.",
     )
     PhoneProfile.Phone.Other -> listOf(
-        "Island to the edges" to "The stretched Dynamic Island comes to 10 dp from the sides.",
+        "Pop-up spacing" to "Pop-ups keep 10 dp clear of the screen’s sides.",
         "120 Hz when it moves" to "pro asks for the screen's fastest rate while you touch it and for 2.5 seconds after, then hands back to the phone.",
         "Saves when warm" to "Lighter glass and calmer animations from Android's \"moderate\" heat level.",
     )

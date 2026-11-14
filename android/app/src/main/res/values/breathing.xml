@@ -1,0 +1,12 @@
+<resources>
+    <style name="BreathTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#F6F7EF</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowSplashScreenBackground">#F6F7EF</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="android:windowSplashScreenAnimationDuration">0</item>
+    </style>
+</resources>

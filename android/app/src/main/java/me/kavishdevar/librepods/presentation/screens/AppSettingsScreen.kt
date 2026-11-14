@@ -173,7 +173,7 @@ fun AppSettingsScreen(
         StyledList(title = "pro") {
             StyledListItem(
                 name = "This phone",
-                description = "Battery, sounds and the Dynamic Island, no headphones needed",
+                description = "Battery, temporary pop-ups and app updates",
                 orientation = ListItemOrientation.Vertical,
                 onClick = navigateToPhone,
             )
@@ -200,8 +200,8 @@ fun AppSettingsScreen(
                 onClick = navigateToRename,
             )
             StyledListItem(
-                name = "Dynamic Island",
-                description = "Around the camera, and the mini island pop-ups",
+                name = "Breathe",
+                description = "One second before your chosen app shortcuts",
                 orientation = ListItemOrientation.Vertical,
                 onClick = navigateToIsland,
             )

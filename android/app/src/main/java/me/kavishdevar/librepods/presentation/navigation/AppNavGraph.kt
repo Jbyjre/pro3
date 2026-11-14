@@ -42,7 +42,7 @@ import me.kavishdevar.librepods.presentation.screens.TroubleshootingScreen
 import me.kavishdevar.librepods.presentation.screens.UpdateHearingTestRoute
 import me.kavishdevar.librepods.presentation.screens.VersionScreen
 import me.kavishdevar.librepods.presentation.screens.GlintLabScreen
-import me.kavishdevar.librepods.presentation.screens.IslandSettingsScreen
+import me.kavishdevar.librepods.presentation.screens.BreatheScreen
 import me.kavishdevar.librepods.presentation.screens.PhoneScreen
 import me.kavishdevar.librepods.presentation.screens.AppsScreen
 import me.kavishdevar.librepods.presentation.screens.DevicesScreen
@@ -124,11 +124,11 @@ fun AppNavGraph(
                             ) { shown ->
                                 when (shown) {
                                     AppTab.Phone -> PhoneScreen(
-                                        navigateToIsland = { onTab(AppTab.Island) },
+                                        navigateToIsland = { onTab(AppTab.Phone) },
                                         navigateToHeadphones = { onTab(AppTab.Headphones) },
                                         navigateToApps = { navigate(Screen.Apps) },
                                     )
-                                    AppTab.Island -> IslandSettingsScreen(navigateToApps = { navigate(Screen.Apps) })
+                                    AppTab.Breathe -> BreatheScreen(navigateToApps = { navigate(Screen.Apps) })
                                     AppTab.Headphones -> {
                                         // Don't cover the page with a full-screen spinner while the
                                         // background service binds in the first moment: the waiting
@@ -160,7 +160,7 @@ fun AppNavGraph(
                                             navigateToHeartRate = { navigate(Screen.HeartRate) },
                                             navigateToRecorder = { navigate(Screen.Recorder) },
                                             navigateToDevices = { navigate(Screen.Devices) },
-                                            navigateToIsland = { onTab(AppTab.Island) },
+                                            navigateToIsland = { onTab(AppTab.Phone) },
                                             navigateToPhone = { onTab(AppTab.Phone) },
                                         )
                                     }
@@ -204,7 +204,7 @@ fun AppNavGraph(
                         NavEntry(screen) { StayConnectedScreen() }
 
                     Screen.IslandSettings ->
-                        NavEntry(screen) { IslandSettingsScreen(navigateToApps = { navigate(Screen.Apps) }) }
+                        NavEntry(screen) { BreatheScreen(navigateToApps = { navigate(Screen.Apps) }) }
 
                     Screen.Phone ->
                         NavEntry(screen) {

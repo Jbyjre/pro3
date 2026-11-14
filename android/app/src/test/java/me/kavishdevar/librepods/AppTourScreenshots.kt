@@ -116,7 +116,7 @@ class AppTourScreenshots {
 
     // ---- The tabs: Phone (the main page) and the Dynamic Island's own ----
     private val phoneTab = me.kavishdevar.librepods.presentation.navigation.AppTab.Phone
-    private val islandTab = me.kavishdevar.librepods.presentation.navigation.AppTab.Island
+    private val islandTab = me.kavishdevar.librepods.presentation.navigation.AppTab.Breathe
     @Test fun phoneTab() {
         me.kavishdevar.librepods.services.PhoneStatus.preview(me.kavishdevar.librepods.services.PhoneStatus.Info(68, true))
         tour("00_phone_tab", dark = false, stack = emptyList(), tab = phoneTab)

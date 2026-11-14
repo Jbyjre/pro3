@@ -17,10 +17,6 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.HOME" />
         </intent>
-        <!-- Listen (the opened island reads an article aloud): Android's rule for finding its voice engine. -->
-        <intent>
-            <action android:name="android.intent.action.TTS_SERVICE" />
-        </intent>
     </queries>
 
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
@@ -54,6 +50,8 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <!-- Only so the sound bars can follow the music (Android's Visualizer); nothing is recorded. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 <!--    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"-->
@@ -62,8 +60,6 @@
 <!--        android:maxSdkVersion="30" />-->
     <uses-permission android:name="com.android.vending.BILLING" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- The Dynamic Island's "Focus" button (Do Not Disturb) in games and videos; Android asks once. -->
-    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
 
     <!-- Companion-device link: lets Android wake Glint when the AirPods connect and start the
          foreground service from the background (survives Samsung's app sleeping). -->
@@ -88,6 +84,20 @@
         android:theme="@style/Theme.LibrePods"
         android:description="@string/app_description"
         tools:ignore="UnusedAttribute" >
+        <service android:name=".breathing.BreathTile" android:label="Breathing pause" android:icon="@drawable/ic_stat_breathe"
+            android:exported="true" android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE" /></intent-filter>
+        </service>
+
+        <service android:name=".updates.UpdateJob" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true" />
+        <receiver android:name=".updates.InstallReceiver" android:exported="false" />
+
+        <activity android:name=".breathing.BreathActivity" android:exported="true"
+            android:excludeFromRecents="true" android:noHistory="true" android:launchMode="singleTop"
+            android:taskAffinity="${applicationId}.breathing"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+            android:theme="@style/BreathTheme" />
+
         <receiver
             android:name=".presentation.widgets.NoiseControlWidget"
             android:exported="false">
@@ -218,7 +228,7 @@
 <!--                android:name="android.accessibilityservice"-->
 <!--                android:resource="@xml/app_listener_service_config" />-->
 <!--        </service>-->
-        <!-- The Dynamic Island's timer: its alarm and the notification's Stop button. -->
+        <!-- The phone timer and its notification Stop button. -->
         <receiver
             android:name=".services.TimerReceiver"
             android:exported="false" />

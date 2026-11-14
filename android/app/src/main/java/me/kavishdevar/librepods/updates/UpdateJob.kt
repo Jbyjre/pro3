@@ -1,0 +1,41 @@
+package me.kavishdevar.librepods.updates
+
+import android.app.job.JobInfo
+import android.app.job.JobParameters
+import android.app.job.JobScheduler
+import android.app.job.JobService
+import android.content.ComponentName
+import android.content.Context
+import android.media.AudioManager
+import android.os.PowerManager
+import kotlinx.coroutines.*
+import me.kavishdevar.librepods.breathing.BreathInteraction
+
+/** Android schedules this sparse job; no resident updater service, timer or wake lock. */
+class UpdateJob : JobService() {
+    private var work: Job? = null
+    override fun onStartJob(params: JobParameters): Boolean {
+        work = CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                Updater.check(this@UpdateJob)
+                if (Updater.state.value.available && !Updater.state.value.ready && Updater.prefs(this@UpdateJob).getBoolean("download", true)) Updater.download(this@UpdateJob)
+                val audio = getSystemService(AudioManager::class.java)
+                if (Updater.state.value.ready && Updater.prefs(this@UpdateJob).getBoolean("install", false) &&
+                    !getSystemService(PowerManager::class.java).isInteractive && !BreathInteraction.active &&
+                    !audio.isMusicActive && audio.mode == AudioManager.MODE_NORMAL) UpdateInstaller.install(this@UpdateJob, automatic = true)
+            } finally { jobFinished(params, false) }
+        }
+        return true
+    }
+    override fun onStopJob(params: JobParameters): Boolean { work?.cancel(); return true }
+    companion object {
+        fun schedule(c: Context) {
+            val scheduler = c.getSystemService(JobScheduler::class.java)
+            if (!Updater.prefs(c).getBoolean("checks", true)) { scheduler.cancel(7181); return }
+            val desired = JobInfo.Builder(7181, ComponentName(c, UpdateJob::class.java))
+                .setPeriodic(12 * 60 * 60_000L).setPersisted(true)
+                .setRequiresDeviceIdle(true).setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED).setRequiresBatteryNotLow(true).build()
+            if (scheduler.getPendingJob(7181) == null) scheduler.schedule(desired)
+        }
+    }
+}
