@@ -19,7 +19,7 @@ jobs:
       - name: Encrypt for this session only
         run: |
           test -s "$HOME/.glint-signing/glint.jks"
-          tar czf - -C "$HOME" .glint-signing | openssl cms -encrypt -aes-256-cbc -outform DER -out signing-backup.cms .github/signing-recovery.pem
+          tar czf - -C "$HOME" .glint-signing | openssl cms -encrypt -binary -aes-256-cbc -outform DER -out signing-backup.cms .github/signing-recovery.pem
       - uses: actions/upload-artifact@v4
         with:
           name: encrypted-signing-backup
