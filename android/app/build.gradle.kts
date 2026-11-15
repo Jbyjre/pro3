@@ -62,12 +62,14 @@ android {
     }
     namespace = "me.kavishdevar.librepods"
     compileSdk = 37
+    buildToolsVersion = providers.gradleProperty("buildToolsVersion").getOrElse("36.0.0")
 
     defaultConfig {
         applicationId = "io.github.jbyjre.glint"
         targetSdk = 37
         versionCode = 100 + ciBuildNumber
         versionName = appVersionName
+        buildConfigField("String", "UPDATE_CHANNEL", "\"${System.getenv("PRO_UPDATE_CHANNEL") ?: "stable"}\"")
     }
     buildTypes {
         release {
@@ -168,6 +170,7 @@ android {
 }
 
 dependencies {
+    implementation("com.android.tools.build:apksig:9.2.1")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.accompanist.permissions)
     implementation(libs.androidx.compose.ui.text.google.fonts)

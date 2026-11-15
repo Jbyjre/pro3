@@ -28,6 +28,7 @@ import me.kavishdevar.librepods.services.AirPodsService
 
 class BootReceiver: BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
+        context?.let { me.kavishdevar.librepods.updates.UpdateJob.schedule(it) }
         when (intent?.action) {
             Intent.ACTION_MY_PACKAGE_REPLACED -> try { context?.startForegroundService(
                 Intent(

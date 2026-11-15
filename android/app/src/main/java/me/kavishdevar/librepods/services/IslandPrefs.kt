@@ -30,56 +30,6 @@ object IslandPrefs {
     const val PREF_DURATION = "glint_island_duration"
     const val PREF_HAPTICS = "glint_island_haptics"
     const val PREF_SONG_NAMES = "glint_island_song_names"
-    /** The mini island: a small pill around the front camera while something plays. */
-    const val PREF_MINI = "glint_mini_island"
-    /** Let the mini island widen for a moment to show each new song's name. */
-    const val PREF_MINI_NAMES = "glint_mini_song_names"
-    /** Only show the mini island while the AirPods are connected (off: for any audio). */
-    const val PREF_MINI_AIRPODS_ONLY = "glint_mini_airpods_only"
-    /** Keep the mini island up the whole time the AirPods are connected (not only for music). */
-    const val PREF_MINI_ALWAYS = "glint_mini_always"
-    /** The Dynamic Island's mode: "on", "music" or "off" ([MiniIslandRules.Mode], [mode]). */
-    const val PREF_DI_MODE = "glint_di_mode"
-    /** Keep the mini island up all the time, even with nothing playing and nothing connected. */
-    const val PREF_MINI_ANYTIME = "glint_mini_anytime"
-    /**
-     * In a full-screen game, a small black ring stays round the camera (instead of the island
-     * hiding): tap or hold it for the game's controls. On by default (Jake, 2026-10-11).
-     */
-    const val PREF_MINI_GAMES = "glint_mini_games"
-    /** Apps' live activities (a Maps route, a ride, a download) on the islands. On by default. */
-    const val PREF_LIVE_APPS = "glint_live_apps"
-    /** Read the app's screen once when the island opens in it ([ScreenInsights]); on by default. */
-    const val PREF_READ_SCREEN = "glint_read_screen"
-    /** Pop the Dynamic Island for any sound (alerts, calls, voice notes), not only music. */
-    const val PREF_MINI_ANY_SOUND = "glint_mini_any_sound"
-    /** Show the app's icon for a sound (off: a symbol for the kind of sound instead). */
-    const val PREF_SOUND_ICONS = "glint_sound_icons"
-    /** How long a short sound keeps the Dynamic Island up after it ends. */
-    const val PREF_SOUND_LINGER = "glint_sound_linger"
-    /** Apps whose sounds never pop the Dynamic Island. */
-    const val PREF_SOUND_IGNORED = "glint_sound_ignored"
-    /** Apps the Dynamic Island hides in (games, video): it steps aside while they're in front. */
-    const val PREF_HIDE_IN = "glint_di_hide_in"
-    /** The app's icon swaps with a little pop as you change apps (off: a plain cross-fade). */
-    const val PREF_APP_POP = "glint_di_app_pop"
-    /** Show a moment when a message arrives (a text, a chat), with the app's icon and name. */
-    const val PREF_MSG = "glint_msg_on"
-    /** Also show moments for other notifications that alert (off: messages only). */
-    const val PREF_MSG_OTHERS = "glint_msg_others"
-    /** Show who the message is from (reads the notification's title; off: only the app's name). */
-    const val PREF_MSG_SENDER = "glint_msg_sender"
-    /** No message moments while Do Not Disturb would silence that notification. */
-    const val PREF_MSG_DND = "glint_msg_dnd"
-    /** No sound or message moments from the app you're using right now. */
-    const val PREF_SKIP_IN_USE = "glint_skip_in_use"
-    /** A moment when the phone starts charging, gets full, or runs low (with a line of words, like the iPhone's). */
-    const val PREF_PHONE_MOMENTS = "glint_phone_moments"
-    /** How long the song's name stays out under the camera. */
-    const val PREF_NAME_LINGER = "glint_name_linger"
-    /** How many times (and when last) the "make it tappable" pop-up was shown. */
-    const val PREF_TAP_NUDGES = "glint_tap_nudges"
-    const val PREF_TAP_NUDGE_AT = "glint_tap_nudge_at"
     /** The iPhone's black island (default) or pro's earlier glass one (`IslandSpec.Style`). */
     const val PREF_IPHONE_LOOK = "glint_island_iphone_look"
     /** The opened music island shows the song bar (elapsed time, a bar you can drag, time left). */
@@ -122,58 +72,6 @@ object IslandPrefs {
     /** Song names and the music app's own controls (needs Notification access). */
     fun songNames(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_SONG_NAMES, true)
 
-    /**
-     * On, Music only or Off. Before this choice existed there was one on/off switch ([PREF_MINI]):
-     * switched off, it now means Off (the tiny ring), which is what "off" is now.
-     */
-    fun mode(prefs: SharedPreferences): MiniIslandRules.Mode =
-        MiniIslandRules.Mode.of(prefs.getString(PREF_DI_MODE, null))
-            ?: if (prefs.getBoolean(PREF_MINI, true)) MiniIslandRules.Mode.On else MiniIslandRules.Mode.Off
-
-    fun setMode(prefs: SharedPreferences, mode: MiniIslandRules.Mode) {
-        prefs.edit().putString(PREF_DI_MODE, mode.key).apply()
-    }
-    fun miniNames(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_NAMES, true)
-    fun miniAirPodsOnly(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_AIRPODS_ONLY, false)
-    fun miniAlways(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ALWAYS, true)
-    fun miniAnytime(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ANYTIME, true)
-    fun miniGames(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_GAMES, true)
-    fun liveFromApps(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_LIVE_APPS, true)
-    fun readScreen(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_READ_SCREEN, true)
-    fun anySound(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MINI_ANY_SOUND, true)
-    fun messages(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MSG, true)
-    fun messagesOthers(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MSG_OTHERS, false)
-    fun messageSender(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MSG_SENDER, false)
-    fun messagesRespectDnd(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_MSG_DND, true)
-    fun skipInUse(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_SKIP_IN_USE, true)
-    fun phoneMoments(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_PHONE_MOMENTS, true)
-
-    /** How long the song's name stays out under the camera. */
-    enum class NameLinger(val label: String, val ms: Long) {
-        Short("Short", 1_800L),
-        Normal("Normal", 3_200L),
-        Long("Long", 5_000L),
-    }
-
-    fun nameLinger(prefs: SharedPreferences): NameLinger =
-        NameLinger.entries.getOrNull(prefs.getInt(PREF_NAME_LINGER, NameLinger.Normal.ordinal)) ?: NameLinger.Normal
-    fun soundIcons(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_SOUND_ICONS, true)
-
-    fun soundLinger(prefs: SharedPreferences): SoundRules.Linger =
-        SoundRules.Linger.entries.getOrNull(prefs.getInt(PREF_SOUND_LINGER, SoundRules.Linger.Normal.ordinal)) ?: SoundRules.Linger.Normal
-
-    /** Packages switched off in Settings (a copy: the stored set must never be edited in place). */
-    fun soundIgnored(prefs: SharedPreferences): Set<String> = prefs.getStringSet(PREF_SOUND_IGNORED, emptySet())?.toSet().orEmpty()
-
-    fun hideIn(prefs: SharedPreferences): Set<String> = prefs.getStringSet(PREF_HIDE_IN, emptySet())?.toSet().orEmpty()
-
-    fun setHideIn(prefs: SharedPreferences, pkg: String, hidden: Boolean) {
-        val now = hideIn(prefs)
-        prefs.edit().putStringSet(PREF_HIDE_IN, if (hidden) now + pkg else now - pkg).apply()
-    }
-
-    fun appPop(prefs: SharedPreferences): Boolean = prefs.getBoolean(PREF_APP_POP, true)
-
     fun style(prefs: SharedPreferences): IslandSpec.Style =
         if (prefs.getBoolean(PREF_IPHONE_LOOK, true)) IslandSpec.Style.IPhone else IslandSpec.Style.Glass
 
@@ -186,8 +84,4 @@ object IslandPrefs {
     fun edge(prefs: SharedPreferences): IslandSpec.Edge =
         IslandSpec.Edge.entries.getOrNull(prefs.getInt(PREF_EDGE, IslandSpec.Edge.KeyLine.ordinal)) ?: IslandSpec.Edge.KeyLine
 
-    fun setSoundIgnored(prefs: SharedPreferences, pkg: String, ignored: Boolean) {
-        val now = soundIgnored(prefs)
-        prefs.edit().putStringSet(PREF_SOUND_IGNORED, if (ignored) now + pkg else now - pkg).apply()
-    }
 }

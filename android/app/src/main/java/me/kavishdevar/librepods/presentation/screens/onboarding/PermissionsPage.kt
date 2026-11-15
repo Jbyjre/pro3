@@ -292,7 +292,7 @@ fun PermissionsPage(
                         openOverlaySettings()
                     }
                 } else null,
-                description = "For the island and card",
+                description = "For temporary headphone pop-ups",
                 orientation = ListItemOrientation.Vertical,
                 leadingContent = {
                     Box(
@@ -354,11 +354,11 @@ fun PermissionsPage(
                             IconButtonDefaults.mediumContainerSize(IconButtonDefaults.IconButtonWidthOption.Narrow)
                         ),
                     shape = IconButtonDefaults.mediumRoundShape,
-                    enabled = bluetoothPermissionsState.allPermissionsGranted
+                    enabled = true
                 ) {
                     Icon(
                         Icons.AutoMirrored.Default.ArrowForward,
-                        contentDescription = "forward",
+                        contentDescription = "Continue; headphone permissions can be added later",
                         modifier = Modifier.size(IconButtonDefaults.mediumIconSize),
                     )
                 }

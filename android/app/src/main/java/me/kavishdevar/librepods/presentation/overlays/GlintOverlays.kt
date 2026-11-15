@@ -118,12 +118,10 @@ sealed interface IslandEvent {
     /** Something started playing on the AirPods, or a new song started. Words come live from NowPlaying. */
     data object Music : IslandEvent
     /** The Dynamic Island can't be tapped yet: one switch in pro fixes it (tap opens that page). */
-    data object TapSetup : IslandEvent
     /**
      * The opened Dynamic Island when nothing is playing: the app you're in, what's live right now
      * (a timer, charging, your headphones, the next alarm) and quick controls for the phone.
      */
-    data object Glance : IslandEvent
     /** The island's timer ended and is ringing: Stop, or one more minute. */
     data object TimerDone : IslandEvent
 }
@@ -145,97 +143,35 @@ object GlintOverlays {
     private var island: IslandController? = null
     @SuppressLint("StaticFieldLeak")
     private var card: CardController? = null
+    private val popupGate = PopupGate()
 
     fun updateSnapshot(value: PodsSnapshot) {
         _snapshot.value = value
     }
 
     fun showIsland(context: Context, event: IslandEvent, expand: Boolean = false) = main.post {
-        // A new song while the Dynamic Island is up: the pill itself stretches sideways with its
-        // name, so no second pop-up drops below it (both used to show, the pop-up as a "bulb").
-        // (The tiny ring never stretches, so with it the pop-up still comes, if switched on.)
-        if (event == IslandEvent.Music && !expand && miniOrigin?.isRing == false &&
-            me.kavishdevar.librepods.services.IslandPrefs.miniNames(me.kavishdevar.librepods.services.IslandPrefs.prefs(context))
-        ) return@post
+        if (me.kavishdevar.librepods.breathing.BreathInteraction.active) {
+            if (event is IslandEvent.Problem || event is IslandEvent.Heart && event.alert || event == IslandEvent.TimerDone)
+                me.kavishdevar.librepods.breathing.BreathInteraction.cancel?.invoke()
+            else return@post
+        }
+        if (!android.provider.Settings.canDrawOverlays(context) ||
+            context.getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked ||
+            !context.getSystemService(android.os.PowerManager::class.java).isInteractive) return@post
+        if (!expand && !popupGate.accept(event, android.os.SystemClock.elapsedRealtime())) return@post
         val c = island ?: IslandController(context.applicationContext).also { island = it }
         c.show(event, expand)
     }
 
-    /**
-     * True for the moment a screenshot is taken from the island's Capture button: the Dynamic
-     * Island vanishes at once and comes back after, so it isn't in the picture (as on an iPhone).
-     */
-    val capturing = androidx.compose.runtime.mutableStateOf(false)
-
-    /** True while the big island is on screen (the mini island hides meanwhile). */
-    val islandVisible = androidx.compose.runtime.mutableStateOf(false)
-    /** The pop-up that's up opened around the camera, over the Dynamic Island (the iPhone style). */
-    val islandAround = androidx.compose.runtime.mutableStateOf(false)
-
-    /**
-     * Where the mini island is right now (null when it isn't showing), so the big island can
-     * grow out of it: [dx] is its centre's distance from the screen's middle, [top] its top
-     * edge from the top of the screen, all in pixels.
-     */
-    data class MiniOrigin(
-        val dx: Float, val top: Float, val width: Float, val height: Float,
-        /** How wide the things beside the camera are (the cover), so a pop-up can grow its cover out of the pill's. */
-        val side: Float = height * 0.78f,
-        /** The camera's lowest point, measured from the pill's top: content opening around it starts below this. */
-        val lensBottom: Float = height,
-    ) {
-        /**
-         * The tiny ring (Off, or a full-screen game): a circle, as wide as it's tall. The pill is
-         * always wider than tall (the camera's zone plus a margin each side).
-         */
-        val isRing: Boolean get() = width <= height + 0.5f
-    }
-
-    @Volatile var miniOrigin: MiniOrigin? = null
-
-    /** When a big island that grew out of the mini island shrank back into it (elapsedRealtime). */
-    @Volatile internal var returnToMiniAt = 0L
-
-    @SuppressLint("StaticFieldLeak")
-    private var mini: MiniIslandController? = null
-
-    /**
-     * Starts the mini island: the small pill around the front camera while something plays.
-     * It then follows the music, the setting and the screen by itself. Safe to call often.
-     */
-    fun startMiniIsland(context: Context) = main.post {
-        val c = mini ?: MiniIslandController(context.applicationContext).also { mini = it }
-        c.start()
-    }
-
-    /** Where a pop-up should grow from: the pill by the camera, now or about to appear. */
-    internal fun plannedMiniOrigin(): MiniOrigin? = miniOrigin ?: mini?.plannedOrigin()
-
-    /** Re-checks whether the mini island should be up (after a settings change). */
-    fun refreshMiniIsland(context: Context) = main.post { mini?.refresh() ?: startMiniIsland(context) }
-
-    /**
-     * Shows the mini island for a few seconds with sample music (or, with [sound], a pretend
-     * message ding with an app icon), for Settings > Island > Try it.
-     */
-    fun previewMiniIsland(context: Context, sound: Boolean = false, message: Boolean = false, phone: Boolean = false) = main.post {
-        val c = mini ?: MiniIslandController(context.applicationContext).also { mini = it }
-        when {
-            message -> c.previewMessage()
-            phone -> c.previewPhone()
-            sound -> c.previewSound()
-            else -> c.preview()
-        }
-    }
-
     fun showCard(context: Context) = main.post {
+        if (me.kavishdevar.librepods.breathing.BreathInteraction.active) return@post
         val c = card ?: CardController(context.applicationContext).also { card = it }
         c.show()
     }
 
-    fun dismissAll() = main.post {
-        island?.dismiss(animated = true)
-        card?.dismiss(animated = true)
+    fun dismissAll() {
+        val remove = Runnable { island?.dismiss(animated = false); card?.dismiss(animated = false) }
+        if (Looper.myLooper() == Looper.getMainLooper()) remove.run() else main.post(remove)
     }
 
     /** Opens Glint from an overlay (allowed: the overlay is visible and was just tapped). */

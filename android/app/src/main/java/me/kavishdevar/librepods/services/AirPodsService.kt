@@ -646,15 +646,6 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         )
         // What's playing, for the island's music controls and its "something started" moment.
         NowPlaying.attach(this)
-        // Any other sound (and which app made it), and the phone's own battery, for the Dynamic
-        // Island. Neither needs the AirPods, or anything else, to be connected.
-        SoundSource.attach(this)
-        PhoneStatus.attach(this)
-        // Which app is on screen (or home, or locked) for the island's icon, and the island's own timer.
-        ScreenApp.attach(this)
-        IslandTimer.attach(this)
-        // The mini island around the camera follows the music by itself from here.
-        GlintOverlays.startMiniIsland(this)
         serviceScope.launch(Dispatchers.Main) {
             var previous = NowPlaying.state.value
             NowPlaying.state.collect { now ->
@@ -873,7 +864,6 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             pushOverlaySnapshot()
         }
         VolumeGuard.check()
-        GlintOverlays.refreshMiniIsland(this)
     }
 
     /** Closes only the AirPods control channel (not the audio) and stops it coming back by itself. */
@@ -2202,7 +2192,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             VolumeGuard.check() // the volume limit applies from the moment they connect
         }
         val now = SystemClock.elapsedRealtime()
-        if (now - lastConnectedIsland < 30_000L) return
+        if (lastConnectedIsland > 0L && now - lastConnectedIsland < 30_000L) return
         lastConnectedIsland = now
         showIslandEvent(IslandEvent.Connected, IslandPrefs.Trigger.Connected)
     }
@@ -2233,7 +2223,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         when {
             now > was -> {
                 // Right after the connection island, "in your ears" would only repeat it.
-                if (t - lastConnectedIsland < 4_000L) return
+                if (lastConnectedIsland > 0L && t - lastConnectedIsland < 4_000L) return
                 showIslandEvent(if (was == 0) IslandEvent.InEar else IslandEvent.BothIn, IslandPrefs.Trigger.InEar)
             }
             IslandPrefs.enabled(sharedPreferences, IslandPrefs.Trigger.BudOut) ->
@@ -2246,7 +2236,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     /** Something started playing on the AirPods (not from Glint, not from a bud going in), or a new song. */
     private fun onTrackChanged(old: NowPlaying.Track, new: NowPlaying.Track) {
         val t = SystemClock.elapsedRealtime()
-        if (t - NowPlaying.lastOwnActionAt < 3_000L || t - lastEarChangeAt < 4_000L) return
+        if (NowPlaying.lastOwnActionAt > 0L && t - NowPlaying.lastOwnActionAt < 3_000L || lastEarChangeAt > 0L && t - lastEarChangeAt < 4_000L) return
         val airPodsUp = if (airPodsChosen()) {
             BluetoothConnectionManager.aacpSocket?.isConnected == true || GlintStatus.link.value is LinkState.GaveUp
         } else HeadphoneLink.state.value.connected
@@ -2255,7 +2245,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         val newSong = new.playing && old.playing && new.fromSession && new.title != null && old.title != null &&
             (new.title != old.title || new.artist != old.artist)
         when {
-            started && t - lastMusicIslandAt > 20_000L && IslandPrefs.enabled(sharedPreferences, IslandPrefs.Trigger.MusicStarts) -> {
+            started && (lastMusicIslandAt == 0L || t - lastMusicIslandAt > 20_000L) && IslandPrefs.enabled(sharedPreferences, IslandPrefs.Trigger.MusicStarts) -> {
                 lastMusicIslandAt = t
                 // Only audio that keeps playing: a feed's autoplay preview stops within a moment.
                 serviceScope.launch(Dispatchers.Main) {
@@ -2278,7 +2268,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         val before = chargingKnown
         chargingKnown = charging
         val t = SystemClock.elapsedRealtime()
-        if (before == false && charging && t - lastChargingIslandAt > 60_000L && BluetoothConnectionManager.aacpSocket?.isConnected == true) {
+        if (before == false && charging && (lastChargingIslandAt == 0L || t - lastChargingIslandAt > 60_000L) && BluetoothConnectionManager.aacpSocket?.isConnected == true) {
             lastChargingIslandAt = t
             showIslandEvent(IslandEvent.Charging, IslandPrefs.Trigger.Charging)
         }

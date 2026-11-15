@@ -180,9 +180,7 @@ internal fun SharedMusicArt(
 
     Canvas(Modifier.fillMaxSize()) {
         val f = frame(size.width)
-        if (f.appear <= 0.001f && geometry.origin == null) return@Canvas
-        val o = geometry.origin
-        val around = geometry.around && o != null
+        if (f.appear <= 0.001f) return@Canvas
         val a = f.appear.coerceIn(0f, 1f)
         val e = f.expand.coerceIn(0f, 1f)
         // How much of each place to take (they add up to 1).
@@ -190,16 +188,6 @@ internal fun SharedMusicArt(
         val wC = (a - e).coerceIn(0f, 1f - wE)
         val wP = 1f - wE - wC
 
-        // 1. The Dynamic Island's own cover and bars (fixed: the pill doesn't move).
-        val pillH = o?.height ?: 0f
-        val pillL = if (o != null) (size.width - o.width) / 2f + o.dx else 0f
-        val pillT = geometry.seedTop
-        val ring = track.progress(SystemClock.elapsedRealtime()) != null
-        val pillFit = (o?.side ?: 0f) / 2f
-        // The Dynamic Island's own round cover (inside its progress ring when it has one).
-        val pHalf = if (ring) pillFit - 3.4f * density else pillFit
-        val pCover = Offset(pillL + pillH / 2f, pillT + pillH / 2f)
-        val pBars = Offset(pillL + (o?.width ?: 0f) - pillH / 2f, pillT + pillH / 2f)
         // 2. The compact pop-up's cover (a new song).
         val band = minOf(geometry.band, f.main.height)
         val rowH = f.main.height - band
@@ -215,10 +203,10 @@ internal fun SharedMusicArt(
         val eBars = Offset(x0 + spots.bars.center.x * fit, y0 + spots.bars.center.y * fit)
 
         // Without the Dynamic Island to grow out of, they grow from a dot in the middle instead.
-        val startCover = if (around) pCover else f.main.center
-        val startHalf = if (around) pHalf else 2f * density
-        val startBars = if (around) pBars else f.main.center
-        val fade = if (around) 1f else ((a - 0.3f) / 0.5f).coerceIn(0f, 1f)
+        val startCover = f.main.center
+        val startHalf = 2f * density
+        val startBars = f.main.center
+        val fade = ((a - 0.3f) / 0.5f).coerceIn(0f, 1f)
         val away = (1f - detail() * 3f).coerceIn(0f, 1f)
 
         val cover = Offset(
@@ -254,7 +242,7 @@ internal fun SharedMusicArt(
             // The sound bars, in the cover's colour.
             val barsAlpha = (wP + wE) * fade * away
             if (barsAlpha > 0.001f) {
-                val side = (o?.side ?: spots.barsSide) * wP + spots.barsSide * fit * wE + spots.barsSide * 0.5f * wC
+                val side = spots.barsSide * wP + spots.barsSide * fit * wE + spots.barsSide * 0.5f * wC
                 val c = Offset(startBars.x * wP + eBars.x * wE + eBars.x * wC, startBars.y * wP + eBars.y * wE + eBars.y * wC)
                 drawSoundBars(c, side, accent.copy(alpha = barsAlpha), level, if (pulseLive && !reduceMotion) bars else null, clock, moving = listening && !reduceMotion, density)
             }

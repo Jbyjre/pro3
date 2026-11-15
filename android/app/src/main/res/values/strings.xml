@@ -143,7 +143,7 @@
     <string name="popup_animations">Popup Animations</string>
     <string name="show_bottom_sheet_popup">Card when the case opens</string>
     <string name="show_bottom_sheet_popup_description">A card at the bottom when you open the case nearby</string>
-    <string name="show_island_popup">Island at the top</string>
+    <string name="show_island_popup">Headphone pop-ups</string>
     <string name="show_island_popup_description">A small pop-up when your AirPods connect or change</string>
     <string name="conversational_awareness_volume">Conversational Awareness Volume</string>
     <string name="quick_settings_tile">Quick Settings Tile</string>
@@ -290,6 +290,4 @@
     <string name="privacy_policy">Privacy Policy</string>
     <string name="i_agree">I agree</string>
     <string name="compatibility_check_bypassed">Compatibility check bypassed. Are you sure your device is compatible?</string>
-    <string name="island_access_label">pro Dynamic Island</string>
-    <string name="island_access_description">Lets pro place the Dynamic Island above the status bar, the only spot around the camera where it can be tapped (Android gives every other touch there to the status bar). pro uses this only to show its islands, to notice when you pull down notifications (so they step aside), to know which app is open (its name, so the island can show that app\'s icon), and for the island\'s Capture and Lock buttons. It doesn\'t read or collect anything on your screen, and nothing leaves your phone.</string>
 </resources>

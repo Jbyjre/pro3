@@ -61,7 +61,7 @@ fun NavigationRoot(
             // The Dynamic Island's page is its own tab: back to the top, on that tab.
             if (target == AppLinks.ISLAND_TAB || target == AppLinks.ISLANDS) {
                 while (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
-                tab = AppTab.Island
+                tab = AppTab.Breathe
                 return@collect
             }
             val page = when (target) {
@@ -89,7 +89,7 @@ fun NavigationRoot(
         Screen.Onboarding -> ""
         Screen.AirPodsSettings -> when (tab) {
             AppTab.Phone -> "pro"
-            AppTab.Island -> "Dynamic Island"
+            AppTab.Breathe -> "Breathe"
             AppTab.Headphones -> when {
                 !chosenDevice.isAirPods -> chosenDevice.name
                 state.isLocallyConnected -> state.deviceName.ifBlank { "AirPods" }
@@ -118,7 +118,7 @@ fun NavigationRoot(
         is Screen.CallControl -> currentScreen.action
         Screen.MicrophoneSettings -> stringResource(R.string.microphone_mode)
         Screen.StayConnected -> "Stay connected"
-        Screen.IslandSettings -> "Dynamic Island"
+        Screen.IslandSettings -> "Breathe"
         Screen.Phone -> "This phone"
         Screen.Apps -> "Apps"
         Screen.GlintLab -> "pro Lab"

@@ -6,6 +6,23 @@
 - Jake's exact words are not stored in the repository. This list is rebuilt from `DECISIONS.md` (each section marks "your request" or "your choice" where Jake asked), `CLAUDE.md`, `POLISH_LEDGER.md`, `TESTING.md` and the git history (30 merged pull requests from 2026-09-30 to 2026-10-02, then this file's own session on 2026-10-06). Section numbers like "D12" mean `DECISIONS.md` section 12.
 - **When Jake asks for something new, add a row here. When a status changes, change the row.** Keep it true: if something was not checked on his phone, say so.
 
+## Current request — 14–15 November 2026
+
+**All historical Dynamic Island requests below are superseded.** Jake now uses a Galaxy S26 FE running Android 17 / One UI 9 and wants the persistent camera feature removed completely, temporary headphone/music pop-ups retained, one-second breathing before selected apps, and easy signed app updates. The tab remains AirPods/Beats first and Home/default.
+
+| Request | State | Implementation and verification |
+|---|---|---|
+| Remove camera pill/ring and its machinery | IMPLEMENTED; PHONE UPGRADE CHECK | Persistent controller, editors, gestures, accessibility and screen/sound observation removed. Popup windows are temporary ordinary overlays. Old camera preferences migrate away; headphone/popup preferences stay. |
+| Retain headphone/music pop-ups and controls | IMPLEMENTED; PHONE CHECK | Production Island/MusicIsland and AirPods/Beats triggers remain; camera suppression removed; duplicate/routine-during-breath rules added. |
+| One-second breathing before chosen apps | IMPLEMENTED FOR ADDED SHORTCUTS; PHONE TIMING CHECK | Search real installed apps, add breathing home-screen icons. Real renderer/preview and activity deadline tested. Original icons, app drawer, Recents, notifications and links are NOT intercepted. No delayed fallback claimed. |
+| Replace flower with a screen layer, vibrant color and working customization | IMPLEMENTED; PHONE SMOOTHNESS CHECK | Upward full-screen color sweep; saved Electric/Coral/Lagoon presets and Still switch; shared preview/production renderer; actual UI/launch checks. |
+| Permissions update correctly after Settings | IMPLEMENTED; OEM ROUTE CHECK | Resume-based real platform status, notification callback refresh, direct access/settings recovery. Lifecycle test verifies granting and revoking all four permissions. |
+| Updates without GitHub/file-manager visits | IMPLEMENTED; DEVICE INSTALL CHECK | Phone > App updates; automatic idle Wi-Fi checks/downloads, optional constrained self-install, pending system confirmation handled. Signed APK package/version/signature validation and immutable channel assets. |
+| Keep signing identity and data | VERIFIED KEY MATCH; OWNER SECRET SETUP | Recovered existing key matches downloadable build 228. Secret access denied (403); private backup and exact owner UI action provided. Cache retained, regeneration forbidden. |
+| Efficient integration, related research, future study extension | IMPLEMENTED / RESEARCHED | No breathing foreground service or app polling. Pause/Quick Settings added; schedules/study enforcement deferred. See linked report for platform evidence and test limits. |
+
+Full checklist, research links, setup and verification boundaries: [BREATHING_AND_UPDATES.md](BREATHING_AND_UPDATES.md). Observed locally: 361 full-suite tests across 49 classes passed, including the new layer, customization and permission checks; lint (0 errors) and the final signed release build passed. Build 233 retains the existing release certificate. Physical Samsung checks and owner secret setup remain.
+
 ## Which phone
 
 Jake has two phones in mind: on 2026-10-15 he asked for pro tuned for the **Samsung Galaxy S26 FE** and the **Google Pixel 6 Pro**, chosen in Settings > Your phone (Automatic by default; section 17). Earlier notes said Galaxy S25 FE, then "Pixel 6" (2026-10-06). **Which one he uses day to day is not verified.** Checked specs (DECISIONS 49): the S26 FE has a flat 6.7-inch FHD+ 120 Hz screen with a centred punch-hole, Exynos 2500, 4,900 mAh, One UI 9 (Android 17); the Pixel 6 Pro a 6.7-inch QHD+ LTPO screen (10 to 120 Hz) curved into its sides, a centred hole-punch, Tensor, 5,003 mAh. pro takes the camera's place and size from what the phone reports, so the island fits either. Whether the AirPods' own controls work depends on the phone's Bluetooth (see `utils/RootlessSupport.kt`), which is separate.

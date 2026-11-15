@@ -18,6 +18,8 @@
 
 package me.kavishdevar.librepods.presentation.screens
 
+import kotlinx.coroutines.launch
+
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -193,7 +195,7 @@ fun HeadphonesScreen(
                     onClick = navigateToDevices,
                 )
                 StyledListItem(
-                    name = "Dynamic Island",
+                    name = "Temporary pop-ups",
                     description = "Battery and music around the camera",
                     onClick = navigateToIsland,
                 )
@@ -366,18 +368,45 @@ private fun HeadphonesHero(state: HeadphoneState, onRefresh: () -> Unit, onOpenB
                     var airPodsHere by remember {
                         androidx.compose.runtime.mutableStateOf<me.kavishdevar.librepods.services.KnownDevice?>(null)
                     }
-                    me.kavishdevar.librepods.presentation.glint.WhileShown(state.connected) {
-                        if (state.connected) {
-                            airPodsHere = null
-                            return@WhileShown
-                        }
-                        while (true) {
-                            airPodsHere = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                me.kavishdevar.librepods.services.DeviceChoice.pairedAudioDevices(context)
-                                    .firstOrNull { it.connected && it.kind == DeviceKind.AIRPODS }
+                    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+                    val hintScope = androidx.compose.runtime.rememberCoroutineScope()
+                    androidx.compose.runtime.DisposableEffect(state.connected, owner) {
+                        var query: kotlinx.coroutines.Job? = null
+                        var listening = false
+                        fun refresh() {
+                            query?.cancel()
+                            if (state.connected) { airPodsHere = null; return }
+                            query = hintScope.launch {
+                                airPodsHere = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    me.kavishdevar.librepods.services.DeviceChoice.pairedAudioDevices(context)
+                                        .firstOrNull { it.connected && it.kind == DeviceKind.AIRPODS }
+                                }
                             }
-                            kotlinx.coroutines.delay(3_000)
                         }
+                        val receiver = object : android.content.BroadcastReceiver() {
+                            override fun onReceive(c: android.content.Context, intent: android.content.Intent) { refresh() }
+                        }
+                        fun stop() {
+                            query?.cancel()
+                            if (listening) { runCatching { context.unregisterReceiver(receiver) }; listening = false }
+                        }
+                        val observer = object : androidx.lifecycle.DefaultLifecycleObserver {
+                            override fun onResume(owner: androidx.lifecycle.LifecycleOwner) {
+                                if (!state.connected && !listening) {
+                                    val filter = android.content.IntentFilter().apply {
+                                        addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
+                                        addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
+                                        addAction(android.bluetooth.BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
+                                        addAction(android.bluetooth.BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED)
+                                    }
+                                    listening = runCatching { context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_EXPORTED); true }.getOrDefault(false)
+                                }
+                                refresh()
+                            }
+                            override fun onPause(owner: androidx.lifecycle.LifecycleOwner) { stop() }
+                        }
+                        owner.lifecycle.addObserver(observer)
+                        onDispose { owner.lifecycle.removeObserver(observer); stop() }
                     }
                     airPodsHere?.let { airPods ->
                         Spacer(Modifier.height(10.dp))

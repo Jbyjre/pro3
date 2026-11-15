@@ -39,7 +39,7 @@ import kotlinx.coroutines.flow.asStateFlow
  *   measured up to 45 °C next to the chip, with weak heat spreading).
  *
  * The camera's place and size are never taken from here: Android reports them exactly
- * ([MiniIslandRules.pickCamera]), on these two phones and any other.
+ * (the system window insets), on these two phones and any other.
  */
 object PhoneProfile {
     enum class Phone(val label: String) {

@@ -807,3 +807,23 @@ Sections 23–29 listed problems, several "not verified on your phone". Each is 
 - **Battery & main-thread smoothness:** the "Waiting for your AirPods" panel (now what pro opens on when they're away) ran a breathing animation every frame even when nothing was connecting; it only runs while connecting now. `ConnectionStatusPanel.kt`, `HeadphonesScreen.kt`, and `DevicesScreen.kt` now read paired Bluetooth audio devices off the main thread (`WhileShown` + `Dispatchers.IO`). The 3D Beats turntable (`Headphones3D.kt`) and the Heart page's frame clock (`HeartParts.kt`) now stop while pro is in the background (`WhileShown`, with its release-lint false positive cleanly annotated in `WhileShown.kt`). The brief full-screen spinner over the AirPods tab while the service binds is gone.
 - **Checked:** all 617 unit tests across 49 test classes pass locally (`:app:testFossDebugUnitTest`, including `PhoneTabsUiTest` and 8 new tests in `AirPodsUiFixesTest`), `:app:lintFossRelease` passes with 0 errors, and `:app:assembleFossRelease` builds `app-foss-release.apk`. Physical phone behaviour (Bluetooth reconnects, touch drag feel, animations, and battery) is **not verified** (no phone in the cloud).
 
+
+
+## 52. 2026-11-14 — breathing, temporary pop-ups, native updates
+
+Jake's current request supersedes all persistent Dynamic Island requests, including its Off ring. The camera controller/editor/gestures, accessibility layer, screen readers and continuous sound attribution are removed. Temporary AirPods/Beats/music pop-ups and current headphone controls remain; headphones stay first/Home. Breathe occupies the former Island tab.
+
+An ordinary Android app cannot promise to act before another app through accessibility observations. pro therefore offers user-added home-screen breathing shortcuts, which it owns before starting the selected target. One first-frame monotonic second, no Continue step. Direct icons, drawer, Recents, notifications and deep links remain direct routes. No launcher replacement, observation permission, Bluetooth toggle or delayed fallback is implied. Preview and intervention share production painting; native transition states and actual setup renders were inspected and corrected.
+
+Phone > App updates adds version-code discovery, verified downloads and PackageInstaller self-updates with mandatory pending-confirmation handling. Optional idle installation uses platform constraints. Metadata points to immutable versioned APKs; stable/preview remain separate. The existing signing key was recovered and verified against downloadable stable build 228, never replaced or committed. Secret API access returned 403; the owner receives a private backup and exact UI steps. The workflow retains its original cache as fallback and fails closed if the identity is missing or wrong.
+
+Evidence: 354 full regression tests (47 classes), 11 focused final UI/renderer/timer checks, lint with 0 errors and final signed build 231 passed locally. No physical Samsung or emulator was attached. Phone startup latency, smoothness, Bluetooth hardware, physical upgrade-in-place and silent installation remain device checks. Setup/research/requirements trace: docs/BREATHING_AND_UPDATES.md; checklist: TESTING.md.
+
+
+## 53. 2026-11-15 — full-screen breathing layer and usable customization
+
+Jake rejected the flower and asked for a screen layer moving over the second, brighter pop colors, smooth function, and working customization and permissions. The native renderer now paints a curved sheet sweeping upward, with Electric, Coral and Lagoon presets, readable text shading, and a saved Still switch. The same renderer paints the live preview. Reduced motion stays still; all options retain the original one-second monotonic deadline. Controls wrap with limited width/large text.
+
+Permission health reads actual Android overlay, notification-listener, package-install and notification access on resume, without polling. Runtime notification results also refresh status. Recovery links open the relevant app-specific settings, including App info for restricted music access. Tests click and persist real customization controls, verify the actual launch applies them at the same deadline, and simulate granting/revoking all access during a settings round trip. Physical Samsung rendering, gestures and OEM settings behavior remain unverified. Final verification is recorded in docs/BREATHING_AND_UPDATES.md.
+
+Final local verification for this revision: all 361 tests across 49 classes passed, lint has 0 errors, and signed build 233 passed. The APK certificate matches the existing downloadable release.

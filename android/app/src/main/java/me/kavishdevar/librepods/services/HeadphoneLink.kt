@@ -258,7 +258,7 @@ object HeadphoneLink {
         val service = ServiceManager.getService() ?: return
         val t = android.os.SystemClock.elapsedRealtime()
         if (connected && !before.connected && before.device?.address.equals(chosen.address, ignoreCase = true) &&
-            t - lastConnectedPop > 30_000L
+            (lastConnectedPop == 0L || t - lastConnectedPop > 30_000L)
         ) {
             // At most once every 30 s, like the AirPods: a flaky link doesn't keep popping it.
             lastConnectedPop = t
@@ -356,6 +356,5 @@ internal object GlintOverlaysBridge {
     }
 
     fun refreshMini(context: Context) {
-        me.kavishdevar.librepods.presentation.overlays.GlintOverlays.refreshMiniIsland(context)
     }
 }
