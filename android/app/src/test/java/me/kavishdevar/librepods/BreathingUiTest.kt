@@ -23,7 +23,7 @@ class BreathingUiTest {
         BreathPrefs.prefs(c).edit().clear().commit()
         BreathPrefs.select(c,"fixture.chess",true)
         rule.setContent { LibrePodsTheme(m3eEnabled=false) { BreatheScreen() } }
-        rule.onNodeWithText("Coral").performScrollTo().performClick().assertIsSelected()
+        rule.onNodeWithText("Tangerine").performScrollTo().performClick().assertIsSelected()
         rule.onNodeWithText("Still color layer").performScrollTo().performClick()
         rule.runOnIdle {
             org.junit.Assert.assertEquals(BreathOptions(BreathPalette.Coral,true),BreathPrefs.options(c))
@@ -31,7 +31,7 @@ class BreathingUiTest {
         }
         // An externally changed setting (e.g. the Quick Settings tile) refreshes the actual page.
         rule.runOnIdle { BreathPrefs.setOptions(c,BreathOptions(BreathPalette.Lagoon,true)) }
-        rule.onNodeWithText("Lagoon").performScrollTo().assertIsSelected()
+        rule.onNodeWithText("Pool").performScrollTo().assertIsSelected()
     }
     @Test fun pickerSearchFindsOrdinaryAppsByActualLabel() {
         val apps=listOf(AppEntry("fixture.chess","Chess"),AppEntry("fixture.claude","Claude"),

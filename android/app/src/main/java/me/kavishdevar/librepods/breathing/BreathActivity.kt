@@ -58,7 +58,13 @@ class BreathActivity : ComponentActivity() {
         target = null
         launched = false
         val view = BreathView(this).apply {
+            awaitingAppearance=true
             destination = request.getStringExtra(EXTRA_LABEL).orEmpty()
+            onSystemBarAppearance = { appearance ->
+                val mask=android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+                    android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                window.insetsController?.setSystemBarsAppearance(appearance,mask)
+            }
             onFirstFrame = {
                 session.firstFrame(SystemClock.elapsedRealtime())
                 main.postDelayed(finishPause, session.remaining(SystemClock.elapsedRealtime()))
@@ -69,7 +75,9 @@ class BreathActivity : ComponentActivity() {
         GlintOverlays.dismissAll()
         lifecycleScope.launch {
             // Read appearance off main before package lookup; the first neutral frame appears immediately.
-            val appearance = withContext(Dispatchers.IO) { BreathPrefs.options(this@BreathActivity) }
+            val appearance = withContext(Dispatchers.IO) {
+                BreathPrefs.options(this@BreathActivity).also { it.palette.gradientColors }
+            }
             if (isFinishing || session.cancelled || generation != requestGeneration) return@launch
             view.options = appearance
             // Package queries and preference loading happen while the first frame is being drawn.

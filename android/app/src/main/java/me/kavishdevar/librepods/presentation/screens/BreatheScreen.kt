@@ -10,6 +10,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.semantics.semantics
@@ -39,8 +43,8 @@ fun BreatheScreen(navigateToApps: () -> Unit = {}) {
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainer)
         .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Spacer(Modifier.height(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 84.dp))
-        Text("A little space.", style = MaterialTheme.typography.headlineLarge)
-        Text("One breath before the apps you choose.", style = MaterialTheme.typography.bodyLarge)
+        Text("One second.", style = MaterialTheme.typography.headlineLarge)
+        Text("Before the apps you choose.", style = MaterialTheme.typography.bodyLarge)
         StyledToggle(label = "Breathing pause", checked = enabled, onCheckedChange = {
             enabled = it; BreathPrefs.setEnabled(context,it)
         })
@@ -51,10 +55,13 @@ fun BreatheScreen(navigateToApps: () -> Unit = {}) {
         Text("Color",style=MaterialTheme.typography.titleMedium)
         FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
             BreathPalette.entries.forEach { palette ->
-                FilterChip(selected=appearance.palette==palette,onClick={
+                val swatch=remember(palette) { Brush.horizontalGradient(palette.gradientColors.map { Color(it) }) }
+                FilterChip(modifier=Modifier.heightIn(min=48.dp),selected=appearance.palette==palette,onClick={
                     appearance=appearance.copy(palette=palette); BreathPrefs.setOptions(context,appearance)
                 },label={ Text(palette.label) },leadingIcon={
-                    androidx.compose.foundation.Canvas(Modifier.size(12.dp)) { drawCircle(androidx.compose.ui.graphics.Color(palette.primary)) }
+                    androidx.compose.foundation.Canvas(Modifier.size(24.dp,16.dp).clip(RoundedCornerShape(3.dp))) {
+                        drawRect(swatch)
+                    }
                 })
             }
         }
