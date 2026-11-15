@@ -350,4 +350,18 @@ Jake: "make the default tab on open the airport [AirPods] tab", find ways to mak
 - Real refraction of other apps behind the island: IMPOSSIBLE on Android (D5, D33).
 - A Wi-Fi heart-rate page, and heart data to Jake's other apps: NOT BUILT (above).
 
+## 20. 2026-11-10: audio and small-island response pass (Galaxy S26 FE)
 
+The original camera-island request is superseded by the November 14–15 removal above. PR #45 retains only the media-session improvements that also benefit temporary music pop-ups. Sound attribution and its retired tests stay removed.
+
+| Item | Status | Code / check |
+|---|---|---|
+| Redundant remote media-session work on the main thread | DONE, PHONE CHECK | `NowPlaying.kt`: metadata callbacks reuse the selected session; treat buffering as active when selecting; coalesce concurrent icon lookups; never reuse cover art across two apps with the same track title. `NowPlayingTest` checks selection, artwork isolation and metadata updates. |
+| Battery | NOT MEASURED | Fewer duplicate icon requests and remote session queries per callback. No new background polling. Test on S26 FE with Android battery statistics. |
+| Island pop-up animations, AirPods audio controls and real-world reliability | NOT VERIFIED BY THIS PASS | Need physical S26 FE to confirm the UI and Bluetooth behavior, and a reproducible example of the reported audio failure. Do not claim fixed. |
+
+## 21. 2026-11-15: resolve and merge open pro3 pull requests
+
+| Request | Status | Implementation and verification |
+|---|---|---|
+| Resolve conflicts and merge open pro3 PRs | DONE IN PR #45 | The sole open PR was reconciled with current main, preserving breathing/updater/headphone behavior and camera-island removals. Local verification: 366 tests across 50 classes, zero failures/errors/skips; release lint with zero errors (243 warnings); release APK build passed. The local APK uses debug signing for build validation and is not an upgrade artifact; production releases use the existing signing workflow. Physical S26 FE behavior and battery savings remain unverified. |

@@ -7,5 +7,6 @@ Run the repository's testFossDebugUnitTest, lintFossRelease and signed assembleF
 - UpdatePolicyTest and UpdateFlowTest use controlled newer/invalid/missing/rate-limited/offline/republished releases, verify channel/version/signature policy, interrupted download cleanup, retained retries, pending confirmation and callback session ownership.
 - OverlayLayerTest / IslandHandoverTest retain popup permission/removal/touch cleanup and below-status-bar placement. PopupGate checks duplicates without extending display. Camera-only renderer/rule/editor/screen-reader tests are retired with those deleted features; mixed popup, artwork, heart, timer, battery and headphone coverage stays.
 - Existing AirPodsProtocolTest, AirPodsUiFixesTest, PhoneTabsUiTest, BatteryAuditTest, PowerPlan tests and headphone/heart tests remain regression evidence. Headphones remain Home and Breathe replaces Island.
+- NowPlayingTest checks buffering-session selection, cover-art isolation when two apps publish the same song, and live metadata updates. Retired sound-attribution tests remain removed.
 
 Actual Samsung checks are in the root TESTING.md. Record observed totals/results in docs/BREATHING_AND_UPDATES.md after running, never assume green from compilation or snapshots.

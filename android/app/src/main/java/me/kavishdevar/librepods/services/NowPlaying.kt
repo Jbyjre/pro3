@@ -104,6 +104,8 @@ object NowPlaying {
     private const val TAG = "NowPlaying"
     private val main = Handler(Looper.getMainLooper())
     private val memory = java.util.concurrent.Executors.newSingleThreadExecutor()
+    /** Main-thread only: don't queue the same icon for every playback progress update. */
+    private val pendingIcons = mutableSetOf<String>()
     private val _state = MutableStateFlow(Track())
     val state: StateFlow<Track> = _state.asStateFlow()
 
@@ -156,7 +158,12 @@ object NowPlaying {
 
     private val callback = object : MediaController.Callback() {
         override fun onPlaybackStateChanged(state: PlaybackState?) = pick()
-        override fun onMetadataChanged(metadata: MediaMetadata?) = pick()
+        override fun onMetadataChanged(metadata: MediaMetadata?) {
+            // Metadata belongs to the current session; don't re-query every session in Android.
+            val ctx = appContext
+            val controller = current
+            if (ctx != null && controller != null) publish(ctx, controller) else pick()
+        }
         override fun onSessionDestroyed() = pick()
     }
 
@@ -168,7 +175,10 @@ object NowPlaying {
         } catch (e: SecurityException) {
             detachNow(); return
         }
-        val chosen = list.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING } ?: list.firstOrNull()
+        val chosen = list.firstOrNull {
+            val state = it.playbackState?.state
+            state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_BUFFERING
+        } ?: list.firstOrNull()
         if (chosen?.sessionToken != current?.sessionToken) {
             current?.unregisterCallback(callback)
             current = chosen
@@ -189,7 +199,7 @@ object NowPlaying {
             ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)?.takeIf { it.isNotBlank() }
             ?: md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)?.takeIf { it.isNotBlank() }
         val old = _state.value
-        val sameSong = old.title == title && old.artist == artist && old.fromSession
+        val sameSong = old.pkg == c.packageName && old.title == title && old.artist == artist && old.fromSession
         val art = if (sameSong && old.art != null) old.art else artwork(md)
         val ps = c.playbackState
         _state.value = Track(
@@ -212,9 +222,15 @@ object NowPlaying {
 
     /** Looks [pkg]'s icon up in the background and adds it to the track if it's still that app's. */
     private fun iconLater(context: Context, pkg: String): ImageBitmap? {
+        if (!pendingIcons.add(pkg)) return null
         memory.execute {
-            val icon = SoundSource.appInfo(context, pkg).icon ?: return@execute
-            main.post { if (_state.value.pkg == pkg && _state.value.icon == null) _state.value = _state.value.copy(icon = icon) }
+            val icon = SoundSource.appInfo(context, pkg).icon
+            main.post {
+                pendingIcons.remove(pkg)
+                if (icon != null && _state.value.pkg == pkg && _state.value.icon == null) {
+                    _state.value = _state.value.copy(icon = icon)
+                }
+            }
         }
         return null
     }
@@ -240,13 +256,12 @@ object NowPlaying {
     }
 
     /**
-     * The app whose session is playing right now (null without Notification access or when none
-     * plays): one of the clues [SoundSource] uses to say which app made a sound. Main thread only.
+     * The app whose session is playing right now. The media callback already published this
+     * snapshot; asking the controller here would make every sound callback call another process.
      */
-    internal fun playingSessionPackage(): String? = current?.takeIf {
-        val st = it.playbackState?.state
-        st == PlaybackState.STATE_PLAYING || st == PlaybackState.STATE_BUFFERING
-    }?.packageName
+    internal fun playingSessionPackage(): String? = _state.value.takeIf {
+        it.fromSession && it.playing
+    }?.pkg
 
     private fun audioActive(context: Context): Boolean =
         try { context.getSystemService(AudioManager::class.java).isMusicActive } catch (_: Exception) { false }
@@ -353,13 +368,7 @@ object NowPlaying {
     }
 }
 
-/**
- * Exists so Android can grant Glint access to media sessions (song names and the music app's
- * controls). Of the notifications themselves it keeps only which app posted one and when, for a
- * few seconds, so a sound that follows can be matched to its app ([SoundSource]), and for a message
- * moment on the island. The contents are never read, except a notification's title when you switch
- * on "Show who it's from".
- */
+/** Grants access to music sessions and controls; other notifications are not read or attributed. */
 class MediaAccessService : NotificationListenerService() {
     override fun onListenerConnected() {
         NowPlaying.attach(this)
