@@ -17,7 +17,7 @@ import me.kavishdevar.librepods.presentation.components.StyledToggle
 import me.kavishdevar.librepods.updates.*
 
 @Composable
-fun UpdatePanel() {
+fun UpdatePanel(health: PermissionHealth? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val state by Updater.state.collectAsState()
@@ -32,15 +32,15 @@ fun UpdatePanel() {
     Text("Installed build ${BuildConfig.VERSION_CODE} · $channel", style = MaterialTheme.typography.bodyMedium)
     Text(state.message)
     if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
         OutlinedButton(enabled = !state.busy, onClick = { scope.launch { Updater.check(context) } }) { Text("Check now") }
         if (state.available && !state.ready) Button(enabled = !state.busy, onClick = { scope.launch { Updater.download(context) } }) { Text("Download") }
     }
     if (state.ready && prefs.getInt("session", -1) < 0) {
-        Button(enabled = !state.busy, onClick = {
-            if (!context.packageManager.canRequestPackageInstalls()) context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:${context.packageName}")))
+        Button(enabled = !state.busy && health != null, onClick = {
+            if (!context.packageManager.canRequestPackageInstalls()) open(context,Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:${context.packageName}")))
             else scope.launch { Updater.state.value = state.copy(busy = true); UpdateInstaller.install(context) }
-        }) { Text(if (context.packageManager.canRequestPackageInstalls()) "Update" else "Allow pro updates") }
+        }) { Text(if (health?.install == true) "Update" else if (health == null) "Checking access…" else "Allow pro updates") }
     }
     if (prefs.getInt("session", -1) >= 0) {
         OutlinedButton(onClick = {
@@ -60,7 +60,7 @@ fun UpdatePanel() {
     StyledToggle(label = "Download automatically", checked = downloads, onCheckedChange = { downloads = it; prefs.edit().putBoolean("download", it).apply() })
     StyledToggle(label = "Install while phone is idle", checked = installs, onCheckedChange = {
         installs = it; prefs.edit().putBoolean("install", it).apply()
-        if (it && !context.packageManager.canRequestPackageInstalls()) context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:${context.packageName}")))
+        if (it && !context.packageManager.canRequestPackageInstalls()) open(context,Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:${context.packageName}")))
     })
     Text("Android may require installation confirmation. Samsung security settings may also require approval. An update restarts pro; your settings stay.", style = MaterialTheme.typography.bodySmall)
     TextButton(enabled = !state.busy, onClick = {

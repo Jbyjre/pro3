@@ -7,7 +7,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.view.WindowManager
 import android.widget.Toast
 import androidx.lifecycle.lifecycleScope
 import androidx.activity.ComponentActivity
@@ -37,7 +36,6 @@ class BreathActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         window.setWindowAnimations(0)
         if (savedInstanceState != null) { finish(); return } // process death never starts an app later
         begin(intent)
@@ -70,6 +68,10 @@ class BreathActivity : ComponentActivity() {
         BreathInteraction.cancel = cancelInteraction
         GlintOverlays.dismissAll()
         lifecycleScope.launch {
+            // Read appearance off main before package lookup; the first neutral frame appears immediately.
+            val appearance = withContext(Dispatchers.IO) { BreathPrefs.options(this@BreathActivity) }
+            if (isFinishing || session.cancelled || generation != requestGeneration) return@launch
+            view.options = appearance
             // Package queries and preference loading happen while the first frame is being drawn.
             val result = withContext(Dispatchers.IO) {
                 val chosen = chosenPackage

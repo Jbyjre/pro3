@@ -9,7 +9,7 @@ class BreathTile : TileService() {
         toggle()
     }
     private fun toggle() {
-        BreathPrefs.prefs(this).edit().putBoolean("enabled", !BreathPrefs.enabled(this)).apply()
+        BreathPrefs.setEnabled(this, !BreathPrefs.enabled(this))
         update()
     }
     private fun update() {

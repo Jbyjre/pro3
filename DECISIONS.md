@@ -818,3 +818,12 @@ An ordinary Android app cannot promise to act before another app through accessi
 Phone > App updates adds version-code discovery, verified downloads and PackageInstaller self-updates with mandatory pending-confirmation handling. Optional idle installation uses platform constraints. Metadata points to immutable versioned APKs; stable/preview remain separate. The existing signing key was recovered and verified against downloadable stable build 228, never replaced or committed. Secret API access returned 403; the owner receives a private backup and exact UI steps. The workflow retains its original cache as fallback and fails closed if the identity is missing or wrong.
 
 Evidence: 354 full regression tests (47 classes), 11 focused final UI/renderer/timer checks, lint with 0 errors and final signed build 231 passed locally. No physical Samsung or emulator was attached. Phone startup latency, smoothness, Bluetooth hardware, physical upgrade-in-place and silent installation remain device checks. Setup/research/requirements trace: docs/BREATHING_AND_UPDATES.md; checklist: TESTING.md.
+
+
+## 53. 2026-11-15 — full-screen breathing layer and usable customization
+
+Jake rejected the flower and asked for a screen layer moving over the second, brighter pop colors, smooth function, and working customization and permissions. The native renderer now paints a curved sheet sweeping upward, with Electric, Coral and Lagoon presets, readable text shading, and a saved Still switch. The same renderer paints the live preview. Reduced motion stays still; all options retain the original one-second monotonic deadline. Controls wrap with limited width/large text.
+
+Permission health reads actual Android overlay, notification-listener, package-install and notification access on resume, without polling. Runtime notification results also refresh status. Recovery links open the relevant app-specific settings, including App info for restricted music access. Tests click and persist real customization controls, verify the actual launch applies them at the same deadline, and simulate granting/revoking all access during a settings round trip. Physical Samsung rendering, gestures and OEM settings behavior remain unverified. Final verification is recorded in docs/BREATHING_AND_UPDATES.md.
+
+Final local verification for this revision: all 361 tests across 49 classes passed, lint has 0 errors, and signed build 233 passed. The APK certificate matches the existing downloadable release.

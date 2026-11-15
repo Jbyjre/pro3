@@ -19,6 +19,9 @@ import me.kavishdevar.librepods.services.*
 @Composable
 fun PhoneScreen(navigateToIsland: () -> Unit = {}, navigateToHeadphones: (() -> Unit)? = null, navigateToApps: () -> Unit = {}) {
     val context = LocalContext.current
+    var permissionsRevision by remember { mutableIntStateOf(0) }
+    val health by rememberPermissionHealth(permissionsRevision)
+    val notes = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { permissionsRevision++ }
     val prefs = remember { IslandPrefs.prefs(context) }
     var popupOptions by remember { mutableStateOf(false) }
     var master by remember { mutableStateOf(prefs.getBoolean(IslandPrefs.PREF_MASTER, true)) }
@@ -41,7 +44,7 @@ fun PhoneScreen(navigateToIsland: () -> Unit = {}, navigateToHeadphones: (() -> 
         me.kavishdevar.librepods.presentation.components.FreezeBanner()
         Text("This phone", style = MaterialTheme.typography.headlineSmall)
         if (battery.known) Text("${battery.level}% battery${if (battery.charging) " · charging" else ""}")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
             OutlinedButton(onClick = { PhoneControls.toggleTorch(context) }) { Text(if (torch) "Torch off" else "Torch on") }
             OutlinedButton(onClick = { PhoneControls.toggleRing(context) }) { Text("Sound / vibrate") }
         }
@@ -50,7 +53,7 @@ fun PhoneScreen(navigateToIsland: () -> Unit = {}, navigateToHeadphones: (() -> 
             else OutlinedButton(onClick = { IslandTimer.cancel(context) }) { Text("Cancel timer") }
         }
         HorizontalDivider()
-        UpdatePanel()
+        UpdatePanel(health)
         HorizontalDivider()
         Text("Headphone pop-ups", style = MaterialTheme.typography.headlineSmall)
         Text("Brief connection, music and headphone events. Nothing stays around the camera.")
@@ -58,13 +61,22 @@ fun PhoneScreen(navigateToIsland: () -> Unit = {}, navigateToHeadphones: (() -> 
             master = it; prefs.edit().putBoolean(IslandPrefs.PREF_MASTER, it).apply()
             if (!it) GlintOverlays.dismissAll()
         })
-        if (!Settings.canDrawOverlays(context)) {
+        if (health?.overlays == false) {
             Text("Allow pop-ups over other apps. Breathing shortcuts work without this access.")
-            OutlinedButton(onClick = { context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))) }) { Text("Allow pop-ups") }
+            OutlinedButton(onClick = { open(context,Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))) }) { Text("Allow pop-ups") }
         }
-        if (!NowPlaying.hasAccess(context)) {
+        if (health?.music == false) {
             Text("Optional notification access gives music pop-ups song names and media controls.")
-            OutlinedButton(onClick = { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }) { Text("Allow music controls") }
+            OutlinedButton(onClick = { open(context,NowPlaying.accessSettingsIntent(context)) }) { Text("Allow music controls") }
+        }
+        if (health?.music == false) {
+            Text("If Android blocks this switch, open pro’s App info and allow restricted settings first.",style=MaterialTheme.typography.bodySmall)
+            TextButton(onClick={ open(context,NowPlaying.appInfoIntent(context)) }) { Text("pro’s App info") }
+        }
+        if (health?.notifications == false) {
+            Text("Notifications let pro tell you when an update needs confirmation.",style=MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick={ notes.launch(android.Manifest.permission.POST_NOTIFICATIONS) }) { Text("Allow notifications") }
+            TextButton(onClick={ open(context,Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,context.packageName)) }) { Text("Notification settings") }
         }
         TextButton(onClick = { popupOptions = !popupOptions }) { Text(if (popupOptions) "Hide pop-up options" else "Pop-up options") }
         if (popupOptions) {

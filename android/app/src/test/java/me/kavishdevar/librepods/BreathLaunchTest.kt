@@ -61,6 +61,21 @@ class BreathLaunchTest {
         assertNull(shadowOf(a).nextStartedActivity)
         controller.pause().stop().destroy()
     }
+    @Test fun savedCustomizationReachesTheRealLaunchWithoutChangingItsDeadline() {
+        val chosen=BreathOptions(BreathPalette.Coral,still=true)
+        BreathPrefs.setOptions(c,chosen)
+        val controller=Robolectric.buildActivity(BreathActivity::class.java,request()).create().start().resume()
+        val a=controller.get();resolve()
+        val view=a.findViewById<ViewGroup>(android.R.id.content).getChildAt(0) as BreathView
+        assertEquals(chosen,view.options)
+        assertTrue(view.motionReduced)
+        draw(a)
+        ShadowLooper.idleMainLooper(999,java.util.concurrent.TimeUnit.MILLISECONDS)
+        assertNull(shadowOf(a).nextStartedActivity)
+        ShadowLooper.idleMainLooper(1,java.util.concurrent.TimeUnit.MILLISECONDS)
+        assertEquals(pkg,shadowOf(a).nextStartedActivity.component!!.packageName)
+        controller.pause().stop().destroy()
+    }
     @Test fun homeOrLockCancellationDoesNotLaunchLater() {
         val controller = Robolectric.buildActivity(BreathActivity::class.java, request()).create().start().resume()
         val a = controller.get(); resolve(); draw(a)

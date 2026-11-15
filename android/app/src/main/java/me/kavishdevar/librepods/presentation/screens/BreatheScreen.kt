@@ -1,10 +1,8 @@
 package me.kavishdevar.librepods.presentation.screens
 
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +23,18 @@ fun BreatheScreen(navigateToApps: () -> Unit = {}) {
     val context = LocalContext.current
     var enabled by remember { mutableStateOf(BreathPrefs.enabled(context)) }
     var paused by remember { mutableStateOf(BreathPrefs.paused(context)) }
+    val prefs = remember { BreathPrefs.prefs(context) }
+    var appearance by remember { mutableStateOf(BreathPrefs.options(context)) }
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(prefs,owner) {
+        fun refresh() { enabled=BreathPrefs.enabled(context); paused=BreathPrefs.paused(context); appearance=BreathPrefs.options(context) }
+        val listener=android.content.SharedPreferences.OnSharedPreferenceChangeListener { _,_ -> refresh() }
+        val observer=object : androidx.lifecycle.DefaultLifecycleObserver {
+            override fun onResume(owner: androidx.lifecycle.LifecycleOwner) { refresh() }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener); owner.lifecycle.addObserver(observer)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener); owner.lifecycle.removeObserver(observer) }
+    }
     var preview by remember { mutableIntStateOf(0) }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainer)
         .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -32,12 +42,26 @@ fun BreatheScreen(navigateToApps: () -> Unit = {}) {
         Text("A little space.", style = MaterialTheme.typography.headlineLarge)
         Text("One breath before the apps you choose.", style = MaterialTheme.typography.bodyLarge)
         StyledToggle(label = "Breathing pause", checked = enabled, onCheckedChange = {
-            enabled = it; BreathPrefs.prefs(context).edit().putBoolean("enabled", it).apply()
+            enabled = it; BreathPrefs.setEnabled(context,it)
         })
-        key(preview) {
-            BreathPreview(Modifier.fillMaxWidth().height(280.dp))
+        key(preview,appearance) {
+            BreathPreview(appearance,Modifier.fillMaxWidth().height(280.dp))
         }
         OutlinedButton(onClick = { preview++ }) { Text("Preview one second") }
+        Text("Color",style=MaterialTheme.typography.titleMedium)
+        FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+            BreathPalette.entries.forEach { palette ->
+                FilterChip(selected=appearance.palette==palette,onClick={
+                    appearance=appearance.copy(palette=palette); BreathPrefs.setOptions(context,appearance)
+                },label={ Text(palette.label) },leadingIcon={
+                    androidx.compose.foundation.Canvas(Modifier.size(12.dp)) { drawCircle(androidx.compose.ui.graphics.Color(palette.primary)) }
+                })
+            }
+        }
+        StyledToggle(label="Still color layer",checked=appearance.still,onCheckedChange={
+            appearance=appearance.copy(still=it); BreathPrefs.setOptions(context,appearance)
+        })
+        Text("A full-screen color sweep. Still mode and your system’s reduced-motion setting keep it calm. Every option lasts one second.",style=MaterialTheme.typography.bodySmall)
         Button(onClick = navigateToApps, modifier = Modifier.fillMaxWidth()) { Text("Choose apps & add shortcuts") }
         Text("Add a breathing shortcut for each chosen app, then use that icon on your home screen. Your launcher stays the same. Android may ask you to confirm adding it.", style = MaterialTheme.typography.bodyMedium)
         Text("Only these shortcuts pause before opening. Original icons, the app drawer, Recents, notifications and links open directly. No Accessibility access or Bluetooth is needed.", style = MaterialTheme.typography.bodyMedium)
@@ -53,11 +77,12 @@ fun BreatheScreen(navigateToApps: () -> Unit = {}) {
 
 /** Shares the production paint path; only the preview frame clock belongs to Compose. */
 @Composable
-private fun BreathPreview(modifier: Modifier) {
+private fun BreathPreview(appearance: BreathOptions,modifier: Modifier) {
     val context = LocalContext.current
-    val renderer = remember { BreathView(context) }
+    val renderer = remember(appearance) { BreathView(context).apply { options=appearance } }
     var elapsed by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(renderer) {
+        if (renderer.motionReduced) { elapsed=500L; return@LaunchedEffect }
         val start = withFrameNanos { it }
         do {
             elapsed = withFrameNanos { ((it-start)/1_000_000L).coerceIn(0,1_000) }
