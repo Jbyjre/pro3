@@ -9,15 +9,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import me.kavishdevar.librepods.billing.BillingManager
 import me.kavishdevar.librepods.billing.FOSSBillingProvider
 import me.kavishdevar.librepods.presentation.glint.PodsVideoConfig
 import me.kavishdevar.librepods.presentation.navigation.NavigationRoot
-import me.kavishdevar.librepods.presentation.overlays.GlancePanel
+import me.kavishdevar.librepods.presentation.overlays.TimerPanel
 import me.kavishdevar.librepods.presentation.theme.LibrePodsTheme
 import me.kavishdevar.librepods.presentation.viewmodel.AirPodsViewModel
 import me.kavishdevar.librepods.services.IslandTimer
@@ -61,52 +63,52 @@ class PhoneTabsUiTest {
 
     private fun tab(label: String) = rule.onNode(hasText(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
 
-    @Test fun opensOnPhoneAndTheTabsSwitchPagesAndBackReturnsToPhone() {
+    @Test fun opensOnAirPodsAndTheTabsSwitchPagesAndBackReturnsToAirPods() {
         rule.setContent { LibrePodsTheme(m3eEnabled = false) { NavigationRoot(airPodsViewModel = AirPodsViewModel()) } }
         rule.waitForIdle()
-        // The Phone tab is the main page.
-        rule.onNode(hasText("Make it work fully")).assertExists()
-        tab("Island").performClick()
+        // The AirPods tab is the home tab (Jake, 2026-11-13): first in the bar and the page pro opens on.
+        tab("AirPods").assertIsSelected()
+        rule.onNode(hasText("Headphone pop-ups")).assertDoesNotExist()
+        rule.onNode(hasText("Breathing pause")).assertDoesNotExist()
+        tab("Phone").performClick()
+        rule.waitForIdle()
+        rule.onNode(hasText("Headphone pop-ups")).assertExists()
+        tab("Breathe").performClick()
         rule.waitForIdle()
         // The Island page itself is showing (not only its title), and the Phone page is gone.
-        rule.onNode(hasText("Hide in these apps")).assertExists()
-        rule.onNode(hasText("Make it work fully")).assertDoesNotExist()
-        tab("AirPods").performClick()
-        rule.waitForIdle()
-        rule.onNode(hasText("Hide in these apps")).assertDoesNotExist()
-        rule.onNode(hasText("Make it work fully")).assertDoesNotExist()
-        // Back from a tab other than Phone goes to Phone, not out of the app.
+        rule.onNode(hasText("Breathing pause")).assertExists()
+        rule.onNode(hasText("Headphone pop-ups")).assertDoesNotExist()
+        // Back from a tab other than AirPods goes to AirPods, not out of the app.
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
         rule.waitForIdle()
-        rule.onNode(hasText("Make it work fully")).assertExists()
-        assertTrue("Back on the Phone tab should leave the app as usual", !rule.activity.isFinishing)
+        tab("AirPods").assertIsSelected()
+        rule.onNode(hasText("Breathing pause")).assertDoesNotExist()
+        rule.onNode(hasText("Headphone pop-ups")).assertDoesNotExist()
+        assertTrue("Back on the AirPods tab should leave the app as usual", !rule.activity.isFinishing)
     }
 
-    @Test fun theGlanceStartsATimerFromItsPresets() {
-        rule.setContent {
-            GlancePanel(content = Color.White, secondary = Color.Gray, dark = true, active = true, reduceMotion = true, onTouch = {}, onClose = {})
-        }
-        rule.onNode(hasContentDescription("Timer")).performClick()
+    @Test fun disconnectAsksFirst() {
+        val vm = AirPodsViewModel().apply { activateDemoMode() }
+        rule.setContent { LibrePodsTheme(m3eEnabled = false) { NavigationRoot(airPodsViewModel = vm) } }
         rule.waitForIdle()
-        rule.onNode(hasContentDescription("Start a 5 minute timer")).performClick()
+        val disconnect = hasText("Disconnect") and androidx.compose.ui.test.hasClickAction()
+        rule.onNode(androidx.compose.ui.test.hasScrollToNodeAction()).performScrollToNode(disconnect)
+        rule.onNode(disconnect).performClick()
         rule.waitForIdle()
-        val t = IslandTimer.state.value!!
-        assertEquals(5 * 60_000L, t.total)
-        assertTrue(t.running)
-    }
-
-    @Test fun theGlanceSwitchesSoundAndVibrate() {
-        val audio = context.getSystemService(AudioManager::class.java)
-        audio.ringerMode = AudioManager.RINGER_MODE_NORMAL
-        rule.setContent {
-            GlancePanel(content = Color.White, secondary = Color.Gray, dark = true, active = true, reduceMotion = true, onTouch = {}, onClose = {})
-        }
-        rule.onNode(hasContentDescription("Sound")).performClick()
+        // A question first, and still connected.
+        rule.onNode(hasText("Cancel")).assertExists()
+        assertTrue(vm.uiState.value.isLocallyConnected)
+        rule.onNode(hasText("Cancel")).performClick()
         rule.waitForIdle()
-        assertEquals(AudioManager.RINGER_MODE_VIBRATE, audio.ringerMode)
-        rule.onNode(hasContentDescription("Vibrate, on")).performClick()
+        assertTrue(vm.uiState.value.isLocallyConnected)
+        // Asked again and confirmed: now it disconnects.
+        rule.onNode(androidx.compose.ui.test.hasScrollToNodeAction()).performScrollToNode(disconnect)
+        rule.onAllNodes(disconnect)[0].performClick()
         rule.waitForIdle()
-        assertEquals(AudioManager.RINGER_MODE_NORMAL, audio.ringerMode)
+        val buttons = rule.onAllNodes(disconnect).fetchSemanticsNodes().size
+        rule.onAllNodes(disconnect)[buttons - 1].performClick()
+        rule.waitForIdle()
+        assertTrue(!vm.uiState.value.isLocallyConnected)
     }
 
     @Test fun aTimerStillRingsWhenAndroidClosedProBeforeTheEnd() {
@@ -129,4 +131,14 @@ class PhoneTabsUiTest {
         val due = TimerRules.restore(60_000L, 1_000_000L, -1L, 1_000_500L, 5_000L)!!
         assertEquals(5_000L, due.endsAt)
     }
+    @Test fun restartingRestoresAnActivePhoneTimerWithoutHeadphones() {
+        IslandTimer.start(context,60_000L)
+        val expected=IslandTimer.state.value!!.endsAt
+        IslandTimer.forgetForTest()
+        IslandTimer.attach(context)
+        // Restore converts the saved wall deadline to elapsed time; allow clock-sampling jitter.
+        assertTrue(kotlin.math.abs(expected-IslandTimer.state.value!!.endsAt) < 100L)
+        assertTrue(IslandTimer.state.value!!.running)
+    }
+
 }

@@ -157,8 +157,7 @@ internal const val CHIP_DELAY_MS = 1_000L
 private val CONTROLS_W = 120.dp
 
 internal class IslandController(private val context: Context) {
-    private val window = OverlayWindow(context, "GlintIsland", anchorTop = true, aboveStatusBar = true, fastFrames = true)
-    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
+    private val window = OverlayWindow(context, "GlintIsland", anchorTop = true, fastFrames = true)
     private val event = mutableStateOf<IslandEvent>(IslandEvent.Connected)
     private val phase = mutableStateOf(IslandPhase.Compact)
     private val generation = mutableIntStateOf(0)
@@ -166,34 +165,25 @@ internal class IslandController(private val context: Context) {
 
     private var geometry: IslandGeometry? = null
 
+    private val closeOnScreenOff = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: Context, intent: android.content.Intent) { dismiss(animated = false) }
+    }
+    private val configuration = object : android.content.ComponentCallbacks {
+        override fun onConfigurationChanged(c: android.content.res.Configuration) { dismiss(animated = false) }
+        @Deprecated("Deprecated in Java") override fun onLowMemory() {}
+    }
+    private var watching = false
     init {
-        // The mini island around the camera steps aside while this one is up; if this one grew
-        // out of it, it takes over again in the same spot the moment this one is gone.
         window.onShownChanged = { shown ->
-            if (!shown && geometry?.origin != null) GlintOverlays.returnToMiniAt = android.os.SystemClock.elapsedRealtime()
-            if (!shown) GlintOverlays.islandAround.value = false
-            GlintOverlays.islandVisible.value = shown
-        }
-        // Moved above or below the status bar (pro's accessibility service started or stopped):
-        // a window placed through a stopped service is gone, so let go of it.
-        scope.launch {
-            me.kavishdevar.librepods.services.IslandAccess.service.collect { if (window.misplaced) window.dismiss() }
-        }
-        // Turned or folded: it was measured for the old screen, so go (the next event shows a
-        // fresh one).
-        context.registerComponentCallbacks(object : android.content.ComponentCallbacks {
-            private var key = context.resources.configuration.let { Triple(it.orientation, it.screenWidthDp, it.screenHeightDp) }
-            override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
-                val now = Triple(newConfig.orientation, newConfig.screenWidthDp, newConfig.screenHeightDp)
-                if (now != key) { key = now; dismiss(animated = false) }
+            if (shown && !watching) {
+                watching = true
+                context.registerComponentCallbacks(configuration)
+                context.registerReceiver(closeOnScreenOff, android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF), Context.RECEIVER_NOT_EXPORTED)
+            } else if (!shown && watching) {
+                watching = false
+                context.unregisterComponentCallbacks(configuration)
+                runCatching { context.unregisterReceiver(closeOnScreenOff) }
             }
-            @Deprecated("Deprecated in Java")
-            override fun onLowMemory() {}
-        })
-        // Notifications pulled down over it: step aside (above the status bar it would float
-        // over the shade).
-        scope.launch {
-            me.kavishdevar.librepods.services.IslandAccess.panelOpen.collect { open -> if (open) dismiss(animated = true) }
         }
     }
 
@@ -221,9 +211,8 @@ internal class IslandController(private val context: Context) {
         phase.value = if (wantsExpanded) IslandPhase.Expanded else IslandPhase.Compact
         shownAt = android.os.SystemClock.elapsedRealtime()
         // Grow out of the mini island when it's up (one shape, like the Dynamic Island).
-        val geo = IslandGeometry(context, GlintOverlays.plannedMiniOrigin(), tall = e.isGlance(), music = e == IslandEvent.Music)
+        val geo = IslandGeometry(context, tall = e.isGlance(), music = e == IslandEvent.Music)
         geometry = geo
-        GlintOverlays.islandAround.value = geo.around
         window.show(if (wantsExpanded) geo.expandedWindow else geo.compactWindow, geo.windowTop) {
             IslandHost(
                 geometry = geo,
@@ -263,14 +252,12 @@ internal class IslandController(private val context: Context) {
 /** All island sizes in pixels, computed once per show from the screen and density. */
 internal class IslandGeometry(
     context: Context,
-    val origin: GlintOverlays.MiniOrigin? = null,
     /** The opened Dynamic Island's glance (taller: what's live and the phone's controls). */
     val tall: Boolean = false,
     /** The iPhone's black island or pro's glass one (Settings > Island > Style). */
     val style: me.kavishdevar.librepods.services.IslandSpec.Style =
         me.kavishdevar.librepods.services.IslandPrefs.style(me.kavishdevar.librepods.services.IslandPrefs.prefs(context)),
     /** The window goes above the status bar (pro's accessibility switch is on). */
-    aboveStatusBar: Boolean = me.kavishdevar.librepods.services.IslandAccess.service.value != null,
     /** Music: in the iPhone style it opens into Apple's Now Playing layout. */
     val music: Boolean = false,
     /** The opened music island shows the song bar (Settings > Island > Opened music). */
@@ -279,9 +266,7 @@ internal class IslandGeometry(
      * The glance opens away from the home screen: the phone's quick buttons are for the home screen
      * only, so it's that much shorter instead of ending in an empty space.
      */
-    glanceAway: Boolean = me.kavishdevar.librepods.services.ScreenApp.place.value.let {
-        it is me.kavishdevar.librepods.services.ScreenApp.Place.App || it is me.kavishdevar.librepods.services.ScreenApp.Place.Locked
-    },
+    glanceAway: Boolean = false,
 ) {
     private val density = context.resources.displayMetrics.density
     val iphone = style == me.kavishdevar.librepods.services.IslandSpec.Style.IPhone
@@ -289,7 +274,6 @@ internal class IslandGeometry(
      * Opens around the camera, out of the Dynamic Island itself, like the iPhone's: its top edge
      * stays on the pill's top edge and it grows down and out from there, the camera inside it.
      */
-    val around = me.kavishdevar.librepods.services.IslandSpec.opensAroundCamera(style, origin != null, aboveStatusBar)
     private fun dp(v: Float) = v * density
     private val screen = GlintOverlays.screenSize(context)
     /** Distance kept from the screen's sides: more on a curved screen (the Pixel 6 Pro; PhoneProfile). */
@@ -301,7 +285,7 @@ internal class IslandGeometry(
      * Around the camera, the top of the island is the camera's own band (the Dynamic Island's
      * height): nothing is drawn under the camera, as on the iPhone, and the content sits below it.
      */
-    val band = if (around && origin != null) origin.height else 0f
+    val band = 0f
     val compactH = dp(44f) + band
     // Wide enough for the buds, two readable lines and the bubble inside one pill.
     // Narrow phones: never wider than the screen (with a small margin each side).
@@ -339,7 +323,7 @@ internal class IslandGeometry(
         me.kavishdevar.librepods.services.IslandSpec.CORNER_DP, minOf(ART_INSET_DP, ART_TOP_DP),
     ).coerceAtMost(ART_SIZE_DP / 2f))
     /** The song's name and artist: bottom-aligned with the cover, never higher than just under the camera. */
-    val textTop = maxOf(artTop + artSize - dp(40f), if (around && origin != null) origin.lensBottom + dp(3f) else 0f)
+    val textTop = maxOf(artTop + artSize - dp(40f), 0f)
     val headerBottom = maxOf(artTop + artSize, textTop + dp(40f))
     val barTop = headerBottom + dp(6f)
     val controlsTop = if (showBar) barTop + dp(22f) else headerBottom + dp(6f)
@@ -354,26 +338,13 @@ internal class IslandGeometry(
     val expandedRadius = dp(if (iphone) me.kavishdevar.librepods.services.IslandSpec.CORNER_DP else 40f)
     // Rests just under the status bar, and never over the camera (some phones report no status
     // bar height, for example while a full-screen app is open).
-    private val restScreenTop = maxOf(
-        GlintOverlays.statusBarHeight(context).toFloat(),
-        origin?.let { it.top + it.height } ?: 0f,
-    ).roundToInt() + dp(6f).roundToInt()
-    /**
-     * With the Dynamic Island up, this window starts right under it, so it never covers the
-     * pill (which stays tappable) or the status bar (pulling down notifications still works);
-     * the pop-up drops out of the pill's underside. Otherwise it has its usual margin above.
-     */
-    val windowTop: Int = if (around && origin != null) kotlin.math.floor(origin.top).toInt()
-        else origin?.let { (it.top + it.height + dp(1f)).roundToInt().coerceAtMost(restScreenTop) }
-        ?: (restScreenTop - margin.roundToInt())
-    /** The pill's top edge at rest, inside the window (around the camera: the Dynamic Island's own top). */
-    val restTop = if (around && origin != null) origin.top - windowTop else (restScreenTop - windowTop).toFloat()
-    // Where the shape starts (and ends when it leaves): the Dynamic Island itself (around the
-    // camera), a drop from its underside, or a small dot.
-    val seedW = origin?.width ?: tiny
-    val seedH = if (around && origin != null) origin.height else if (origin != null) dp(8f) else tiny
-    val seedTop = if (around) restTop else if (origin != null) 0f else restTop
-    val seedDx = origin?.dx ?: 0f
+    private val restScreenTop = GlintOverlays.statusBarHeight(context) + dp(6f).roundToInt()
+    val windowTop = restScreenTop - margin.roundToInt()
+    val restTop = margin
+    val seedW = tiny
+    val seedH = tiny
+    val seedTop = restTop
+    val seedDx = 0f
     private val below = margin + shadowDrop
     val compactWindow = IntSize(
         (compactMainW + satGap + satD + margin * 2).roundToInt(),
@@ -435,7 +406,7 @@ private fun IslandHostContent(
     // Apple's key line: only on a dark background, as strong as the Dynamic Island's own (its Glow choice).
     val glassEdge = remember { IslandPrefs.edge(prefs) == me.kavishdevar.librepods.services.IslandSpec.Edge.Glass }
     val keyline = remember(dark, iphone) {
-        val glow = me.kavishdevar.librepods.services.IslandLook.read(prefs).glow.amount
+        val glow = 0.25f
         if (!iphone) 0f else if (glassEdge) me.kavishdevar.librepods.services.IslandSpec.glassRimAlpha(dark, glow)
         else me.kavishdevar.librepods.services.IslandSpec.keylineAlpha(dark, glow)
     }
@@ -560,8 +531,7 @@ private fun IslandHostContent(
             is IslandEvent.ListeningMode -> ListeningModeGlyph(event.mode, look.content, size = 22.dp)
             is IslandEvent.MovedToDevice, IslandEvent.TakingOver -> Text("⇄", style = TextStyle(color = look.content, fontSize = 17.sp, fontFamily = glintFontFamily))
             is IslandEvent.Problem -> Text("!", style = TextStyle(color = GlintColors.Amber, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = glintFontFamily))
-            IslandEvent.TapSetup -> TapGlyph(look.content, reduceMotion)
-            IslandEvent.Glance, IslandEvent.TimerDone -> {
+            IslandEvent.TimerDone -> {
                 val phoneNow by me.kavishdevar.librepods.services.PhoneStatus.state.collectAsState()
                 BatteryRing(phoneNow.level.takeIf { phoneNow.known }, phoneNow.charging, size = 30.dp, stroke = 3.dp, track = ringTrack, label = look.content, labelSize = 10.sp)
             }
@@ -583,9 +553,7 @@ private fun IslandHostContent(
     }
     val heartNow by HeartRate.state.collectAsState()
     val age = remember { context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).getInt(me.kavishdevar.librepods.services.PREF_HR_AGE, 0) }
-    val placeNow by me.kavishdevar.librepods.services.ScreenApp.place.collectAsState()
     val (title, subtitle) = when (event) {
-        IslandEvent.Glance -> glanceIslandText(placeNow)
         is IslandEvent.Heart -> heartIslandText(event, heartNow.bpm, age)
         IslandEvent.Music -> NowPlaying.words(playingNow)
         else -> islandText(event, snapshot)
@@ -626,7 +594,7 @@ private fun IslandHostContent(
         // Around the camera the top edge stays on the Dynamic Island's top, like the iPhone's
         // (it only ever grows down and out); otherwise a press squeezes it toward its middle.
         val top = lerp(geometry.seedTop, geometry.restTop, a) +
-            if (geometry.around) 0f else p.coerceAtMost(0f) * 0.35f + (1f - sq) * lerp(geometry.compactH, fullH, eh) / 2f
+            p.coerceAtMost(0f) * 0.35f + (1f - sq) * lerp(geometry.compactH, fullH, eh) / 2f
         val main = Rect(left, top, left + w, top + h)
         // On the content's middle line: below the camera's band when it opens around the camera.
         val band = minOf(geometry.band, h)
@@ -654,17 +622,6 @@ private fun IslandHostContent(
                     val onMain = f.main.inflate(slop).contains(down.position)
                     val onSat = f.satR > 1f && (down.position - f.satCenter).getDistance() <= f.satR + slop
                     if (!onMain && !onSat) {
-                        // Around the camera this window covers the top of the status bar: a pull
-                        // down beside the island still opens the notifications.
-                        if (geometry.around) {
-                            var dy = 0f
-                            while (true) {
-                                val ch = awaitPointerEvent().changes.firstOrNull() ?: break
-                                dy += ch.positionChange().y
-                                if (!ch.pressed) break
-                            }
-                            if (dy > 30f * density) me.kavishdevar.librepods.services.IslandAccess.openNotifications()
-                        }
                         return@awaitEachGesture
                     }
                     touches++
@@ -710,11 +667,6 @@ private fun IslandHostContent(
                     } else if (dragY > 36f * density && currentPhase == IslandPhase.Compact) {
                         // Pulling the island down opens it, like pulling a drop of glass.
                         onPhase(IslandPhase.Expanded)
-                    } else if (!moved && event == IslandEvent.TapSetup) {
-                        // "Turn it on in pro": straight to that page.
-                        haptics.expand()
-                        GlintOverlays.openApp(context, me.kavishdevar.librepods.presentation.navigation.AppLinks.ISLANDS)
-                        onPhase(IslandPhase.Leaving)
                     } else if (!moved && currentPhase == IslandPhase.Expanded && (event.isGlance() || geometry.musicPage)) {
                         // The glance has nothing to shrink to: a tap beside its controls tucks it away.
                         haptics.dismiss()
@@ -739,7 +691,7 @@ private fun IslandHostContent(
                 val f = frame(size.width)
                 // Grown from the mini island: the black pill is there from the very first frame,
                 // so the handover never shows a gap.
-                if (f.appear <= 0.001f && geometry.origin == null) return@drawBehind
+                if (f.appear <= 0.001f) return@drawBehind
                 val alpha = (f.appear * 1.4f).coerceAtMost(1f)
                 val mainPath = smoothRectPath(f.main, f.radius)
                 val satRect = Rect(f.satCenter.x - f.satR, f.satCenter.y - f.satR, f.satCenter.x + f.satR, f.satCenter.y + f.satR)
@@ -756,7 +708,7 @@ private fun IslandHostContent(
                     // The iPhone's island: opaque black, one shape with its bubble, and Apple's
                     // thin key line on a dark background. No glass, no shadow.
                     // Out of the Dynamic Island it is that same black shape from the first frame.
-                    val ink = if (geometry.origin != null) 1f else alpha
+                    val ink = alpha
                     drawPath(outline, Color.Black, alpha = ink)
                     if (keyline > 0f) drawIslandEdge(
                         outline, if (satVisible) Rect(f.main.left, f.main.top, satRect.right, f.main.bottom) else f.main,
@@ -784,12 +736,7 @@ private fun IslandHostContent(
                     blurredElsewhere = mainBlur != null,
                     solid = reduceTransparency,
                 )
-                // Grown out of the mini island: it starts as that black pill and turns to glass
-                // as it grows (and back to black as it shrinks home), so it reads as one shape.
-                if (geometry.origin != null) {
-                    val ink = ((1f - f.appear) * 1.7f).coerceIn(0f, 1f)
-                    if (ink > 0.001f) drawPath(outline, Color.Black, alpha = ink)
-                }
+
             }
     ) {
         // Compact content: tiny buds on the left, title/subtitle; satellite glyph on the right.
@@ -803,7 +750,6 @@ private fun IslandHostContent(
             compact = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val art = playingNow.art
-                    val placeIcon = (placeNow as? me.kavishdevar.librepods.services.ScreenApp.Place.App)?.icon
                     if (geometry.musicPage) {
                         // The cover is drawn by the shared cover above, so it can fly out of the
                         // Dynamic Island's own cover and on into the opened island's.
@@ -812,14 +758,8 @@ private fun IslandHostContent(
                         Box(Modifier.width(42.dp), contentAlignment = Alignment.Center) { CoverArt(art, 30.dp, 15.dp) }
                     } else if (event.isGlance()) {
                         Box(Modifier.width(42.dp), contentAlignment = Alignment.Center) {
-                            if (placeIcon != null) CoverArt(placeIcon, 30.dp, 8.dp)
-                            else androidx.compose.foundation.Canvas(Modifier.size(28.dp)) {
-                                if (event == IslandEvent.TimerDone) drawStopwatch(center, size.minDimension * 0.8f, Color(0xFFFF9F0A))
-                                else drawHomeGrid(center, size.minDimension * 0.85f, me.kavishdevar.librepods.services.ScreenApp.wallpaper.value, 1f, 1f)
-                            }
+                            androidx.compose.foundation.Canvas(Modifier.size(24.dp)) { drawStopwatch(center, size.minDimension, look.content) }
                         }
-                    } else if (snapshot.headphones) {
-                        me.kavishdevar.librepods.presentation.glint.HeadphonesArt(42.dp, look.content)
                     } else {
                         IslandPods(budsWidth = 42.dp, play = pillVideo)
                     }
@@ -848,7 +788,7 @@ private fun IslandHostContent(
             },
             satellite = satelliteContent,
             expanded = {
-                if (event.isGlance()) GlancePanel(
+                if (event.isGlance()) TimerPanel(
                     content = look.content, secondary = look.contentSecondary, dark = look.dark,
                     active = phase == IslandPhase.Expanded, reduceMotion = reduceMotion,
                     onTouch = { touches++; haptics.tick() },
@@ -1904,21 +1844,14 @@ internal fun islandText(event: IslandEvent, s: PodsSnapshot): Pair<String, Strin
     }
     IslandEvent.BothIn -> "Both AirPods in" to s.name
     IslandEvent.Music -> "Now playing" to s.name
-    IslandEvent.TapSetup -> "Tap the Dynamic Island" to "Turn it on in pro"
-    IslandEvent.Glance -> "Dynamic Island" to "What's on"
     IslandEvent.TimerDone -> "Timer done" to "Tap Stop to silence it"
 }
 
 /** The opened Dynamic Island's glance and the ringing timer share one taller layout. */
-internal fun IslandEvent.isGlance() = this == IslandEvent.Glance || this == IslandEvent.TimerDone
+internal fun IslandEvent.isGlance() = this == IslandEvent.TimerDone
 
 /** The glance's words while it's a small pill: where you are on the phone. */
-internal fun glanceIslandText(place: me.kavishdevar.librepods.services.ScreenApp.Place): Pair<String, String> = when (place) {
-    is me.kavishdevar.librepods.services.ScreenApp.Place.App -> (place.label ?: "This app") to "Dynamic Island"
-    me.kavishdevar.librepods.services.ScreenApp.Place.Home -> "Home screen" to "Dynamic Island"
-    is me.kavishdevar.librepods.services.ScreenApp.Place.Locked -> "Locked" to "Dynamic Island"
-    me.kavishdevar.librepods.services.ScreenApp.Place.Unknown -> "This phone" to "Dynamic Island"
-}
+
 
 /** How tall the opened glance is, in dp (header, two live rows and the controls). */
 internal const val GLANCE_H_DP = 252f

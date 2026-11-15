@@ -202,11 +202,6 @@ object NowPlaying {
         val sameSong = old.pkg == c.packageName && old.title == title && old.artist == artist && old.fromSession
         val art = if (sameSong && old.art != null) old.art else artwork(md)
         val ps = c.playbackState
-        // Remembered for that app's idle card ("your recent songs"), off the main thread.
-        if (!sameSong && title != null) {
-            val pkg = c.packageName
-            memory.execute { MusicMemory.saw(context, pkg, title, artist) }
-        }
         _state.value = Track(
             playing = ps?.state.let { it == PlaybackState.STATE_PLAYING || it == PlaybackState.STATE_BUFFERING },
             title = title,
@@ -373,51 +368,13 @@ object NowPlaying {
     }
 }
 
-/**
- * Exists so Android can grant Glint access to media sessions (song names and the music app's
- * controls). Of the notifications themselves it keeps only which app posted one and when, for a
- * few seconds, so a sound that follows can be matched to its app ([SoundSource]), and for a message
- * moment on the island. The contents are never read, except a notification's title when you switch
- * on "Show who it's from".
- */
+/** Grants access to music sessions and controls; other notifications are not read or attributed. */
 class MediaAccessService : NotificationListenerService() {
     override fun onListenerConnected() {
         NowPlaying.attach(this)
-        SoundSource.attach(this)
-        // What apps are doing live right now (a Maps route, a ride, a download), for the islands.
-        LiveActivities.source = { activeNotifications }
-        LiveActivities.replaceAll(this) { activeNotifications }
-    }
-
-    override fun onNotificationRemoved(sbn: android.service.notification.StatusBarNotification?) {
-        LiveActivities.removed(sbn?.key)
-    }
-
-    override fun onNotificationPosted(
-        sbn: android.service.notification.StatusBarNotification?, rankingMap: RankingMap?,
-    ) {
-        sbn ?: return
-        LiveActivities.posted(this, sbn)
-        val n = sbn.notification
-        val ranking = Ranking()
-        val known = rankingMap?.getRanking(sbn.key, ranking) == true
-        // The title (who it's from) is read only when you've switched "Show who it's from" on.
-        val title = if (IslandPrefs.messageSender(IslandPrefs.prefs(this))) {
-            n?.extras?.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString()
-        } else null
-        SoundSource.notificationPosted(
-            SoundRules.Posted(
-                pkg = sbn.packageName, key = sbn.key ?: "${sbn.packageName}:${sbn.id}", flags = n?.flags ?: 0,
-                category = n?.category, importance = if (known) ranking.importance else -1,
-                conversation = known && ranking.isConversation, interrupts = !known || ranking.matchesInterruptionFilter(),
-                title = title,
-            )
-        )
     }
 
     override fun onListenerDisconnected() {
         NowPlaying.detach()
-        LiveActivities.source = null
-        LiveActivities.clear()
     }
 }

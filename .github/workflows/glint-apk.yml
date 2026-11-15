@@ -2,8 +2,8 @@
 # slash) and publishes a ready-to-install APK:
 #   - pushes to main   -> release "pro":              .../releases/latest/download/pro.apk
 #   - any other branch -> pre-release "pro preview":  .../releases/download/glint-preview/pro-preview.apk
-# No upstream signing secrets are used. The fork's own signing key is created on the
-# first run and kept in this repository's private GitHub Actions cache, never in the code.
+# The existing signing identity comes from repository secrets, with the original cache as
+# a migration fallback. Missing identity fails closed; a new key is NEVER generated.
 # A weekly run keeps that cache alive (GitHub drops caches unused for 7 days).
 name: Build pro APK
 
@@ -26,8 +26,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: true
+  group: pro-release-${{ github.ref == 'refs/heads/main' && 'stable' || 'preview' }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -48,15 +48,26 @@ jobs:
           path: ~/.glint-signing
           key: glint-signing-key-v1
 
-      - name: Create Glint signing key (first run only)
-        if: steps.key.outputs.cache-hit != 'true'
+      - name: Load durable signing identity, or retain the existing cached key
+        env:
+          SIGNING_KEY: ${{ secrets.PRO_SIGNING_KEY_B64 }}
+          SIGNING_PASSWORD: ${{ secrets.PRO_SIGNING_PASSWORD }}
         run: |
+          umask 077
           mkdir -p ~/.glint-signing
-          PASS=$(openssl rand -hex 24)
-          printf '%s' "$PASS" > ~/.glint-signing/pass
-          keytool -genkeypair -keystore ~/.glint-signing/glint.jks -storetype PKCS12 \
-            -alias glint -keyalg RSA -keysize 4096 -validity 36500 \
-            -storepass "$PASS" -keypass "$PASS" -dname "CN=Glint, O=Jbyjre" > /dev/null
+          if [ -n "$SIGNING_KEY" ] && [ -n "$SIGNING_PASSWORD" ]; then
+            printf '%s' "$SIGNING_KEY" | base64 --decode > ~/.glint-signing/glint.jks
+            printf '%s' "$SIGNING_PASSWORD" > ~/.glint-signing/pass
+          fi
+          test -s ~/.glint-signing/glint.jks && test -s ~/.glint-signing/pass || {
+            echo 'Existing signing identity missing. Restore PRO_SIGNING_KEY_B64 and PRO_SIGNING_PASSWORD; never regenerate.' >&2
+            exit 1
+          }
+
+      - name: Verify signing continuity
+        run: |
+          CERT=$(keytool -exportcert -keystore "$HOME/.glint-signing/glint.jks" -alias glint -storepass:file "$HOME/.glint-signing/pass" | sha256sum | cut -d' ' -f1)
+          test "$CERT" = '9dcdd1402e7eff958007957933847bf23bfcac1ec99a500a0b041ee07c159d94'
 
       - name: Keep-alive run stops here
         if: github.event_name == 'schedule'
@@ -96,6 +107,7 @@ jobs:
         run: |
           export GLINT_KEYSTORE="$HOME/.glint-signing/glint.jks"
           export GLINT_KEYSTORE_PASSWORD="$(cat "$HOME/.glint-signing/pass")"
+          export PRO_UPDATE_CHANNEL="${{ github.ref == 'refs/heads/main' && 'stable' || 'preview' }}"
           ./gradlew assembleFossRelease
           "$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner" verify --print-certs \
             app/build/outputs/apk/foss/release/app-foss-release.apk | grep -i "certificate DN"
@@ -108,36 +120,47 @@ jobs:
           path: android/app/build/reports/lint-results-fossRelease.html
           if-no-files-found: ignore
 
-      - name: Collect APK
+      - name: Publish verified versioned release and channel pointer
         if: github.event_name != 'schedule'
-        id: apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRO_CHANNEL: ${{ github.ref == 'refs/heads/main' && 'stable' || 'preview' }}
         run: |
-          VERSION=$(grep 'val appVersionName =' android/app/build.gradle.kts | sed 's/.*= "\(.*\)"/\1/')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
           mkdir -p out
-          cp android/app/build/outputs/apk/foss/release/app-foss-release.apk out/app.apk
-
-      - name: Publish release (main)
-        if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          cp out/app.apk out/pro.apk
-          gh release delete glint-latest --cleanup-tag -y || true
-          gh release create glint-latest --latest --target "$GITHUB_SHA" \
-            --title "pro ${{ steps.apk.outputs.version }} (build ${{ github.run_number }})" \
-            --notes "On your phone, tap **pro.apk** below to download it, then open the download to install. Built from commit ${{ steps.apk.outputs.short_sha }}." \
-            out/pro.apk
-
-      - name: Publish preview pre-release (other branches)
-        if: github.event_name != 'schedule' && github.ref != 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          cp out/app.apk out/pro-preview.apk
-          gh release delete glint-preview --cleanup-tag -y || true
-          gh release create glint-preview --prerelease --target "$GITHUB_SHA" \
-            --title "pro preview (${{ github.ref_name }}, build ${{ github.run_number }})" \
-            --notes "Test build from branch ${{ github.ref_name }} (commit ${{ steps.apk.outputs.short_sha }}). Tap **pro-preview.apk** to download and install." \
-            out/pro-preview.apk
+          if [ "$PRO_CHANNEL" = stable ]; then
+            ASSET=pro.apk
+            POINTER=glint-latest
+            FLAGS=(--latest)
+            IMMUTABLE_FLAGS=(--latest=false)
+          else
+            ASSET=pro-preview.apk
+            POINTER=glint-preview
+            FLAGS=(--prerelease --latest=false)
+            IMMUTABLE_FLAGS=(--prerelease --latest=false)
+          fi
+          cp android/app/build/outputs/apk/foss/release/app-foss-release.apk "out/$ASSET"
+          AAPT=$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          python3 android/tools/release-metadata.py "out/$ASSET" "$PRO_CHANNEL" "$AAPT" > out/update.json
+          CODE=$(python3 -c "import json; print(json.load(open('out/update.json'))['versionCode'])")
+          TAG="pro-$PRO_CHANNEL-$CODE"
+          gh release create "$TAG" "${IMMUTABLE_FLAGS[@]}" --target "$GITHUB_SHA" \
+            --title "pro $PRO_CHANNEL · build $CODE" \
+            --notes "Signed build $CODE from $GITHUB_SHA. Existing installations keep their data. Future updates are in pro > Phone > App updates." \
+            "out/$ASSET" out/update.json
+          # Never regress the channel pointer if a slower older build finishes later.
+          mkdir -p previous
+          gh release download "$POINTER" --pattern update.json --dir previous || true
+          if [ -f previous/update.json ]; then
+            OLD=$(python3 -c "import json; print(json.load(open('previous/update.json'))['versionCode'])")
+            if [ "$OLD" -gt "$CODE" ]; then exit 0; fi
+          fi
+          if ! gh release view "$POINTER" >/dev/null 2>&1; then
+            gh release create "$POINTER" "${FLAGS[@]}" --target "$GITHUB_SHA" --title "pro $PRO_CHANNEL" --notes "Latest $PRO_CHANNEL build."
+          fi
+          # Upload APK first, metadata last. Metadata always points to the immutable release above.
+          gh release upload "$POINTER" "out/$ASSET" --clobber
+          gh release upload "$POINTER" out/update.json --clobber
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$POINTER" -f sha="$GITHUB_SHA" -F force=true > /dev/null
+          gh release edit "$POINTER" "${FLAGS[@]}" --title "pro $PRO_CHANNEL · build $CODE" \
+            --notes "Signed build $CODE from $GITHUB_SHA. Install $ASSET once, then use pro > Phone > App updates."

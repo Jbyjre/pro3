@@ -49,6 +49,7 @@ object PhoneControls {
     val torch: StateFlow<Boolean> = _torch.asStateFlow()
     private var torchId: String? = null
     private var torchWatching = false
+    private var torchCallback: CameraManager.TorchCallback? = null
 
     /** The back camera's flash, if the phone has one. */
     private fun torchCamera(c: Context): String? {
@@ -72,12 +73,19 @@ object PhoneControls {
         val cm = c.applicationContext.getSystemService(CameraManager::class.java) ?: return
         val id = torchCamera(c) ?: return
         torchWatching = true
-        cm.registerTorchCallback(object : CameraManager.TorchCallback() {
+        val callback = object : CameraManager.TorchCallback() {
             override fun onTorchModeChanged(cameraId: String, enabled: Boolean) { if (cameraId == id) _torch.value = enabled }
             override fun onTorchModeUnavailable(cameraId: String) { if (cameraId == id) _torch.value = false }
-        }, main)
+        }
+        torchCallback = callback
+        cm.registerTorchCallback(callback, main)
     }
 
+    fun stopWatchingTorch(c: Context) {
+        torchCallback?.let { runCatching { c.getSystemService(CameraManager::class.java)?.unregisterTorchCallback(it) } }
+        torchCallback = null
+        torchWatching = false
+    }
     /** Switches the torch; false when it can't (no flash, or the camera is busy). */
     fun toggleTorch(c: Context): Boolean {
         val cm = c.getSystemService(CameraManager::class.java) ?: return false
@@ -107,36 +115,7 @@ object PhoneControls {
     }
 
     /** Screenshots and locking work only through the accessibility switch. */
-    fun canUseSystemActions(): Boolean = IslandAccess.isRunning
 
-    /**
-     * Takes a screenshot, [afterMs] from now: the opened island tucks away first and the Dynamic
-     * Island steps out of the picture for the moment of the capture, then comes back.
-     */
-    fun screenshot(afterMs: Long = 650L): Boolean {
-        if (!canUseSystemActions()) return false
-        val overlays = me.kavishdevar.librepods.presentation.overlays.GlintOverlays
-        overlays.capturing.value = true
-        main.postDelayed({ IslandAccess.service.value?.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT) }, afterMs)
-        main.postDelayed({ overlays.capturing.value = false }, afterMs + 900L)
-        return true
-    }
-
-    fun lockScreen(afterMs: Long = 250L): Boolean {
-        if (!canUseSystemActions()) return false
-        main.postDelayed({ IslandAccess.service.value?.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN) }, afterMs)
-        return true
-    }
-
-    /** When the next alarm set in the Clock app rings (wall-clock ms), or null. Needs no permission. */
-    fun nextAlarm(c: Context): Long? = runCatching {
-        c.getSystemService(AlarmManager::class.java)?.nextAlarmClock?.triggerTime
-    }.getOrNull()
-
-    /** How long until the battery is full while charging, in ms, or null when Android can't say. */
-    fun timeToFull(c: Context): Long? = runCatching {
-        c.getSystemService(BatteryManager::class.java)?.computeChargeTimeRemaining()?.takeIf { it > 0L }
-    }.getOrNull()
 }
 
 /** Pure helpers for [PhoneControls] and the opened island, unit-tested. */

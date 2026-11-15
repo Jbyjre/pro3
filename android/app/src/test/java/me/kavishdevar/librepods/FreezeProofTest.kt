@@ -5,7 +5,6 @@ import android.app.ApplicationExitInfo
 import android.app.Application
 import android.content.Context
 import me.kavishdevar.librepods.services.FreezeReport
-import me.kavishdevar.librepods.services.MiniIslandRules
 import me.kavishdevar.librepods.utils.OffMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -69,30 +68,6 @@ class FreezeProofTest {
     }
 
     // ---- RefreshGuard ----
-
-    @Test fun aRunawayCheckIsLimitedAndRecoversWhenItStops() {
-        val g = MiniIslandRules.RefreshGuard(maxPerWindow = 3, windowMs = 1_000)
-        assertTrue(g.allow(0)); assertTrue(g.allow(0)); assertTrue(g.allow(0))
-        assertFalse(g.allow(0)); assertFalse(g.allow(999))
-        // A second after the oldest one, it lets one through again.
-        assertTrue(g.allow(1_000))
-        // The bursts keep being limited, however many ask.
-        var allowed = 0
-        for (i in 0 until 10_000) if (g.allow(1_000)) allowed++
-        assertEquals(2, allowed)
-        // Later, normal life: a few a second are never refused.
-        assertTrue(g.allow(5_000)); assertTrue(g.allow(5_300)); assertTrue(g.allow(5_600))
-    }
-
-    @Test fun theDefaultAllowsEverythingNormalAndStopsAFlood() {
-        val g = MiniIslandRules.RefreshGuard()
-        // One a frame for a second (60) is far more than the island ever needs, and still limited to 30.
-        var allowed = 0
-        for (i in 0 until 60) if (g.allow(i * 16L)) allowed++
-        assertEquals(30, allowed)
-        // A single change every so often always goes through.
-        assertTrue(MiniIslandRules.RefreshGuard().allow(123))
-    }
 
     // ---- FreezeReport (pure parts) ----
 

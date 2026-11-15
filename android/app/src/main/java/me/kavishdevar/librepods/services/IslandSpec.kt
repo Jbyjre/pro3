@@ -141,8 +141,7 @@ object IslandSpec {
      * only in the iPhone style, only when the Dynamic Island is there to grow out of, and only
      * above the status bar (pro's accessibility switch), or the clock would draw over it.
      */
-    fun opensAroundCamera(style: Style, pillUp: Boolean, aboveStatusBar: Boolean): Boolean =
-        style == Style.IPhone && pillUp && aboveStatusBar
+
 
     /** The key line's strength (0..1 alpha): only on a dark background, scaled by the Glow choice. */
     fun keylineAlpha(darkBackground: Boolean, glow: Float): Float =

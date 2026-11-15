@@ -259,7 +259,9 @@ class AirPodsViewModel(
         require(mid in 0..100)
         require(high in 0..100)
         val updatedEq = _uiState.value.customEq.copy(low = low, mid = mid, high = high)
-        service.aacpManager.sendCustomEqPacket(updatedEq)
+        if (!isDemoMode && ::service.isInitialized) {
+            service.aacpManager.sendCustomEqPacket(updatedEq)
+        }
         _uiState.update {
             it.copy(
                 customEq = updatedEq
@@ -268,10 +270,13 @@ class AirPodsViewModel(
     }
 
     fun setCustomEqEnabled(enabled: Boolean) {
-        service.aacpManager.sendCustomEqPacket(_uiState.value.customEq.copy(state = if (enabled) 2 else 1))
+        val updatedEq = _uiState.value.customEq.copy(state = if (enabled) 2 else 1)
+        if (!isDemoMode && ::service.isInitialized) {
+            service.aacpManager.sendCustomEqPacket(updatedEq)
+        }
         _uiState.update {
             it.copy(
-                customEq = it.customEq.copy(state = if (enabled) 2 else 1)
+                customEq = updatedEq
             )
         }
     }
@@ -409,7 +414,7 @@ class AirPodsViewModel(
     fun setControlCommandValue(
         identifier: ControlCommandIdentifiers, value: ByteArray
     ) {
-        if (!isDemoMode) controlRepo.setValue(identifier, value)
+        if (!isDemoMode && ::controlRepo.isInitialized) controlRepo.setValue(identifier, value)
         _uiState.update {
             it.copy(
                 controlStates = it.controlStates + (identifier to value)
@@ -438,6 +443,7 @@ class AirPodsViewModel(
     }
 
     fun observeControl(identifier: ControlCommandIdentifiers) {
+        if (!::controlRepo.isInitialized) return
         val listener = controlRepo.observe(identifier) { value ->
             _uiState.update { state ->
                 val current = state.controlStates[identifier]
@@ -461,6 +467,7 @@ class AirPodsViewModel(
 
     // I'm lazy, sorry.
     fun observeAACP() {
+        if (!::service.isInitialized || !::controlRepo.isInitialized) return
         val identifiersList = listOf(
             ControlCommandIdentifiers.MIC_MODE,
             ControlCommandIdentifiers.DOUBLE_CLICK_INTERVAL,
@@ -498,13 +505,13 @@ class AirPodsViewModel(
     }
 
     fun loadCurrentStatus() {
-        if (isDemoMode) return
+        if (isDemoMode || !::service.isInitialized || !::controlRepo.isInitialized) return
         service.let { service ->
             _uiState.update {
                 it.copy(
                     isLocallyConnected = BluetoothConnectionManager.aacpSocket?.isConnected == true,
                     battery = service.getBattery(),
-                    ancMode = controlRepo.getValue(ControlCommandIdentifiers.LISTENING_MODE)?.get(0)?.toInt() ?: 1,
+                    ancMode = controlRepo.getValue(ControlCommandIdentifiers.LISTENING_MODE)?.getOrNull(0)?.toInt() ?: 1,
                     controlStates = controlRepo.getMap()
                 )
             }
@@ -595,7 +602,9 @@ class AirPodsViewModel(
     }
 
     fun setOffListeningMode(enabled: Boolean) {
-        sharedPreferences.edit { putBoolean("off_listening_mode", enabled) }
+        if (::sharedPreferences.isInitialized) {
+            sharedPreferences.edit { putBoolean("off_listening_mode", enabled) }
+        }
         setControlCommandBoolean(ControlCommandIdentifiers.ALLOW_OFF_OPTION, enabled)
         _uiState.update {
             it.copy(offListeningMode = enabled)
@@ -603,15 +612,21 @@ class AirPodsViewModel(
     }
 
     fun setHeadGesturesEnabled(enabled: Boolean) {
-        sharedPreferences.edit { putBoolean("head_gestures", enabled) }
+        if (::sharedPreferences.isInitialized) {
+            sharedPreferences.edit { putBoolean("head_gestures", enabled) }
+        }
         _uiState.update {
             it.copy(headGesturesEnabled = enabled)
         }
     }
 
     fun setDynamicEndOfCharge(enabled: Boolean) {
-        service.aacpManager.sendControlCommand(ControlCommandIdentifiers.DYNAMIC_END_OF_CHARGE.value, enabled)
-        sharedPreferences.edit { putBoolean("dynamic_end_of_charge", enabled) }
+        if (!isDemoMode && ::service.isInitialized) {
+            service.aacpManager.sendControlCommand(ControlCommandIdentifiers.DYNAMIC_END_OF_CHARGE.value, enabled)
+        }
+        if (::sharedPreferences.isInitialized) {
+            sharedPreferences.edit { putBoolean("dynamic_end_of_charge", enabled) }
+        }
         _uiState.update {
             it.copy(dynamicEndOfCharge = enabled)
         }
@@ -657,20 +672,29 @@ class AirPodsViewModel(
     }
 
     fun reconnectFromSavedMac() {
-        service.reconnectFromSavedMac()
+        if (::service.isInitialized) {
+            service.reconnectFromSavedMac()
+        }
     }
 
     fun setName(name: String) {
-        service.setName(name)
+        if (!isDemoMode && ::service.isInitialized) {
+            service.setName(name)
+        }
+        _uiState.update { it.copy(deviceName = name) }
     }
 
     fun startHeadTracking() {
-        service.startHeadTracking()
+        if (!isDemoMode && ::service.isInitialized) {
+            service.startHeadTracking()
+        }
         _uiState.update { it.copy(headTrackingActive = true) }
     }
 
     fun stopHeadTracking() {
-        service.stopHeadTracking()
+        if (!isDemoMode && ::service.isInitialized) {
+            service.stopHeadTracking()
+        }
         _uiState.update { it.copy(headTrackingActive = false) }
     }
 
@@ -678,7 +702,7 @@ class AirPodsViewModel(
         when (handle) {
             // ideally should be using a different viewmodel for ATT based things because there are a lot of values, and I am not going to add all to this state, but there's loudsoundreduction.
             ATTHandles.LOUD_SOUND_REDUCTION -> {
-                _uiState.value = _uiState.value.copy(loudSoundReductionEnabled = value[0].toInt() == 0x01)
+                _uiState.value = _uiState.value.copy(loudSoundReductionEnabled = value.firstOrNull()?.toInt() == 0x01)
             }
             ATTHandles.HEARING_AID -> {
                 _uiState.value = _uiState.value.copy(hearingAidData = value)
@@ -687,6 +711,7 @@ class AirPodsViewModel(
                 _uiState.value = _uiState.value.copy(transparencyData = value)
             }
         }
+        if (isDemoMode || !::service.isInitialized) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 service.attManager.writeCharacteristic(handle, value)
@@ -697,6 +722,7 @@ class AirPodsViewModel(
     }
 
     fun loadATT() {
+        if (!::service.isInitialized) return
         // Each read can wait up to 2 s for the AirPods to answer, three in a row: never on the main
         // thread (this is called when the main page connects, and used to freeze the app for up to
         // 6 s when the AirPods were slow: "pro isn't responding").
@@ -718,6 +744,7 @@ class AirPodsViewModel(
     }
 
     fun observeATT() {
+        if (!::service.isInitialized) return
         viewModelScope.launch(Dispatchers.IO) {
             service.attManager.enableNotification(ATTCCCDHandles.HEARING_AID)
             service.attManager.enableNotification(ATTCCCDHandles.TRANSPARENCY)
@@ -747,7 +774,9 @@ class AirPodsViewModel(
     }
 
     fun setAutomaticEarDetectionEnabled(enabled: Boolean) {
-        sharedPreferences.edit { putBoolean("automatic_ear_detection", enabled) }
+        if (::sharedPreferences.isInitialized) {
+            sharedPreferences.edit { putBoolean("automatic_ear_detection", enabled) }
+        }
         setControlCommandBoolean(ControlCommandIdentifiers.EAR_DETECTION_CONFIG, enabled)
         _uiState.update {
             it.copy(
@@ -757,7 +786,9 @@ class AirPodsViewModel(
     }
 
     fun setAutomaticConnectionEnabled(enabled: Boolean) {
-        sharedPreferences.edit { putBoolean("automatic_connection_ctrl_cmd", enabled) }
+        if (::sharedPreferences.isInitialized) {
+            sharedPreferences.edit { putBoolean("automatic_connection_ctrl_cmd", enabled) }
+        }
         setControlCommandBoolean(ControlCommandIdentifiers.AUTOMATIC_CONNECTION_CONFIG, enabled)
         _uiState.update {
             it.copy(
@@ -772,12 +803,16 @@ class AirPodsViewModel(
     }
 
     fun sendPhoneMediaEQ(eq: FloatArray, phoneByte: Byte, mediaByte: Byte) {
-        service.aacpManager.sendPhoneMediaEQ(eq, phoneByte, mediaByte)
+        if (!isDemoMode && ::service.isInitialized) {
+            service.aacpManager.sendPhoneMediaEQ(eq, phoneByte, mediaByte)
+        }
     }
 
     fun setLongPressAction(side: String, action: StemAction) {
         val prefKey = if (side.lowercase() == "left") "left_long_press_action" else "right_long_press_action"
-        sharedPreferences.edit { putString(prefKey, action.name) }
+        if (::sharedPreferences.isInitialized) {
+            sharedPreferences.edit { putString(prefKey, action.name) }
+        }
         _uiState.update {
             if (side.lowercase() == "left") it.copy(leftAction = action) else it.copy(rightAction = action)
         }
@@ -793,7 +828,7 @@ class AirPodsViewModel(
     }
 
     fun toggleListeningMode(modeBit: Int) {
-        val currentByte = uiState.value.controlStates[ControlCommandIdentifiers.LISTENING_MODE_CONFIGS]?.get(0)?.toInt() ?: 0
+        val currentByte = uiState.value.controlStates[ControlCommandIdentifiers.LISTENING_MODE_CONFIGS]?.getOrNull(0)?.toInt() ?: 0
         val newValue = if ((currentByte and modeBit) != 0) {
             val temp = currentByte and modeBit.inv()
             if (countEnabledModes(temp) >= 2) temp else currentByte
@@ -801,7 +836,9 @@ class AirPodsViewModel(
             currentByte or modeBit
         }
         setControlCommandByte(ControlCommandIdentifiers.LISTENING_MODE_CONFIGS, newValue.toByte())
-        sharedPreferences.edit { putInt("long_press_byte", newValue) }
+        if (::sharedPreferences.isInitialized) {
+            sharedPreferences.edit { putInt("long_press_byte", newValue) }
+        }
     }
 
     fun disconnect() {
@@ -810,9 +847,9 @@ class AirPodsViewModel(
             _uiState.update {
                 it.copy(isLocallyConnected = false)
             }
-        } else {
+        } else if (::service.isInitialized) {
             service.disconnectAirPods()
-            if (appContext.checkSelfPermission("android.permission.BLUETOOTH_PRIVILEGED") != PackageManager.PERMISSION_GRANTED) {
+            if (::appContext.isInitialized && appContext.checkSelfPermission("android.permission.BLUETOOTH_PRIVILEGED") != PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(
                     appContext, "App has disconnected, disconnect from Android Settings.",
                     Toast.LENGTH_LONG

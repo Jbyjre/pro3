@@ -16,7 +16,6 @@ import me.kavishdevar.librepods.presentation.screens.HeartChart
 import me.kavishdevar.librepods.presentation.screens.PhoneProfileContent
 import me.kavishdevar.librepods.presentation.theme.LibrePodsTheme
 import me.kavishdevar.librepods.services.HeartRate
-import me.kavishdevar.librepods.services.MiniIslandRules
 import me.kavishdevar.librepods.services.PhoneProfile
 import me.kavishdevar.librepods.services.PhoneProfile.Choice
 import me.kavishdevar.librepods.services.PhoneProfile.Phone
@@ -75,7 +74,7 @@ class PhoneProfileTest {
         assertEquals(PhoneProfile.KeepAwake.Samsung, s26.keepAwake)
         assertEquals(PhoneProfile.KeepAwake.Android, p6.keepAwake)
         // Any other phone keeps exactly what pro did before.
-        assertEquals(MiniIslandRules.WIDE_EDGE_DP, other.edgeDp)
+        assertEquals(10f, other.edgeDp)
         assertEquals(PowerManager.THERMAL_STATUS_MODERATE, other.warmFrom)
     }
 
@@ -85,18 +84,6 @@ class PhoneProfileTest {
         assertEquals(PowerPlan.Level.Saver, PowerPlan.levelFor(false, 80, false, light, warmFrom = light))
         assertFalse(GlassBudget.shouldLighten(false, light))
         assertTrue(GlassBudget.shouldLighten(false, light, warmFrom = light))
-    }
-
-    @Test fun theStretchedIslandKeepsOffThePixelsCurve() {
-        val d = 2.625f
-        val w = 1080f
-        val flat = MiniIslandRules.size(60f, 60f, d, w, edgeDp = 10f)
-        val curved = MiniIslandRules.size(60f, 60f, d, w, edgeDp = 18f)
-        // The stretched pill: 10 dp in on a flat screen, 18 dp in on the curve.
-        assertEquals(w - 2 * 10f * d, flat.wideWidth, 0.5f)
-        assertEquals(w - 2 * 18f * d, curved.wideWidth, 0.5f)
-        // The everyday pill is the same size on both (only the stretch comes near the sides).
-        assertEquals(flat.compactWidth, curved.compactWidth, 0.5f)
     }
 
     // ---- Pictures (build/screenshots) ----

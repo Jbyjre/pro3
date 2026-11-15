@@ -15,9 +15,23 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], application = Application::class)
 class BatteryAuditTest {
-    @Test fun theBeaconScanEasesOffWithTheScreen() {
-        assertEquals(ScanSettings.SCAN_MODE_LOW_LATENCY, BLEManager.modeFor(screenOn = true))
+    @Test fun theBeaconScanBoostsBrieflyThenBalancesWhileScreenIsOn() {
+        assertEquals(ScanSettings.SCAN_MODE_LOW_LATENCY, BLEManager.modeFor(screenOn = true, quickResponse = true))
+        assertEquals(ScanSettings.SCAN_MODE_BALANCED, BLEManager.modeFor(screenOn = true))
         assertEquals(ScanSettings.SCAN_MODE_LOW_POWER, BLEManager.modeFor(screenOn = false))
+        assertEquals(ScanSettings.SCAN_MODE_LOW_POWER, BLEManager.modeFor(screenOn = false, quickResponse = true))
+        assertTrue(BLEManager.SCREEN_BOOST_MS in 5_000L..20_000L)
+    }
+
+    @Test fun theSameBeaconAddressIsAcceptedAcrossCallbacksButOnceWithinABatch() {
+        // Previously onScanResult would silently discard all later updates from the same buds.
+        assertTrue(BLEManager.acceptAddress("AA:BB:CC"))
+        assertTrue(BLEManager.acceptAddress("AA:BB:CC"))
+        val batch = mutableSetOf<String>()
+        assertTrue(BLEManager.acceptAddress("AA:BB:CC", batch))
+        assertTrue(!BLEManager.acceptAddress("AA:BB:CC", batch))
+        assertTrue(BLEManager.acceptAddress("DD:EE:FF", batch))
+        assertTrue(BLEManager.acceptAddress("AA:BB:CC", mutableSetOf()))
     }
 
     @Test fun scanRestartsNeverTripAndroidsLimit() {

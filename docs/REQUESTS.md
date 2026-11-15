@@ -6,6 +6,24 @@
 - Jake's exact words are not stored in the repository. This list is rebuilt from `DECISIONS.md` (each section marks "your request" or "your choice" where Jake asked), `CLAUDE.md`, `POLISH_LEDGER.md`, `TESTING.md` and the git history (30 merged pull requests from 2026-09-30 to 2026-10-02, then this file's own session on 2026-10-06). Section numbers like "D12" mean `DECISIONS.md` section 12.
 - **When Jake asks for something new, add a row here. When a status changes, change the row.** Keep it true: if something was not checked on his phone, say so.
 
+## Current request — 14–15 November 2026
+
+**All historical Dynamic Island requests below are superseded.** Jake now uses a Galaxy S26 FE running Android 17 / One UI 9 and wants the persistent camera feature removed completely, temporary headphone/music pop-ups retained, one-second breathing before selected apps, and easy signed app updates. The tab remains AirPods/Beats first and Home/default.
+
+| Request | State | Implementation and verification |
+|---|---|---|
+| Remove camera pill/ring and its machinery | IMPLEMENTED; PHONE UPGRADE CHECK | Persistent controller, editors, gestures, accessibility and screen/sound observation removed. Popup windows are temporary ordinary overlays. Old camera preferences migrate away; headphone/popup preferences stay. |
+| Retain headphone/music pop-ups and controls | IMPLEMENTED; PHONE CHECK | Production Island/MusicIsland and AirPods/Beats triggers remain; camera suppression removed; duplicate/routine-during-breath rules added. |
+| One-second breathing before chosen apps | IMPLEMENTED FOR ADDED SHORTCUTS; PHONE TIMING CHECK | Search real installed apps, add breathing home-screen icons. Real renderer/preview and activity deadline tested. Original icons, app drawer, Recents, notifications and links are NOT intercepted. No delayed fallback claimed. |
+| Replace flower with a screen layer, vibrant color and working customization | IMPLEMENTED; PHONE SMOOTHNESS CHECK | Upward full-screen color sweep; saved Cobalt/Tangerine/Pool presets and Still switch; shared preview/production renderer; actual UI/launch checks. |
+| Research another color and gradient pass | VERIFIED IN CLOUD; PHONE CHECK | Primary design/color research, three authored Lab gradients, large left-aligned type, clipped ink reveal, larger gradient samples. See [color and motion](COLOR_AND_MOTION.md). |
+| Permissions update correctly after Settings | IMPLEMENTED; OEM ROUTE CHECK | Resume-based real platform status, notification callback refresh, direct access/settings recovery. Lifecycle test verifies granting and revoking all four permissions. |
+| Updates without GitHub/file-manager visits | IMPLEMENTED; DEVICE INSTALL CHECK | Phone > App updates; automatic idle Wi-Fi checks/downloads, optional constrained self-install, pending system confirmation handled. Signed APK package/version/signature validation and immutable channel assets. |
+| Keep signing identity and data | VERIFIED KEY MATCH; OWNER SECRET SETUP | Recovered existing key matches downloadable build 228. Secret access denied (403); private backup and exact owner UI action provided. Cache retained, regeneration forbidden. |
+| Efficient integration, related research, future study extension | IMPLEMENTED / RESEARCHED | No breathing foreground service or app polling. Pause/Quick Settings added; schedules/study enforcement deferred. See linked report for platform evidence and test limits. |
+
+Full checklist, research links, setup and verification boundaries: [BREATHING_AND_UPDATES.md](BREATHING_AND_UPDATES.md). Observed locally: 363 full-suite tests across 49 classes passed, including the new layer, customization and permission checks; lint (0 errors) and the final signed release build passed. Build 235 retains the existing release certificate. Physical Samsung checks and owner secret setup remain.
+
 ## Which phone
 
 Jake has two phones in mind: on 2026-10-15 he asked for pro tuned for the **Samsung Galaxy S26 FE** and the **Google Pixel 6 Pro**, chosen in Settings > Your phone (Automatic by default; section 17). Earlier notes said Galaxy S25 FE, then "Pixel 6" (2026-10-06). **Which one he uses day to day is not verified.** Checked specs (DECISIONS 49): the S26 FE has a flat 6.7-inch FHD+ 120 Hz screen with a centred punch-hole, Exynos 2500, 4,900 mAh, One UI 9 (Android 17); the Pixel 6 Pro a 6.7-inch QHD+ LTPO screen (10 to 120 Hz) curved into its sides, a centred hole-punch, Tensor, 5,003 mAh. pro takes the camera's place and size from what the phone reports, so the island fits either. Whether the AirPods' own controls work depends on the phone's Bluetooth (see `utils/RootlessSupport.kt`), which is separate.
@@ -302,6 +320,30 @@ Jake requested deep battery optimizations (cannot waste battery on phone, especi
 | Context-aware glance badges | DONE, PHONE CHECK | `services/GlanceRules.kt`, `presentation/overlays/MiniIsland.kt`, `presentation/overlays/GlancePanel.kt` | Game mode displays session duration (e.g. `24m`), Fitness shows live heart rate, Browser/Reading displays read time badges right in the mini pill. |
 | Mini Island Peek gesture (`Action.Peek`) | DONE, PHONE CHECK | `services/IslandGestures.kt`, `presentation/overlays/MiniIsland.kt` | New gesture action "Peek info on pill" that widens the camera pill smoothly for 2.6s to peek active verification code, music title/artist, app session duration, AirPods battery, or phone battery without popping up the large card. |
 
+## 21. 2026-11-10: another S26 FE battery + phone usability pass
+
+Requested: a thorough follow-up prioritizing battery efficiency and using pro as a dependable everyday phone companion, then merge once verified. This is independent of the audio-response work in PR #45.
+
+| Request | Status | Changes and verification |
+|---|---|---|
+| Save battery without slowing normal device reactions | CODE COMPLETE, CI / PHONE CHECK | `bluetooth/BLEManager.kt`: low-latency BLE scanning only for 12 seconds after screen-on/startup, then balanced while awake; low-power after screen-off settles. Scan changes are scheduled with Android's 4-start/30-second safety margin. Android's ScanSettings guidance recommends low-latency scanning primarily for foreground use. |
+| Prevent scans from outliving the AirPods service | CODE COMPLETE, CI / PHONE CHECK | `services/AirPodsService.kt`: scanner startup now uses `serviceScope` instead of an independent IO scope; destroying the service cancels pending startup before it can restart a stopped scan. |
+| Don't wake the phone needlessly in an empty scanner | CODE COMPLETE, CI / PHONE CHECK | `BLEManager.kt`: only run the 10-second stale-device/lid cleanup while tracking a recent AirPods beacon or open lid; idle scanner no longer schedules endless cleanup wake-ups. |
+| Reliable case and battery updates | BUG FIXED IN CODE, CI / PHONE CHECK | `BLEManager.kt`: a processed BLE address is no longer permanently skipped in individual callbacks. Deduplicate addresses within a received batch only. `BatteryAuditTest` covers repeated address updates and all scan modes. |
+| Smoother Samsung reconnect bursts | CODE COMPLETE, CI / PHONE CHECK | `services/HeadphoneLink.kt`: repeated ACL/A2DP/headset broadcasts now replace previous scheduled refreshes instead of multiplying them. A battery broadcast cannot imply the headphones are connected for audio. Scheduled checks are removed when switching back to AirPods or stopping. |
+| Real phone behavior and battery gains | PHONE CHECK REQUIRED | Check Galaxy S26 FE screen on/off, case-open arrival latency, notifications, Beats/Bluetooth reconnection and battery statistics. Do not claim measured gains or functional verification from cloud tests. |
+
+## 22. 2026-11-13: open on the AirPods tab; better and more effective to use
+
+Jake: "make the default tab on open the airport [AirPods] tab", find ways to make the app better, more effective and easier to use, and merge when done. Details: `DECISIONS.md` section 51.
+
+| Request | Status | Where | Notes |
+|---|---|---|---|
+| Open on the AirPods tab | DONE | `navigation/Tabs.kt` (`AppTab.Home`), `NavigationRoot.kt`, `AppNavGraph.kt` | Opens on it, setup ends on it, Back from Phone/Island goes to it. Moved to the first place in the bar (AirPods/Beats, Phone, Island) with `"AirPods"` title fallback when name is blank. Tested in `PhoneTabsUiTest`. |
+| Easier to use | DONE, PHONE CHECK | `screens/AirPodsSettingsScreen.kt`, `NoiseControlSettings.kt`, `NoiseControlButton.kt`, `ConnectionStatusPanel.kt`, `HeadphonesScreen.kt`, `AppSettingsScreen.kt`, `RenameScreen.kt` | Everyday controls first (listening mode + Off option, audio, heart rate); Disconnect asks first; "Controls offline" retries on tap; one-tap switch between AirPods and other connected headphones; single clickable row + horizontal drag + TalkBack labels in Apple-style listening modes; live rename sync without spurious BT writes or blocking spinner. Tested in `PhoneTabsUiTest` and `AirPodsUiFixesTest`. |
+| More effective (battery, stability, bugs) | DONE, PHONE CHECK | `ConnectionStatusPanel.kt`, `DevicesScreen.kt`, `HeadphonesScreen.kt`, `Headphones3D.kt`, `HeartParts.kt`, `WhileShown.kt`, `AirPodsViewModel.kt`, `AirPodsService.kt` | Waiting panel stops idle frame animation; 3D turntable & heart clock pause in background (`WhileShown`); paired Bluetooth queries run off main thread (`Dispatchers.IO`); Adaptive Audio gated on `Capability.ADAPTIVE_AUDIO` instead of `ADAPTIVE_VOLUME`; pre-init/demo/payload guards in `AirPodsViewModel` and permission/adapter guards in `AirPodsService.reconnectFromSavedMac`/`retryConnectionNow`. All 617 unit tests (49 classes), lint (0 errors), and release APK build pass locally; physical-device behavior not verified. |
+| Merge | DONE | main | |
+
 ## Not done or not verifiable from the cloud
 
 - Everything marked PHONE CHECK. `TESTING.md` lists the steps.
@@ -310,11 +352,16 @@ Jake requested deep battery optimizations (cannot waste battery on phone, especi
 
 ## 20. 2026-11-10: audio and small-island response pass (Galaxy S26 FE)
 
-Requested: inspect pro3, improve responsiveness of the camera-cutout mini island, prioritize unreliable audio behavior and avoid needless battery use. This pass focuses on audio-event work that could delay the island. It does **not** claim full device verification.
+The original camera-island request is superseded by the November 14–15 removal above. PR #45 retains only the media-session improvements that also benefit temporary music pop-ups. Sound attribution and its retired tests stay removed.
 
 | Item | Status | Code / check |
 |---|---|---|
-| Audio app icons decoded during playback and notification callbacks | CODE UPDATED, CI / PHONE CHECK | `SoundSource.kt`: publish immediately with a glyph, fill cached app identity asynchronously; coalesce concurrent loads; don't overwrite another app's newer sound or message. `SoundSourceTest.kt` adds immediate-render and identity-isolation coverage. |
-| Redundant remote media-session work on the main thread | CODE UPDATED, CI / PHONE CHECK | `NowPlaying.kt`: use published session state for sound attribution; metadata callbacks don't fetch the entire session list; treat buffering as active when selecting; coalesce concurrent icon lookups; never reuse cover art across two apps with the same track title. |
-| Battery | EXPECTED IMPROVEMENT, NOT MEASURED | Fewer package-manager operations and remote session queries per callback. `PowerPlan` battery policy unchanged; no new background polling. Test on S26 FE with Android battery statistics. |
+| Redundant remote media-session work on the main thread | DONE, PHONE CHECK | `NowPlaying.kt`: metadata callbacks reuse the selected session; treat buffering as active when selecting; coalesce concurrent icon lookups; never reuse cover art across two apps with the same track title. `NowPlayingTest` checks selection, artwork isolation and metadata updates. |
+| Battery | NOT MEASURED | Fewer duplicate icon requests and remote session queries per callback. No new background polling. Test on S26 FE with Android battery statistics. |
 | Island pop-up animations, AirPods audio controls and real-world reliability | NOT VERIFIED BY THIS PASS | Need physical S26 FE to confirm the UI and Bluetooth behavior, and a reproducible example of the reported audio failure. Do not claim fixed. |
+
+## 21. 2026-11-15: resolve and merge open pro3 pull requests
+
+| Request | Status | Implementation and verification |
+|---|---|---|
+| Resolve conflicts and merge open pro3 PRs | DONE IN PR #45 | The sole open PR was reconciled with current main, preserving breathing/updater/headphone behavior and camera-island removals. Local verification: 366 tests across 50 classes, zero failures/errors/skips; release lint with zero errors (243 warnings); release APK build passed. The local APK uses debug signing for build validation and is not an upgrade artifact; production releases use the existing signing workflow. Physical S26 FE behavior and battery savings remain unverified. |

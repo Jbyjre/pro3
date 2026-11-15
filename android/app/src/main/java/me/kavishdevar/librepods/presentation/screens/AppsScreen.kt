@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.draw.clip
@@ -68,7 +69,11 @@ import me.kavishdevar.librepods.presentation.components.StyledInputField
 import me.kavishdevar.librepods.presentation.components.StyledSwitch
 import me.kavishdevar.librepods.presentation.overlays.GlintOverlays
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
-import me.kavishdevar.librepods.services.IslandPrefs
+import me.kavishdevar.librepods.breathing.BreathPrefs
+import me.kavishdevar.librepods.breathing.BreathShortcuts
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import me.kavishdevar.librepods.services.SoundRules
 import me.kavishdevar.librepods.services.SoundSource
 
@@ -102,7 +107,7 @@ internal fun launchableApps(context: Context): List<AppEntry> {
 @Composable
 fun AppsScreen(preset: List<AppEntry>? = null) {
     val context = LocalContext.current
-    val prefs = remember { IslandPrefs.prefs(context) }
+    val scope = rememberCoroutineScope()
     val dark = isSystemInDarkTheme()
     val ink = if (dark) Color.White else Color.Black
     val card = if (dark) Color(0xFF1C1C1E) else Color.White
@@ -112,7 +117,7 @@ fun AppsScreen(preset: List<AppEntry>? = null) {
     val apps by produceState(initialValue = preset ?: emptyList(), preset) {
         if (preset == null) value = withContext(Dispatchers.IO) { launchableApps(context) }
     }
-    var ignored by remember { mutableStateOf(IslandPrefs.soundIgnored(prefs)) }
+    var selected by remember { mutableStateOf(BreathPrefs.selected(context)) }
     val query = rememberTextFieldState()
     val focus = remember { FocusRequester() }
     val text = query.text.toString().trim()
@@ -126,7 +131,7 @@ fun AppsScreen(preset: List<AppEntry>? = null) {
     ) {
         Spacer(Modifier.height(topPadding))
         Text(
-            "Choose which apps can pop the Dynamic Island with a sound or a message. Switch one off and it stays quiet.",
+            "Choose apps, then add their breathing icons to your home screen. Use those icons for the pause. Other routes open directly.",
             style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, lineHeight = 19.sp, color = ink.copy(alpha = 0.7f)),
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
         )
@@ -162,27 +167,32 @@ fun AppsScreen(preset: List<AppEntry>? = null) {
                 val icon by produceState<ImageBitmap?>(null, app.pkg) {
                     value = withContext(Dispatchers.Default) { SoundSource.appInfo(context, app.pkg).icon }
                 }
-                val on = app.pkg !in ignored
+                val on = app.pkg in selected
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 9.dp)
-                        .semantics { contentDescription = "${app.label}: ${if (on) "can pop the island" else "switched off"}" },
+                        .semantics { contentDescription = "${app.label}: ${if (on) "selected for breathing" else "not selected"}" },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    AppBadge(icon, SoundRules.Kind.Other, 38.dp)
+                    if (icon != null) androidx.compose.foundation.Image(bitmap = icon!!, contentDescription = null,
+                        modifier = Modifier.size(38.dp))
+                    else Box(Modifier.size(38.dp).background(ink.copy(alpha = 0.06f), RoundedCornerShape(10.dp)))
                     Spacer(Modifier.width(12.dp))
                     Text(
                         app.label, maxLines = 1,
                         style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = ink),
                         modifier = Modifier.weight(1f),
                     )
+                    if (on) TextButton(onClick = { scope.launch {
+                        val success = withContext(Dispatchers.IO) { runCatching { BreathShortcuts.pin(context, app.pkg) }.getOrDefault(false) }
+                        if (!success) android.widget.Toast.makeText(context, "Your launcher couldn't add this shortcut.", android.widget.Toast.LENGTH_LONG).show()
+                    } }) { Text("Add icon") }
                     StyledSwitch(
                         checked = on,
                         onCheckedChange = { show ->
-                            IslandPrefs.setSoundIgnored(prefs, app.pkg, !show)
-                            ignored = IslandPrefs.soundIgnored(prefs)
-                            GlintOverlays.refreshMiniIsland(context)
+                            BreathPrefs.select(context, app.pkg, show)
+                            selected = BreathPrefs.selected(context)
                         },
                     )
                 }

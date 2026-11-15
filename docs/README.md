@@ -6,6 +6,7 @@ Two kinds of pages live here.
 
 | Page | What it is |
 |---|---|
+| [`BREATHING_AND_UPDATES.md`](BREATHING_AND_UPDATES.md) | Current setup, exact launch coverage, platform research, requirement checklist and signing continuity. |
 | [`REQUESTS.md`](REQUESTS.md) | **Start here.** Every request Jake has made, where it lives in the code, and how finished it is (done, needs the phone, not built, impossible). |
 | [`ROADMAP_PHONE.md`](ROADMAP_PHONE.md) | Ideas for the move toward a multi-purpose phone app, with what each needs. Nothing in it is built. |
 | [`../DECISIONS.md`](../DECISIONS.md) | Why the app is the way it is, in plain language, one numbered section per round of work. |

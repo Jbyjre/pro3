@@ -5,18 +5,11 @@ import android.content.Context
 import me.kavishdevar.librepods.presentation.navigation.AppTab
 import me.kavishdevar.librepods.services.ChosenDevice
 import me.kavishdevar.librepods.services.DeviceKind
-import me.kavishdevar.librepods.services.GlanceRules
-import me.kavishdevar.librepods.services.IslandLook
-import me.kavishdevar.librepods.services.IslandLook.Situation
-import me.kavishdevar.librepods.services.IslandLook.Slot
 import me.kavishdevar.librepods.services.IslandPrefs
 import me.kavishdevar.librepods.services.IslandTimer
-import me.kavishdevar.librepods.services.MiniIslandRules
 import me.kavishdevar.librepods.services.PhoneControls
 import me.kavishdevar.librepods.services.PhoneRules
 import me.kavishdevar.librepods.services.PhoneStatus
-import me.kavishdevar.librepods.services.ScreenApp
-import me.kavishdevar.librepods.services.ScreenRules
 import me.kavishdevar.librepods.services.SoundRules
 import me.kavishdevar.librepods.services.SoundSource
 import me.kavishdevar.librepods.services.TimerRules
@@ -44,33 +37,7 @@ class PhoneIslandTest {
     private val context: Context get() = RuntimeEnvironment.getApplication()
     private val prefs get() = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
-    @Before fun setUp() {
-        prefs.edit().clear().commit()
-        ScreenApp.resetForTest()
-    }
-
-    @After fun tearDown() {
-        ScreenApp.resetForTest()
-        SoundSourceReset.reset()
-    }
-
     // ---- Which app is on screen ----
-
-    @Test fun onlyRealAppScreensChangeTheIcon() {
-        val none = ScreenApp.Place.Unknown
-        // An app's own screen: that app.
-        assertEquals(ScreenRules.Next.App("com.spotify.music"), ScreenRules.next(none, "com.spotify.music", SoundRules.Role.App, isScreen = true, locked = false))
-        // A toast, a pop-up or a chat bubble from another app: nothing changes.
-        assertEquals(ScreenRules.Next.Stay, ScreenRules.next(none, "com.facebook.orca", SoundRules.Role.App, isScreen = false, locked = false))
-        // The phone's own pieces (the notification shade, the keyboard): nothing changes.
-        assertEquals(ScreenRules.Next.Stay, ScreenRules.next(none, "com.android.systemui", SoundRules.Role.System, isScreen = true, locked = false))
-        // The launcher: the home screen (but not while the lock screen is up).
-        assertEquals(ScreenRules.Next.Home, ScreenRules.next(none, "com.sec.android.app.launcher", SoundRules.Role.Launcher, isScreen = true, locked = false))
-        assertEquals(ScreenRules.Next.Stay, ScreenRules.next(none, "com.sec.android.app.launcher", SoundRules.Role.Launcher, isScreen = true, locked = true))
-        // The same app again (another of its screens): no swap animation.
-        val spotify = ScreenApp.Place.App("com.spotify.music", "Spotify", null)
-        assertEquals(ScreenRules.Next.Stay, ScreenRules.next(spotify, "com.spotify.music", SoundRules.Role.App, isScreen = true, locked = false))
-    }
 
     // ---- Locking and unlocking ----
 
@@ -79,64 +46,6 @@ class PhoneIslandTest {
         org.robolectric.Shadows.shadowOf(context.getSystemService(android.app.KeyguardManager::class.java)).setKeyguardLocked(lockScreen)
     }
     private fun waitMs(ms: Long) = org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(ms))
-    private val spotify = ScreenApp.Place.App("com.spotify.music", "Spotify", null)
-
-    @Test fun lockStateFollowsThePhoneNotTheMessage() {
-        val open = ScreenApp.Place.Locked(opening = true)
-        assertEquals(ScreenRules.Lock.Lock, ScreenRules.lockNow(screenOn = false, keyguard = false, current = spotify))
-        assertEquals(ScreenRules.Lock.Lock, ScreenRules.lockNow(screenOn = true, keyguard = true, current = ScreenApp.Place.Home))
-        assertEquals(ScreenRules.Lock.Keep, ScreenRules.lockNow(screenOn = true, keyguard = true, current = ScreenApp.Place.Locked()))
-        assertEquals(ScreenRules.Lock.Unlock, ScreenRules.lockNow(screenOn = true, keyguard = false, current = ScreenApp.Place.Locked()))
-        // Already springing open: nothing more to do; locked again mid-way: back to the padlock.
-        assertEquals(ScreenRules.Lock.Keep, ScreenRules.lockNow(screenOn = true, keyguard = false, current = open))
-        assertEquals(ScreenRules.Lock.Lock, ScreenRules.lockNow(screenOn = false, keyguard = true, current = open))
-        assertEquals(ScreenRules.Lock.Keep, ScreenRules.lockNow(screenOn = true, keyguard = false, current = spotify))
-    }
-
-    @Test fun unlockingShowsTheAppAgainAndALateScreenOffDoesntLockIt() {
-        ScreenApp.attachForTest(context)
-        ScreenApp.preview(spotify)
-        phone(screenOn = false, lockScreen = true)
-        ScreenApp.onScreen(android.content.Intent.ACTION_SCREEN_OFF)
-        assertEquals(ScreenApp.Place.Locked(), ScreenApp.place.value)
-        phone(screenOn = true, lockScreen = true)
-        ScreenApp.onScreen(android.content.Intent.ACTION_SCREEN_ON)
-        assertEquals(ScreenApp.Place.Locked(), ScreenApp.place.value)
-        // Unlocked: the padlock springs open, then the app is back.
-        phone(screenOn = true, lockScreen = false)
-        ScreenApp.onScreen(android.content.Intent.ACTION_USER_PRESENT)
-        assertEquals(ScreenApp.Place.Locked(opening = true), ScreenApp.place.value)
-        waitMs(ScreenRules.UNLOCK_SHOW_MS + 50)
-        assertEquals(spotify, ScreenApp.place.value)
-        // Android hands over a held-back "screen off" after the unlock: the phone is in use, so nothing changes.
-        ScreenApp.onScreen(android.content.Intent.ACTION_SCREEN_OFF)
-        assertEquals(spotify, ScreenApp.place.value)
-    }
-
-    @Test fun aMissedUnlockMessageNeverLeavesThePadlockStuck() {
-        ScreenApp.attachForTest(context)
-        ScreenApp.preview(spotify)
-        phone(screenOn = true, lockScreen = true)
-        ScreenApp.reconcile(context)
-        assertEquals(ScreenApp.Place.Locked(), ScreenApp.place.value)
-        // Unlocked, but the "unlocked" message never came: the next window change corrects it.
-        phone(screenOn = true, lockScreen = false)
-        ScreenApp.reconcile(context)
-        waitMs(ScreenRules.UNLOCK_SHOW_MS + 50)
-        assertEquals(spotify, ScreenApp.place.value)
-    }
-
-    @Test fun screenOffWithoutALockScreenComesStraightBack() {
-        ScreenApp.attachForTest(context)
-        ScreenApp.preview(spotify)
-        phone(screenOn = false, lockScreen = false)
-        ScreenApp.onScreen(android.content.Intent.ACTION_SCREEN_OFF)
-        assertEquals(ScreenApp.Place.Locked(), ScreenApp.place.value)
-        // Woken within the phone's lock delay: no lock screen came up, so no padlock to open.
-        phone(screenOn = true, lockScreen = false)
-        ScreenApp.onScreen(android.content.Intent.ACTION_SCREEN_ON)
-        assertEquals(spotify, ScreenApp.place.value)
-    }
 
     @Test fun settingsHiddenEmergencyHomeScreenIsNotTheHomeScreen() {
         // Android's list of home screens includes Settings' FallbackHome at priority -1000.
@@ -149,263 +58,13 @@ class PhoneIslandTest {
         assertTrue("com.teslacoilsw.launcher" in SoundRules.homeApps(list + ("com.teslacoilsw.launcher" to 0), "com.google.android.apps.nexuslauncher"))
     }
 
-    @Test fun theFrontCheckAlsoTellsSoundsWhichAppYoureIn() {
-        ScreenApp.attachForTest(context)
-        ScreenApp.offMain = { it.run() }
-        val roles = mapOf("com.whatsapp" to SoundRules.Role.App, "com.android.launcher" to SoundRules.Role.Launcher, "com.android.systemui" to SoundRules.Role.System)
-        SoundSource.roleOverride = { roles[it] ?: SoundRules.Role.App }
-        // Found in front by the sturdy check (no window message named it): messages from that
-        // chat app are now known to be from the app you're using.
-        ScreenApp.front(context, "com.whatsapp", SoundRules.Role.App)
-        assertEquals("com.whatsapp", SoundSource.foreground)
-        // The phone's own pieces leave it; the home screen clears it.
-        ScreenApp.front(context, "com.android.systemui", SoundRules.Role.System)
-        assertEquals("com.whatsapp", SoundSource.foreground)
-        ScreenApp.front(context, "com.android.launcher", SoundRules.Role.Launcher)
-        assertNull(SoundSource.foreground)
-    }
-
-    @Test fun theFrontWindowIsTheAppYoureUsing() {
-        fun w(app: Boolean, pkg: String?, active: Boolean = false, focused: Boolean = false, order: Int = 0) =
-            ScreenRules.Win(app, active, focused, order) { pkg }
-        // The active app window wins, whatever is above it (the shade, the keyboard, pro's island).
-        assertEquals("com.spotify.music", ScreenRules.front(listOf(
-            w(app = false, pkg = "com.android.systemui", active = true, order = 0),
-            w(app = true, pkg = "com.anthropic.claude", order = 1),
-            w(app = true, pkg = "com.spotify.music", active = true, order = 2),
-        )))
-        // No active app window (the shade is open): the focused one, else the topmost app window.
-        assertEquals("com.anthropic.claude", ScreenRules.front(listOf(
-            w(app = false, pkg = "com.android.systemui", active = true, order = 0),
-            w(app = true, pkg = "com.spotify.music", order = 2),
-            w(app = true, pkg = "com.anthropic.claude", focused = true, order = 3),
-        )))
-        assertEquals("com.spotify.music", ScreenRules.front(listOf(
-            w(app = true, pkg = "com.anthropic.claude", order = 5),
-            w(app = true, pkg = "com.spotify.music", order = 1),
-        )))
-        // Nothing readable: nothing changes.
-        assertNull(ScreenRules.front(listOf(w(app = false, pkg = "com.android.systemui", active = true))))
-        assertNull(ScreenRules.front(listOf(w(app = true, pkg = null, active = true))))
-    }
-
-    @Test fun anAppWindowCountsEvenWhenTheWindowMessageNamedAView() {
-        // The window message named a plain view (not an app screen): it's ignored...
-        assertEquals(ScreenRules.Next.Stay, ScreenRules.next(ScreenApp.Place.Home, "com.spotify.music", SoundRules.Role.App, isScreen = false, locked = false))
-        // ...but the front-window check, which sees Spotify's application window, shows it.
-        assertEquals(ScreenRules.Next.App("com.spotify.music"), ScreenRules.next(ScreenApp.Place.Home, "com.spotify.music", SoundRules.Role.App, isScreen = true, locked = false))
-    }
-
-    @Test fun recentAppsAreRememberedOnceNewestFirstWithoutPro() {
-        var list = emptyList<String>()
-        list = ScreenRules.remember(list, "a", own = "pro")
-        list = ScreenRules.remember(list, "b", own = "pro")
-        list = ScreenRules.remember(list, "a", own = "pro")
-        list = ScreenRules.remember(list, "pro", own = "pro")
-        assertEquals(listOf("a", "b"), list)
-        repeat(30) { list = ScreenRules.remember(list, "app$it", own = "pro") }
-        assertEquals(ScreenRules.RECENT_MAX, list.size)
-        assertEquals("app29", list.first())
-    }
-
     private fun idle() = org.robolectric.shadows.ShadowLooper.idleMainLooper()
-
-    @Test fun windowEventsFollowTheAppInFront() {
-        ScreenApp.attachForTest(context)
-        // Icon lookups run off the main thread on the phone; here, in place.
-        ScreenApp.offMain = { it.run() }
-        me.kavishdevar.librepods.services.SoundSource.roleOverride = { pkg ->
-            when (pkg) {
-                "launcher" -> SoundRules.Role.Launcher
-                "com.android.systemui" -> SoundRules.Role.System
-                else -> SoundRules.Role.App
-            }
-        }
-        ScreenApp.setActivityForTest("com.spotify.music", "com.spotify.MainActivity", true)
-        ScreenApp.setActivityForTest("com.spotify.music", "android.widget.Toast\$TN", false)
-        ScreenApp.setActivityForTest("launcher", "launcher.Home", true)
-        ScreenApp.setActivityForTest("com.anthropic.claude", "com.anthropic.Main", true)
-
-        ScreenApp.windowChanged("com.spotify.music", "com.spotify.MainActivity")
-        idle()
-        assertEquals("com.spotify.music", (ScreenApp.place.value as ScreenApp.Place.App).pkg)
-        // The shade pulled down over it: still Spotify.
-        ScreenApp.windowChanged("com.android.systemui", "com.android.systemui.Shade")
-        assertEquals("com.spotify.music", (ScreenApp.place.value as ScreenApp.Place.App).pkg)
-        ScreenApp.windowChanged("launcher", "launcher.Home")
-        assertEquals(ScreenApp.Place.Home, ScreenApp.place.value)
-        // A toast from Spotify while on the home screen: still home.
-        ScreenApp.windowChanged("com.spotify.music", "android.widget.Toast\$TN")
-        assertEquals(ScreenApp.Place.Home, ScreenApp.place.value)
-        ScreenApp.windowChanged("com.anthropic.claude", "com.anthropic.Main")
-        idle()
-        assertEquals("com.anthropic.claude", (ScreenApp.place.value as ScreenApp.Place.App).pkg)
-        assertEquals(listOf("com.anthropic.claude", "com.spotify.music"), ScreenApp.recent.value)
-        // The accessibility switch went off: pro no longer knows.
-        ScreenApp.lostSight()
-        assertEquals(ScreenApp.Place.Unknown, ScreenApp.place.value)
-    }
 
     // ---- 2026-10-11: switching apps without waiting (Jake's item 8) ----
 
-    @Test fun aSlowFirstLookupNeverOverridesANewerApp() {
-        ScreenApp.attachForTest(context)
-        // The first lookup for Spotify is slow (held here); Claude is already known.
-        val held = mutableListOf<Runnable>()
-        ScreenApp.offMain = { held += it }
-        me.kavishdevar.librepods.services.SoundSource.roleOverride = { SoundRules.Role.App }
-        ScreenApp.setActivityForTest("com.anthropic.claude", "com.anthropic.Main", true)
-        ScreenApp.windowChanged("com.spotify.music", "com.spotify.MainActivity") // unknown screen: off the main thread
-        ScreenApp.windowChanged("com.anthropic.claude", "com.anthropic.Main")    // known: decided at once
-        held.toList().forEach { held.remove(it); it.run() }                       // Claude's icon lookup, then Spotify's late answer
-        held.toList().forEach { it.run() }
-        idle()
-        assertEquals("com.anthropic.claude", (ScreenApp.place.value as ScreenApp.Place.App).pkg)
-    }
-
-    @Test fun theSwapSettlesQuickly() {
-        val s = me.kavishdevar.librepods.services.IslandMotion.Spring(
-            me.kavishdevar.librepods.presentation.overlays.APP_SWAP_DAMPING, me.kavishdevar.librepods.presentation.overlays.APP_SWAP_STIFFNESS,
-        )
-        assertTrue(me.kavishdevar.librepods.services.IslandMotion.settleMs(s) <= 300L)
-        assertTrue(me.kavishdevar.librepods.services.IslandMotion.overshoot(s) < 0.02f)
-    }
-
-    @Test fun theIconCacheStaysSmall() {
-        // Many apps in a day: only the 40 most recent icons are kept (about 4 MB at most).
-        for (i in 0 until 60) me.kavishdevar.librepods.services.SoundSource.appInfo(context, "com.example.app$i")
-        assertNull(me.kavishdevar.librepods.services.SoundSource.cachedInfo("com.example.app0"))
-    }
-
-    @Test fun theIconIsTheAppsRealIconNotADrawing() {
-        ScreenApp.attachForTest(context)
-        ScreenApp.offMain = { it.run() }
-        // An app installed on the (test) phone, with its own icon: a distinctive picture.
-        val pkg = "com.spotify.music"
-        val pm = org.robolectric.Shadows.shadowOf(context.packageManager)
-        pm.installPackage(android.content.pm.PackageInfo().apply {
-            packageName = pkg
-            applicationInfo = android.content.pm.ApplicationInfo().apply { packageName = pkg; name = "Spotify" }
-        })
-        val picture = android.graphics.Bitmap.createBitmap(48, 48, android.graphics.Bitmap.Config.ARGB_8888).apply {
-            for (x in 0 until 48) for (y in 0 until 48) setPixel(x, y, if ((x / 8 + y / 8) % 2 == 0) 0xFF1DB954.toInt() else 0xFF000000.toInt())
-        }
-        pm.setApplicationIcon(pkg, android.graphics.drawable.BitmapDrawable(context.resources, picture))
-        me.kavishdevar.librepods.services.SoundSource.forgetInfo(pkg)
-        ScreenApp.setActivityForTest(pkg, "com.spotify.MainActivity", true)
-        me.kavishdevar.librepods.services.SoundSource.roleOverride = { SoundRules.Role.App }
-
-        ScreenApp.windowChanged(pkg, "com.spotify.MainActivity")
-        idle()
-        val shown = (ScreenApp.place.value as ScreenApp.Place.App).icon!!.asAndroidBitmap()
-        // Exactly the icon Android has for the app, drawn at the island's size (sharp: 144 px or more).
-        val real = context.packageManager.getApplicationIcon(pkg).toBitmap(shown.width, shown.height)
-        assertTrue("the island's icon must be the app's own icon", shown.sameAs(real))
-        assertTrue(shown.width >= 144)
-        // Previews use a real app on the phone too (one used lately), never the drawn bubble.
-        val (examplePkg, info) = me.kavishdevar.librepods.services.SoundSource.exampleApp(context)
-        assertEquals(pkg, examplePkg)
-        assertTrue(info.icon!!.asAndroidBitmap().sameAs(real))
-        val drawn = me.kavishdevar.librepods.presentation.overlays.sampleIcon().asAndroidBitmap()
-        assertFalse(info.icon!!.asAndroidBitmap().sameAs(drawn))
-    }
-
     // ---- What the pill shows, and what a tap opens ----
 
-    @Test fun thePhoneComesBeforeTheAirPodsButAfterMusicAndSounds() {
-        fun c(playing: Boolean = false, sound: Boolean = false, known: Boolean = true, airPods: Boolean = true, paused: Long = Long.MAX_VALUE, played: Boolean = false) =
-            MiniIslandRules.content(playing, paused, played, airPods, sound, placeKnown = known)
-        assertEquals(MiniIslandRules.Content.Music, c(playing = true))
-        assertEquals(MiniIslandRules.Content.Sound, c(sound = true))
-        assertEquals(MiniIslandRules.Content.Music, c(paused = 5_000, played = true))
-        assertEquals(MiniIslandRules.Content.Screen, c())
-        assertEquals(MiniIslandRules.Content.AirPods, c(known = false))
-        assertEquals(MiniIslandRules.Content.Rest, c(known = false, airPods = false))
-    }
-
-    @Test fun aTapNeverOpensAnEmptyMusicPlayer() {
-        assertEquals(MiniIslandRules.TapOpens.Glance, MiniIslandRules.tapOpens(MiniIslandRules.Content.Screen))
-        assertEquals(MiniIslandRules.TapOpens.Glance, MiniIslandRules.tapOpens(MiniIslandRules.Content.Rest))
-        assertEquals(MiniIslandRules.TapOpens.Music, MiniIslandRules.tapOpens(MiniIslandRules.Content.Music))
-        assertEquals(MiniIslandRules.TapOpens.AirPods, MiniIslandRules.tapOpens(MiniIslandRules.Content.AirPods))
-        assertEquals(MiniIslandRules.TapOpens.SoundApp, MiniIslandRules.tapOpens(MiniIslandRules.Content.Sound))
-    }
-
-    @Test fun hiddenAppsHideItButATimerAlwaysShows() {
-        val base = MiniIslandRules.Inputs(
-            enabled = true, canDraw = true, playing = false, pausedForMs = Long.MAX_VALUE, playedRecently = false,
-            airPodsOnly = false, airPodsUp = false, screenUnlocked = true, anytime = true,
-        )
-        assertTrue(MiniIslandRules.wanted(base))
-        assertFalse(MiniIslandRules.wanted(base.copy(hiddenHere = true)))
-        assertTrue(MiniIslandRules.wanted(base.copy(hiddenHere = true, timer = true)))
-        // A timer brings it up even with "Always on" off; never with the screen off or the switch off.
-        assertTrue(MiniIslandRules.wanted(base.copy(anytime = false, timer = true)))
-        assertFalse(MiniIslandRules.wanted(base.copy(timer = true, screenUnlocked = false)))
-        assertFalse(MiniIslandRules.wanted(base.copy(timer = true, enabled = false)))
-    }
-
-    @Test fun situationsForWhereYouAre() {
-        fun s(place: IslandLook.Place?, music: Boolean = false, playing: Boolean = false, sound: Boolean = false, talking: Boolean = false) =
-            IslandLook.situation(music, playing, talking, charging = false, sound = sound, place = place)
-        assertEquals(Situation.App, s(IslandLook.Place.App))
-        assertEquals(Situation.Home, s(IslandLook.Place.Home))
-        assertEquals(Situation.Locked, s(IslandLook.Place.Locked))
-        // Music and sounds still win.
-        assertEquals(Situation.Music, s(IslandLook.Place.App, music = true, playing = true))
-        assertEquals(Situation.Sound, s(IslandLook.Place.Home, sound = true))
-        assertEquals(Situation.Idle, s(null))
-    }
-
-    @Test fun defaultsShowTheAppTheHomeScreenAndAPadlockNeverTheTime() {
-        val look = IslandLook.read(prefs)
-        assertEquals(Slot.Screen to Slot.Glance, look.slots(Situation.App))
-        assertEquals(Slot.Home to Slot.Date, look.slots(Situation.Home))
-        assertEquals(Slot.Lock to Slot.Glance, look.slots(Situation.Locked))
-        Situation.entries.forEach { s ->
-            val (l, r) = look.slots(s)
-            assertFalse("$s shows the clock by default", l == Slot.Clock || r == Slot.Clock)
-        }
-        // The new situations are saved and reset like the others.
-        IslandLook.setSlot(prefs, Situation.App, false, Slot.Phone)
-        assertEquals(Slot.Screen to Slot.Phone, IslandLook.read(prefs).slots(Situation.App))
-        IslandLook.reset(prefs)
-        assertEquals(Slot.Screen to Slot.Glance, IslandLook.read(prefs).slots(Situation.App))
-    }
-
     // ---- The glance ----
-
-    @Test fun glanceOrderTimerChargingHeadphonesLowBatteryAlarm() {
-        val now = 1_000_000L
-        val timer = IslandTimer.State(total = 60_000L, endsAt = 50_000L)
-        val all = GlanceRules.live(timer, PhoneStatus.Info(15, true), budsUp = true, budsLevel = 70, headphones = false, nextAlarm = now + 3_600_000L, wallNow = now)
-        assertTrue(all[0] is GlanceRules.Item.Timer)
-        assertTrue(all[1] is GlanceRules.Item.Charging)
-        assertTrue(all[2] is GlanceRules.Item.Buds)
-        assertTrue(all[3] is GlanceRules.Item.Alarm)
-        // Charging hides "low battery"; unplugged at 15% it's there.
-        val low = GlanceRules.live(null, PhoneStatus.Info(15, false), false, null, false, null, now)
-        assertEquals(listOf(GlanceRules.Item.LowPhone(15)), low)
-        // An alarm more than a day away isn't worth a glance; nothing at all leaves the battery.
-        val calm = GlanceRules.live(null, PhoneStatus.Info(80, false), false, null, false, now + 2 * GlanceRules.ALARM_AHEAD_MS, now)
-        assertEquals(listOf(GlanceRules.Item.Battery(80, false)), calm)
-        assertEquals(2, GlanceRules.rows(all).size)
-    }
-
-    @Test fun thePillsGlanceSpotIsEmptyWhenThereIsNothingToSay() {
-        assertNull(GlanceRules.pill(null, PhoneStatus.Info(80, false), false, null, false))
-        assertEquals(GlanceRules.Item.Charging(40), GlanceRules.pill(null, PhoneStatus.Info(40, true), false, null, false))
-        assertEquals(GlanceRules.Item.Buds(60, true), GlanceRules.pill(null, PhoneStatus.Info(80, false), true, 60, true))
-        assertNull(GlanceRules.pill(null, PhoneStatus.Info(), false, null, false))
-    }
-
-    @Test fun glancePrioritizesVerificationCodesAndAppContext() {
-        val codePill = GlanceRules.pill(null, PhoneStatus.Info(80, false), false, null, false, code = "4821")
-        assertEquals(GlanceRules.Item.Code("4821"), codePill)
-
-        val appPill = GlanceRules.pill(null, PhoneStatus.Info(80, false), false, null, false, appContext = Pair(me.kavishdevar.librepods.services.AppKinds.Kind.Game, "Game"))
-        assertEquals(GlanceRules.Item.AppContext(me.kavishdevar.librepods.services.AppKinds.Kind.Game, "Game"), appPill)
-    }
 
     // ---- The timer ----
 
@@ -474,19 +133,11 @@ class PhoneIslandTest {
         assertEquals("now", PhoneRules.inWords(0L))
     }
 
-    @Test fun hideInAppsIsSavedPerApp() {
-        IslandPrefs.setHideIn(prefs, "com.game", true)
-        IslandPrefs.setHideIn(prefs, "com.video", true)
-        IslandPrefs.setHideIn(prefs, "com.game", false)
-        assertEquals(setOf("com.video"), IslandPrefs.hideIn(prefs))
-        assertTrue(IslandPrefs.phoneMoments(prefs))
-        assertTrue(IslandPrefs.appPop(prefs))
-    }
-
     // ---- Tabs ----
 
     @Test fun theHeadphonesTabIsNamedAfterTheChosenDevice() {
-        assertEquals(listOf(AppTab.Phone, AppTab.Island, AppTab.Headphones), AppTab.entries.toList())
+        assertEquals(listOf(AppTab.Headphones, AppTab.Phone, AppTab.Breathe), AppTab.entries.toList())
+        assertEquals(AppTab.Headphones, AppTab.Home)
         assertEquals("AirPods", AppTab.Headphones.label(ChosenDevice(DeviceKind.AIRPODS, "", "Jake's AirPods Pro")))
         assertEquals("Beats", AppTab.Headphones.label(ChosenDevice(DeviceKind.BEATS_SOLO_4, "x", "Beats Solo 4")))
         assertEquals("Headphones", AppTab.Headphones.label(ChosenDevice(DeviceKind.HEADPHONES, "x", "Car audio")))
@@ -496,8 +147,5 @@ class PhoneIslandTest {
 
 /** Puts the sound listener's test hooks back. */
 private object SoundSourceReset {
-    fun reset() {
-        me.kavishdevar.librepods.services.SoundSource.roleOverride = null
-        me.kavishdevar.librepods.services.SoundSource.foreground = null
-    }
+
 }

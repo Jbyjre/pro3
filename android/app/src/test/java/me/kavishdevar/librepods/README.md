@@ -1,52 +1,12 @@
-# src/test/
+# Verification
 
-Unit tests (plain JUnit and Robolectric) and the screenshot renderers. Run them with the one-command setup in `android/README.md`. CI runs all of them on every push.
+Run the repository's testFossDebugUnitTest, lintFossRelease and signed assembleFossRelease tasks. Cloud setup supplies the dependency cache, Android SDK/NDK and Robolectric image; a full JDK 21 is required. Tests render/run on Robolectric API 36, compiling/targeting API 37. This is neither a physical Samsung nor a claim of emulator radio/compositor testing.
 
-## Rules and logic (fast)
+- BreathSessionTest and BreathLaunchTest check actual first-draw/handler launch order at 999/1,000 ms, one completion, cancellation, disable, duplicates, lock and process restore. No observer fallback exists; only pro shortcuts are claimed.
+- BreathScreenshots records native production-view transition frames. AppTourScreenshots covers Breathe, Phone and retained headphone screens. Images do not prove smoothness/frame rate.
+- UpdatePolicyTest and UpdateFlowTest use controlled newer/invalid/missing/rate-limited/offline/republished releases, verify channel/version/signature policy, interrupted download cleanup, retained retries, pending confirmation and callback session ownership.
+- OverlayLayerTest / IslandHandoverTest retain popup permission/removal/touch cleanup and below-status-bar placement. PopupGate checks duplicates without extending display. Camera-only renderer/rule/editor/screen-reader tests are retired with those deleted features; mixed popup, artwork, heart, timer, battery and headphone coverage stays.
+- Existing AirPodsProtocolTest, AirPodsUiFixesTest, PhoneTabsUiTest, BatteryAuditTest, PowerPlan tests and headphone/heart tests remain regression evidence. Headphones remain Home and Breathe replaces Island.
+- NowPlayingTest checks buffering-session selection, cover-art isolation when two apps publish the same song, and live metadata updates. Retired sound-attribution tests remain removed.
 
-| File | Checks |
-|---|---|
-| `SoundRulesTest` | Any-sound rules: usage numbers to kinds, which app made a sound, notification log, app on screen, recent list, linger, wording |
-| `SoundSourceTest` | Playback events in, the sound and its app out (via `SoundSource.usagesChanged` and the `roleOverride` seam); ignored apps; recent list; clicks never pop |
-| `FreezeProofTest` | The protections against "pro isn't responding": work kept off the main thread (`OffMain`), the limit on the island's self-checks (`RefreshGuard`), and the freeze report (Android's record to readable text, including a pretend freeze with its trace) |
-| `MessageRulesTest` | Messages and moments: which notifications earn one (importance, Do Not Disturb, ongoing, own), de-duplication, charging/full/low detection, the Messages look and its window, content order, the swipe-up gesture, message settings, and messages through `SoundSource` |
-| `OrganicIslandTest` | Continuous corners land on the next edge, capsules stay capsules, the half-grown shape isn't a fat capsule, volume kept, height never bouncier than width, unlock timing, buttons shrink together |
-| `AppAwareTest` | App kinds (table, makers, Android category, words, no "facebook is a book"), music idle, chat app choice, game stats in words, recent songs |
-| `LiveActivitiesTest` | Which notifications are live, the one number from the app's words ("5 min" is never five miles), running clocks, which one shows |
-| `ScreenInsightsTest` | Reading an app's screen: headlines (never chrome, clocks or the app's name), site and reading time, codes, the fallback patterns, which apps are never read, button words, card sizes, Listen's pieces |
-| `PowerPlanTest` | The battery plan's levels (charging, Battery Saver, low, warm) and what each paces |
-| `PhoneProfileTest` | Recognising the S26 FE and the Pixel 6 Pro (and nothing else), each phone's tuning, heat counting earlier on the Pixel, the island's margin; pictures `phone_profile_*` and `heart_graph_paces` |
-| `HeartPacingTest` | Spot checks: the stored pace carried over, when a spot is done, its value, Smart's rests (steady, moving, high, low AirPods), Saver's sensor time, the graph's points and breaks, resting from spots |
-| `BatteryAuditTest` | The beacon scan's power by screen state and its restart limit |
-| `PulseShaperTest` | Silence flat, a voice leads the middle bars, noise isn't a voice, the kick ripples out, the ambient beat moves smoothly |
-| `Headphones3DTest` | The 3D model fits one batch and its box, unit normals, mirror-symmetric, cups under the band, a calm turn |
-| `MomentsUiTest` | Real swipes and window timing on the real pill: swipe up tucks the song name back at once, puts a moment away, the song name's time setting, the message window growing before and shrinking after |
-| `MiniIslandTest` | When the Dynamic Island is wanted and what it is about, camera picking, never cut off, bars follow music, `nextCheck` (the zero-wait regression), short blips, phone battery parsing |
-| `IslandLookTest` | Look defaults equal the original, storage and reset, situations, slots, sizes, colour, clock text, sound preferences |
-| `IslandMomentsTest` | Pop-up wording, when the heart shows, settings defaults |
-| `IphoneIslandTest` | Apple's numbers (widths, corners, concentric, key line), a pop-up opening out of the pill around the camera (or under it without the switch), room for the detached circle; since 2026-10-10 also the square cover fitting the pill's round end, the opened cover clear of the 44 dp corner, the music island inside Apple's 84 to 160 dp and below the camera, every Motion feel inside 2 s with a bounce-free close, song times, cropping, the Liquid Glass rim |
-| `IslandHandoverTest` | Pop-ups and the pill for every camera shape and look: never over the camera or clock, always fits |
-| `IslandGestureUiTest` | Real touches on the real pill: taps, double and triple, hold, swipe, pull |
-| `IslandTouchTest`, `OverlayLayerTest` | Where touches go with Android's real window layers; which layer each window uses; hidden windows eat nothing |
-| `GlassLightTest`, `GlassTiltTest` | One shared tilt light: counted, always released, pointing the right way |
-| `HeartViewTest`, `HeartInsightsTest`, `HeartHistoryTest`, `HeartBackupTest`, `HeartLinkTest`, `SensorProtoTest` | Heart rate: honest states, insights, history files, backup, sharing, sensor decoding |
-| `AirPodsProtocolTest`, `ConnectionLogicTest`, `CommandFeedbackTest`, `ConversationTimingTest` | Protocol decoding with real message formats, connection and retry rules, change confirmation, Conversation Awareness timing |
-| `DeviceChoiceTest` | Which device pro follows; each device's controls stay with it |
-| `BatteryTimeTest`, `FossUnlockTest` | Listening time left; nothing is locked in this build |
-| `PhoneTabsUiTest` | Presses the real buttons: tabs switch the page (not just the title), Back goes to Phone, the glance's Timer presets and Sound/Vibrate, a timer rings after Android closed pro, a long-missed timer doesn't |
-| `PhoneIslandTest` | The phone-first island: which app is on screen (only real screens count, the shade and toasts don't), what the pill shows and what a tap opens (never an empty music player), hide-in-apps vs the timer, new situations and defaults (never the time), the glance order, the timer's arithmetic, +1 min and restore after a restart, sound/vibrate order, plain-word times, tab names |
-
-## Screenshots (to look at, not to assert on)
-
-| File | Renders | Output |
-|---|---|---|
-| `GlintScreenshots` | Artwork, the pop-ups, and the Dynamic Island in many states (`mini_island_*`: playing, sound, blip, rest, custom looks, camera shapes; `mini_island_in_app*`, `_home*`, `_locked`, `_unlocking`, `_timer*`, `_phone_charging`, `_rest_date`), the opened glance (`island_glance_*`, `island_timer_done`), the iPhone style (`iphone_*`: growing out of the camera `iphone_grow_*`, the music island opening frame by frame `iphone_music_open_*`, closing `iphone_music_close_*`, with the song bar, paused, no cover, with AirPods, the new-song pop-up, the Liquid Glass edge), the look editor, the sound settings, the This phone page | `app/build/screenshots/` |
-| `AppTourScreenshots` | Every page of the app with demo data, light and dark (`00_phone_tab`, `00b_island_tab`, `00c`/`00d` full-length tabs, `01_home` = the AirPods tab, `38_island_settings`, `46_phone`, ...). `tour(..., tab = ...)` picks the tab. | `app/build/screenshots/tour/` |
-
-When you change how something looks, render the screenshots for it and **look at them**. Contact sheets help: crop the top of several `mini_island_*` images and tile them with Pillow (`python3 -I`). The renderer can't show blur, refraction, video or sensors: those need the phone.
-
-## Habits
-
-- A new setting: test its default, that it is saved and read back, and that a bad stored value falls back.
-- A bug fix: add the test that fails without it (see `nextLookIsNeverZeroOrNegative`).
-- `SoundSource` and the other `object`s hold state for the whole test process: call `resetForTest()` in `@Before` and `@After`.
+Actual Samsung checks are in the root TESTING.md. Record observed totals/results in docs/BREATHING_AND_UPDATES.md after running, never assume green from compilation or snapshots.

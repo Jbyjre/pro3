@@ -79,13 +79,19 @@ import me.kavishdevar.librepods.services.ChosenDevice
 import me.kavishdevar.librepods.services.DeviceKind
 
 /**
- * pro's three main pages, along the bottom: the phone itself (first, the main page), the Dynamic
- * Island's own page, and your headphones (AirPods or Beats, whichever you chose).
+ * pro's three main pages, along the bottom: your headphones (first, the home tab the app opens on;
+ * AirPods or Beats, whichever you chose), the phone itself, and the Dynamic Island's own page.
+ * (Jake, 2026-11-13: open on the AirPods tab. It was Phone first from 2026-10-07.)
  */
 enum class AppTab(val title: String) {
+    Headphones("Headphones"),
     Phone("Phone"),
-    Island("Island"),
-    Headphones("Headphones");
+    Breathe("Breathe");
+
+    companion object {
+        /** The tab pro opens on, and the one Back returns to from the others. */
+        val Home: AppTab = Headphones
+    }
 
     /** The tab's word under its picture: the headphones tab is named after the chosen device. */
     fun label(device: ChosenDevice): String = when (this) {
@@ -223,16 +229,10 @@ private fun DrawScope.tabGlyph(tab: AppTab, device: ChosenDevice, color: Color, 
             // Its own Dynamic Island.
             drawRoundRect(color, Offset(c.x - w * 0.2f, tl.y + h * 0.1f), Size(w * 0.4f, h * 0.075f), CornerRadius(h * 0.04f))
         }
-        AppTab.Island -> {
-            val w = u * 1.9f; val h = u * 0.82f
-            val tl = Offset(c.x - w / 2f, c.y - h / 2f)
-            if (on) drawRoundRect(color, tl, Size(w, h), CornerRadius(h / 2f))
-            else drawRoundRect(color, tl, Size(w, h), CornerRadius(h / 2f), style = Stroke(sw))
-            // The camera in the middle, an app on the left, a ring on the right.
-            val inner = if (on) (if (color.red < 0.5f) Color.White else Color.Black) else color
-            drawCircle(inner, h * 0.14f, c)
-            drawRoundRect(inner, Offset(tl.x + h * 0.28f, c.y - h * 0.2f), Size(h * 0.4f, h * 0.4f), CornerRadius(h * 0.1f))
-            drawCircle(inner, h * 0.19f, Offset(tl.x + w - h * 0.48f, c.y), style = Stroke(sw * 0.8f))
+        AppTab.Breathe -> {
+            for (i in 0..3) drawCircle(color.copy(alpha = 0.5f), u * 0.5f,
+                Offset(c.x + (if (i % 2 == 0) -1 else 1) * u * 0.3f,
+                       c.y + (if (i < 2) -1 else 1) * u * 0.3f))
         }
         AppTab.Headphones -> if (device.isAirPods) drawBudPair(c, u * 1.7f, color)
         else drawHeadphones(c, u * 0.78f, color)

@@ -17,6 +17,7 @@
 */
 package me.kavishdevar.librepods.presentation.glint
 
+import android.annotation.SuppressLint
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableLongState
@@ -36,6 +37,9 @@ import kotlinx.coroutines.delay
  * kept checking in the background for hours. Found 2026-10-15 on the Phone tab, the Island tab,
  * the Sounds section, the Heart page and head tracking. Use this for any repeating check on a page.
  */
+// LaunchedEffect runs once per key/lifecycle, not imperatively on each onResume callback;
+// Lint traces MainActivity.onResume -> GlintOverlays -> Island -> Headphones3D -> WhileShown.
+@SuppressLint("RepeatOnLifecycleWrongUsage")
 @Composable
 fun WhileShown(vararg keys: Any?, block: suspend CoroutineScope.() -> Unit) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle

@@ -3,7 +3,6 @@ package me.kavishdevar.librepods
 import android.app.Application
 import android.graphics.Rect
 import me.kavishdevar.librepods.presentation.overlays.IslandGeometry
-import me.kavishdevar.librepods.presentation.overlays.MiniGeometry
 import me.kavishdevar.librepods.services.IslandSpec
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -52,66 +51,11 @@ class IphoneIslandTest {
         assertTrue(IslandSpec.keylineAlpha(darkBackground = true, glow = 2f) <= 0.32f)
     }
 
-    @Test fun opensAroundTheCameraOnlyWhenItCan() {
-        assertTrue(IslandSpec.opensAroundCamera(IslandSpec.Style.IPhone, pillUp = true, aboveStatusBar = true))
-        assertFalse("no pill to grow out of", IslandSpec.opensAroundCamera(IslandSpec.Style.IPhone, pillUp = false, aboveStatusBar = true))
-        assertFalse("the clock would draw over it", IslandSpec.opensAroundCamera(IslandSpec.Style.IPhone, pillUp = true, aboveStatusBar = false))
-        assertFalse("glass drops out under it", IslandSpec.opensAroundCamera(IslandSpec.Style.Glass, pillUp = true, aboveStatusBar = true))
-    }
-
-    @Test fun aPopUpGrowsOutOfTheDynamicIslandItself() {
-        val d = app.resources.displayMetrics.density
-        val w = app.resources.displayMetrics.widthPixels
-        val hole = Rect((w / 2 - 13 * d).toInt(), (10 * d).toInt(), (w / 2 + 13 * d).toInt(), (36 * d).toInt())
-        val origin = MiniGeometry(app, listOf(hole)).origin()
-        val g = IslandGeometry(app, origin, style = IslandSpec.Style.IPhone, aboveStatusBar = true)
-        assertTrue(g.around)
-        // Its top edge is the pill's top edge, and it starts as exactly the pill.
-        assertEquals(origin.top, g.windowTop + g.restTop, 1f)
-        assertEquals(g.restTop, g.seedTop, 0.01f)
-        assertEquals(origin.width, g.seedW, 0.01f)
-        assertEquals(origin.height, g.seedH, 0.01f)
-        // The camera ends up inside it (the shape reaches below the hole).
-        assertTrue(g.windowTop + g.restTop + g.compactH >= hole.bottom)
-        // Apple's opened width and corner.
-        assertEquals(minOf(w - 22f * d, 408f * d), g.expandedW, 1f)
-        assertEquals(44f * d, g.expandedRadius, 0.01f)
-    }
-
-    @Test fun withoutTheSwitchItStillDropsOutBelow() {
-        val d = app.resources.displayMetrics.density
-        val w = app.resources.displayMetrics.widthPixels
-        val hole = Rect((w / 2 - 13 * d).toInt(), (10 * d).toInt(), (w / 2 + 13 * d).toInt(), (36 * d).toInt())
-        val origin = MiniGeometry(app, listOf(hole)).origin()
-        val g = IslandGeometry(app, origin, style = IslandSpec.Style.IPhone, aboveStatusBar = false)
-        assertFalse(g.around)
-        assertTrue("window starts under the pill", g.windowTop >= origin.top + origin.height)
-    }
-
-    @Test fun theDetachedCircleHasRoomAndFits() {
-        val w = app.resources.displayMetrics.widthPixels
-        val mini = MiniGeometry(app, emptyList())
-        val needed = mini.size.compactWidth / 2f + mini.detachedGap + mini.detachedD
-        assertTrue("room for the circle beside the pill", mini.detachedWindow.width / 2f >= needed)
-        assertTrue("fits the screen", mini.detachedWindow.width <= w)
-        assertEquals(mini.compactWindow.height, mini.detachedWindow.height)
-    }
-
     // ---- 2026-10-10: concentric contents, the music island, motion ----
-
-    @Test fun theRoundCoverFitsThePillsRoundEnd() {
-        // 2026-10-11: the cover is a circle on the round end's own centre (a square poked out).
-        val mini = MiniGeometry(app, emptyList())
-        val fit = mini.size.side / 2f
-        // That circle sits inside the pill's round end with a margin all round.
-        assertTrue(fit < mini.size.height / 2f)
-        // Every spot beside the camera is centred on the round end's own centre (concentric).
-        assertEquals(mini.size.height / 2f, mini.size.inset + mini.size.side / 2f, 0.01f)
-    }
 
     @Test fun theOpenedCoverIsConcentricWithTheCorner() {
         val d = app.resources.displayMetrics.density
-        val g = IslandGeometry(app, null, style = IslandSpec.Style.IPhone, aboveStatusBar = false, music = true)
+        val g = IslandGeometry(app, style = IslandSpec.Style.IPhone, music = true)
         // Inner corner = outer corner minus the gap; on a 52 dp cover that is a full circle.
         assertEquals(g.artSize / 2f, g.artCorner, 0.01f)
         val gap = IslandSpec.cornerGap(IslandSpec.CORNER_DP * d, 16f * d, g.artCorner)
@@ -129,26 +73,6 @@ class IphoneIslandTest {
         assertTrue("reach $reach", reach <= 40f - 6f + 0.01f)
         // On a straight side it just keeps the gap.
         assertEquals(6f + 10f, IslandSpec.insetFromCorner(corner = 10f, fromBottom = 40f, r = 10f, gap = 6f), 0.01f)
-    }
-
-    @Test fun theMusicIslandFitsApplesHeightsAndWrapsTheCamera() {
-        val d = app.resources.displayMetrics.density
-        val w = app.resources.displayMetrics.widthPixels
-        val hole = Rect((w / 2 - 13 * d).toInt(), (10 * d).toInt(), (w / 2 + 13 * d).toInt(), (36 * d).toInt())
-        val origin = MiniGeometry(app, listOf(hole)).origin()
-        for (bar in listOf(false, true)) {
-            val g = IslandGeometry(app, origin, style = IslandSpec.Style.IPhone, aboveStatusBar = true, music = true, musicBar = bar)
-            assertTrue(g.musicPage)
-            val h = g.expandedH / d
-            assertTrue("height $h dp", h >= IslandSpec.EXPANDED_MIN_H_DP && h <= IslandSpec.EXPANDED_MAX_H_DP)
-            // Wraps the camera: nothing below a band, and the song's name starts below the lens.
-            assertEquals(0f, g.expandedBand, 0.01f)
-            assertTrue(g.windowTop + g.restTop + g.textTop >= hole.bottom)
-            // The cover sits beside the camera, never under it.
-            assertTrue(g.artInset + g.artSize < g.expandedW / 2f - hole.width() / 2f)
-        }
-        // The glass style keeps its own opened island.
-        assertFalse(IslandGeometry(app, origin, style = IslandSpec.Style.Glass, aboveStatusBar = true, music = true).musicPage)
     }
 
     @Test fun everyFeelStaysInsideApplesTwoSecondsAndClosesWithoutBouncing() {

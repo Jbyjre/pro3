@@ -56,7 +56,10 @@ if [ ! -d "$SDK/platforms" ]; then
   for i in $LAYERS; do
     DIGEST=$(python3 -I -c "import sys,json;print(json.load(open('dl/manifest.json'))['layers'][int(sys.argv[1])]['digest'])" "$i")
     echo "   layer $i ($DIGEST)"
-    curl -sS -L "${AUTH[@]}" -o "dl/layer$i.tgz" "https://registry-1.docker.io/v2/cimg/android/blobs/$DIGEST"
+    # Registry tokens expire while downloading large layers. Renew for each layer.
+    TOK=$(curl -fsS "https://auth.docker.io/token?service=registry.docker.io&scope=repository:cimg/android:pull" | python3 -I -c "import sys,json;print(json.load(sys.stdin)['token'])")
+    AUTH=(-H "Authorization: Bearer $TOK")
+    curl -fsS -L --retry 3 "${AUTH[@]}" -o "dl/layer$i.tgz" "https://registry-1.docker.io/v2/cimg/android/blobs/$DIGEST"
     tar xzf "dl/layer$i.tgz" -C sdkroot --exclude='home/circleci/.android'
     rm -f "dl/layer$i.tgz"
   done
@@ -85,7 +88,7 @@ export ANDROID_SDK_ROOT="\$ANDROID_HOME"
 export GRADLE_USER_HOME="$WORK/gradle-home"
 export ROBOLECTRIC_DEPS_DIR="$WORK/robo"
 # NDK 30 isn't in the image: use the NDK and CMake that are.
-export GRADLE_FLAGS="--offline -PndkVersion=29.0.14206865 -PcmakeVersion=4.1.2"
+export GRADLE_FLAGS="--offline -PndkVersion=29.0.14206865 -PcmakeVersion=4.1.2 -PbuildToolsVersion=37.0.0"
 ENV
 
 echo

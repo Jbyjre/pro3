@@ -44,6 +44,7 @@ object PhoneStatus {
     private val _state = MutableStateFlow(Info())
     val state: StateFlow<Info> = _state.asStateFlow()
     private var attached = false
+    private var receiverRef: BroadcastReceiver? = null
 
     /** Starts following the battery (safe to call often). */
     fun attach(context: Context) {
@@ -53,6 +54,7 @@ object PhoneStatus {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) { _state.value = read(i) }
         }
+        receiverRef = receiver
         // The battery broadcast is sticky: registering returns the latest reading straight away.
         val sticky = ContextCompat.registerReceiver(
             app, receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED,
@@ -60,6 +62,11 @@ object PhoneStatus {
         if (sticky != null) _state.value = read(sticky)
     }
 
+    fun detach(context: Context) {
+        receiverRef?.let { runCatching { context.applicationContext.unregisterReceiver(it) } }
+        receiverRef = null
+        attached = false
+    }
     private fun read(i: Intent): Info = parse(
         level = i.getIntExtra(BatteryManager.EXTRA_LEVEL, -1),
         scale = i.getIntExtra(BatteryManager.EXTRA_SCALE, 100),

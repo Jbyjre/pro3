@@ -40,6 +40,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import me.kavishdevar.librepods.R
@@ -50,7 +54,9 @@ fun NoiseControlButton(
     onClick: () -> Unit,
     textColor: Color,
     modifier: Modifier = Modifier,
-    usePadding: Boolean = true
+    usePadding: Boolean = true,
+    label: String? = null,
+    selected: Boolean = false,
 ) {
     // Tactile: the symbol squishes under the finger and springs back, with a light tick.
     val source = remember { MutableInteractionSource() }
@@ -61,8 +67,15 @@ fun NoiseControlButton(
         modifier = modifier
             .fillMaxHeight()
             .then(if (usePadding) Modifier.padding(horizontal = 4.dp, vertical = 4.dp) else Modifier)
+            .semantics {
+                if (label != null) {
+                    contentDescription = label
+                    this.selected = selected
+                }
+            }
             .clickable(
                 onClick = { view.performHapticFeedback(if (android.os.Build.VERSION.SDK_INT >= 34) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK); onClick() },
+                role = Role.Tab,
                 indication = null,
                 interactionSource = source
             ),

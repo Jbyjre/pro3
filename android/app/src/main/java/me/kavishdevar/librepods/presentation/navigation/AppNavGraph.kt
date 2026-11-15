@@ -42,7 +42,7 @@ import me.kavishdevar.librepods.presentation.screens.TroubleshootingScreen
 import me.kavishdevar.librepods.presentation.screens.UpdateHearingTestRoute
 import me.kavishdevar.librepods.presentation.screens.VersionScreen
 import me.kavishdevar.librepods.presentation.screens.GlintLabScreen
-import me.kavishdevar.librepods.presentation.screens.IslandSettingsScreen
+import me.kavishdevar.librepods.presentation.screens.BreatheScreen
 import me.kavishdevar.librepods.presentation.screens.PhoneScreen
 import me.kavishdevar.librepods.presentation.screens.AppsScreen
 import me.kavishdevar.librepods.presentation.screens.DevicesScreen
@@ -104,8 +104,8 @@ fun AppNavGraph(
                                 onboardingComplete()
                                 navigate(Screen.AirPodsSettings)
                                 backStack.remove(screen)
-                                // Setup done: start on the Phone tab, the main page.
-                                onTab(AppTab.Phone)
+                                // Setup done: start on the home tab (AirPods).
+                                onTab(AppTab.Home)
                             }
                         }
                     Screen.AirPodsSettings ->
@@ -124,13 +124,15 @@ fun AppNavGraph(
                             ) { shown ->
                                 when (shown) {
                                     AppTab.Phone -> PhoneScreen(
-                                        navigateToIsland = { onTab(AppTab.Island) },
+                                        navigateToIsland = { onTab(AppTab.Phone) },
                                         navigateToHeadphones = { onTab(AppTab.Headphones) },
                                         navigateToApps = { navigate(Screen.Apps) },
                                     )
-                                    AppTab.Island -> IslandSettingsScreen(navigateToApps = { navigate(Screen.Apps) })
+                                    AppTab.Breathe -> BreatheScreen(navigateToApps = { navigate(Screen.Apps) })
                                     AppTab.Headphones -> {
-                                        if (!airPodsViewModel.isReady) LoadingScreen()
+                                        // Don't cover the page with a full-screen spinner while the
+                                        // background service binds in the first moment: the waiting
+                                        // panel is already the right resting view.
                                         AirPodsSettingsRoute(
                                             viewModel = airPodsViewModel,
                                             navigateToRename = { navigate(Screen.Rename) },
@@ -158,7 +160,7 @@ fun AppNavGraph(
                                             navigateToHeartRate = { navigate(Screen.HeartRate) },
                                             navigateToRecorder = { navigate(Screen.Recorder) },
                                             navigateToDevices = { navigate(Screen.Devices) },
-                                            navigateToIsland = { onTab(AppTab.Island) },
+                                            navigateToIsland = { onTab(AppTab.Phone) },
                                             navigateToPhone = { onTab(AppTab.Phone) },
                                         )
                                     }
@@ -168,7 +170,6 @@ fun AppNavGraph(
 
                     Screen.Rename ->
                         NavEntry(screen) {
-                            if (!airPodsViewModel.isReady) LoadingScreen()
                             RenameScreen(airPodsViewModel)
                         }
 
@@ -203,7 +204,7 @@ fun AppNavGraph(
                         NavEntry(screen) { StayConnectedScreen() }
 
                     Screen.IslandSettings ->
-                        NavEntry(screen) { IslandSettingsScreen(navigateToApps = { navigate(Screen.Apps) }) }
+                        NavEntry(screen) { BreatheScreen(navigateToApps = { navigate(Screen.Apps) }) }
 
                     Screen.Phone ->
                         NavEntry(screen) {
