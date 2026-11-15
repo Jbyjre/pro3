@@ -19,14 +19,28 @@ import java.io.File
 @Config(sdk = [36], application = Application::class, qualifiers = "w412dp-h915dp-xxhdpi")
 class BreathScreenshots {
     @Test fun productionTransitionFrames() = frames("")
+    @Test fun coldAppearanceDoesNotFlashTheDefaultColorBeforeTheSavedStillColor() {
+        val view=BreathView(RuntimeEnvironment.getApplication()).apply { awaitingAppearance=true;renderAt=0 }
+        view.layout(0,0,200,400)
+        val bitmap=Bitmap.createBitmap(200,400,Bitmap.Config.ARGB_8888)
+        view.draw(Canvas(bitmap))
+        org.junit.Assert.assertEquals(BreathPalette.BASE,bitmap.getPixel(5,395))
+        view.options=BreathOptions(BreathPalette.Coral,true)
+        view.draw(Canvas(bitmap))
+        val loaded=bitmap.getPixel(5,395)
+        org.junit.Assert.assertTrue(android.graphics.Color.red(loaded)>android.graphics.Color.blue(loaded))
+        bitmap.recycle()
+    }
     @Test fun colorPresetsAndStillFrames() {
         BreathPalette.entries.forEach { palette ->
             frames("${palette.key}-",options=BreathOptions(palette))
         }
-        val first=render(0L,BreathOptions(BreathPalette.Lagoon,true),200,400)
-        val last=render(999L,BreathOptions(BreathPalette.Lagoon,true),200,400)
-        org.junit.Assert.assertTrue("still mode must not animate",first.sameAs(last))
-        first.recycle();last.recycle()
+        BreathPalette.entries.forEach { palette ->
+            val first=render(0L,BreathOptions(palette,true),200,400)
+            val last=render(999L,BreathOptions(palette,true),200,400)
+            org.junit.Assert.assertTrue("${palette.label} still mode must not animate",first.sameAs(last))
+            first.recycle();last.recycle()
+        }
     }
     @Test fun layerAdvancesAcrossTheScreen() {
         fun colored(time:Long):Int {
@@ -67,7 +81,7 @@ class BreathScreenshots {
         return Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
     }
     private fun frames(prefix: String, width: Int = 1236, height: Int = 2745,options:BreathOptions=BreathOptions()) {
-        for (time in listOf(0L,100L,300L,600L,900L,1000L)) {
+        for (time in listOf(0L,100L,300L,450L,500L,600L,900L,1000L)) {
             val bitmap=render(time,options,width,height)
             File("build/screenshots/breathe").mkdirs()
             File("build/screenshots/breathe/$prefix$time.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }

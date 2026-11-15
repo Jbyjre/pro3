@@ -70,6 +70,9 @@ class BreathLaunchTest {
         assertEquals(chosen,view.options)
         assertTrue(view.motionReduced)
         draw(a)
+        val darkBars=android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+            android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        assertEquals("the warm still layer needs dark Android icons",darkBars,a.window.insetsController!!.systemBarsAppearance and darkBars)
         ShadowLooper.idleMainLooper(999,java.util.concurrent.TimeUnit.MILLISECONDS)
         assertNull(shadowOf(a).nextStartedActivity)
         ShadowLooper.idleMainLooper(1,java.util.concurrent.TimeUnit.MILLISECONDS)

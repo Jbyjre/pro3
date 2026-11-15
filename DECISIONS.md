@@ -827,3 +827,10 @@ Jake rejected the flower and asked for a screen layer moving over the second, br
 Permission health reads actual Android overlay, notification-listener, package-install and notification access on resume, without polling. Runtime notification results also refresh status. Recovery links open the relevant app-specific settings, including App info for restricted music access. Tests click and persist real customization controls, verify the actual launch applies them at the same deadline, and simulate granting/revoking all access during a settings round trip. Physical Samsung rendering, gestures and OEM settings behavior remain unverified. Final verification is recorded in docs/BREATHING_AND_UPDATES.md.
 
 Final local verification for this revision: all 361 tests across 49 classes passed, lint has 0 errors, and signed build 233 passed. The APK certificate matches the existing downloadable release.
+
+
+## 54. 2026-11-15 — researched color and motion refinement
+
+Jake requested a more deliberate pop-color and gradient pass, supported by research. Google Design’s expressive-design work, Headspace’s lead designer’s system and visual palette, W3C color interpolation and WCAG contrast guidance informed the result. Three authored palettes (Cobalt, Tangerine, Pool) use cached Lab samples and their own readable inks. One opaque sheet replaces translucent bands and black shading. Large left-aligned type replaces the small centered composition; text inks reveal with the sheet through separate clips. Existing saved keys, preview, Still mode, reduced motion and launch timing remain compatible. Research, native evidence and measured contrast: docs/COLOR_AND_MOTION.md. Final validation is recorded in docs/BREATHING_AND_UPDATES.md.
+
+Verified for this color pass: all 363 tests across 49 classes, lint with 0 errors, and signed build 235 passed. Native evidence includes 48 transition states and actual setup renders. The existing release certificate is unchanged; physical Samsung smoothness remains unverified.
