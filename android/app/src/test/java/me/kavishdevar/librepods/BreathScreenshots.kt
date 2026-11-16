@@ -81,7 +81,7 @@ class BreathScreenshots {
         return Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
     }
     private fun frames(prefix: String, width: Int = 1236, height: Int = 2745,options:BreathOptions=BreathOptions()) {
-        for (time in listOf(0L,100L,300L,450L,500L,600L,900L,1000L)) {
+        for (time in listOf(0L,250L,750L,1125L,1250L,1500L,2250L,2500L)) {
             val bitmap=render(time,options,width,height)
             File("build/screenshots/breathe").mkdirs()
             File("build/screenshots/breathe/$prefix$time.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }

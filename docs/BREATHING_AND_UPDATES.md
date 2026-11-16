@@ -1,3 +1,5 @@
+> **Breathing superseded on 16 November:** [App-open breathing](APP_OPEN_BREATHING.md) replaces the shortcut-only flow and one-second duration below. Updater and signing notes still apply. Verification totals below are historical.
+
 # Breathing, temporary pop-ups and updates — 15 November 2026
 
 This supersedes every older request for a persistent camera island, including its “Off” ring. The starting default branch was `2e9e039863ab774d1a3820b25980d72146543dce`; the recent AirPods-first navigation and headphone improvements were preserved.

@@ -1,3 +1,5 @@
+> Current Breathe behavior: [app-open breathing](../../../../../../../../docs/APP_OPEN_BREATHING.md). A dedicated event-driven service covers selected ordinary app opens for 2.5 seconds, without screen-content retrieval. Shortcut-only/one-second statements below are historical.
+
 # Verification
 
 Run the repository's testFossDebugUnitTest, lintFossRelease and signed assembleFossRelease tasks. Cloud setup supplies the dependency cache, Android SDK/NDK and Robolectric image; a full JDK 21 is required. Tests render/run on Robolectric API 36, compiling/targeting API 37. This is neither a physical Samsung nor a claim of emulator radio/compositor testing.

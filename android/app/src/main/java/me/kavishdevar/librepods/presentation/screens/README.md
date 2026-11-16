@@ -1,3 +1,5 @@
+> Current Breathe behavior: [app-open breathing](../../../../../../../../../../docs/APP_OPEN_BREATHING.md). A dedicated event-driven service covers selected ordinary app opens for 2.5 seconds, without screen-content retrieval. Shortcut-only/one-second statements below are historical.
+
 # Product screens
 
 Headphones (`AirPodsSettingsScreen`, `HeadphonesScreen`) remain the first/home tab. Current listening controls, Off option, disconnect confirmation, rename, Beats choice and original AirPods artwork are preserved.

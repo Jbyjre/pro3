@@ -1,3 +1,5 @@
+> **Current breathing behavior:** [docs/APP_OPEN_BREATHING.md](docs/APP_OPEN_BREATHING.md) supersedes shortcut-only/no-accessibility breathing notes: chosen ordinary app windows receive a 2.5-second layer via a dedicated service with no screen-content access. No camera feature is restored.
+
 > Current product: [docs/BREATHING_AND_UPDATES.md](docs/BREATHING_AND_UPDATES.md) supersedes all camera-island implementation notes below. The persistent MiniIsland feature and accessibility/screen readers are removed. Breathe replaces Island; headphones remain Home. Temporary Island/MusicIsland pop-ups stay. Do not restore the ring or request camera Accessibility access. Signing regeneration is forbidden; use existing identity, secrets or its cache.
 
 # Rules for Claude sessions on this repo

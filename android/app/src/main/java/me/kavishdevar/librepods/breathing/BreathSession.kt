@@ -15,10 +15,10 @@ class BreathSession {
         return true
     }
     fun cancel() { cancelled = true }
-    companion object { const val DURATION_MS = 1_000L }
+    companion object { const val DURATION_MS = 2_500L }
 }
 
-/** No service, polling, Bluetooth, or app-observation privilege is needed for controlled launches. */
+/** Shared ownership prevents headphone pop-ups or the two launch routes from stacking. */
 object BreathInteraction {
     @Volatile var cancel: (() -> Unit)? = null
     val active: Boolean get() = cancel != null

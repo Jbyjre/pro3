@@ -1,3 +1,5 @@
+> Current Breathe behavior: [app-open breathing](../../../../../../../../../docs/APP_OPEN_BREATHING.md). A dedicated event-driven service covers selected ordinary app opens for 2.5 seconds, without screen-content retrieval. Shortcut-only/one-second statements below are historical.
+
 # Services and active rules
 
 Current behavior supersedes the historical camera-island notes: [breathing and updates](../../../../../../../../../docs/BREATHING_AND_UPDATES.md).
