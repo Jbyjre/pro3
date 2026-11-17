@@ -51,6 +51,7 @@ class BreathView(context: Context) : View(context) {
         importantForAccessibility=IMPORTANT_FOR_ACCESSIBILITY_YES
         isClickable=true
         isFocusable=true
+        isFocusableInTouchMode=true
     }
     /** Reuse the prepared native layer without carrying a previous intervention's clock. */
     fun restart() { start = null; lastBarAppearance = -1; invalidate() }

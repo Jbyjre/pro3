@@ -35,9 +35,9 @@ class BreathAccessServiceTest {
     private val chess = "fixture.chess"
     private val chat = "fixture.chat"
     private val home = "fixture.home"
-    private fun install(pkg: String) {
+    private fun install(pkg: String, activityName: String = "$pkg.Main") {
         val app = ApplicationInfo().apply { packageName = pkg; enabled = true; nonLocalizedLabel = pkg }
-        val info = ActivityInfo().apply { packageName = pkg; name = "$pkg.Main"; applicationInfo = app; enabled = true; exported = true }
+        val info = ActivityInfo().apply { packageName = pkg; name = activityName; applicationInfo = app; enabled = true; exported = true }
         shadowOf(context.packageManager).installPackage(PackageInfo().apply {
             packageName = pkg; applicationInfo = app; activities = arrayOf(info)
         })
@@ -161,6 +161,60 @@ class BreathAccessServiceTest {
         assertTrue(shadowOf(service).globalActionsPerformed.contains(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME))
         ShadowLooper.idleMainLooper(5000, MILLISECONDS)
         assertNull(shadowOf(context as Application).nextStartedActivity)
+    }
+
+    @Test fun failedAttachmentRetriesTheSameAppInsteadOfConsumingItsPause() {
+        val real = service.getSystemService(WindowManager::class.java)
+        var fail = true
+        val failingOnce = java.lang.reflect.Proxy.newProxyInstance(WindowManager::class.java.classLoader,
+            arrayOf(WindowManager::class.java)) { _, method, args ->
+            if (method.name == "addView" && fail) {
+                fail = false
+                throw WindowManager.BadTokenException("fixture: token not ready")
+            }
+            method.invoke(real, *(args ?: emptyArray()))
+        } as WindowManager
+        org.robolectric.util.ReflectionHelpers.setField(service, "windowManager", failingOnce)
+        event(chess)
+        assertTrue(layers().isEmpty())
+        assertTrue(BreathAccess.connected.value)
+        assertTrue(BreathAccess.needsAttention.value)
+        assertFalse(BreathInteraction.active)
+        event(chess)
+        assertEquals(1, layers().size)
+        assertFalse(BreathAccess.needsAttention.value)
+        draw()
+        ShadowLooper.idleMainLooper(2500, MILLISECONDS)
+        assertTrue(layers().isEmpty())
+    }
+    @Test fun aWindowThatNeverDrawsCannotKeepBlockingThePhone() {
+        event(chess)
+        layers().single().visibility = android.view.View.INVISIBLE
+        ShadowLooper.idleMainLooper(1000, MILLISECONDS)
+        assertTrue(layers().isEmpty())
+        assertFalse(BreathInteraction.active)
+        assertTrue(BreathAccess.needsAttention.value)
+        event(chess)
+        layers().single().visibility = android.view.View.VISIBLE
+        draw()
+        ShadowLooper.idleMainLooper(2499, MILLISECONDS)
+        assertEquals(1, layers().size)
+        ShadowLooper.idleMainLooper(1, MILLISECONDS)
+        assertTrue(layers().isEmpty())
+        assertFalse(BreathAccess.needsAttention.value)
+    }
+    @Test fun interruptionDiscardsAnUnfinishedActivityLookup() {
+        // This activity appeared after the service prepared its known-class set.
+        install(chess, "$chess.NewActivity")
+        event(chess, "$chess.NewActivity")
+        service.onInterrupt()
+        resolve()
+        assertTrue(layers().isEmpty())
+        assertFalse(BreathInteraction.active)
+        // A subsequent real event is still covered after that cancellation.
+        event(chess, "$chess.NewActivity")
+        resolve()
+        assertEquals(1, layers().size)
     }
 
 }

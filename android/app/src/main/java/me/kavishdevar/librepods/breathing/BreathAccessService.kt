@@ -23,7 +23,6 @@ import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import androidx.core.content.ContextCompat
-import androidx.core.view.doOnAttach
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -49,6 +48,9 @@ class BreathAccessService : AccessibilityService() {
     private var labels = emptyMap<String, String>()
     private var permissionController: String? = null
     private val activities = mutableSetOf<ComponentName>()
+    private val rejectedWindows = android.util.LruCache<ComponentName, Boolean>(128)
+    private val pendingWindows = mutableMapOf<ComponentName, PendingWindow>()
+    private class PendingWindow(var sequence: Int)
     private var layer: BreathView? = null
     private var shownPackage: String? = null
     private var windowManager: WindowManager? = null
@@ -57,10 +59,14 @@ class BreathAccessService : AccessibilityService() {
     private var acceptingEvents = false
     private var attachedAt = 0L
     private val back = OnBackInvokedCallback { leave() }
+    private var backDispatcher: OnBackInvokedDispatcher? = null
+    private val firstFrameTimeout = Runnable {
+        if (attached && session.startedAt == null) failPresentation()
+    }
     private val motionObserver = object : ContentObserver(main) {
         override fun onChange(selfChange: Boolean) { refresh() }
     }
-    private val cancelInteraction: () -> Unit = { hide() }
+    private val cancelInteraction: () -> Unit = { interruptPending(resetEntry = false) }
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
         if (prefs === BreathPrefs.prefs(this) || key == GlintComfort.PREF_REDUCE_MOTION) refresh()
     }
@@ -69,7 +75,7 @@ class BreathAccessService : AccessibilityService() {
             hide()
             BreathAccess.gate.reset()
             pendingForeground = null
-            lastTransition = ++eventRevision
+            invalidatePending()
         }
     }
     private val finishPause = object : Runnable {
@@ -83,15 +89,24 @@ class BreathAccessService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         acceptingEvents = true
+        BreathAccess.presentationFailed.value = false
         if (layer != null) { refresh(); return }
         windowManager = getSystemService(WindowManager::class.java)
         layer = BreathView(this).apply {
             onFirstFrame = {
+                main.removeCallbacks(firstFrameTimeout)
                 val now = SystemClock.elapsedRealtime()
                 android.util.Log.d("Breathe", "Layer attach to first draw: ${now - attachedAt} ms")
                 session.firstFrame(now)
                 main.postDelayed(finishPause, BreathSession.DURATION_MS)
             }
+            addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(view: View) {
+                    backDispatcher = view.findOnBackInvokedDispatcher()
+                    backDispatcher?.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, back)
+                }
+                override fun onViewDetachedFromWindow(view: View) { releaseBackDispatcher() }
+            })
             setOnKeyListener { _, key, event ->
                 if (key == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
                     leave()
@@ -108,7 +123,30 @@ class BreathAccessService : AccessibilityService() {
 
     private fun leave() {
         performGlobalAction(GLOBAL_ACTION_HOME)
+        interruptPending(resetEntry = false)
+    }
+
+    private fun invalidatePending() {
+        lastTransition = ++eventRevision
+        pendingForeground = null
+        pendingWindows.clear()
+    }
+
+    private fun interruptPending(resetEntry: Boolean) {
+        invalidatePending()
+        if (resetEntry) BreathAccess.gate.reset()
         hide()
+    }
+
+    private fun releaseBackDispatcher() {
+        backDispatcher?.unregisterOnBackInvokedCallback(back)
+        backDispatcher = null
+    }
+
+    private fun failPresentation() {
+        shownPackage?.let { BreathAccess.gate.retry(it) }
+        hide()
+        BreathAccess.presentationFailed.value = true
     }
 
     private fun refresh() {
@@ -124,13 +162,15 @@ class BreathAccessService : AccessibilityService() {
                     info.activities.orEmpty().forEach { components += ComponentName(pkg, it.name) }
                 }
                 val options = BreathPrefs.options(this@BreathAccessService).also { it.palette.gradientColors }
-                Prepared(apps, names, components, options, GlintComfort.reduceMotion(this@BreathAccessService), packageManager.resolveActivity(Intent("android.content.pm.action.REQUEST_PERMISSIONS"), PackageManager.MATCH_SYSTEM_ONLY)?.activityInfo?.packageName)
+                Prepared(apps, names, components, options, GlintComfort.reduceMotion(this@BreathAccessService), runCatching { packageManager.resolveActivity(Intent("android.content.pm.action.REQUEST_PERMISSIONS"), PackageManager.MATCH_SYSTEM_ONLY)?.activityInfo?.packageName }.getOrNull())
             }
             if (version != revision || !acceptingEvents) return@launch
             selected = loaded.apps
             labels = loaded.names
             permissionController = loaded.permissionController
+            activities.clear()
             activities.addAll(loaded.components)
+            rejectedWindows.evictAll()
             layer?.apply { options = loaded.options; systemReduced = loaded.reduced }
             if (shownPackage != null && shownPackage !in selected) hide()
             BreathAccess.connection.value = true
@@ -166,15 +206,25 @@ class BreathAccessService : AccessibilityService() {
         if (component in activities) {
             lastTransition = ++eventRevision
             enter(pkg)
-        } else {
-            // Unknown windows (including IMEs/dialogs) are validated off main, never guessed.
+        } else if (rejectedWindows.get(component) != true) {
+            // Coalesce repeated windows while classification is in flight. Dialog/IME misses are
+            // bounded and cached, so typing cannot flood package-manager work.
             val version = ++eventRevision
+            val existing = pendingWindows[component]
+            if (existing != null) { existing.sequence = version; return }
+            val request = PendingWindow(version)
+            pendingWindows[component] = request
             scope.launch {
                 val isActivity = withContext(Dispatchers.IO) {
                     runCatching { packageManager.getActivityInfo(component, 0) }.isSuccess
                 }
-                if (isActivity) activities += component
-                if (acceptingEvents && version > lastTransition && isActivity) { lastTransition = version; enter(pkg) }
+                if (pendingWindows[component] !== request) return@launch
+                pendingWindows.remove(component)
+                if (isActivity) activities += component else rejectedWindows.put(component, true)
+                if (acceptingEvents && request.sequence > lastTransition && isActivity) {
+                    lastTransition = request.sequence
+                    enter(pkg)
+                }
             }
         }
     }
@@ -208,26 +258,22 @@ class BreathAccessService : AccessibilityService() {
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
         }
         attachedAt = SystemClock.elapsedRealtime()
-        view.doOnAttach {
-            view.findOnBackInvokedDispatcher()?.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, back)
-        }
         runCatching { windowManager?.addView(view, params) }.onSuccess {
             attached = true
-            BreathAccess.connection.value = true
+            BreathAccess.presentationFailed.value = false
+            main.postDelayed(firstFrameTimeout, 1_000L)
             BreathInteraction.cancel = cancelInteraction
             GlintOverlays.dismissAll()
             view.requestFocus()
-        }.onFailure {
-            shownPackage = null
-            BreathAccess.connection.value = false
-        }
+        }.onFailure { failPresentation() }
     }
 
     private fun hide() {
         session.cancel()
         main.removeCallbacks(finishPause)
+        main.removeCallbacks(firstFrameTimeout)
         if (attached) {
-            layer?.findOnBackInvokedDispatcher()?.unregisterOnBackInvokedCallback(back)
+            releaseBackDispatcher()
             runCatching { windowManager?.removeViewImmediate(layer) }
         }
         attached = false
@@ -235,22 +281,24 @@ class BreathAccessService : AccessibilityService() {
         if (BreathInteraction.cancel === cancelInteraction) BreathInteraction.cancel = null
     }
 
-    override fun onInterrupt() { hide() }
+    override fun onInterrupt() { interruptPending(resetEntry = true) }
     override fun onUnbind(intent: Intent?): Boolean {
         acceptingEvents = false
-        revision++; lastTransition = ++eventRevision
+        revision++; invalidatePending()
         prepared = false; pendingForeground = null
         BreathAccess.gate.reset()
         hide()
         BreathAccess.connection.value = false
+        BreathAccess.presentationFailed.value = false
         return super.onUnbind(intent)
     }
     override fun onDestroy() {
         acceptingEvents = false
-        revision++; eventRevision++
+        revision++; invalidatePending()
         hide()
         scope.cancel()
         BreathAccess.connection.value = false
+        BreathAccess.presentationFailed.value = false
         BreathAccess.gate.reset()
         BreathPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
         getSharedPreferences("settings", MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(prefsListener)

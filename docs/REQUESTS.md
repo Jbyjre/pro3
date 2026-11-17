@@ -17,6 +17,7 @@ The latest request replaces shortcut-only breathing. Jake opens original app ico
 | Always on for chosen apps | IMPLEMENTED | Global toggle, snooze, tile and preference bypass removed. Android still controls access, force-stop and uninstall; pro reports disconnected/revoked status. |
 | Smooth setup and polished presentation | CLOUD CHECKS PASSED; DEVICE CHECK | Choose apps → Connect Breathe; direct per-service Settings with fallback, restricted-settings help, separate enabled/connected status, existing three palettes and Still mode. No screen-content retrieval. |
 | Preserve notifications, links and headphones | REGRESSIONS PASSED; DEVICE CHECK | An overlay never sends a launcher intent. Package transitions deduplicate activities/dialogs. Existing shared ownership drops routine headphone pop-ups during breathing. |
+| Recover failed/interrupted breathing and simplify selection | CLOUD CHECKS PASSED; DEVICE CHECK | Retry failed attachment without consuming the entry; bound first-frame waits; discard interrupted class lookups; cache repeated non-activity windows; surface rendering failures separately from access; whole-row app selection and a chosen-app filter. 382 tests passed; release lint had zero errors; release assembly passed. Recovery and enlarged-text picker screenshots inspected. |
 
 See [current delivery and validation](APP_OPEN_BREATHING.md). Prior November 15 results below apply to that earlier build, not the new service.
 

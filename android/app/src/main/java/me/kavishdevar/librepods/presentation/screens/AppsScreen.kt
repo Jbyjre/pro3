@@ -20,6 +20,7 @@ package me.kavishdevar.librepods.presentation.screens
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +33,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -43,6 +46,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,8 +64,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -66,7 +72,6 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import me.kavishdevar.librepods.presentation.components.StyledInputField
-import me.kavishdevar.librepods.presentation.components.StyledSwitch
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.breathing.BreathPrefs
 import me.kavishdevar.librepods.services.SoundSource
@@ -110,7 +115,11 @@ fun AppsScreen(preset: List<AppEntry>? = null) {
     val query = rememberTextFieldState()
     val focus = remember { FocusRequester() }
     val text = query.text.toString().trim()
-    val shown = remember(apps, text) { if (text.isEmpty()) apps else apps.filter { it.label.contains(text, ignoreCase = true) } }
+    var onlyChosen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val chosenCount = apps.count { it.pkg in selected }
+    val shown = remember(apps, text, selected, onlyChosen) {
+        apps.filter { (!onlyChosen || it.pkg in selected) && (text.isEmpty() || it.label.contains(text, ignoreCase = true)) }
+    }
 
     Column(
         Modifier
@@ -127,6 +136,18 @@ fun AppsScreen(preset: List<AppEntry>? = null) {
         Spacer(Modifier.height(8.dp))
         Box(Modifier.fillMaxWidth()) { StyledInputField(query, focus, placeholder = "Search apps", forceApple = true) }
         Spacer(Modifier.height(10.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for ((chosenOnly, label) in listOf(false to "All apps", true to "Chosen ($chosenCount)")) {
+                FilterChip(
+                    selected = onlyChosen == chosenOnly,
+                    onClick = { onlyChosen = chosenOnly },
+                    label = { Text(label) }, modifier = Modifier.heightIn(min = 48.dp),
+                    colors = FilterChipDefaults.filterChipColors(containerColor = card, labelColor = ink,
+                        selectedContainerColor = ink, selectedLabelColor = card),
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
 
         if (apps.isEmpty()) {
             Text(
@@ -136,7 +157,7 @@ fun AppsScreen(preset: List<AppEntry>? = null) {
             )
         } else if (shown.isEmpty()) {
             Text(
-                "No app called \"$text\".",
+                if (onlyChosen && chosenCount == 0) "Choose apps from All apps to see them here." else "No matches for \"$text\".",
                 style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, color = ink.copy(alpha = 0.55f)),
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
@@ -160,8 +181,12 @@ fun AppsScreen(preset: List<AppEntry>? = null) {
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 9.dp)
-                        .semantics { contentDescription = "${app.label}: ${if (on) "selected for breathing" else "not selected"}" },
+                        .heightIn(min = 64.dp)
+                        .toggleable(value = on, role = Role.Checkbox, onValueChange = { chosen ->
+                            BreathPrefs.select(context, app.pkg, chosen)
+                            selected = BreathPrefs.selected(context)
+                        })
+                        .padding(horizontal = 16.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (icon != null) androidx.compose.foundation.Image(bitmap = icon!!, contentDescription = null,
@@ -169,17 +194,12 @@ fun AppsScreen(preset: List<AppEntry>? = null) {
                     else Box(Modifier.size(38.dp).background(ink.copy(alpha = 0.06f), RoundedCornerShape(10.dp)))
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        app.label, maxLines = 1,
+                        app.label, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = ink),
                         modifier = Modifier.weight(1f),
                     )
-                    StyledSwitch(
-                        checked = on,
-                        onCheckedChange = { show ->
-                            BreathPrefs.select(context, app.pkg, show)
-                            selected = BreathPrefs.selected(context)
-                        },
-                    )
+                    Checkbox(checked = on, onCheckedChange = null,
+                        colors = CheckboxDefaults.colors(checkedColor = ink, checkmarkColor = card, uncheckedColor = ink.copy(alpha = 0.6f)))
                 }
                 if (index < shown.lastIndex) Box(Modifier.padding(start = 66.dp).fillMaxWidth().height(0.5.dp).background(ink.copy(alpha = 0.08f)))
             }

@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.asStateFlow
 object BreathAccess {
     internal val connection = MutableStateFlow(false)
     val connected = connection.asStateFlow()
+    internal val presentationFailed = MutableStateFlow(false)
+    val needsAttention = presentationFailed.asStateFlow()
     internal val gate = BreathAppGate()
 
     fun enabled(context: Context): Boolean {
