@@ -359,7 +359,7 @@ private fun WelcomeStep(backdrop: LayerBackdrop, onStart: () -> Unit) {
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            "Your AirPods or Beats, a one-second breathing pause, and simple app updates.",
+            "Your AirPods or Beats, a short breathing pause, and simple app updates.",
             textAlign = TextAlign.Center,
             style = TextStyle(
                 fontFamily = glintFontFamily, fontSize = 15.sp, lineHeight = 21.sp,

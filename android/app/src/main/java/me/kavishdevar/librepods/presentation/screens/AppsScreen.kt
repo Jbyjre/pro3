@@ -67,14 +67,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import me.kavishdevar.librepods.presentation.components.StyledInputField
 import me.kavishdevar.librepods.presentation.components.StyledSwitch
-import me.kavishdevar.librepods.presentation.overlays.GlintOverlays
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.breathing.BreathPrefs
-import me.kavishdevar.librepods.breathing.BreathShortcuts
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
-import me.kavishdevar.librepods.services.SoundRules
 import me.kavishdevar.librepods.services.SoundSource
 
 /** An app you can open, as listed on the Apps page. */
@@ -98,25 +92,20 @@ internal fun launchableApps(context: Context): List<AppEntry> {
         .toList()
 }
 
-/**
- * Settings > Islands > Apps: the apps on this phone, each with a switch for whether its sounds
- * and messages may pop the Dynamic Island. Same switches as "Heard lately" (turning WhatsApp
- * off there is turning it off here). The list is whatever is installed, so it reflects this
- * phone, and loads in the background.
- */
+/** Installed apps for the event-driven breathing pause. */
 @Composable
 fun AppsScreen(preset: List<AppEntry>? = null) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val dark = isSystemInDarkTheme()
     val ink = if (dark) Color.White else Color.Black
     val card = if (dark) Color(0xFF1C1C1E) else Color.White
     val topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 84.dp
     val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp
 
-    val apps by produceState(initialValue = preset ?: emptyList(), preset) {
+    val loadedApps by produceState<List<AppEntry>?>(initialValue = preset, preset) {
         if (preset == null) value = withContext(Dispatchers.IO) { launchableApps(context) }
     }
+    val apps = loadedApps.orEmpty()
     var selected by remember { mutableStateOf(BreathPrefs.selected(context)) }
     val query = rememberTextFieldState()
     val focus = remember { FocusRequester() }
@@ -131,7 +120,7 @@ fun AppsScreen(preset: List<AppEntry>? = null) {
     ) {
         Spacer(Modifier.height(topPadding))
         Text(
-            "Choose apps, then add their breathing icons to your home screen. Use those icons for the pause. Other routes open directly.",
+            "Choose where you want a 2.5-second pause. Keep using your usual app icons, notifications and links.",
             style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, lineHeight = 19.sp, color = ink.copy(alpha = 0.7f)),
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
         )
@@ -141,7 +130,7 @@ fun AppsScreen(preset: List<AppEntry>? = null) {
 
         if (apps.isEmpty()) {
             Text(
-                "Looking at your apps…",
+                if (loadedApps == null) "Looking at your apps…" else "No launchable apps were found.",
                 style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, color = ink.copy(alpha = 0.55f)),
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
@@ -184,10 +173,6 @@ fun AppsScreen(preset: List<AppEntry>? = null) {
                         style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = ink),
                         modifier = Modifier.weight(1f),
                     )
-                    if (on) TextButton(onClick = { scope.launch {
-                        val success = withContext(Dispatchers.IO) { runCatching { BreathShortcuts.pin(context, app.pkg) }.getOrDefault(false) }
-                        if (!success) android.widget.Toast.makeText(context, "Your launcher couldn't add this shortcut.", android.widget.Toast.LENGTH_LONG).show()
-                    } }) { Text("Add icon") }
                     StyledSwitch(
                         checked = on,
                         onCheckedChange = { show ->

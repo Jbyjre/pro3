@@ -1,7 +1,7 @@
 > [!NOTE]
 > **This is pro, a personal fork of LibrePods** for a Galaxy S26 FE, AirPods Pro 3 and Beats Solo 4, with liquid-glass pop-ups built around LibrePods' own 3D AirPods clips and stronger connection handling.
 > Download: [latest pro.apk](https://github.com/Jbyjre/pro3/releases/latest). What changed and why: [DECISIONS.md](DECISIONS.md). How to test: [TESTING.md](TESTING.md).
-> **New:** [Breathe and in-app updates](docs/BREATHING_AND_UPDATES.md). No persistent camera pill. Add breathing shortcuts for a one-second pause; direct icons/Recents/notifications/links still open directly.
+> **New:** [App-open breathing](docs/APP_OPEN_BREATHING.md): a 2.5-second pause for chosen apps using their ordinary icons, notifications and links. Choose apps and connect pro · Breathe in Accessibility; no shortcuts required. No persistent camera pill. [In-app updates](docs/BREATHING_AND_UPDATES.md) retain the existing signing identity.
 > All credit for the underlying protocol work goes to [LibrePods](https://github.com/librepods-org/librepods) and its developer. pro is GPL-3.0 like LibrePods, and "LibrePods" is their name, not ours.
 >
 > **Working on pro (people and AI sessions), read in this order:** [docs/REQUESTS.md](docs/REQUESTS.md) (what Jake asked for and how finished each thing is), [CLAUDE.md](CLAUDE.md) (standing rules), [android/README.md](android/README.md) (map of the app, how to build and check it), then the README inside any folder you touch. [docs/README.md](docs/README.md) lists everything.

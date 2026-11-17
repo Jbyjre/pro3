@@ -1,13 +1,13 @@
 # pro for Android
 
-Personal phone companion for Jake's Galaxy S26 FE (Android 17 / One UI 9), AirPods Pro 3 and Beats Solo 4. Application ID stays **io.github.jbyjre.glint**. Current scope and platform limits: [Breathing and updates](../docs/BREATHING_AND_UPDATES.md). Read [REQUESTS](../docs/REQUESTS.md), [CLAUDE](../CLAUDE.md) and [TESTING](../TESTING.md) first. Do not delegate to sub-agents unless Jake asks.
+Personal phone companion for Jake's Galaxy S26 FE (Android 17 / One UI 9), AirPods Pro 3 and Beats Solo 4. Application ID stays **io.github.jbyjre.glint**. Current breathing scope: [App-open breathing](../docs/APP_OPEN_BREATHING.md). Updates/signing: [Breathing and updates](../docs/BREATHING_AND_UPDATES.md). Read [REQUESTS](../docs/REQUESTS.md), [CLAUDE](../CLAUDE.md) and [TESTING](../TESTING.md) first. Do not delegate to sub-agents unless Jake asks.
 
 ## Product and source map
 
 - Headphones are the first and default tab (`AppTab.Home`). Preserve the November headphone controls and original AirPods assets.
-- Breathe replaces the former Island tab. `breathing/` holds a controlled launch activity, one-second deadline, shared native animation/preview, pinned shortcuts, preferences and an optional Quick Settings tile. It needs no resident service, Accessibility access, Bluetooth or app observation. **Only added shortcuts intervene before launch.** Original icons, app drawer, Recents, notifications and deep links bypass it.
+- Breathe replaces the former Island tab. `breathing/BreathAccessService.kt` reacts to app-window transitions with a prepared native accessibility overlay; no screen text/content is retrieved and no usage polling runs. Choose apps and enable pro · Breathe once in Accessibility. Original icons, notifications, links and Recents can trigger the shared 2.5-second layer when entering a selected package. Existing pinned shortcuts remain compatible; setup no longer creates them. No global disable/snooze/tile bypass remains. Android still controls access and process lifetime.
 - `updates/` handles GitHub discovery, verified downloads, PackageInstaller results and an idle periodic Android job. UI is Phone > App updates. Configuration can refresh as data; native behavior still needs a signed APK installation/process replacement.
-- `presentation/overlays/Island.kt` and `MusicIsland.kt` are retained temporary pop-ups. **MiniIsland and its camera ring are removed**, including the accessibility component, screen readers and continuous sound attribution. Never restore an old “Off” ring.
+- `presentation/overlays/Island.kt` and `MusicIsland.kt` are retained temporary pop-ups. **MiniIsland and its camera ring are removed**, including the old camera accessibility component, screen readers and continuous sound attribution. Never restore an old “Off” ring.
 - Phone retains battery, torch, sound/vibrate and a timer. Its battery/torch listeners are scoped to visible use. Headphone control remains in AirPodsService, a connectedDevice foreground service; breathing and updater do not depend on it.
 - `services/FeatureMigration.kt` retires camera preferences once without clearing headphone, popup, breathing or updater preferences.
 

@@ -1,6 +1,5 @@
 package me.kavishdevar.librepods.breathing
 
-import android.app.Activity
 import android.app.KeyguardManager
 import android.content.Intent
 import android.os.Bundle
@@ -76,15 +75,17 @@ class BreathActivity : ComponentActivity() {
         lifecycleScope.launch {
             // Read appearance off main before package lookup; the first neutral frame appears immediately.
             val appearance = withContext(Dispatchers.IO) {
-                BreathPrefs.options(this@BreathActivity).also { it.palette.gradientColors }
+                BreathPrefs.options(this@BreathActivity).also { it.palette.gradientColors } to
+                    me.kavishdevar.librepods.presentation.glint.GlintComfort.reduceMotion(this@BreathActivity)
             }
             if (isFinishing || session.cancelled || generation != requestGeneration) return@launch
-            view.options = appearance
+            view.options = appearance.first
+            view.systemReduced = appearance.second
             // Package queries and preference loading happen while the first frame is being drawn.
             val result = withContext(Dispatchers.IO) {
                 val chosen = chosenPackage
                 if (chosen == null || chosen == packageName || chosen !in BreathPrefs.selected(this@BreathActivity)) null
-                else packageManager.getLaunchIntentForPackage(chosen)
+                else runCatching { packageManager.getLaunchIntentForPackage(chosen) }.getOrNull()
             }
             if (isFinishing || session.cancelled || generation != requestGeneration) return@launch
             if (result == null) {
@@ -94,14 +95,14 @@ class BreathActivity : ComponentActivity() {
             }
             target = result // Launcher flags restore the existing task; no CLEAR_TASK / CLEAR_TOP.
             ready = true
-            if (!BreathPrefs.enabled(this@BreathActivity) || BreathPrefs.paused(this@BreathActivity)) openTarget()
-            else finishPause.run()
+            finishPause.run()
         }
     }
 
     private fun openTarget() {
         if (launched || isFinishing || getSystemService(KeyguardManager::class.java).isKeyguardLocked) { finish(); return }
         launched = true
+        pkg?.let { BreathAccess.gate.shortcutCompleted(it, SystemClock.elapsedRealtime()) }
         runCatching {
             startActivity(target, android.app.ActivityOptions.makeCustomAnimation(this, 0, 0).toBundle())
         }.onFailure { Toast.makeText(this, "Couldn't open this app. Try its original icon.", Toast.LENGTH_SHORT).show() }

@@ -1,3 +1,5 @@
+> Current Breathe behavior: [app-open breathing](../../../../../../../../../docs/APP_OPEN_BREATHING.md). A dedicated event-driven service covers selected ordinary app opens for 2.5 seconds, without screen-content retrieval.
+
 # Services and active rules
 
 Current behavior supersedes the historical camera-island notes: [breathing and updates](../../../../../../../../../docs/BREATHING_AND_UPDATES.md).
@@ -9,7 +11,7 @@ Current behavior supersedes the historical camera-island notes: [breathing and u
 | Music | NowPlaying uses media-session callbacks with optional Notification access and media-key fallback. Metadata updates reuse the selected session, buffering counts as active, cover art stays with its source app, and duplicate icon loads are coalesced off main. MediaAccessService does not read or attribute other notifications. SoundSource is only a bounded real-app name/icon cache, with no playback or screen listeners. MusicPulse is acquired/released by visible music pop-ups. |
 | Heart | HeartRate, HeartView, HeartPacing, HeartHistory/Backup/Link, CommandFeedback; existing Smart pacing and screen-off/battery behavior remain. |
 | Phone | PhoneStatus/PhoneControls battery and torch observation is owned by the visible Phone page and detached when paused/disposed. IslandTimer/TimerReceiver preserves the timer across restarts and its notification Stop action. |
-| Breathing | ../breathing: activity + first-frame deadline + shortcuts, independent of Bluetooth, foreground services and app observation. No accessibility service. |
+| Breathing | ../breathing: BreathAccessService owns a prepared accessibility overlay for selected app-window transitions, with a 2.5-second first-draw deadline. No screen-content access, polling, Bluetooth dependency or foreground service. BreathActivity keeps old shortcuts compatible; shared ownership prevents duplicate pauses. |
 | Updates | ../updates: sparse persisted JobScheduler work, bounded HTTP/downloads, APK signature validation, PackageInstaller sessions/results. Optional idle install uses platform constraints on API 34+. |
 | Migration | FeatureMigration deletes camera-only keys once, preserving unrelated preferences. No whole-settings reset. |
 | Efficiency | PowerPlan, GlassBudget, WhileShown, FrameRate, BLEManager scanning policies, VolumeGuard, BatteryEstimator and existing recovery work remain. No measured battery-saving percentages are claimed. |

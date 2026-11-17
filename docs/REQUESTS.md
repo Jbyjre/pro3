@@ -6,7 +6,21 @@
 - Jake's exact words are not stored in the repository. This list is rebuilt from `DECISIONS.md` (each section marks "your request" or "your choice" where Jake asked), `CLAUDE.md`, `POLISH_LEDGER.md`, `TESTING.md` and the git history (30 merged pull requests from 2026-09-30 to 2026-10-02, then this file's own session on 2026-10-06). Section numbers like "D12" mean `DECISIONS.md` section 12.
 - **When Jake asks for something new, add a row here. When a status changes, change the row.** Keep it true: if something was not checked on his phone, say so.
 
-## Current request — 14–15 November 2026
+## Current request — 16 November 2026
+
+The latest request replaces shortcut-only breathing. Jake opens original app icons, notifications and links; the requested pause is now 2–3 seconds, implemented as **2.5 seconds**. No in-app off switch, snooze or Quick Settings bypass. The camera island remains retired.
+
+| Request | State | Implementation and verification |
+|---|---|---|
+| Cover ordinary app opens without new shortcuts | IMPLEMENTED; DEVICE TIMING CHECK | `BreathAccessService` uses zero-debounce window-state events and a prepared native accessibility overlay. No usage polling or destination relaunch. Android can expose an initial frame before its event; subsecond device latency is not yet measured. |
+| A balanced 2–3-second pause | IMPLEMENTED | One 2,500 ms monotonic first-draw deadline shared with the preview and legacy shortcuts; no Continue button or exit-animation wait. |
+| Always on for chosen apps | IMPLEMENTED | Global toggle, snooze, tile and preference bypass removed. Android still controls access, force-stop and uninstall; pro reports disconnected/revoked status. |
+| Smooth setup and polished presentation | CLOUD CHECKS PASSED; DEVICE CHECK | Choose apps → Connect Breathe; direct per-service Settings with fallback, restricted-settings help, separate enabled/connected status, existing three palettes and Still mode. No screen-content retrieval. |
+| Preserve notifications, links and headphones | REGRESSIONS PASSED; DEVICE CHECK | An overlay never sends a launcher intent. Package transitions deduplicate activities/dialogs. Existing shared ownership drops routine headphone pop-ups during breathing. |
+
+See [current delivery and validation](APP_OPEN_BREATHING.md). Prior November 15 results below apply to that earlier build, not the new service.
+
+## Previous request — 14–15 November 2026
 
 **All historical Dynamic Island requests below are superseded.** Jake now uses a Galaxy S26 FE running Android 17 / One UI 9 and wants the persistent camera feature removed completely, temporary headphone/music pop-ups retained, one-second breathing before selected apps, and easy signed app updates. The tab remains AirPods/Beats first and Home/default.
 

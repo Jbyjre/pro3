@@ -27,7 +27,7 @@ class BreathView(context: Context) : View(context) {
     var awaitingAppearance=false
     var options = BreathOptions()
         set(value) { field=value; awaitingAppearance=false; gradient=null; invalidate() }
-    private val systemReduced = GlintComfort.reduceMotion(context)
+    var systemReduced = false
     val motionReduced: Boolean get() = systemReduced || options.still
     private val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { isDither=true }
     private val sheet = Path()
@@ -47,11 +47,14 @@ class BreathView(context: Context) : View(context) {
             setPadding(system.left,system.top,system.right,system.bottom)
             insets
         }
-        contentDescription="Breathe in. One second."
+        contentDescription="Breathe in. Two and a half seconds."
         importantForAccessibility=IMPORTANT_FOR_ACCESSIBILITY_YES
         isClickable=true
         isFocusable=true
     }
+    /** Reuse the prepared native layer without carrying a previous intervention's clock. */
+    fun restart() { start = null; lastBarAppearance = -1; invalidate() }
+
     override fun onTouchEvent(event: MotionEvent): Boolean = true
     override fun performClick(): Boolean { super.performClick(); return true }
     override fun onDraw(canvas: Canvas) = renderFrame(canvas)
@@ -122,7 +125,7 @@ class BreathView(context: Context) : View(context) {
         paint.typeface=bodyFace
         paint.textSize=minOf(14*d*scale,available/17f,h*0.06f)
         val captionY=baseline+titleSize*if (compact) 0.92f else 1.85f
-        canvas.drawText("One second.",margin,captionY,paint)
+        canvas.drawText("A moment for you.",margin,captionY,paint)
         if (destination.isNotBlank()) {
             paint.textSize=minOf(12*d*scale,available/22f)
             if (labelWidth!=available || labelSize!=paint.textSize) {

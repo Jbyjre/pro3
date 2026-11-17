@@ -1,8 +1,12 @@
+> Current Breathe behavior: [app-open breathing](../../../../../../../../docs/APP_OPEN_BREATHING.md). A dedicated event-driven service covers selected ordinary app opens for 2.5 seconds, without screen-content retrieval.
+
 # Verification
 
 Run the repository's testFossDebugUnitTest, lintFossRelease and signed assembleFossRelease tasks. Cloud setup supplies the dependency cache, Android SDK/NDK and Robolectric image; a full JDK 21 is required. Tests render/run on Robolectric API 36, compiling/targeting API 37. This is neither a physical Samsung nor a claim of emulator radio/compositor testing.
 
-- BreathSessionTest and BreathLaunchTest check actual first-draw/handler launch order at 999/1,000 ms, one completion, cancellation, disable, duplicates, lock and process restore. No observer fallback exists; only pro shortcuts are claimed.
+- BreathSessionTest and BreathLaunchTest check actual first-draw/handler launch order at 2,499/2,500 ms, one completion, cancellation, old disabled/snoozed preference immunity, duplicates, lock and process restore. Legacy shortcuts never stack another service pause.
+- BreathAccessServiceTest exercises the actual service/window manager: immediate attachment on a prepared activity event, exact deadline, no launcher-intent replacement, repeated events, dialogs/keyboards, Home/app switches, screen off, shade reentry, Back, selection removal and disconnect cleanup. BreathAppGateTest checks transitions and shortcut exemption consumption/expiry.
+- BreathSetupTest drives actual Settings access, separately verifies enabled/connected states, revokes on resume and renders normal/large-text layouts. BreathingUiTest checks persisted appearance and real app-name search.
 - BreathScreenshots records native production-view transition frames. AppTourScreenshots covers Breathe, Phone and retained headphone screens. Images do not prove smoothness/frame rate.
 - UpdatePolicyTest and UpdateFlowTest use controlled newer/invalid/missing/rate-limited/offline/republished releases, verify channel/version/signature policy, interrupted download cleanup, retained retries, pending confirmation and callback session ownership.
 - OverlayLayerTest / IslandHandoverTest retain popup permission/removal/touch cleanup and below-status-bar placement. PopupGate checks duplicates without extending display. Camera-only renderer/rule/editor/screen-reader tests are retired with those deleted features; mixed popup, artwork, heart, timer, battery and headphone coverage stays.
