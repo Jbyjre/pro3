@@ -19,6 +19,6 @@ class BreathSessionTest {
         val session = BreathSession()
         session.firstFrame(0)
         session.cancel()
-        assertFalse(session.complete(1000))
+        assertFalse(session.complete(5000))
     }
 }

@@ -101,7 +101,7 @@ class BreathLaunchTest {
         controller.pause().stop().destroy()
         BreathPrefs.select(c, pkg, false)
         val rejected = Robolectric.buildActivity(BreathActivity::class.java, request()).create().start().resume()
-        resolve(); draw(rejected.get()); ShadowLooper.idleMainLooper(2, java.util.concurrent.TimeUnit.SECONDS)
+        resolve(); draw(rejected.get()); ShadowLooper.idleMainLooper(3, java.util.concurrent.TimeUnit.SECONDS)
         assertNull(shadowOf(rejected.get()).nextStartedActivity)
         rejected.pause().stop().destroy()
     }
