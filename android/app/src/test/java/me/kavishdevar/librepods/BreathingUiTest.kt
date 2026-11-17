@@ -71,4 +71,31 @@ class BreathingUiTest {
         } finally { org.robolectric.RuntimeEnvironment.setFontScale(1f) }
     }
 
+    @Test
+    @Config(qualifiers = "w320dp-h480dp-xxhdpi")
+    fun shortScreenWithLargeTextCanReachSearchAndSelectApps() {
+        val c = org.robolectric.RuntimeEnvironment.getApplication()
+        BreathPrefs.prefs(c).edit().clear().commit()
+        org.robolectric.RuntimeEnvironment.setFontScale(1.8f)
+        try {
+            rule.setContent { LibrePodsTheme(m3eEnabled = false) {
+                AppsScreen(preset = listOf(AppEntry("fixture.chess", "Chess"),
+                    AppEntry("fixture.fantasy", "ESPN Fantasy Football")))
+            } }
+            rule.onNode(hasScrollAction() and !hasSetTextAction()).performScrollToNode(hasText("ESPN Fantasy Football"))
+            val row = rule.onNodeWithText("ESPN Fantasy Football")
+            org.junit.Assert.assertTrue("The row needs at least a 64 dp visible touch target",
+                row.fetchSemanticsNode().boundsInRoot.height >= 64f * c.resources.displayMetrics.density)
+            row.assertIsDisplayed().performClick().assertIsOn()
+            org.junit.Assert.assertEquals(setOf("fixture.fantasy"), BreathPrefs.selected(c))
+            rule.onRoot().captureRoboImage("build/screenshots/breathe/picker-short-screen.png")
+            rule.onNode(hasScrollAction() and !hasSetTextAction()).performScrollToNode(hasSetTextAction())
+            rule.onNode(hasSetTextAction()).performTextInput("chess")
+            rule.onNode(hasScrollAction() and !hasSetTextAction()).performScrollToNode(hasText("Chess"))
+            rule.onNodeWithText("Chess").assertIsDisplayed().performClick().assertIsOn()
+            rule.onRoot().captureRoboImage("build/screenshots/breathe/picker-short-search.png")
+            org.junit.Assert.assertEquals(setOf("fixture.fantasy", "fixture.chess"), BreathPrefs.selected(c))
+        } finally { org.robolectric.RuntimeEnvironment.setFontScale(1f) }
+    }
+
 }

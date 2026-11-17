@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
@@ -121,63 +122,65 @@ fun AppsScreen(preset: List<AppEntry>? = null) {
         apps.filter { (!onlyChosen || it.pkg in selected) && (text.isEmpty() || it.label.contains(text, ignoreCase = true)) }
     }
 
-    Column(
-        Modifier
-            .fillMaxSize()
+    // Controls and results share one scroll surface, so large text or the keyboard
+    // cannot consume all the space above a separately constrained app list.
+    LazyColumn(
+        Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceContainer)
+            .imePadding()
             .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = topPadding, bottom = bottomPadding),
     ) {
-        Spacer(Modifier.height(topPadding))
-        Text(
-            "Choose where you want a 2.5-second pause. Keep using your usual app icons, notifications and links.",
-            style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, lineHeight = 19.sp, color = ink.copy(alpha = 0.7f)),
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-        )
-        Spacer(Modifier.height(8.dp))
-        Box(Modifier.fillMaxWidth()) { StyledInputField(query, focus, placeholder = "Search apps", forceApple = true) }
-        Spacer(Modifier.height(10.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for ((chosenOnly, label) in listOf(false to "All apps", true to "Chosen ($chosenCount)")) {
-                FilterChip(
-                    selected = onlyChosen == chosenOnly,
-                    onClick = { onlyChosen = chosenOnly },
-                    label = { Text(label) }, modifier = Modifier.heightIn(min = 48.dp),
-                    colors = FilterChipDefaults.filterChipColors(containerColor = card, labelColor = ink,
-                        selectedContainerColor = ink, selectedLabelColor = card),
+        item(key = "instructions") {
+            Text(
+                "Choose where you want a 2.5-second pause. Keep using your usual app icons, notifications and links.",
+                style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, lineHeight = 19.sp, color = ink.copy(alpha = 0.7f)),
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+            )
+        }
+        item(key = "search") {
+            Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 10.dp)) {
+                StyledInputField(query, focus, placeholder = "Search apps", forceApple = true)
+            }
+        }
+        item(key = "filters") {
+            FlowRow(Modifier.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for ((chosenOnly, label) in listOf(false to "All apps", true to "Chosen ($chosenCount)")) {
+                    FilterChip(
+                        selected = onlyChosen == chosenOnly,
+                        onClick = { onlyChosen = chosenOnly },
+                        label = { Text(label) }, modifier = Modifier.heightIn(min = 48.dp),
+                        colors = FilterChipDefaults.filterChipColors(containerColor = card, labelColor = ink,
+                            selectedContainerColor = ink, selectedLabelColor = card),
+                    )
+                }
+            }
+        }
+        if (shown.isEmpty()) {
+            item(key = "empty") {
+                Text(
+                    when {
+                        loadedApps == null -> "Looking at your apps…"
+                        apps.isEmpty() -> "No launchable apps were found."
+                        onlyChosen && chosenCount == 0 -> "Choose apps from All apps to see them here."
+                        else -> "No matches for \"$text\"."
+                    },
+                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, color = ink.copy(alpha = 0.55f)),
+                    modifier = Modifier.padding(horizontal = 4.dp),
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
-
-        if (apps.isEmpty()) {
-            Text(
-                if (loadedApps == null) "Looking at your apps…" else "No launchable apps were found.",
-                style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, color = ink.copy(alpha = 0.55f)),
-                modifier = Modifier.padding(horizontal = 4.dp),
-            )
-        } else if (shown.isEmpty()) {
-            Text(
-                if (onlyChosen && chosenCount == 0) "Choose apps from All apps to see them here." else "No matches for \"$text\".",
-                style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, color = ink.copy(alpha = 0.55f)),
-                modifier = Modifier.padding(horizontal = 4.dp),
-            )
-        }
-        // One rounded card, like the other lists: rows sit inside it with hairlines between.
-        LazyColumn(
-            Modifier
-                .fillMaxWidth()
-                .weight(1f, fill = false)
-                .clip(RoundedCornerShape(28.dp))
-                .background(card),
-            contentPadding = PaddingValues(vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(0.dp),
-        ) {
-            itemsIndexed(shown, key = { _, app -> app.pkg }) { index, app ->
-                // The icon is read in the background the first time it scrolls into view.
-                val icon by produceState<ImageBitmap?>(null, app.pkg) {
-                    value = withContext(Dispatchers.Default) { SoundSource.appInfo(context, app.pkg).icon }
-                }
-                val on = app.pkg in selected
+        itemsIndexed(shown, key = { _, app -> app.pkg }) { index, app ->
+            // The icon is read in the background the first time it scrolls into view.
+            val icon by produceState<ImageBitmap?>(null, app.pkg) {
+                value = withContext(Dispatchers.Default) { SoundSource.appInfo(context, app.pkg).icon }
+            }
+            val on = app.pkg in selected
+            val first = if (index == 0) 28.dp else 0.dp
+            val last = if (index == shown.lastIndex) 28.dp else 0.dp
+            Column(Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = first, topEnd = first, bottomStart = last, bottomEnd = last))
+                .background(card)) {
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -204,6 +207,5 @@ fun AppsScreen(preset: List<AppEntry>? = null) {
                 if (index < shown.lastIndex) Box(Modifier.padding(start = 66.dp).fillMaxWidth().height(0.5.dp).background(ink.copy(alpha = 0.08f)))
             }
         }
-        Spacer(Modifier.height(bottomPadding))
     }
 }

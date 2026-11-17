@@ -15,6 +15,7 @@ import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import android.graphics.PixelFormat
 import android.os.Handler
+import android.os.PowerManager
 import android.os.Looper
 import android.os.SystemClock
 import android.view.Gravity
@@ -150,10 +151,14 @@ class BreathAccessService : AccessibilityService() {
     }
 
     private fun refresh() {
+        // Apply the chosen set before any background metadata work. A user can leave setup
+        // and open an app immediately; removing a choice must also release its layer now.
+        val apps = BreathPrefs.selected(this) - packageName
+        selected = apps
+        if (shownPackage != null && shownPackage !in apps) hide()
         val version = ++revision
         scope.launch {
             val loaded = withContext(Dispatchers.IO) {
-                val apps = BreathPrefs.selected(this@BreathAccessService) - packageName
                 val names = mutableMapOf<String, String>()
                 val components = mutableSetOf<ComponentName>()
                 for (pkg in apps) runCatching {
@@ -230,8 +235,14 @@ class BreathAccessService : AccessibilityService() {
     }
 
     private fun enter(pkg: String) {
+        // Screen-off broadcasts and window events can arrive in either order. Recheck at
+        // presentation time, including after asynchronous activity classification finishes.
+        if (!getSystemService(PowerManager::class.java).isInteractive ||
+            getSystemService(KeyguardManager::class.java).isKeyguardLocked) {
+            interruptPending(resetEntry = true)
+            return
+        }
         if (!prepared) { pendingForeground = pkg; return }
-        if (getSystemService(KeyguardManager::class.java).isKeyguardLocked) { hide(); return }
         if (shownPackage != null && shownPackage != pkg) hide()
         val shouldShow = BreathAccess.gate.enter(pkg, selected, SystemClock.elapsedRealtime())
         if (!shouldShow || BreathInteraction.active) return
