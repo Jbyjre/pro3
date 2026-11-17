@@ -69,20 +69,20 @@ class PhoneTabsUiTest {
         // The AirPods tab is the home tab (Jake, 2026-11-13): first in the bar and the page pro opens on.
         tab("AirPods").assertIsSelected()
         rule.onNode(hasText("Headphone pop-ups")).assertDoesNotExist()
-        rule.onNode(hasText("A pause before your chosen apps.")).assertDoesNotExist()
+        rule.onNode(hasText("A little space before your apps.")).assertDoesNotExist()
         tab("Phone").performClick()
         rule.waitForIdle()
         rule.onNode(hasText("Headphone pop-ups")).assertExists()
         tab("Breathe").performClick()
         rule.waitForIdle()
         // The Breathe page itself is showing (not only its tab title), and Phone is gone.
-        rule.onNode(hasText("A pause before your chosen apps.")).assertExists()
+        rule.onNode(hasText("A little space before your apps.")).assertExists()
         rule.onNode(hasText("Headphone pop-ups")).assertDoesNotExist()
         // Back from a tab other than AirPods goes to AirPods, not out of the app.
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
         rule.waitForIdle()
         tab("AirPods").assertIsSelected()
-        rule.onNode(hasText("A pause before your chosen apps.")).assertDoesNotExist()
+        rule.onNode(hasText("A little space before your apps.")).assertDoesNotExist()
         rule.onNode(hasText("Headphone pop-ups")).assertDoesNotExist()
         assertTrue("Back on the AirPods tab should leave the app as usual", !rule.activity.isFinishing)
     }
