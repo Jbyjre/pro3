@@ -71,6 +71,11 @@ class BreathSetupTest {
         rule.onNodeWithText("Pause for 15 minutes").assertDoesNotExist()
         rule.onNodeWithText("Add icon").assertDoesNotExist()
         rule.onRoot().captureRoboImage("build/screenshots/breathe/setup-ready.png")
+        rule.runOnIdle { BreathAccess.presentationFailed.value = true }
+        rule.onNodeWithText("Breathe needs attention").assertExists()
+        rule.onNodeWithText("Check connection").performScrollTo().assertIsDisplayed()
+        rule.onRoot().captureRoboImage("build/screenshots/breathe/setup-recovery.png")
+        rule.runOnIdle { BreathAccess.presentationFailed.value = false }
         rule.runOnIdle {
             owner.registry.currentState = Lifecycle.State.STARTED
             allow(false)

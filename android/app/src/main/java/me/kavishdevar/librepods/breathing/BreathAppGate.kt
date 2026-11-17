@@ -19,5 +19,8 @@ class BreathAppGate {
         return pkg in selected && !fromShortcut
     }
 
+    /** A failed presentation must not consume this entry; retry on the next real event. */
+    fun retry(pkg: String) { if (foreground == pkg) foreground = null }
+
     fun reset() { foreground = null; shortcutPackage = null }
 }

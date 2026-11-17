@@ -33,6 +33,7 @@ fun BreatheScreen(navigateToApps: () -> Unit = {}) {
     var selected by remember { mutableStateOf(BreathPrefs.selected(context).size) }
     var allowed by remember { mutableStateOf(BreathAccess.enabled(context)) }
     val connected by BreathAccess.connected.collectAsState()
+    val needsAttention by BreathAccess.needsAttention.collectAsState()
     val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(prefs, owner) {
         fun refresh() {
@@ -60,18 +61,20 @@ fun BreatheScreen(navigateToApps: () -> Unit = {}) {
                     selected == 0 -> "Start with your apps"
                     !allowed -> "One step to connect"
                     !connected -> "Waiting for Android"
+                    needsAttention -> "Breathe needs attention"
                     else -> "Ready when you open"
                 }, style = MaterialTheme.typography.titleMedium)
                 Text(when {
                     selected == 0 -> "Choose the apps where you want a moment to breathe."
                     !allowed -> "Allow pro · Breathe in Accessibility to cover your usual app icons, notifications and links."
                     !connected -> "Access is enabled, but Breathe is not connected yet. If this stays, reopen Accessibility and reconnect pro · Breathe."
+                    needsAttention -> "Android couldn’t show the pause. Open a chosen app to retry, or reconnect Breathe below."
                     else -> "$selected ${if (selected == 1) "app" else "apps"} · 2.5 seconds · Always on"
                 }, style = MaterialTheme.typography.bodyMedium)
                 Button(onClick = navigateToApps, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSurface, contentColor = MaterialTheme.colorScheme.surface)) {
                     Text(if (selected == 0) "Choose apps" else "Edit chosen apps")
                 }
-                if (!allowed || !connected) {
+                if (!allowed || !connected || needsAttention) {
                     OutlinedButton(onClick = {
                         if (!open(context, BreathAccess.settings(context))) open(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                     }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)) { Text(if (allowed) "Check connection" else "Connect Breathe") }
