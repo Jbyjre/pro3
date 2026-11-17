@@ -32,3 +32,14 @@ The app-specific Settings intent/flattened component format was checked against 
 - Local APK package remains `io.github.jbyjre.glint`, min API 33 / target 37. It is **debug-signed build 100 for validation only**, not an upgrade artifact. Installable updates must come from the existing GitHub release workflow, which uses the retained signing identity and monotonic CI versionCode. No production signing key was generated or changed.
 
 Historical November 15 counts and APK hashes do not apply to this change. Physical original-icon/notification/link latency, no-first-frame exposure, OEM background survival, gesture navigation and upgrade-in-place remain unverified device checks.
+
+
+## Recovery and setup refinement
+
+A failed overlay attachment no longer consumes the app entry. The next real window event can retry. A separate presentation-failure state tells setup when Accessibility is connected but Android could not show the layer; it clears after a successful retry or disconnect. If an attached layer never draws, a one-second first-frame watchdog removes its invisible touch target. A successfully drawn layer still receives the full 2.5-second pause; the watchdog is removed on its first frame.
+
+Back, system interruption, screen off and unbind invalidate pending window classifications. Repeated events for one unclassified component share one in-flight lookup; rejected non-activity windows use a bounded cache. This avoids repeatedly querying the package manager for keyboard/dialog events. Touch-mode focus and attach-scoped Back registration support repeated presentations without accumulating deferred attach callbacks.
+
+App selection now uses the entire row as one accessible checkbox target, with room for two-line labels and high-contrast selection marks. All apps / Chosen filters keep the list manageable without reordering rows as they are selected. Existing saved selections and the original-icon/notification/link flow stay intact.
+
+Follow-up verification (17 November): **382 tests across 53 classes passed, zero failures/errors/skips**; the focused recovery/setup/picker run passed all **37 tests**. `lintFossRelease` passed with **0 errors, 243 warnings and 1 hint**. `assembleFossRelease` passed, including native compilation, R8 and resource optimization. Native recovery-screen and 1.8×-text picker captures were inspected. The local APK remains a debug-signed validation artifact; installable updates use the unchanged GitHub signing workflow. The branch build was still running at the one-time CI inspection; physical Samsung latency, gestures and upgrade behavior remain unverified. The 378-test record above describes the preceding delivery.
