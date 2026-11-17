@@ -1,10 +1,10 @@
-> Current Breathe behavior: [app-open breathing](../../../../../../../../../../docs/APP_OPEN_BREATHING.md). A dedicated event-driven service covers selected ordinary app opens for 2.5 seconds, without screen-content retrieval. Shortcut-only/one-second statements below are historical.
+> Current Breathe behavior: [app-open breathing](../../../../../../../../../../docs/APP_OPEN_BREATHING.md). A dedicated event-driven service covers selected ordinary app opens for 2.5 seconds, without screen-content retrieval.
 
 # Product screens
 
 Headphones (`AirPodsSettingsScreen`, `HeadphonesScreen`) remain the first/home tab. Current listening controls, Off option, disconnect confirmation, rename, Beats choice and original AirPods artwork are preserved.
 
-`BreatheScreen` replaces Island. It has a clear switch, the real production animation preview, selected-app setup, a temporary pause and accurate shortcut-only coverage. `AppsScreen` queries launchable installed apps off main, searches their actual names, loads bounded icons off main, stores selections and offers Add icon for each. It never guesses packages or assumes social-media use. Android/launcher confirmation for adding an icon is explicit.
+`BreatheScreen` replaces Island. It shows chosen-app setup, Android access and live connection status, the shared native preview, saved palettes and Still mode. There is no off/snooze control. `AppsScreen` queries launchable apps off main, searches their actual names, loads bounded icons off main and stores selections. Ordinary icons, notifications and links enter through the accessibility window-event route; no Add icon step is required. The setup page offers per-service Settings with fallback and restricted-settings recovery, refreshing grants/revocations on resume.
 
 `PhoneScreen` retains battery, torch, sound/vibrate and the timer, plus temporary popup preferences and `UpdatePanel`. Battery and torch callbacks stop when the page is paused/disposed. UpdatePanel offers Check now, Download, Update, deferred confirmation/retry, stable/preview channel and optional idle automation. No GitHub/file-manager detour is needed after the bootstrap install.
 

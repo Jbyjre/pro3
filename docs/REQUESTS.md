@@ -15,8 +15,8 @@ The latest request replaces shortcut-only breathing. Jake opens original app ico
 | Cover ordinary app opens without new shortcuts | IMPLEMENTED; DEVICE TIMING CHECK | `BreathAccessService` uses zero-debounce window-state events and a prepared native accessibility overlay. No usage polling or destination relaunch. Android can expose an initial frame before its event; subsecond device latency is not yet measured. |
 | A balanced 2–3-second pause | IMPLEMENTED | One 2,500 ms monotonic first-draw deadline shared with the preview and legacy shortcuts; no Continue button or exit-animation wait. |
 | Always on for chosen apps | IMPLEMENTED | Global toggle, snooze, tile and preference bypass removed. Android still controls access, force-stop and uninstall; pro reports disconnected/revoked status. |
-| Smooth setup and polished presentation | IMPLEMENTED; RENDER/DEVICE CHECK | Choose apps → Connect Breathe; direct per-service Settings with fallback, restricted-settings help, separate enabled/connected status, existing three palettes and Still mode. No screen-content retrieval. |
-| Preserve notifications, links and headphones | IMPLEMENTED; REGRESSION/DEVICE CHECK | An overlay never sends a launcher intent. Package transitions deduplicate activities/dialogs. Existing shared ownership drops routine headphone pop-ups during breathing. |
+| Smooth setup and polished presentation | CLOUD CHECKS PASSED; DEVICE CHECK | Choose apps → Connect Breathe; direct per-service Settings with fallback, restricted-settings help, separate enabled/connected status, existing three palettes and Still mode. No screen-content retrieval. |
+| Preserve notifications, links and headphones | REGRESSIONS PASSED; DEVICE CHECK | An overlay never sends a launcher intent. Package transitions deduplicate activities/dialogs. Existing shared ownership drops routine headphone pop-ups during breathing. |
 
 See [current delivery and validation](APP_OPEN_BREATHING.md). Prior November 15 results below apply to that earlier build, not the new service.
 

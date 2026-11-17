@@ -24,4 +24,11 @@ The app-specific Settings intent/flattened component format was checked against 
 
 ## Verification
 
-Pending the current session's actual build/test results. Historical counts and signed APK hashes in the November 15 document do not apply to this change. No new signing identity is generated.
+- Full `testFossDebugUnitTest`: **378 tests in 53 classes, zero failures, errors or skips**. This includes 33 breathing policy/activity/service/setup/render tests and the retained headphone, timer, update and navigation regressions.
+- After strengthening cancellation/unselected-app assertions to run beyond 2.5 seconds, reran `BreathLaunchTest` and `BreathSessionTest`: **10 tests passed**. Production code was unchanged by that final test refinement.
+- `lintFossRelease`: **zero errors**, with 243 non-blocking warnings in the repository report. `assembleFossRelease` succeeded, including native builds and R8/resource shrinking.
+- Actual native renders and Compose setup captures inspected: normal/large text, production transition states, existing palettes, and the corrected high-contrast controls. Screenshots are under `android/app/build/screenshots/breathe`; they do not measure physical frame rate.
+- Environment: JDK 21, compile/target API 37, Robolectric API 36, NDK 29.0.14206865 / CMake 4.1.2 via the repository cloud setup. No physical phone was attached.
+- Local APK package remains `io.github.jbyjre.glint`, min API 33 / target 37. It is **debug-signed build 100 for validation only**, not an upgrade artifact. Installable updates must come from the existing GitHub release workflow, which uses the retained signing identity and monotonic CI versionCode. No production signing key was generated or changed.
+
+Historical November 15 counts and APK hashes do not apply to this change. Physical original-icon/notification/link latency, no-first-frame exposure, OEM background survival, gesture navigation and upgrade-in-place remain unverified device checks.
