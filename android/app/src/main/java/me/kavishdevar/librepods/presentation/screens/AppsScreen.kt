@@ -20,60 +20,39 @@ package me.kavishdevar.librepods.presentation.screens
 
 import android.content.Context
 import android.content.Intent
-import androidx.compose.foundation.selection.toggleable
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import me.kavishdevar.librepods.presentation.components.StyledInputField
-import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.breathing.BreathPrefs
 import me.kavishdevar.librepods.services.SoundSource
 
@@ -100,13 +79,13 @@ internal fun launchableApps(context: Context): List<AppEntry> {
 
 /** Installed apps for the event-driven breathing pause. */
 @Composable
-fun AppsScreen(preset: List<AppEntry>? = null) {
+fun AppsScreen(preset: List<AppEntry>? = null, onDone: () -> Unit = {}) {
     val context = LocalContext.current
-    val dark = isSystemInDarkTheme()
-    val ink = if (dark) Color.White else Color.Black
-    val card = if (dark) Color(0xFF1C1C1E) else Color.White
+    val colors = breatheColors()
+    val reduced = rememberBreatheReducedMotion()
+    val haptics = LocalHapticFeedback.current
+    val focusManager = LocalFocusManager.current
     val topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 84.dp
-    val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp
 
     val loadedApps by produceState<List<AppEntry>?>(initialValue = preset, preset) {
         if (preset == null) value = withContext(Dispatchers.IO) { launchableApps(context) }
@@ -114,97 +93,115 @@ fun AppsScreen(preset: List<AppEntry>? = null) {
     val apps = loadedApps.orEmpty()
     var selected by remember { mutableStateOf(BreathPrefs.selected(context)) }
     val query = rememberTextFieldState()
-    val focus = remember { FocusRequester() }
     val text = query.text.toString().trim()
-    var onlyChosen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    val chosenCount = apps.count { it.pkg in selected }
+    var onlyChosen by rememberSaveable { mutableStateOf(false) }
+    val chosenCount = if (loadedApps == null) selected.size else apps.count { it.pkg in selected }
     val shown = remember(apps, text, selected, onlyChosen) {
         apps.filter { (!onlyChosen || it.pkg in selected) && (text.isEmpty() || it.label.contains(text, ignoreCase = true)) }
     }
 
-    // Controls and results share one scroll surface, so large text or the keyboard
-    // cannot consume all the space above a separately constrained app list.
-    LazyColumn(
-        Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .imePadding()
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = topPadding, bottom = bottomPadding),
-    ) {
-        item(key = "instructions") {
-            Text(
-                "Choose where you want a 2.5-second pause. Keep using your usual app icons, notifications and links.",
-                style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, lineHeight = 19.sp, color = ink.copy(alpha = 0.7f)),
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-            )
-        }
-        item(key = "search") {
-            Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 10.dp)) {
-                StyledInputField(query, focus, placeholder = "Search apps", forceApple = true)
-            }
-        }
-        item(key = "filters") {
-            FlowRow(Modifier.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                for ((chosenOnly, label) in listOf(false to "All apps", true to "Chosen ($chosenCount)")) {
-                    FilterChip(
-                        selected = onlyChosen == chosenOnly,
-                        onClick = { onlyChosen = chosenOnly },
-                        label = { Text(label) }, modifier = Modifier.heightIn(min = 48.dp),
-                        colors = FilterChipDefaults.filterChipColors(containerColor = card, labelColor = ink,
-                            selectedContainerColor = ink, selectedLabelColor = card),
-                    )
+    Column(Modifier.fillMaxSize().background(colors.background).imePadding()) {
+        LazyColumn(
+            Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp),
+            contentPadding = PaddingValues(top = topPadding, bottom = 20.dp),
+        ) {
+            item(key = "instructions") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Choose your apps.", color = colors.ink, style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.8).sp))
+                    Text("Keep your usual icons. Add a 2.5-second pause.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
                 }
             }
-        }
-        if (shown.isEmpty()) {
-            item(key = "empty") {
-                Text(
-                    when {
-                        loadedApps == null -> "Looking at your apps…"
-                        apps.isEmpty() -> "No launchable apps were found."
-                        onlyChosen && chosenCount == 0 -> "Choose apps from All apps to see them here."
-                        else -> "No matches for \"$text\"."
-                    },
-                    style = TextStyle(fontFamily = glintFontFamily, fontSize = 14.sp, color = ink.copy(alpha = 0.55f)),
-                    modifier = Modifier.padding(horizontal = 4.dp),
+            item(key = "search") {
+                TextField(
+                    state = query, lineLimits = TextFieldLineLimits.SingleLine,
+                    placeholder = { Text("Search apps") },
+                    leadingIcon = { Icon(Icons.Default.Search, null, tint = colors.secondary) },
+                    trailingIcon = { if (query.text.isNotEmpty()) IconButton(onClick = { query.clearText() }) {
+                        Icon(Icons.Default.Close, "Clear search", tint = colors.ink)
+                    } },
+                    shape = RoundedCornerShape(20.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = colors.surface, unfocusedContainerColor = colors.surface,
+                        focusedTextColor = colors.ink, unfocusedTextColor = colors.ink,
+                        focusedPlaceholderColor = colors.secondary, unfocusedPlaceholderColor = colors.secondary,
+                        cursorColor = colors.ink, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                    ),
+                    modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 12.dp),
                 )
             }
-        }
-        itemsIndexed(shown, key = { _, app -> app.pkg }) { index, app ->
-            // The icon is read in the background the first time it scrolls into view.
-            val icon by produceState<ImageBitmap?>(null, app.pkg) {
-                value = withContext(Dispatchers.Default) { SoundSource.appInfo(context, app.pkg).icon }
+            item(key = "filters") {
+                FlowRow(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((chosenOnly, label) in listOf(false to "All apps", true to "Chosen ($chosenCount)")) {
+                        FilterChip(
+                            selected = onlyChosen == chosenOnly, onClick = { onlyChosen = chosenOnly },
+                            shape = RoundedCornerShape(50), label = { Text(label) }, modifier = Modifier.heightIn(min = 48.dp),
+                            colors = FilterChipDefaults.filterChipColors(containerColor = colors.surface, labelColor = colors.ink,
+                                selectedContainerColor = colors.ink, selectedLabelColor = colors.surface),
+                        )
+                    }
+                }
             }
-            val on = app.pkg in selected
-            val first = if (index == 0) 28.dp else 0.dp
-            val last = if (index == shown.lastIndex) 28.dp else 0.dp
-            Column(Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = first, topEnd = first, bottomStart = last, bottomEnd = last))
-                .background(card)) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 64.dp)
+            if (shown.isEmpty()) {
+                item(key = "empty") {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            when {
+                                loadedApps == null -> "Looking at your apps…"
+                                apps.isEmpty() -> "No launchable apps were found."
+                                onlyChosen && chosenCount == 0 -> "Choose apps from All apps to see them here."
+                                else -> "No matches for \"$text\"."
+                            }, color = colors.secondary, style = MaterialTheme.typography.bodyMedium,
+                        )
+                        if (text.isNotEmpty()) TextButton(onClick = { query.clearText() }, colors = ButtonDefaults.textButtonColors(contentColor = colors.ink)) { Text("Reset search") }
+                    }
+                }
+            }
+            itemsIndexed(shown, key = { _, app -> app.pkg }) { index, app ->
+                val icon by produceState<ImageBitmap?>(null, app.pkg) {
+                    value = withContext(Dispatchers.Default) { SoundSource.appInfo(context, app.pkg).icon }
+                }
+                val on = app.pkg in selected
+                val fill by animateColorAsState(if (on) colors.ink.copy(alpha = 0.055f) else Color.Transparent,
+                    tween(if (reduced) 0 else 160), label = "Chosen app")
+                val first = if (index == 0) 22.dp else 0.dp
+                val last = if (index == shown.lastIndex) 22.dp else 0.dp
+                val movement = if (reduced) Modifier else Modifier.animateItem(
+                    fadeInSpec = tween(160), placementSpec = tween(180), fadeOutSpec = tween(120))
+                Column(movement.fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = first, topEnd = first, bottomStart = last, bottomEnd = last))
+                    .background(colors.surface)) {
+                    Row(Modifier.fillMaxWidth().background(fill).heightIn(min = 72.dp)
                         .toggleable(value = on, role = Role.Checkbox, onValueChange = { chosen ->
+                            haptics.performHapticFeedback(if (chosen) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
                             BreathPrefs.select(context, app.pkg, chosen)
                             selected = BreathPrefs.selected(context)
-                        })
-                        .padding(horizontal = 16.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (icon != null) androidx.compose.foundation.Image(bitmap = icon!!, contentDescription = null,
-                        modifier = Modifier.size(38.dp))
-                    else Box(Modifier.size(38.dp).background(ink.copy(alpha = 0.06f), RoundedCornerShape(10.dp)))
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        app.label, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        style = TextStyle(fontFamily = glintFontFamily, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = ink),
-                        modifier = Modifier.weight(1f),
-                    )
-                    Checkbox(checked = on, onCheckedChange = null,
-                        colors = CheckboxDefaults.colors(checkedColor = ink, checkmarkColor = card, uncheckedColor = ink.copy(alpha = 0.6f)))
+                        }).padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (icon != null) androidx.compose.foundation.Image(bitmap = icon!!, contentDescription = null, modifier = Modifier.size(40.dp))
+                        else Box(Modifier.size(40.dp).background(colors.line, RoundedCornerShape(12.dp)))
+                        Spacer(Modifier.width(14.dp))
+                        Text(app.label, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = colors.ink, modifier = Modifier.weight(1f))
+                        Checkbox(checked = on, onCheckedChange = null,
+                            colors = CheckboxDefaults.colors(checkedColor = colors.ink, checkmarkColor = colors.surface, uncheckedColor = colors.secondary))
+                    }
+                    if (index < shown.lastIndex) HorizontalDivider(Modifier.padding(start = 70.dp), color = colors.line, thickness = 0.5.dp)
                 }
-                if (index < shown.lastIndex) Box(Modifier.padding(start = 66.dp).fillMaxWidth().height(0.5.dp).background(ink.copy(alpha = 0.08f)))
+            }
+        }
+        Surface(color = colors.surface, shadowElevation = 0.dp) {
+            Column {
+                HorizontalDivider(color = colors.line)
+                Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("$chosenCount chosen", color = colors.ink, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                        Text("Saved automatically", color = colors.secondary, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Button(onClick = { focusManager.clearFocus(); onDone() }, modifier = Modifier.heightIn(min = 48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.ink, contentColor = colors.surface)) { Text("Done") }
+                }
             }
         }
     }

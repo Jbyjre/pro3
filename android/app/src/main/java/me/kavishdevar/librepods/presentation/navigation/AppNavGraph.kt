@@ -212,7 +212,9 @@ fun AppNavGraph(
                         }
 
                     Screen.Apps ->
-                        NavEntry(screen) { AppsScreen() }
+                        NavEntry(screen) { AppsScreen(onDone = {
+                            if (backStack.size > 1 && backStack.last() == Screen.Apps) backStack.removeAt(backStack.lastIndex)
+                        }) }
 
                     Screen.GlintLab ->
                         NavEntry(screen) { GlintLabScreen() }

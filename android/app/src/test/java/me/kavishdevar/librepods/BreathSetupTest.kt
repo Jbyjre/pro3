@@ -96,6 +96,7 @@ class BreathSetupTest {
             rule.onRoot().captureRoboImage("build/screenshots/breathe/setup-large-text.png")
             rule.onNodeWithText("Still color layer").performScrollTo().performClick()
             assertTrue(BreathPrefs.options(c).still)
+            rule.onRoot().captureRoboImage("build/screenshots/breathe/design-large-controls.png")
         } finally { RuntimeEnvironment.setFontScale(1f) }
     }
 }
