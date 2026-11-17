@@ -217,4 +217,48 @@ class BreathAccessServiceTest {
         assertEquals(1, layers().size)
     }
 
+    @Test fun removingAnAppTakesEffectBeforeBackgroundPreparationFinishes() {
+        event(chess); draw()
+        BreathPrefs.select(context, chess, false)
+        assertTrue(layers().isEmpty())
+        assertFalse(BreathInteraction.active)
+        event(chess)
+        assertTrue(layers().isEmpty())
+    }
+    @Test fun choosingAKnownAppAppliesBeforeItsLabelAndAppearanceReload() {
+        event(home); resolve() // Classify an ordinary app that is not selected yet.
+        event(service.packageName, "me.kavishdevar.librepods.MainActivity")
+        BreathPrefs.select(context, home, true)
+        event(home)
+        assertEquals(1, layers().size)
+        draw()
+    }
+    @Test fun lateEventsAfterScreenOffWaitForAnInteractiveDisplay() {
+        val power = context.getSystemService(android.os.PowerManager::class.java)
+        shadowOf(context.getSystemService(android.app.KeyguardManager::class.java)).setKeyguardLocked(false)
+        shadowOf(power).setIsInteractive(false)
+        event(chess)
+        assertTrue(layers().isEmpty())
+        resolve()
+        assertFalse(BreathInteraction.active)
+        shadowOf(power).setIsInteractive(true)
+        event(chess)
+        assertEquals(1, layers().size)
+        draw()
+    }
+
+    @Test fun pendingActivityLookupRechecksDisplayBeforePresenting() {
+        install(chess, "$chess.NewActivity")
+        event(chess, "$chess.NewActivity")
+        val power = context.getSystemService(android.os.PowerManager::class.java)
+        shadowOf(power).setIsInteractive(false)
+        resolve()
+        assertTrue(layers().isEmpty())
+        assertFalse(BreathInteraction.active)
+        shadowOf(power).setIsInteractive(true)
+        event(chess, "$chess.NewActivity")
+        assertEquals(1, layers().size)
+        draw()
+    }
+
 }
