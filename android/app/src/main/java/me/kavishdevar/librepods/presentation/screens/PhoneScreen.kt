@@ -48,10 +48,7 @@ fun PhoneScreen(navigateToIsland: () -> Unit = {}, navigateToHeadphones: (() -> 
             OutlinedButton(onClick = { PhoneControls.toggleTorch(context) }) { Text(if (torch) "Torch off" else "Torch on") }
             OutlinedButton(onClick = { PhoneControls.toggleRing(context) }) { Text("Sound / vibrate") }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (timer == null) OutlinedButton(onClick = { IslandTimer.start(context, 5 * 60_000L) }) { Text("5 minute timer") }
-            else OutlinedButton(onClick = { IslandTimer.cancel(context) }) { Text("Cancel timer") }
-        }
+        PhoneTimer(timer)
         HorizontalDivider()
         UpdatePanel(health)
         HorizontalDivider()
@@ -89,5 +86,35 @@ fun PhoneScreen(navigateToIsland: () -> Unit = {}, navigateToHeadphones: (() -> 
         }
         OutlinedButton(onClick = { GlintOverlays.showIsland(context, IslandEvent.Connected) }) { Text("Try a pop-up") }
         Spacer(Modifier.height(LocalTabBarSpace.current + 36.dp))
+    }
+}
+
+@Composable
+private fun PhoneTimer(timer: IslandTimer.State?) {
+    val context = LocalContext.current
+    if (timer == null) {
+        OutlinedButton(onClick = { IslandTimer.start(context, 300_000L) }) { Text("5 minute timer") }
+        return
+    }
+    var left by remember(timer) { mutableLongStateOf(TimerRules.left(timer, android.os.SystemClock.elapsedRealtime())) }
+    if (timer.running) {
+        me.kavishdevar.librepods.presentation.glint.WhileShown(timer) {
+            do {
+                left = TimerRules.left(timer, android.os.SystemClock.elapsedRealtime())
+                if (left > 0) kotlinx.coroutines.delay((left - 1) % 1000 + 1)
+            } while (left > 0)
+        }
+    }
+    Text(when {
+        timer.ringing -> "Timer done"
+        timer.paused -> "Paused · ${TimerRules.format(left)}"
+        else -> "Timer · ${TimerRules.format(left)}"
+    })
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!timer.ringing) OutlinedButton(onClick = {
+            if (timer.paused) IslandTimer.resume(context) else IslandTimer.pause(context)
+        }) { Text(if (timer.paused) "Resume" else "Pause") }
+        OutlinedButton(onClick = { IslandTimer.addMinute(context) }) { Text("+1 minute") }
+        OutlinedButton(onClick = { IslandTimer.cancel(context) }) { Text(if (timer.ringing) "Stop" else "Cancel timer") }
     }
 }

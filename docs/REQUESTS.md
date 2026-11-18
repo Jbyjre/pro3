@@ -11,6 +11,9 @@
 | Request | State | Implementation and verification |
 |---|---|---|
 | Take signed updates without hunting for APK files on the Galaxy S26 FE | Implemented, handset confirmation pending | Phone → App updates → Automatic updates enables checks, downloads and idle installation together. A direct stable APK link bootstraps older versions. Interrupted downloads and expired installer sessions have regression coverage. |
+| Improve everyday reliability on the Phone tab | Implemented, physical sleep/wake check pending | Show time remaining, pause/resume, add one minute and stop. Timer recovery uses elapsed time within one boot and the saved wall deadline across reboots or upgrades from older records. The ring timeout is removed on replacement and delayed Stop actions leave a new countdown running. |
+
+Android documents that elapsed time includes deep sleep and that elapsed wakeup alarms use that same clock. pro stores the boot count alongside the deadline so a clock correction during a process restart cannot change the remaining interval. [SystemClock](https://developer.android.com/reference/android/os/SystemClock) · [AlarmManager](https://developer.android.com/reference/android/app/AlarmManager#ELAPSED_REALTIME_WAKEUP) · [Boot count](https://developer.android.com/reference/android/provider/Settings.Global#BOOT_COUNT)
 
 ## Previous request — 16 November 2026
 

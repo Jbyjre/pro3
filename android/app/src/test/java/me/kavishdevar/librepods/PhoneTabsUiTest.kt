@@ -87,6 +87,41 @@ class PhoneTabsUiTest {
         assertTrue("Back on the AirPods tab should leave the app as usual", !rule.activity.isFinishing)
     }
 
+    @Test fun phoneTimerSupportsPauseExtendResumeAndCancel() {
+        rule.setContent { LibrePodsTheme(m3eEnabled = false) { me.kavishdevar.librepods.presentation.screens.PhoneScreen() } }
+        rule.onNode(hasText("5 minute timer")).performClick()
+        rule.onNode(hasText("Pause")).performClick()
+        val paused = IslandTimer.state.value!!.pausedLeft
+        rule.onNode(hasText("+1 minute")).performClick()
+        assertEquals(paused + 60_000L, IslandTimer.state.value!!.pausedLeft)
+        rule.onNode(hasText("Resume")).performClick()
+        assertTrue(IslandTimer.state.value!!.running)
+        rule.onNode(hasText("Cancel timer")).performClick()
+        rule.onNode(hasText("5 minute timer")).assertExists()
+    }
+
+    @Test fun clockCorrectionCannotExpireARunningTimerAfterProcessDeath() {
+        android.provider.Settings.Global.putInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, 5)
+        IslandTimer.start(context, 60_000L)
+        val expected = IslandTimer.state.value!!.endsAt
+        IslandTimer.forgetForTest()
+        val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        prefs.edit().putLong("glint_timer_end_wall", System.currentTimeMillis() - 120_000L).commit()
+        IslandTimer.attach(context)
+        assertEquals(expected, IslandTimer.state.value!!.endsAt)
+        IslandTimer.forgetForTest()
+        android.provider.Settings.Global.putInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, 6)
+        IslandTimer.attach(context)
+        assertNull(IslandTimer.state.value)
+    }
+
+    @Test fun delayedNotificationStopLeavesReplacementCountdownRunning() {
+        IslandTimer.start(context, 60_000L)
+        me.kavishdevar.librepods.services.TimerReceiver().onReceive(context,
+            android.content.Intent(IslandTimer.ACTION_STOP))
+        assertTrue(IslandTimer.state.value!!.running)
+    }
+
     @Test fun disconnectAsksFirst() {
         val vm = AirPodsViewModel().apply { activateDemoMode() }
         rule.setContent { LibrePodsTheme(m3eEnabled = false) { NavigationRoot(airPodsViewModel = vm) } }
@@ -115,7 +150,7 @@ class PhoneTabsUiTest {
         IslandTimer.start(context, 1L)
         // Android closes pro: everything in memory is gone, only what was saved remains.
         IslandTimer.forgetForTest()
-        Thread.sleep(20)
+        org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofMillis(20))
         // The alarm wakes pro just for this.
         me.kavishdevar.librepods.services.TimerReceiver().onReceive(
             context, android.content.Intent("me.kavishdevar.librepods.TIMER_FIRE"),
