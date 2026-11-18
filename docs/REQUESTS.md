@@ -6,7 +6,25 @@
 - Jake's exact words are not stored in the repository. This list is rebuilt from `DECISIONS.md` (each section marks "your request" or "your choice" where Jake asked), `CLAUDE.md`, `POLISH_LEDGER.md`, `TESTING.md` and the git history (30 merged pull requests from 2026-09-30 to 2026-10-02, then this file's own session on 2026-10-06). Section numbers like "D12" mean `DECISIONS.md` section 12.
 - **When Jake asks for something new, add a row here. When a status changes, change the row.** Keep it true: if something was not checked on his phone, say so.
 
-## Current request — 18 November 2026
+## Latest request — 18 November 2026 (second session): smoother, once-per-visit Breathe
+
+Jake wanted Breathe to lay over an app instantly while it keeps loading, never flicker or cut off, feel smoother with nicer text, run once per visit instead of on every app switch, take 3 seconds, be customizable, skip his Chrome web apps, and be genuinely useful so he takes the time to breathe. Details, root causes, sources and honest limits: [the last section of APP_OPEN_BREATHING](APP_OPEN_BREATHING.md#smoother-once-per-visit-pause--18-november).
+
+| Request | State | Implementation and verification |
+|---|---|---|
+| Lay over the app instantly while it keeps loading | IMPLEMENTED; DEVICE TIMING CHECK | Opaque from the first frame, full screen, never relaunches the app. Android reports an app only after its window is laid out, so a glimpse of its first frame can remain. The Breathe page shows the last pause's measured speed to check this on the phone. |
+| No delay, flicker, random cut-off; smoother text | CLOUD CHECKS PASSED; DEVICE CHECK | System windows (heads-up, volume) no longer cancel a running pause; hard cut replaced by fade/lift; no strips of the loading app; same-hue dark start; no mid-animation rebuilds; frame-clock motion. Rendering tests guard these. Software drawing was ruled out as a cause (checked in Android's source). |
+| Remove the app name at the bottom left | IMPLEMENTED (my reading) | Off by default; "Show app name" switch brings it back. The request text was garbled ("Don't take out ... doesn't need to be there"), so confirm the reading. |
+| One or two new sayings, tougher text for a teenage boy | IMPLEMENTED | Breathe in, Slow down, Reset (each with a breathe-out partner and small lines), heavy condensed Barlow type (open license). Wording is easy to change in `BreathWords.kt`. |
+| Pause on first open only; again if still open 10+ minutes | IMPLEMENTED; DEVICE CHECK | Per-app memory (default 10 min, choices Every open to 1 hour), compared only when a window opens. Read as "on the next open after 10 minutes", not an interruption mid-use. Survives restarts. |
+| Do not use battery | IMPLEMENTED | No timers, polling or wake locks; one timestamp compare per window event; high refresh asked for only during the pause. |
+| 3 seconds, customizable length and transitions | IMPLEMENTED | 3 s default; 2 to 10 s slider; Fade, Lift, Instant; words and haptics choices. |
+| Skip his Chrome web apps (workout, imposter game) | CLOUD CHECKS PASSED; DEVICE CHECK | Verified against Chromium's sources: `org.chromium.webapk.*` packages and Chrome-hosted `webapps.*` windows never pause, even with Chrome chosen; hidden from the picker. A plain "Add to Home screen" page shortcut is an ordinary tab and still pauses. |
+| More interactive and useful so he actually breathes | IMPLEMENTED; DEVICE CHECK | Guided words for in and out, a shortening time line, a soft light following the finger, gentle haptics, a light-catching edge. |
+| Automatic updates work smoothly | IMPLEMENTED; DEVICE INSTALL CHECK | Live release server verified (200 for metadata, 206 for the APK). Added a throttled check when pro opens, a versioned job schedule and a "Last checked" line. Install still waits for idle or a tap. |
+| Use the core skill, no sub-agents, be thorough | FOLLOWED | Research done inline from primary sources; every number above was observed. Full run: 456 tests passed, lint 0 errors, release build succeeded. |
+
+## Earlier request — 18 November 2026
 
 | Request | State | Implementation and verification |
 |---|---|---|
