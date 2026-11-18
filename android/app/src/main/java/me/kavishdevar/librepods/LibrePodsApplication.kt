@@ -2,6 +2,7 @@ package me.kavishdevar.librepods
 
 import android.app.Application
 import androidx.lifecycle.DefaultLifecycleObserver
+import kotlinx.coroutines.launch
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.github.libxposed.service.XposedService
@@ -12,6 +13,8 @@ import me.kavishdevar.librepods.utils.XposedServiceHolder
 import me.kavishdevar.librepods.utils.XposedState
 
 class LibrePodsApplication: Application(), XposedServiceHelper.OnServiceListener, DefaultLifecycleObserver {
+
+    private val updateScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
     override fun onCreate() {
         XposedServiceHelper.registerListener(this)
@@ -33,6 +36,8 @@ class LibrePodsApplication: Application(), XposedServiceHelper.OnServiceListener
     }
 
     override fun onResume(owner: LifecycleOwner) {
+        // Opening pro is the moment a new build is most useful to hear about: one tiny, throttled check.
+        updateScope.launch { runCatching { me.kavishdevar.librepods.updates.Updater.checkOnOpen(this@LibrePodsApplication) } }
         BillingManager.provider.queryPurchases()
         XposedState.isAvailable = XposedServiceHolder.service != null
         XposedState.bluetoothScopeEnabled = XposedServiceHolder.service?.scope?.contains("com.google.android.bluetooth") == true || XposedServiceHolder.service?.scope?.contains("com.android.bluetooth") == true
