@@ -27,7 +27,7 @@ fun UpdatePanel(health: PermissionHealth? = null) {
     var downloads by remember { mutableStateOf(prefs.getBoolean("download", true)) }
     var options by remember { mutableStateOf(false) }
     var installs by remember { mutableStateOf(prefs.getBoolean("install", false)) }
-    LaunchedEffect(Unit) { withContext(Dispatchers.IO) { Updater.restore(context); UpdateJob.schedule(context) } }
+    LaunchedEffect(Unit) { withContext(Dispatchers.IO) { UpdateInstaller.refresh(context); UpdateJob.schedule(context) } }
     Text("App updates", style = MaterialTheme.typography.headlineSmall)
     Text("Installed build ${BuildConfig.VERSION_CODE} · $channel", style = MaterialTheme.typography.bodyMedium)
     Text(state.message)
@@ -75,9 +75,16 @@ fun UpdatePanel(health: PermissionHealth? = null) {
     TextButton(onClick = { options = !options }) { Text(if (options) "Hide update options" else "Update options") }
     if (options) {
     StyledToggle(label = "Check automatically on Wi-Fi", checked = checks, onCheckedChange = {
-        checks = it; prefs.edit().putBoolean("checks", it).apply(); UpdateJob.schedule(context)
+        checks = it
+        if (!it) installs = false
+        prefs.edit().putBoolean("checks", it).putBoolean("install", installs).apply()
+        UpdateJob.schedule(context)
     })
-    StyledToggle(label = "Download automatically", checked = downloads, onCheckedChange = { downloads = it; prefs.edit().putBoolean("download", it).apply() })
+    StyledToggle(label = "Download automatically", checked = downloads, onCheckedChange = {
+        downloads = it
+        if (!it) installs = false
+        prefs.edit().putBoolean("download", it).putBoolean("install", installs).apply()
+    })
     TextButton(enabled = !state.busy, onClick = {
         channel = if (channel == "stable") "preview" else "stable"
         prefs.edit().putString("channel", channel).apply()

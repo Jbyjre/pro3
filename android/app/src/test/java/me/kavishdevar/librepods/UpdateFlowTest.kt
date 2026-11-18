@@ -115,6 +115,15 @@ class UpdateFlowTest {
         assertEquals(-1,Updater.prefs(c).getInt("session",-1))
         assertTrue(Updater.apk(c).exists())
     }
+    @Test fun expiredSessionRestoresTheCachedUpdateAction() = runBlocking {
+        publish()
+        Updater.check(c)
+        Updater.apk(c).writeText("retained")
+        Updater.prefs(c).edit().putInt("session", 7).commit()
+        UpdateInstaller.refresh(c)
+        assertEquals(-1, Updater.prefs(c).getInt("session", -1))
+        assertTrue(Updater.state.value.ready)
+    }
     @Test fun unrelatedOrOldInstallCallbackCannotModifyPendingSession() {
         Updater.prefs(c).edit().putInt("session",7).commit()
         InstallReceiver().onReceive(c,Intent().putExtra(PackageInstaller.EXTRA_SESSION_ID,6)
