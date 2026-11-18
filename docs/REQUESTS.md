@@ -6,7 +6,13 @@
 - Jake's exact words are not stored in the repository. This list is rebuilt from `DECISIONS.md` (each section marks "your request" or "your choice" where Jake asked), `CLAUDE.md`, `POLISH_LEDGER.md`, `TESTING.md` and the git history (30 merged pull requests from 2026-09-30 to 2026-10-02, then this file's own session on 2026-10-06). Section numbers like "D12" mean `DECISIONS.md` section 12.
 - **When Jake asks for something new, add a row here. When a status changes, change the row.** Keep it true: if something was not checked on his phone, say so.
 
-## Current request — 16 November 2026
+## Current request — 18 November 2026
+
+| Request | State | Implementation and verification |
+|---|---|---|
+| Take signed updates without hunting for APK files on the Galaxy S26 FE | Implemented, handset confirmation pending | Phone → App updates → Automatic updates enables checks, downloads and idle installation together. A direct stable APK link bootstraps older versions. Interrupted downloads and expired installer sessions have regression coverage. |
+
+## Previous request — 16 November 2026
 
 The latest request replaces shortcut-only breathing. Jake opens original app icons, notifications and links; the requested pause is now 2–3 seconds, implemented as **2.5 seconds**. No in-app off switch, snooze or Quick Settings bypass. The camera island remains retired.
 

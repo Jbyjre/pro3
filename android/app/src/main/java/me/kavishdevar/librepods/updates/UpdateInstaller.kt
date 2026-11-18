@@ -50,6 +50,18 @@ object UpdateInstaller {
     }
     fun confirmation(c: Context): PendingIntent? = prefsIntent(c)?.let { PendingIntent.getActivity(c, CONFIRM_REQUEST, it, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE) }
     private fun prefsIntent(c: Context): Intent? = Updater.prefs(c).getString("confirmation_filter", null)?.let { runCatching { Intent.parseUri(it, 0) }.getOrNull() }
+    suspend fun refresh(c: Context) = withContext(Dispatchers.IO) {
+        Updater.mutex.withLock {
+            val prefs = Updater.prefs(c)
+            val session = prefs.getInt("session", -1)
+            if (session >= 0 && c.packageManager.packageInstaller.getSessionInfo(session) == null) {
+                confirmation(c)?.cancel()
+                prefs.edit().remove("session").remove("confirmation_filter").remove("result").apply()
+                if (Updater.release(c) == null) Updater.apk(c).delete()
+            }
+            Updater.restore(c)
+        }
+    }
     fun cancel(c: Context) {
         val id = Updater.prefs(c).getInt("session", -1)
         if (id >= 0) runCatching { c.packageManager.packageInstaller.abandonSession(id) }
