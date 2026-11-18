@@ -7,7 +7,11 @@ import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Context
 import android.media.AudioManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.PowerManager
+import java.net.HttpURLConnection
+import java.net.URL
 import kotlinx.coroutines.*
 import me.kavishdevar.librepods.breathing.BreathInteraction
 
@@ -15,10 +19,19 @@ import me.kavishdevar.librepods.breathing.BreathInteraction
 class UpdateJob : JobService() {
     private var work: Job? = null
     override fun onStartJob(params: JobParameters): Boolean {
+        val network = params.network ?: return false
+        val connectivity = getSystemService(ConnectivityManager::class.java)
+        val open = { url: String ->
+            check(connectivity.getNetworkCapabilities(network)
+                ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true) {
+                "Automatic updates will resume on an unmetered connection."
+            }
+            network.openConnection(URL(url)) as HttpURLConnection
+        }
         work = CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                Updater.check(this@UpdateJob)
-                if (Updater.state.value.available && !Updater.state.value.ready && Updater.prefs(this@UpdateJob).getBoolean("download", true)) Updater.download(this@UpdateJob)
+                if (Updater.check(this@UpdateJob, open).isFailure) return@launch
+                if (Updater.state.value.available && !Updater.state.value.ready && Updater.prefs(this@UpdateJob).getBoolean("download", true)) Updater.download(this@UpdateJob, open)
                 val audio = getSystemService(AudioManager::class.java)
                 if (Updater.state.value.ready && Updater.prefs(this@UpdateJob).getBoolean("install", false) &&
                     !getSystemService(PowerManager::class.java).isInteractive && !BreathInteraction.active &&

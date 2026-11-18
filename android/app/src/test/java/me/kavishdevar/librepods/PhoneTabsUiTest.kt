@@ -115,6 +115,20 @@ class PhoneTabsUiTest {
         assertNull(IslandTimer.state.value)
     }
 
+    @Test fun replacingARingingTimerGetsAFreshRingTimeout() {
+        val main = org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper())
+        IslandTimer.start(context, 100L)
+        main.idleFor(java.time.Duration.ofMillis(100))
+        assertTrue(IslandTimer.state.value!!.ringing)
+        IslandTimer.start(context, 5_000L)
+        main.idleFor(java.time.Duration.ofMillis(5_000))
+        assertTrue(IslandTimer.state.value!!.ringing)
+        main.idleFor(java.time.Duration.ofMillis(IslandTimer.RING_MAX_MS - 5_000L))
+        assertTrue(IslandTimer.state.value!!.ringing)
+        main.idleFor(java.time.Duration.ofMillis(5_000))
+        assertNull(IslandTimer.state.value)
+    }
+
     @Test fun delayedNotificationStopLeavesReplacementCountdownRunning() {
         IslandTimer.start(context, 60_000L)
         me.kavishdevar.librepods.services.TimerReceiver().onReceive(context,
