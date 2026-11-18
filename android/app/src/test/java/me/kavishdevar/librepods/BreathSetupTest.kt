@@ -66,7 +66,7 @@ class BreathSetupTest {
         rule.onNodeWithText("Waiting for Android").assertExists()
         rule.runOnIdle { BreathAccess.connection.value = true }
         rule.onNodeWithText("Ready when you open").assertExists()
-        rule.onNodeWithText("1 app · 2.5 seconds · Always on").assertExists()
+        rule.onNodeWithText("1 app · 3 seconds · Again after 10 min").assertExists()
         rule.onNodeWithText("Breathing pause").assertDoesNotExist()
         rule.onNodeWithText("Pause for 15 minutes").assertDoesNotExist()
         rule.onNodeWithText("Add icon").assertDoesNotExist()

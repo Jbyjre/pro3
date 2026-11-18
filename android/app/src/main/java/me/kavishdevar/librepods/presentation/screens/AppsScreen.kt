@@ -54,6 +54,8 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import me.kavishdevar.librepods.breathing.BreathPrefs
+import me.kavishdevar.librepods.breathing.BreathWebApps
+import kotlin.math.roundToInt
 import me.kavishdevar.librepods.services.SoundSource
 
 /** An app you can open, as listed on the Apps page. */
@@ -70,7 +72,8 @@ internal fun launchableApps(context: Context): List<AppEntry> {
     }.getOrDefault(emptyList())
     return found.asSequence()
         .map { it.activityInfo.packageName to runCatching { it.loadLabel(pm).toString() }.getOrDefault(it.activityInfo.packageName) }
-        .filter { (pkg, _) -> pkg != context.packageName }
+        // Websites installed from Chrome are never paused, so they are not offered at all.
+        .filter { (pkg, _) -> pkg != context.packageName && !BreathWebApps.isWebAppPackage(pkg) }
         .distinctBy { it.first }
         .map { (pkg, label) -> AppEntry(pkg, label) }
         .sortedBy { it.label.lowercase() }
@@ -90,7 +93,7 @@ fun AppsScreen(preset: List<AppEntry>? = null, onDone: () -> Unit = {}) {
     val loadedApps by produceState<List<AppEntry>?>(initialValue = preset, preset) {
         if (preset == null) value = withContext(Dispatchers.IO) { launchableApps(context) }
     }
-    val apps = loadedApps.orEmpty()
+    val apps = loadedApps.orEmpty().filterNot { BreathWebApps.isWebAppPackage(it.pkg) }
     var selected by remember { mutableStateOf(BreathPrefs.selected(context)) }
     val query = rememberTextFieldState()
     val text = query.text.toString().trim()
@@ -108,7 +111,8 @@ fun AppsScreen(preset: List<AppEntry>? = null, onDone: () -> Unit = {}) {
             item(key = "instructions") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Choose your apps.", color = colors.ink, style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.8).sp))
-                    Text("Keep your usual icons. Add a 2.5-second pause.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
+                    val seconds = remember { BreathPrefs.options(context).seconds.roundToInt() }
+                    Text("Keep your usual icons. Add a $seconds-second pause the first time you open each one. Websites you installed from Chrome never pause.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
                 }
             }
             item(key = "search") {

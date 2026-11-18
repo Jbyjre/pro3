@@ -51,7 +51,7 @@ class BreathLaunchTest {
         resolve()
         assertNull(shadowOf(a).nextStartedActivity)
         draw(a)
-        ShadowLooper.idleMainLooper(2499, java.util.concurrent.TimeUnit.MILLISECONDS)
+        ShadowLooper.idleMainLooper(2999, java.util.concurrent.TimeUnit.MILLISECONDS)
         assertNull(shadowOf(a).nextStartedActivity)
         ShadowLooper.idleMainLooper(1, java.util.concurrent.TimeUnit.MILLISECONDS)
         val opened = shadowOf(a).nextStartedActivity
@@ -73,7 +73,7 @@ class BreathLaunchTest {
         val darkBars=android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
             android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
         assertEquals("the warm still layer needs dark Android icons",darkBars,a.window.insetsController!!.systemBarsAppearance and darkBars)
-        ShadowLooper.idleMainLooper(2499,java.util.concurrent.TimeUnit.MILLISECONDS)
+        ShadowLooper.idleMainLooper(2999,java.util.concurrent.TimeUnit.MILLISECONDS)
         assertNull(shadowOf(a).nextStartedActivity)
         ShadowLooper.idleMainLooper(1,java.util.concurrent.TimeUnit.MILLISECONDS)
         assertEquals(pkg,shadowOf(a).nextStartedActivity.component!!.packageName)
@@ -94,7 +94,7 @@ class BreathLaunchTest {
         resolve()
         val a = controller.get()
         draw(a)
-        ShadowLooper.idleMainLooper(2499, java.util.concurrent.TimeUnit.MILLISECONDS)
+        ShadowLooper.idleMainLooper(2999, java.util.concurrent.TimeUnit.MILLISECONDS)
         assertNull(shadowOf(a).nextStartedActivity)
         ShadowLooper.idleMainLooper(1, java.util.concurrent.TimeUnit.MILLISECONDS)
         assertEquals(pkg, shadowOf(a).nextStartedActivity.component!!.packageName)
@@ -110,7 +110,7 @@ class BreathLaunchTest {
         val a = controller.get(); resolve(); draw(a)
         ShadowLooper.idleMainLooper(600, java.util.concurrent.TimeUnit.MILLISECONDS)
         controller.newIntent(request())
-        ShadowLooper.idleMainLooper(1900, java.util.concurrent.TimeUnit.MILLISECONDS)
+        ShadowLooper.idleMainLooper(2400, java.util.concurrent.TimeUnit.MILLISECONDS)
         assertEquals(pkg, shadowOf(a).nextStartedActivity.component!!.packageName)
         controller.pause().stop().destroy()
     }
@@ -118,7 +118,7 @@ class BreathLaunchTest {
         val controller = Robolectric.buildActivity(BreathActivity::class.java, request()).create().start().resume()
         val a = controller.get(); resolve(); draw(a)
         shadowOf(c.getSystemService(android.app.KeyguardManager::class.java)).setKeyguardLocked(true)
-        ShadowLooper.idleMainLooper(2500, java.util.concurrent.TimeUnit.MILLISECONDS)
+        ShadowLooper.idleMainLooper(3000, java.util.concurrent.TimeUnit.MILLISECONDS)
         assertNull(shadowOf(a).nextStartedActivity)
         controller.pause().stop().destroy()
         shadowOf(c.getSystemService(android.app.KeyguardManager::class.java)).setKeyguardLocked(false)
@@ -144,7 +144,7 @@ class BreathLaunchTest {
             android.provider.Settings.Global.putFloat(c.contentResolver,android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,scale)
             val controller=Robolectric.buildActivity(BreathActivity::class.java,request()).create().start().resume()
             val a=controller.get();resolve();draw(a)
-            ShadowLooper.idleMainLooper(2499,java.util.concurrent.TimeUnit.MILLISECONDS)
+            ShadowLooper.idleMainLooper(2999,java.util.concurrent.TimeUnit.MILLISECONDS)
             assertNull(shadowOf(a).nextStartedActivity)
             ShadowLooper.idleMainLooper(1,java.util.concurrent.TimeUnit.MILLISECONDS)
             assertEquals(pkg,shadowOf(a).nextStartedActivity.component!!.packageName)

@@ -75,10 +75,14 @@ class BreathActivity : ComponentActivity() {
         lifecycleScope.launch {
             // Read appearance off main before package lookup; the first neutral frame appears immediately.
             val appearance = withContext(Dispatchers.IO) {
-                BreathPrefs.options(this@BreathActivity).also { it.palette.gradientColors } to
-                    me.kavishdevar.librepods.presentation.glint.GlintComfort.reduceMotion(this@BreathActivity)
+                val options = BreathPrefs.options(this@BreathActivity).also { it.palette.gradientColors; it.palette.deep }
+                val saying = BreathWords.pick(options.words, BreathHistory.lastSaying(this@BreathActivity))
+                BreathHistory.saveSaying(this@BreathActivity, saying)
+                Triple(options, me.kavishdevar.librepods.presentation.glint.GlintComfort.reduceMotion(this@BreathActivity), saying)
             }
             if (isFinishing || session.cancelled || generation != requestGeneration) return@launch
+            session.durationMs = appearance.first.durationMs
+            view.sayingIndex = appearance.third
             view.options = appearance.first
             view.systemReduced = appearance.second
             // Package queries and preference loading happen while the first frame is being drawn.
