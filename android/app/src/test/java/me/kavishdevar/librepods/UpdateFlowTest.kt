@@ -79,6 +79,24 @@ class UpdateFlowTest {
             assertTrue(Updater.state.value.available)
         }
     }
+    @Test fun blockedJobNetworkPreservesOfflineDownloadWithoutUsingDefaultRoute() = runBlocking {
+        publish()
+        Updater.check(c)
+        Updater.apk(c).writeText("retained")
+        Updater.state.value = UpdateState() // Android recreated the process
+        val failedCheck = Updater.check(c) { throw IOException("Job network lost") }
+        assertTrue(failedCheck.isFailure)
+        assertTrue(Updater.state.value.ready)
+        var requested: String? = null
+        Updater.download(c) { url ->
+            requested = url
+            throw IOException("Job network lost")
+        }
+        assertEquals(release().url, requested)
+        assertEquals("retained", Updater.apk(c).readText())
+        assertTrue(Updater.state.value.ready)
+    }
+
     @Test fun republishedMetadataInvalidatesOldDownload() = runBlocking {
         publish(); Updater.check(c)
         Updater.apk(c).writeText("old")

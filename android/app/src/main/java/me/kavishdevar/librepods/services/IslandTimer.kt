@@ -32,6 +32,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.VibratorManager
+import android.provider.Settings
 import android.util.Log
 import androidx.compose.runtime.Immutable
 import androidx.core.app.NotificationCompat
@@ -56,10 +57,12 @@ import me.kavishdevar.librepods.presentation.overlays.IslandEvent
 object IslandTimer {
     private const val TAG = "IslandTimer"
     private const val PREF_END = "glint_timer_end_wall"
+    private const val PREF_ELAPSED_END = "glint_timer_end_elapsed"
+    private const val PREF_BOOT = "glint_timer_boot"
     private const val PREF_TOTAL = "glint_timer_total"
     private const val PREF_LEFT = "glint_timer_paused_left"
     private const val CHANNEL = "pro_timer"
-    private const val NOTE_ID = 7_301
+    internal const val NOTE_ID = 7_301
     internal const val ACTION_FIRE = "me.kavishdevar.librepods.TIMER_FIRE"
     internal const val ACTION_STOP = "me.kavishdevar.librepods.TIMER_STOP"
     /** The longest it rings before stopping by itself. */
@@ -88,6 +91,7 @@ object IslandTimer {
     private var player: MediaPlayer? = null
 
     /** Picks up a timer that was running before pro restarted (safe to call often). */
+    @Synchronized
     fun attach(context: Context) {
         if (appContext != null) return
         val app = context.applicationContext
@@ -102,22 +106,36 @@ object IslandTimer {
         if (total <= 0L) return
         val left = p.getLong(PREF_LEFT, -1L)
         val wallEnd = p.getLong(PREF_END, 0L)
-        val restored = TimerRules.restore(total, wallEnd, left, System.currentTimeMillis(), SystemClock.elapsedRealtime())
+        val elapsedNow = SystemClock.elapsedRealtime()
+        val boot = bootCount(app)
+        val elapsedEnd = p.getLong(PREF_ELAPSED_END, 0L)
+        val restored = if (boot >= 0 && boot == p.getInt(PREF_BOOT, -1) && elapsedEnd > 0L) {
+            TimerRules.restore(total, elapsedEnd, left, elapsedNow, elapsedNow)
+        } else {
+            TimerRules.restore(total, wallEnd, left, System.currentTimeMillis(), elapsedNow)
+        }
         if (restored == null) { clearSaved(app); return }
-        _state.value = restored
+        if (restored.running && boot >= 0 && (boot != p.getInt(PREF_BOOT, -1) || elapsedEnd <= 0L)) {
+            set(app, restored)
+        } else {
+            _state.value = restored
+        }
         if (restored.running) schedule(app, restored.endsAt)
     }
 
     /** Starts a timer of [ms] (replacing any other). */
+    @Synchronized
     fun start(context: Context, ms: Long) {
         val app = context.applicationContext
         appContext = appContext ?: app
         stopSound()
+        app.getSystemService(NotificationManager::class.java)?.cancel(NOTE_ID)
         val s = State(total = ms, endsAt = SystemClock.elapsedRealtime() + ms)
         set(app, s)
         schedule(app, s.endsAt)
     }
 
+    @Synchronized
     fun pause(context: Context) {
         val s = _state.value ?: return
         if (!s.running) return
@@ -126,6 +144,7 @@ object IslandTimer {
         set(app, s.copy(pausedLeft = TimerRules.left(s, SystemClock.elapsedRealtime())))
     }
 
+    @Synchronized
     fun resume(context: Context) {
         val s = _state.value ?: return
         if (!s.paused) return
@@ -136,6 +155,7 @@ object IslandTimer {
     }
 
     /** One more minute: on a running or paused timer, or on one that's ringing (snooze-style). */
+    @Synchronized
     fun addMinute(context: Context) {
         val s = _state.value ?: return
         val app = context.applicationContext
@@ -151,6 +171,7 @@ object IslandTimer {
     }
 
     /** Stops it: cancels a running timer, or silences one that's ringing. */
+    @Synchronized
     fun cancel(context: Context) {
         val app = context.applicationContext
         cancelAlarm(app)
@@ -165,12 +186,16 @@ object IslandTimer {
         prefs(c).edit {
             putLong(PREF_TOTAL, s.total)
             putLong(PREF_LEFT, if (s.paused) s.pausedLeft else -1L)
-            // Wall-clock end, so a restart of pro (not of the phone's clock) finds it again.
+            putLong(PREF_ELAPSED_END, if (s.running) s.endsAt else 0L)
+            putInt(PREF_BOOT, bootCount(c))
+            // Reboot and legacy records use the wall clock because elapsed time resets on boot.
             putLong(PREF_END, if (s.running) System.currentTimeMillis() + (s.endsAt - SystemClock.elapsedRealtime()) else 0L)
         }
     }
 
-    private fun clearSaved(c: Context) = prefs(c).edit { remove(PREF_TOTAL); remove(PREF_LEFT); remove(PREF_END) }
+    private fun clearSaved(c: Context) = prefs(c).edit { remove(PREF_TOTAL); remove(PREF_LEFT); remove(PREF_END); remove(PREF_ELAPSED_END); remove(PREF_BOOT) }
+
+    private fun bootCount(c: Context) = Settings.Global.getInt(c.contentResolver, Settings.Global.BOOT_COUNT, -1)
 
     private fun prefs(c: Context) = c.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
@@ -207,6 +232,7 @@ object IslandTimer {
     }
 
     /** The end came (from the alarm or the in-app timer, whichever is first; the second does nothing). */
+    @Synchronized
     internal fun fired(context: Context) {
         val app = context.applicationContext
         appContext = appContext ?: app
@@ -215,7 +241,7 @@ object IslandTimer {
         if (_state.value == null) restore(app)
         val s = _state.value ?: return
         if (s.ringing || !s.running) return
-        if (TimerRules.left(s, SystemClock.elapsedRealtime()) > 500L) {
+        if (TimerRules.left(s, SystemClock.elapsedRealtime()) > 0L) {
             // Woken early (an inexact alarm, a clock change): wait for the real end.
             schedule(app, s.endsAt)
             return
@@ -226,7 +252,7 @@ object IslandTimer {
         ring(app)
         notifyDone(app)
         GlintOverlays.showIsland(app, IslandEvent.TimerDone, expand = true)
-        main.postDelayed({ if (_state.value?.ringing == true) cancel(app) }, RING_MAX_MS)
+        main.postDelayed(stopRinging, RING_MAX_MS)
     }
 
     private fun ring(c: Context) {
@@ -248,7 +274,10 @@ object IslandTimer {
         }
     }
 
+    private val stopRinging = Runnable { if (_state.value?.ringing == true) appContext?.let { cancel(it) } }
+
     private fun stopSound() {
+        main.removeCallbacks(stopRinging)
         player?.let { runCatching { it.stop() }; it.release() }
         player = null
         appContext?.let { c -> runCatching { c.getSystemService(VibratorManager::class.java)?.defaultVibrator?.cancel() } }
@@ -295,7 +324,10 @@ class TimerReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             IslandTimer.ACTION_FIRE -> IslandTimer.fired(context)
-            IslandTimer.ACTION_STOP -> IslandTimer.cancel(context)
+            IslandTimer.ACTION_STOP -> {
+                if (IslandTimer.state.value?.ringing == true) IslandTimer.cancel(context)
+                else context.getSystemService(NotificationManager::class.java)?.cancel(IslandTimer.NOTE_ID)
+            }
         }
     }
 }

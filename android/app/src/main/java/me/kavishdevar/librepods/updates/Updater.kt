@@ -34,13 +34,13 @@ object Updater {
         state.value = UpdateState(prefs(c).getString("result", null) ?: if (r != null) "Build ${r.version} available" else "Check for a new build",
             ready = r != null && apk(c).exists(), available = r != null)
     }
-    suspend fun check(c: Context) = withContext(Dispatchers.IO) { mutex.withLock {
+    suspend fun check(c: Context, open: (String) -> HttpURLConnection = connectionFactory) = withContext(Dispatchers.IO) { mutex.withLock {
         state.value = state.value.copy(message = "Checking…", busy = true)
         runCatching {
             val channel = channel(c)
             val tag = if (channel == "stable") "glint-latest" else "glint-preview"
             val url = "https://github.com/Jbyjre/pro3/releases/download/$tag/update.json"
-            val found = UpdateRelease.parse(readJson(url), channel)
+            val found = UpdateRelease.parse(readJson(url, open), channel)
             val prior = release(c)
             if (prior?.sha256 != found.sha256) apk(c).delete()
             File(dir(c), "release.json.part").apply { writeText(found.json()); require(renameTo(File(dir(c), "release.json"))) }
@@ -48,15 +48,19 @@ object Updater {
             val newer = found.version > installed(c)
             state.value = UpdateState(if (newer) "Build ${found.version} available" else "You're up to date · build ${installed(c)}",
                 ready = newer && apk(c).exists(), available = newer)
-        }.onFailure { if (it is kotlinx.coroutines.CancellationException) { restore(c); throw it }; state.value = state.value.copy(message = friendly(it), busy = false) }
+        }.onFailure {
+            restore(c)
+            if (it is kotlinx.coroutines.CancellationException) throw it
+            state.value = state.value.copy(message = friendly(it))
+        }
     } }
-    suspend fun download(c: Context) = withContext(Dispatchers.IO) { mutex.withLock {
+    suspend fun download(c: Context, open: (String) -> HttpURLConnection = connectionFactory) = withContext(Dispatchers.IO) { mutex.withLock {
         state.value = state.value.copy(message = "Downloading…", busy = true)
         val part = File(dir(c), "update.apk.part")
         runCatching {
             val r = release(c) ?: error("Check for an update first")
             require(dir(c).usableSpace > r.size * 3 + 20_000_000) { "Not enough storage. Free some space and retry." }
-            val connection = connect(r.url)
+            val connection = connect(r.url, open)
             try {
                 require(connection.responseCode == 200) { "Download unavailable (${connection.responseCode}). Check again and retry." }
                 var total = 0L
@@ -78,8 +82,9 @@ object Updater {
             state.value = UpdateState("Ready · build ${r.version}", ready = true, available = true)
         }.onFailure {
             part.delete()
-            if (it is kotlinx.coroutines.CancellationException) { restore(c); throw it }
-            state.value = state.value.copy(message = friendly(it), busy = false, ready = false)
+            restore(c)
+            if (it is kotlinx.coroutines.CancellationException) throw it
+            state.value = state.value.copy(message = friendly(it))
         }
     } }
     fun digest(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
@@ -98,13 +103,13 @@ object Updater {
             verified.signerCertificates.map { digest(it.encoded) }.toSet())
     }
     internal var connectionFactory: (String) -> HttpURLConnection = { URL(it).openConnection() as HttpURLConnection }
-    private fun connect(url: String): HttpURLConnection = connectionFactory(url).apply {
+    private fun connect(url: String, open: (String) -> HttpURLConnection): HttpURLConnection = open(url).apply {
         connectTimeout = 15_000; readTimeout = 30_000
         setRequestProperty("User-Agent", "pro/${BuildConfig.VERSION_CODE}")
         setRequestProperty("Accept", "application/vnd.github+json")
     }
-    private fun readJson(url: String): String {
-        val c = connect(url)
+    private fun readJson(url: String, open: (String) -> HttpURLConnection): String {
+        val c = connect(url, open)
         try {
             val status = c.responseCode
             if (status == 403 || status == 429) error("GitHub is limiting checks. Try again later.")
