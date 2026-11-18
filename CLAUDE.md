@@ -1,4 +1,4 @@
-> **Current breathing behavior:** [docs/APP_OPEN_BREATHING.md](docs/APP_OPEN_BREATHING.md) supersedes shortcut-only/no-accessibility breathing notes: chosen ordinary app windows receive a 2.5-second layer via a dedicated service with no screen-content access. No camera feature is restored.
+> **Current breathing behavior:** [docs/APP_OPEN_BREATHING.md](docs/APP_OPEN_BREATHING.md) supersedes shortcut-only/no-accessibility breathing notes: chosen ordinary app windows receive a short breathing layer (3 seconds by default and customizable, once per visit with a 10-minute memory, never for Chrome web apps) via a dedicated service with no screen-content access. No camera feature is restored.
 
 > Current product: [docs/BREATHING_AND_UPDATES.md](docs/BREATHING_AND_UPDATES.md) supersedes all camera-island implementation notes below. The persistent MiniIsland feature and accessibility/screen readers are removed. Breathe replaces Island; headphones remain Home. Temporary Island/MusicIsland pop-ups stay. Do not restore the ring or request camera Accessibility access. Signing regeneration is forbidden; use existing identity, secrets or its cache.
 
@@ -147,4 +147,5 @@
   ends on it, Back from Phone/Island returns to it (Jake's choice; it was Phone first). AirPods page order: listening mode + Off option,
   audio, heart rate, buttons, health, connection/charging, rare rows last. Disconnect asks first. Infinite animations and frame loops
   must stop when not needed (`WhileShown`, no `rememberInfiniteTransition` while idle).
+- Breathing (2026-11-18, map in `breathing/README.md`): a chosen app pauses on first open and again only after the grace time (`BreathAppGate`, checked only when a window opens: no timers, no polling); a pause counts only once its first frame is drawn; **never write the `breathing` preference file while a pause runs** (history lives in `breath_seen`); system windows never cut a running pause short; installed Chrome web apps never pause (`BreathWebApps`); the layer starts opaque in a dark tint of the chosen gradient and clears by fade/lift, never a hard cut. The `Last pause` timing on the Breathe page is how to measure speed on his phone.
 - See `DECISIONS.md` and `TESTING.md` at the repo root.
