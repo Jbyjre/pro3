@@ -1,4 +1,4 @@
 <resources>
     <string translatable="false" name="breath_access_name">pro · Breathe</string>
-    <string translatable="false" name="breath_access_description">Shows a 2.5-second breathing layer when a chosen app opens, including from its normal icon, notifications and links. pro uses app-window changes only. It does not read screen text, messages or typing. Android controls this access; return to Breathe in pro to check setup.</string>
+    <string translatable="false" name="breath_access_description">Shows a short breathing layer the first time a chosen app opens, including from its normal icon, notifications and links. Installed web apps never pause. pro uses app-window changes only. It does not read screen text, messages or typing. Android controls this access; return to Breathe in pro to check setup.</string>
 </resources>

@@ -6,6 +6,8 @@ import android.graphics.Canvas
 import me.kavishdevar.librepods.breathing.BreathView
 import me.kavishdevar.librepods.breathing.BreathOptions
 import me.kavishdevar.librepods.breathing.BreathPalette
+import me.kavishdevar.librepods.breathing.BreathTransition
+import me.kavishdevar.librepods.breathing.BreathWords
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -36,9 +38,10 @@ class BreathScreenshots {
             frames("${palette.key}-",options=BreathOptions(palette))
         }
         BreathPalette.entries.forEach { palette ->
+            // A column left of the text margin: in still mode nothing on it may move before the layer clears.
             val first=render(0L,BreathOptions(palette,true),200,400)
             val last=render(999L,BreathOptions(palette,true),200,400)
-            org.junit.Assert.assertTrue("${palette.label} still mode must not animate",first.sameAs(last))
+            for (y in 0 until 400) org.junit.Assert.assertEquals("${palette.label} still mode must not animate (row $y)",first.getPixel(5,y),last.getPixel(5,y))
             first.recycle();last.recycle()
         }
     }
@@ -81,11 +84,73 @@ class BreathScreenshots {
         return Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
     }
     private fun frames(prefix: String, width: Int = 1236, height: Int = 2745,options:BreathOptions=BreathOptions()) {
-        for (time in listOf(0L,250L,750L,1125L,1250L,1500L,2250L,2500L)) {
+        for (time in listOf(0L,120L,400L,900L,1500L,1700L,2100L,2500L,2900L)) {
             val bitmap=render(time,options,width,height)
             File("build/screenshots/breathe").mkdirs()
             File("build/screenshots/breathe/$prefix$time.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }
             bitmap.recycle()
         }
+    }
+
+    // ---- Guards against flicker: the things that made the old layer feel unstable. ----
+    private fun alphaAt(time:Long,options:BreathOptions,x:Int=195,y:Int=5):Int {
+        val bitmap=render(time,options,200,400)
+        return android.graphics.Color.alpha(bitmap.getPixel(x,y)).also { bitmap.recycle() }
+    }
+    @Test fun theFirstFrameCoversEverythingInTheSameHueAsTheGradient() {
+        BreathPalette.entries.forEach { palette ->
+            val bitmap=render(0L,BreathOptions(palette),200,400)
+            for (x in listOf(0,50,100,150,199)) for (y in listOf(0,100,200,300,399))
+                org.junit.Assert.assertEquals("${palette.label} first frame must be opaque at $x,$y",255,android.graphics.Color.alpha(bitmap.getPixel(x,y)))
+            val corner=bitmap.getPixel(195,5)
+            val deep=palette.deep
+            fun near(a:Int,b:Int)=kotlin.math.abs(a-b)<=2
+            org.junit.Assert.assertTrue("${palette.label} base is its own deep tone",
+                near(android.graphics.Color.red(corner),android.graphics.Color.red(deep)) &&
+                near(android.graphics.Color.green(corner),android.graphics.Color.green(deep)) &&
+                near(android.graphics.Color.blue(corner),android.graphics.Color.blue(deep)))
+            bitmap.recycle()
+        }
+    }
+    @Test fun fadeStaysSolidThenClearsSmoothlyAndEndsInvisibleNeverBlinking() {
+        val options=BreathOptions(transition=BreathTransition.Fade)
+        val alphas=(0..3000 step 100).map { alphaAt(it.toLong(),options) }
+        org.junit.Assert.assertTrue("solid through the inhale",(0..1500 step 100).all { alphaAt(it.toLong(),options)==255 })
+        for (i in 1 until alphas.size) org.junit.Assert.assertTrue("opacity never rises again (frame $i: ${alphas[i-1]} -> ${alphas[i]})",alphas[i]<=alphas[i-1])
+        org.junit.Assert.assertEquals("gone exactly when the run ends",0,alphas.last())
+        org.junit.Assert.assertTrue("a smooth ramp, not a cliff: biggest single step is under 45% of full",
+            alphas.zipWithNext { a,b -> a-b }.max()<115)
+    }
+    @Test fun liftRevealsTheAppFromTheBottomUp() {
+        val options=BreathOptions(transition=BreathTransition.Lift)
+        val bitmap=render(2250L,options,200,400)
+        org.junit.Assert.assertEquals("top is still covered",255,android.graphics.Color.alpha(bitmap.getPixel(100,5)))
+        org.junit.Assert.assertEquals("bottom already shows the app",0,android.graphics.Color.alpha(bitmap.getPixel(100,395)))
+        bitmap.recycle()
+        org.junit.Assert.assertEquals("fully gone at the end",0,alphaAt(3000L,options,100,5))
+    }
+    @Test fun instantStaysSolidUntilTheVeryEnd() {
+        val options=BreathOptions(transition=BreathTransition.Instant)
+        for (t in listOf(0L,1500L,2500L,2990L)) org.junit.Assert.assertEquals("Instant at $t",255,alphaAt(t,options))
+    }
+    @Test fun theChosenLengthScalesTheWholeShapeAndAppNameCanBeShown() {
+        val five=BreathOptions(durationMs=5_000)
+        org.junit.Assert.assertEquals(255,alphaAt(2500L,five))
+        org.junit.Assert.assertEquals(0,alphaAt(5000L,five))
+        val named=render(1000L,BreathOptions(showAppName=true),400,800)
+        val plain=render(1000L,BreathOptions(showAppName=false),400,800)
+        org.junit.Assert.assertFalse("app name drawn only when asked",named.sameAs(plain))
+        named.recycle();plain.recycle()
+    }
+    @Test fun everySayingAndBothMomentsAndTransitionRender() {
+        for (index in BreathWords.sayings.indices) for ((moment,time) in listOf("in" to 900L,"out" to 1750L)) {
+            val view=BreathView(RuntimeEnvironment.getApplication()).apply { sayingIndex=index;renderAt=time;options=BreathOptions(durationMs=3000) }
+            view.layout(0,0,1236,2745)
+            val bitmap=Bitmap.createBitmap(1236,2745,Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
+            File("build/screenshots/breathe").mkdirs()
+            File("build/screenshots/breathe/saying$index-$moment.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }
+            bitmap.recycle()
+        }
+        for (transition in BreathTransition.entries) frames("${transition.key}-",options=BreathOptions(transition=transition))
     }
 }

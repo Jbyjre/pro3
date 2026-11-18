@@ -42,17 +42,28 @@ class BreathAccessServiceTest {
             packageName = pkg; applicationInfo = app; activities = arrayOf(info)
         })
     }
+    private var clock = 1_700_000_000_000L
+    private val chrome = "fixture.chrome"
+    private val webAppWindow = "org.chromium.chrome.browser.webapps.SameTaskWebApkActivity"
     @Before fun setup() {
         listOf(chess, chat, home).forEach(::install)
+        BreathAccess.wallClock = { clock }
+        BreathAccess.gate.reset(); BreathAccess.gate.forgetPauses()
+        context.getSharedPreferences("breath_seen", Context.MODE_PRIVATE).edit().clear().commit()
+        // The older tests below describe one pause per open, so they run with the memory off.
         BreathPrefs.prefs(context).edit().clear().putStringSet("apps", setOf(chess, chat))
-            .putBoolean("enabled", false).putLong("paused_until", Long.MAX_VALUE).commit()
+            .putBoolean("enabled", false).putLong("paused_until", Long.MAX_VALUE).putInt("grace_min", 0).commit()
+        startService()
+    }
+    private fun startService() {
         controller = Robolectric.buildService(BreathAccessService::class.java).create()
         service = controller.get()
         org.robolectric.util.ReflectionHelpers.callInstanceMethod<Unit>(service, "onServiceConnected")
         resolve()
         assertTrue(BreathAccess.connected.value)
     }
-    @After fun cleanup() { controller.destroy() }
+    @After fun cleanup() { controller.destroy(); BreathAccess.wallClock = { System.currentTimeMillis() } }
+    private fun withGrace(minutes: Int) { BreathPrefs.setOptions(context, BreathPrefs.options(context).copy(graceMinutes = minutes)); resolve() }
     private fun resolve() { repeat(50) { Thread.sleep(5); ShadowLooper.idleMainLooper() } }
     private fun event(pkg: String, cls: String = "$pkg.Main", type: Int = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
         service.onAccessibilityEvent(AccessibilityEvent.obtain(type).apply { packageName = pkg; className = cls })
@@ -64,7 +75,7 @@ class BreathAccessServiceTest {
         val bitmap = Bitmap.createBitmap(412, 915, Bitmap.Config.ARGB_8888)
         view.draw(Canvas(bitmap)); bitmap.recycle()
     }
-    @Test fun ordinaryAppEventAttachesImmediatelyThenHoldsForExactlyTwoAndAHalfSeconds() {
+    @Test fun ordinaryAppEventAttachesImmediatelyThenHoldsForExactlyThreeSeconds() {
         event(chess)
         // No handler tick, sleep, or package query is needed for a prepared selected app.
         assertEquals(1, layers().size)
@@ -73,7 +84,7 @@ class BreathAccessServiceTest {
         assertEquals(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, params.type)
         assertEquals(0, params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
         draw()
-        ShadowLooper.idleMainLooper(2499, MILLISECONDS)
+        ShadowLooper.idleMainLooper(2999, MILLISECONDS)
         assertEquals(1, layers().size)
         ShadowLooper.idleMainLooper(1, MILLISECONDS)
         assertTrue(layers().isEmpty())
@@ -90,7 +101,7 @@ class BreathAccessServiceTest {
         event(chat, type = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)
         resolve()
         assertEquals(1, layers().size)
-        ShadowLooper.idleMainLooper(1000, MILLISECONDS)
+        ShadowLooper.idleMainLooper(1500, MILLISECONDS)
         assertTrue(layers().isEmpty())
         event(chess)
         assertTrue(layers().isEmpty())
@@ -107,7 +118,7 @@ class BreathAccessServiceTest {
         event(chess)
         assertEquals(1, layers().size)
         draw()
-        ShadowLooper.idleMainLooper(2500, MILLISECONDS)
+        ShadowLooper.idleMainLooper(3000, MILLISECONDS)
         assertTrue(layers().isEmpty())
     }
     @Test fun lockSystemSheetsAndDisconnectCleanUpWindowsAndCallbacks() {
@@ -116,8 +127,9 @@ class BreathAccessServiceTest {
         assertTrue(layers().isEmpty())
         event(chess); draw()
         event("com.android.systemui", "android.widget.FrameLayout")
-        assertTrue(layers().isEmpty())
+        assertEquals("a system window must not cut a running pause", 1, layers().size)
         event(chat); draw()
+        assertEquals(chat, layers().single().destination)
         service.onUnbind(Intent())
         assertTrue(layers().isEmpty())
         assertFalse(BreathAccess.connected.value)
@@ -140,17 +152,30 @@ class BreathAccessServiceTest {
         event(chess)
         assertEquals(1, layers().size)
     }
-    @Test fun returningFromTheShadeCannotPermanentlyBypassTheSelectedApp() {
+    @Test fun systemWindowsNeverCutARunningPauseShort() {
         event(chess); draw()
+        ShadowLooper.idleMainLooper(500, MILLISECONDS)
+        // A heads-up notification, the volume panel, a permission sheet: none may end the pause halfway.
         event("com.android.systemui", "android.widget.FrameLayout")
-        assertTrue(layers().isEmpty())
-        event(chess)
+        event("android", "android.app.AlertDialog")
+        ShadowLooper.idleMainLooper(1000, MILLISECONDS)
+        event("com.android.systemui", "android.widget.LinearLayout")
         assertEquals(1, layers().size)
-        draw()
-        ShadowLooper.idleMainLooper(2499, MILLISECONDS)
-        assertEquals(1, layers().size)
+        ShadowLooper.idleMainLooper(1499, MILLISECONDS)
+        assertEquals("still there one millisecond before the end", 1, layers().size)
         ShadowLooper.idleMainLooper(1, MILLISECONDS)
         assertTrue(layers().isEmpty())
+    }
+    @Test fun returningFromTheShadeDoesNotRepauseWithinTheGraceTimeButDoesAfterIt() {
+        withGrace(10)
+        event(chess); draw(); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
+        event("com.android.systemui", "android.widget.FrameLayout")
+        event(chess)
+        assertTrue("pulling the shade and coming back is not a new visit", layers().isEmpty())
+        clock += 10 * 60_000L + 1
+        event("com.android.systemui", "android.widget.FrameLayout")
+        event(chess)
+        assertEquals(1, layers().size)
     }
     @Test fun backLeavesForHomeWithoutLaunchingOrKeepingATouchTarget() {
         event(chess); draw()
@@ -184,7 +209,7 @@ class BreathAccessServiceTest {
         assertEquals(1, layers().size)
         assertFalse(BreathAccess.needsAttention.value)
         draw()
-        ShadowLooper.idleMainLooper(2500, MILLISECONDS)
+        ShadowLooper.idleMainLooper(3000, MILLISECONDS)
         assertTrue(layers().isEmpty())
     }
     @Test fun aWindowThatNeverDrawsCannotKeepBlockingThePhone() {
@@ -197,7 +222,7 @@ class BreathAccessServiceTest {
         event(chess)
         layers().single().visibility = android.view.View.VISIBLE
         draw()
-        ShadowLooper.idleMainLooper(2499, MILLISECONDS)
+        ShadowLooper.idleMainLooper(2999, MILLISECONDS)
         assertEquals(1, layers().size)
         ShadowLooper.idleMainLooper(1, MILLISECONDS)
         assertTrue(layers().isEmpty())
@@ -261,4 +286,125 @@ class BreathAccessServiceTest {
         draw()
     }
 
+    @Test fun movingBetweenAppsAlreadyOpenedDoesNotPauseAgainUntilTheGraceTimePasses() {
+        withGrace(10)
+        event(chess); draw(); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
+        event(chat); draw(); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
+        event(chess); assertTrue("Gmail to Claude and back must stay quiet", layers().isEmpty())
+        event(chat); assertTrue(layers().isEmpty())
+        clock += 9 * 60_000L + 59_000L
+        event(chess); assertTrue("one second short of ten minutes", layers().isEmpty())
+        clock += 2_000L
+        event(chat)
+        assertEquals("ten minutes later it pauses once more", 1, layers().size)
+        draw(); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
+        event(chess)
+        assertEquals(1, layers().size)
+    }
+    @Test fun aLayerThatNeverDrewDoesNotUseUpTheGraceTime() {
+        withGrace(10)
+        event(chess)
+        layers().single().visibility = android.view.View.INVISIBLE
+        ShadowLooper.idleMainLooper(1000, MILLISECONDS)
+        assertTrue(layers().isEmpty())
+        event(chess)
+        assertEquals("the next real event still pauses", 1, layers().size)
+    }
+    @Test fun leavingEarlyStillCountsAsHavingPaused() {
+        withGrace(10)
+        event(chess); draw()
+        val view = layers().single()
+        view.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_BACK))
+        view.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_BACK))
+        event(home); resolve()
+        event(chess)
+        assertTrue(layers().isEmpty())
+    }
+    @Test fun theGraceTimeSurvivesTheServiceRestarting() {
+        withGrace(10)
+        event(chess); draw(); resolve()
+        assertTrue(BreathHistory.load(context, clock).containsKey(chess))
+        controller.destroy()
+        BreathAccess.gate.forgetPauses() // what a restarted process would start with
+        startService()
+        event(chess)
+        assertTrue("remembered from the saved history", layers().isEmpty())
+    }
+    @Test fun aGraceOfZeroMeansEveryOpen() {
+        withGrace(0)
+        event(chess); draw(); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
+        event(home); resolve()
+        event(chess)
+        assertEquals(1, layers().size)
+    }
+
+    private fun installChrome() {
+        val app = ApplicationInfo().apply { packageName = chrome; enabled = true; nonLocalizedLabel = "Chrome" }
+        val infos = listOf("$chrome.Main", webAppWindow).map { name ->
+            ActivityInfo().apply { packageName = chrome; this.name = name; applicationInfo = app; enabled = true; exported = true }
+        }
+        shadowOf(context.packageManager).installPackage(PackageInfo().apply { packageName = chrome; applicationInfo = app; activities = infos.toTypedArray() })
+        BreathPrefs.select(context, chrome, true); resolve()
+    }
+    @Test fun installedWebAppsNeverPauseEvenWhenTheBrowserIsChosen() {
+        installChrome()
+        event(chrome, webAppWindow)
+        assertTrue("the workout app opened from Chrome must not breathe", layers().isEmpty())
+        assertFalse(BreathInteraction.active)
+        event(chrome, "$chrome.Main")
+        assertEquals("Chrome itself still pauses", 1, layers().size)
+        draw()
+    }
+    @Test fun aWebAppOpeningClearsAPauseThatBeganForTheBrowser() {
+        installChrome()
+        event(chrome, "$chrome.Main"); draw()
+        event(chrome, webAppWindow)
+        assertTrue(layers().isEmpty())
+        event(home); resolve()
+        event(chrome, webAppWindow)
+        assertTrue(layers().isEmpty())
+    }
+    @Test fun aWebApkPackageIsNeverChosenOrPaused() {
+        val webapk = "org.chromium.webapk.a1b2c3"
+        install(webapk)
+        BreathPrefs.prefs(context).edit().putStringSet("apps", setOf(chess, webapk)).commit(); resolve()
+        event(webapk, "$webapk.Main")
+        assertTrue(layers().isEmpty())
+        assertEquals(setOf(chess), BreathPrefs.selected(context))
+    }
+
+    @Test fun theChosenLengthAndTransitionAreUsedAndTheWindowIsTranslucentFullBleed() {
+        BreathPrefs.setOptions(context, BreathOptions(durationMs = 5_000, transition = BreathTransition.Lift)); resolve()
+        event(chess)
+        val view = layers().single()
+        assertEquals(5_000L, view.options.durationMs)
+        assertEquals(BreathTransition.Lift, view.options.transition)
+        val params = view.layoutParams as WindowManager.LayoutParams
+        assertEquals(android.graphics.PixelFormat.TRANSLUCENT, params.format)
+        assertEquals(WindowManager.LayoutParams.MATCH_PARENT, params.width)
+        assertEquals(WindowManager.LayoutParams.MATCH_PARENT, params.height)
+        assertEquals(0, params.fitInsetsTypes)
+        draw()
+        ShadowLooper.idleMainLooper(4999, MILLISECONDS)
+        assertEquals(1, layers().size)
+        ShadowLooper.idleMainLooper(1, MILLISECONDS)
+        assertTrue(layers().isEmpty())
+    }
+    @Test fun aMixStepsThroughTheSayingsAndAPickAlwaysShowsItself() {
+        val seen = ArrayList<Int>()
+        repeat(4) {
+            event(chess); draw()
+            seen += layers().single().sayingIndex
+            ShadowLooper.idleMainLooper(3000, MILLISECONDS)
+            event(home); resolve()
+        }
+        assertEquals(listOf(0, 1, 2, 0), seen)
+        BreathPrefs.setOptions(context, BreathOptions(words = BreathWords.Reset, graceMinutes = 0)); resolve()
+        event(chess); draw()
+        assertEquals(2, layers().single().sayingIndex)
+    }
+    @Test fun theLastPausesRealSpeedIsRecordedForThePhone() {
+        event(chess); draw()
+        assertNotNull(BreathAccess.lastTiming.value)
+    }
 }

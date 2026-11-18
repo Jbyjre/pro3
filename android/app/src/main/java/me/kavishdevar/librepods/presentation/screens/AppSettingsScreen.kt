@@ -201,7 +201,7 @@ fun AppSettingsScreen(
             )
             StyledListItem(
                 name = "Breathe",
-                description = "A 2.5-second pause when your chosen apps open",
+                description = "A short breathing pause the first time you open each chosen app",
                 orientation = ListItemOrientation.Vertical,
                 onClick = navigateToIsland,
             )

@@ -79,7 +79,7 @@ class BreatheDesignTest {
         rule.runOnIdle { org.robolectric.shadows.ShadowLooper.idleMainLooper() }
         rule.mainClock.advanceTimeBy(300)
         rule.onNodeWithText("Playing").assertIsNotEnabled()
-        rule.mainClock.advanceTimeBy(2600)
+        rule.mainClock.advanceTimeBy(2800)
         rule.onNodeWithText("Replay").assertIsEnabled()
         rule.onNodeWithText("Replay").performClick()
         rule.runOnIdle { org.robolectric.shadows.ShadowLooper.idleMainLooper() }

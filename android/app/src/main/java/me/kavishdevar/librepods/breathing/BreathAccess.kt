@@ -16,6 +16,14 @@ object BreathAccess {
     val needsAttention = presentationFailed.asStateFlow()
     internal val gate = BreathAppGate()
 
+    /** The last pause's real speed on this phone, for the Breathe page. Nothing about the app is recorded. */
+    data class Timing(val reportedToShownMs: Long, val shownToDrawnMs: Long)
+    internal val timing = MutableStateFlow<Timing?>(null)
+    val lastTiming = timing.asStateFlow()
+
+    /** The wall clock, replaceable so tests can move time without waiting. */
+    internal var wallClock: () -> Long = { System.currentTimeMillis() }
+
     fun enabled(context: Context): Boolean {
         val component = ComponentName(context, BreathAccessService::class.java)
         return context.getSystemService(AccessibilityManager::class.java)

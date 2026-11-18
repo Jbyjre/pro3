@@ -2,6 +2,8 @@ package me.kavishdevar.librepods.updates
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import com.android.apksig.ApkVerifier
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +56,32 @@ object Updater {
             state.value = state.value.copy(message = friendly(it))
         }
     } }
+    /** True when the phone is on Wi-Fi or another connection that is not billed by the megabyte. */
+    fun onUnmetered(c: Context): Boolean {
+        val manager = c.getSystemService(ConnectivityManager::class.java) ?: return false
+        val caps = manager.getNetworkCapabilities(manager.activeNetwork ?: return false) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+    }
+    /**
+     * A tiny check whenever pro comes to the front, at most every six hours, so a new build is noticed
+     * within seconds of opening pro instead of waiting for the phone to sit idle overnight. A failed
+     * check (offline) is not counted, so the next open simply tries again. A download starts only on
+     * an unmetered connection and only if downloads are on. Installing is never started from here.
+     * Returns whether a check was attempted.
+     */
+    suspend fun checkOnOpen(
+        c: Context, now: Long = System.currentTimeMillis(), unmetered: () -> Boolean = { onUnmetered(c) },
+        open: (String) -> HttpURLConnection = connectionFactory,
+    ): Boolean {
+        val p = prefs(c)
+        if (!p.getBoolean("checks", true) || state.value.busy) return false
+        // A clock set backwards counts as long ago, never as "do not check again".
+        if (now - p.getLong("checked", 0L) in 0 until CHECK_ON_OPEN_MS) return false
+        check(c, open)
+        if (state.value.available && !state.value.ready && p.getBoolean("download", true) && unmetered()) download(c, open)
+        return true
+    }
+    const val CHECK_ON_OPEN_MS = 6L * 60 * 60 * 1000
     suspend fun download(c: Context, open: (String) -> HttpURLConnection = connectionFactory) = withContext(Dispatchers.IO) { mutex.withLock {
         state.value = state.value.copy(message = "Downloading…", busy = true)
         val part = File(dir(c), "update.apk.part")

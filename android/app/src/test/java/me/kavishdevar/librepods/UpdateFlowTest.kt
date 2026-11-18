@@ -148,4 +148,45 @@ class UpdateFlowTest {
             .putExtra(PackageInstaller.EXTRA_STATUS,PackageInstaller.STATUS_SUCCESS))
         assertEquals(7,Updater.prefs(c).getInt("session",-1))
     }
+
+    private val sixHours = Updater.CHECK_ON_OPEN_MS
+    @Test fun openingProChecksAtMostEverySixHoursAndTheClockGoingBackDoesNotBlockIt() = runBlocking {
+        publish()
+        assertTrue(Updater.checkOnOpen(c, unmetered = { false }))
+        assertTrue(Updater.state.value.available)
+        assertFalse("just checked", Updater.checkOnOpen(c, unmetered = { false }))
+        val checked = Updater.prefs(c).getLong("checked", 0)
+        assertTrue(checked > 0)
+        assertFalse(Updater.checkOnOpen(c, now = checked + sixHours - 1, unmetered = { false }))
+        assertTrue(Updater.checkOnOpen(c, now = checked + sixHours, unmetered = { false }))
+        assertTrue("clock set backwards", Updater.checkOnOpen(c, now = checked - 5_000, unmetered = { false }))
+    }
+    @Test fun aFailedCheckOnOpenIsNotCountedSoTheNextOpenTriesAgain() = runBlocking {
+        assertTrue("offline attempt", Updater.checkOnOpen(c, unmetered = { false }))
+        assertEquals(0L, Updater.prefs(c).getLong("checked", 0))
+        publish()
+        assertTrue(Updater.checkOnOpen(c, unmetered = { false }))
+        assertTrue(Updater.state.value.available)
+    }
+    @Test fun openingProNeverChecksWhenAutomaticChecksAreOff() = runBlocking {
+        publish()
+        Updater.prefs(c).edit().putBoolean("checks", false).commit()
+        assertFalse(Updater.checkOnOpen(c, unmetered = { true }))
+        assertFalse(Updater.state.value.available)
+    }
+    @Test fun openingProStartsADownloadOnlyOnAnUnmeteredConnectionWhenDownloadsAreOn() = runBlocking {
+        val bytes = "not an apk".toByteArray()
+        publish(release(bytes)); reply(release(bytes).url, "not an apk")
+        val base = Updater.connectionFactory
+        val opened = ArrayList<String>()
+        Updater.connectionFactory = { url -> opened += url; base(url) }
+        assertTrue(Updater.checkOnOpen(c, unmetered = { false }))
+        assertEquals("metered: only the tiny metadata file is read", listOf(metadata), opened)
+        opened.clear(); Updater.prefs(c).edit().remove("checked").putBoolean("download", false).commit()
+        assertTrue(Updater.checkOnOpen(c, unmetered = { true }))
+        assertEquals("downloads off: only the metadata file is read", listOf(metadata), opened)
+        opened.clear(); Updater.prefs(c).edit().remove("checked").putBoolean("download", true).commit()
+        assertTrue(Updater.checkOnOpen(c, unmetered = { true }))
+        assertEquals("unmetered and on: the update file is fetched too", listOf(metadata, release(bytes).url), opened)
+    }
 }

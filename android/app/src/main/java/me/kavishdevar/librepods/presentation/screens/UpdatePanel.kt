@@ -31,6 +31,9 @@ fun UpdatePanel(health: PermissionHealth? = null) {
     Text("App updates", style = MaterialTheme.typography.headlineSmall)
     Text("Installed build ${BuildConfig.VERSION_CODE} · $channel", style = MaterialTheme.typography.bodyMedium)
     Text(state.message)
+    val checkedAt = prefs.getLong("checked", 0L)
+    if (checkedAt > 0L) Text("Last checked " + android.text.format.DateUtils.getRelativeTimeSpanString(checkedAt, System.currentTimeMillis(),
+        android.text.format.DateUtils.MINUTE_IN_MILLIS), style = MaterialTheme.typography.bodySmall)
     if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
         OutlinedButton(enabled = !state.busy, onClick = { scope.launch { Updater.check(context) } }) { Text("Check now") }

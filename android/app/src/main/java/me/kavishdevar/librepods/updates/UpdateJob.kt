@@ -48,7 +48,13 @@ class UpdateJob : JobService() {
             val desired = JobInfo.Builder(7181, ComponentName(c, UpdateJob::class.java))
                 .setPeriodic(12 * 60 * 60_000L).setPersisted(true)
                 .setRequiresDeviceIdle(true).setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED).setRequiresBatteryNotLow(true).build()
-            if (scheduler.getPendingJob(7181) == null) scheduler.schedule(desired)
+            // A job already waiting keeps its old rules forever, so it is replaced once whenever SPEC changes.
+            val prefs = Updater.prefs(c)
+            if (scheduler.getPendingJob(7181) != null && prefs.getInt("job_spec", 0) == SPEC) return
+            scheduler.schedule(desired)
+            prefs.edit().putInt("job_spec", SPEC).apply()
         }
+        /** Raise this whenever the job's rules above change. */
+        private const val SPEC = 2
     }
 }
