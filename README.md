@@ -1,6 +1,7 @@
 > [!NOTE]
 > **This is pro, a personal fork of LibrePods** for a Galaxy S26 FE, AirPods Pro 3 and Beats Solo 4, with liquid-glass pop-ups built around LibrePods' own 3D AirPods clips and stronger connection handling.
-> Download: [latest pro.apk](https://github.com/Jbyjre/pro3/releases/latest). What changed and why: [DECISIONS.md](DECISIONS.md). How to test: [TESTING.md](TESTING.md).
+> **Set up automatic updates.** Open **Phone → App updates**. If your installed build has **Check now**, use it to get the current stable build. For older versions, open the [stable pro.apk](https://github.com/Jbyjre/pro3/releases/download/glint-latest/pro.apk) on your phone and install it over pro. Then turn on **Automatic updates** and allow pro to install apps when Samsung asks. Keep notifications on for any installation confirmation.
+> What changed and why: [DECISIONS.md](DECISIONS.md). How to test: [TESTING.md](TESTING.md).
 > **New:** [App-open breathing](docs/APP_OPEN_BREATHING.md): a 2.5-second pause for chosen apps using their ordinary icons, notifications and links. Choose apps and connect pro · Breathe in Accessibility; no shortcuts required. No persistent camera pill. [In-app updates](docs/BREATHING_AND_UPDATES.md) retain the existing signing identity.
 > All credit for the underlying protocol work goes to [LibrePods](https://github.com/librepods-org/librepods) and its developer. pro is GPL-3.0 like LibrePods, and "LibrePods" is their name, not ours.
 >
