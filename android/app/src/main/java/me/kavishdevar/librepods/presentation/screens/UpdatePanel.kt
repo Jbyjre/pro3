@@ -52,17 +52,32 @@ fun UpdatePanel(health: PermissionHealth? = null) {
         }) { Text("Finish installation") }
         TextButton(onClick = { UpdateInstaller.cancel(context) }) { Text("Cancel pending installation") }
     }
+    val automatic = checks && downloads && installs
+    fun allowUpdates() = open(context, Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+        android.net.Uri.parse("package:${context.packageName}")))
+    StyledToggle(label = "Automatic updates", checked = automatic,
+        description = "Download on an unmetered connection and install while your phone is idle. Android may ask you to confirm.",
+        onCheckedChange = { enabled ->
+            installs = enabled
+            val edit = prefs.edit().putBoolean("install", enabled)
+            if (enabled) {
+                checks = true
+                downloads = true
+                edit.putBoolean("checks", true).putBoolean("download", true)
+            }
+            edit.apply()
+            UpdateJob.schedule(context)
+            if (enabled && !context.packageManager.canRequestPackageInstalls()) allowUpdates()
+        })
+    if (automatic && health?.install == false && !state.ready) {
+        OutlinedButton(onClick = { allowUpdates() }) { Text("Allow pro updates") }
+    }
     TextButton(onClick = { options = !options }) { Text(if (options) "Hide update options" else "Update options") }
     if (options) {
     StyledToggle(label = "Check automatically on Wi-Fi", checked = checks, onCheckedChange = {
         checks = it; prefs.edit().putBoolean("checks", it).apply(); UpdateJob.schedule(context)
     })
     StyledToggle(label = "Download automatically", checked = downloads, onCheckedChange = { downloads = it; prefs.edit().putBoolean("download", it).apply() })
-    StyledToggle(label = "Install while phone is idle", checked = installs, onCheckedChange = {
-        installs = it; prefs.edit().putBoolean("install", it).apply()
-        if (it && !context.packageManager.canRequestPackageInstalls()) open(context,Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:${context.packageName}")))
-    })
-    Text("Android may require installation confirmation. Samsung security settings may also require approval. An update restarts pro; your settings stay.", style = MaterialTheme.typography.bodySmall)
     TextButton(enabled = !state.busy, onClick = {
         channel = if (channel == "stable") "preview" else "stable"
         prefs.edit().putString("channel", channel).apply()

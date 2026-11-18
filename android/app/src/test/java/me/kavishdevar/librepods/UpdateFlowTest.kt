@@ -24,12 +24,10 @@ class UpdateFlowTest {
     private val original = Updater.connectionFactory
     private val replies = mutableMapOf<String, Pair<Int,ByteArray>>()
     private val metadata = "https://github.com/Jbyjre/pro3/releases/download/glint-latest/update.json"
-    private val api = "https://api.github.com/repos/Jbyjre/pro3/releases/tags/glint-latest"
     private fun release(bytes: ByteArray = "not an apk".toByteArray()) = UpdateRelease("stable",901,"1.0.0",
         "https://github.com/Jbyjre/pro3/releases/download/pro-stable-901/pro.apk",Updater.digest(bytes),bytes.size.toLong())
     private fun reply(url:String,text:String,status:Int=200) { replies[url]=status to text.toByteArray() }
     private fun publish(r: UpdateRelease=release()) {
-        reply(api,"""{"draft":false,"prerelease":false,"assets":[{"name":"update.json","browser_download_url":"$metadata"}]}""")
         reply(metadata,r.json())
     }
     @Before fun setup() {
@@ -57,17 +55,29 @@ class UpdateFlowTest {
         Updater.check(c)
         assertTrue(Updater.state.value.available)
         assertEquals(901L,Updater.release(c)!!.version)
-        reply(api,"""{"draft":false,"prerelease":false,"assets":[]}""")
+        reply(metadata, "", 404)
         Updater.check(c)
-        assertTrue(Updater.state.value.message.contains("no update metadata"))
+        assertTrue(Updater.state.value.message.contains("404"))
         assertEquals(901L,Updater.release(c)!!.version)
     }
     @Test fun rateLimitedAndWrongChannelCannotReplaceDiscovery() = runBlocking {
         publish(); Updater.check(c)
-        reply(api,"{}",429); Updater.check(c)
+        reply(metadata,"{}",429); Updater.check(c)
         assertTrue(Updater.state.value.message.contains("limiting"))
         publish(); reply(metadata,release().copy(channel="preview").json()); Updater.check(c)
         assertEquals("stable",Updater.release(c)!!.channel)
+    }
+    @Test fun cancelledDownloadRestoresRetryAction() = runBlocking {
+        publish()
+        Updater.check(c)
+        Updater.connectionFactory = { throw kotlinx.coroutines.CancellationException() }
+        try {
+            Updater.download(c)
+            fail("Expected cancellation")
+        } catch (_: kotlinx.coroutines.CancellationException) {
+            assertFalse(Updater.state.value.busy)
+            assertTrue(Updater.state.value.available)
+        }
     }
     @Test fun republishedMetadataInvalidatesOldDownload() = runBlocking {
         publish(); Updater.check(c)

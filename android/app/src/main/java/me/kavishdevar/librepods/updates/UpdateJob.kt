@@ -23,7 +23,7 @@ class UpdateJob : JobService() {
                 if (Updater.state.value.ready && Updater.prefs(this@UpdateJob).getBoolean("install", false) &&
                     !getSystemService(PowerManager::class.java).isInteractive && !BreathInteraction.active &&
                     !audio.isMusicActive && audio.mode == AudioManager.MODE_NORMAL) UpdateInstaller.install(this@UpdateJob, automatic = true)
-            } finally { jobFinished(params, false) }
+            } finally { if (isActive) jobFinished(params, false) }
         }
         return true
     }

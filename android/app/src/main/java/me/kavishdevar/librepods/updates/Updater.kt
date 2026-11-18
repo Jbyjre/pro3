@@ -11,7 +11,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import me.kavishdevar.librepods.BuildConfig
-import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -40,13 +39,7 @@ object Updater {
         runCatching {
             val channel = channel(c)
             val tag = if (channel == "stable") "glint-latest" else "glint-preview"
-            val releaseJson = JSONObject(readJson("https://api.github.com/repos/Jbyjre/pro3/releases/tags/$tag"))
-            require(!releaseJson.optBoolean("draft") && releaseJson.optBoolean("prerelease") == (channel == "preview")) { "Wrong release channel" }
-            val assets = releaseJson.getJSONArray("assets")
-            val metadata = (0 until assets.length()).map { assets.getJSONObject(it) }.firstOrNull { it.getString("name") == "update.json" }
-                ?: error("This release has no update metadata yet. Try again later.")
-            val url = metadata.getString("browser_download_url")
-            require(url == "https://github.com/Jbyjre/pro3/releases/download/$tag/update.json") { "Unexpected metadata source" }
+            val url = "https://github.com/Jbyjre/pro3/releases/download/$tag/update.json"
             val found = UpdateRelease.parse(readJson(url), channel)
             val prior = release(c)
             if (prior?.sha256 != found.sha256) apk(c).delete()
@@ -55,7 +48,7 @@ object Updater {
             val newer = found.version > installed(c)
             state.value = UpdateState(if (newer) "Build ${found.version} available" else "You're up to date · build ${installed(c)}",
                 ready = newer && apk(c).exists(), available = newer)
-        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; state.value = state.value.copy(message = friendly(it), busy = false) }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) { restore(c); throw it }; state.value = state.value.copy(message = friendly(it), busy = false) }
     } }
     suspend fun download(c: Context) = withContext(Dispatchers.IO) { mutex.withLock {
         state.value = state.value.copy(message = "Downloading…", busy = true)
@@ -85,7 +78,7 @@ object Updater {
             state.value = UpdateState("Ready · build ${r.version}", ready = true, available = true)
         }.onFailure {
             part.delete()
-            if (it is kotlinx.coroutines.CancellationException) throw it
+            if (it is kotlinx.coroutines.CancellationException) { restore(c); throw it }
             state.value = state.value.copy(message = friendly(it), busy = false, ready = false)
         }
     } }
