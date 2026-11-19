@@ -75,14 +75,17 @@ class BreathActivity : ComponentActivity() {
         lifecycleScope.launch {
             // Read appearance off main before package lookup; the first neutral frame appears immediately.
             val appearance = withContext(Dispatchers.IO) {
-                val options = BreathPrefs.options(this@BreathActivity).also { it.palette.gradientColors; it.palette.deep }
-                val saying = BreathWords.pick(options.words, BreathHistory.lastSaying(this@BreathActivity))
-                BreathHistory.saveSaying(this@BreathActivity, saying)
-                Triple(options, me.kavishdevar.librepods.presentation.glint.GlintComfort.reduceMotion(this@BreathActivity), saying)
+                // The pinned-shortcut route picks one of the chosen colours too.
+                val saved = BreathPrefs.options(this@BreathActivity)
+                val palette = BreathPalette.pick(saved.chosenPalettes, saved.paletteOrder, BreathHistory.lastPalette(this@BreathActivity))
+                BreathPalette.entries.forEach { it.gradientColors; it.deep }
+                BreathHistory.savePalette(this@BreathActivity, palette)
+                saved.copy(palettes = setOf(palette)) to
+                    me.kavishdevar.librepods.presentation.glint.GlintComfort.reduceMotion(this@BreathActivity)
             }
             if (isFinishing || session.cancelled || generation != requestGeneration) return@launch
             session.durationMs = appearance.first.durationMs
-            view.sayingIndex = appearance.third
+            view.saying = appearance.first.saying
             view.options = appearance.first
             view.systemReduced = appearance.second
             // Package queries and preference loading happen while the first frame is being drawn.

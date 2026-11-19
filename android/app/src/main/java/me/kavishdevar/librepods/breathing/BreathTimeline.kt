@@ -12,6 +12,9 @@ package me.kavishdevar.librepods.breathing
 class BreathTimeline(val durationMs: Long, val transition: BreathTransition, val reduced: Boolean) {
     enum class Phase { In, Out }
 
+    /** What actually runs. Moving transitions become a Fade when motion is off; Instant stays instant. */
+    val effective: BreathTransition = if (reduced && transition != BreathTransition.Instant) BreathTransition.Fade else transition
+
     /** How far through the run [elapsedMs] is. */
     fun fraction(elapsedMs: Long): Float = (elapsedMs / durationMs.toFloat()).coerceIn(0f, 1f)
 
@@ -23,14 +26,26 @@ class BreathTimeline(val durationMs: Long, val transition: BreathTransition, val
     /** 0..1 progress of the exit (the exhale), eased both ways. */
     fun exit(t: Float): Float = easeInOut(((t - EXIT_FROM) / (1f - EXIT_FROM)).coerceIn(0f, 1f))
 
-    /** 1 = fully there, 0 = gone. Only Fade (and Lift when motion is off) clears by opacity. */
-    fun layerAlpha(t: Float): Float = when {
-        transition == BreathTransition.Fade || (transition == BreathTransition.Lift && reduced) -> 1f - exit(t)
+    /** 1 = fully there, 0 = gone. Fade and Zoom clear by opacity; the others move and stay opaque until gone. */
+    fun layerAlpha(t: Float): Float = when (effective) {
+        BreathTransition.Fade, BreathTransition.Zoom -> 1f - exit(t)
         else -> 1f
     }
 
-    /** 0..1 how far the curtain has risen. Lift only, and only when motion is on. */
-    fun lift(t: Float): Float = if (transition == BreathTransition.Lift && !reduced) exit(t) else 0f
+    /** 0..1 how far the curtain has risen (Lift). */
+    fun lift(t: Float): Float = if (effective == BreathTransition.Lift) exit(t) else 0f
+
+    /** 0..1 how far the curtain has fallen (Drop). */
+    fun drop(t: Float): Float = if (effective == BreathTransition.Drop) exit(t) else 0f
+
+    /** 0..1 how far the lens has opened (Iris). */
+    fun iris(t: Float): Float = if (effective == BreathTransition.Iris) exit(t) else 0f
+
+    /** 0..1 how far the layer has slid off (Slide). */
+    fun slide(t: Float): Float = if (effective == BreathTransition.Slide) exit(t) else 0f
+
+    /** 0..1 how far the layer has swelled (Zoom), while it fades. */
+    fun zoom(t: Float): Float = if (effective == BreathTransition.Zoom) exit(t) else 0f
 
     /** The next piece of text for a phase: where it is and how visible, in line heights. */
     data class TextState(val alpha: Float, val rise: Float)

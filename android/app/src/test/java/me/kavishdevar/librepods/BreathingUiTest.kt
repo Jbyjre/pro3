@@ -26,15 +26,33 @@ class BreathingUiTest {
         BreathPrefs.prefs(c).edit().clear().commit()
         BreathPrefs.select(c,"fixture.chess",true)
         rule.setContent { LibrePodsTheme(m3eEnabled=false) { BreatheScreen() } }
-        rule.onNodeWithText("Tangerine").performScrollTo().performClick().assertIsSelected()
+        rule.onNodeWithText("Tangerine").performScrollTo().performClick().assertIsOff()
         rule.onNodeWithText("Still color layer").performScrollTo().performClick()
         rule.runOnIdle {
-            org.junit.Assert.assertEquals(BreathOptions(BreathPalette.Coral,true),BreathPrefs.options(c))
+            org.junit.Assert.assertEquals(BreathOptions(palettes=BreathPalette.COLORS-BreathPalette.Coral,still=true),BreathPrefs.options(c))
             org.junit.Assert.assertEquals(setOf("fixture.chess"),BreathPrefs.selected(c))
         }
         // An externally changed setting (e.g. the Quick Settings tile) refreshes the actual page.
-        rule.runOnIdle { BreathPrefs.setOptions(c,BreathOptions(BreathPalette.Lagoon,true)) }
-        rule.onNodeWithText("Pool").performScrollTo().assertIsSelected()
+        rule.runOnIdle { BreathPrefs.setOptions(c,BreathOptions(palettes=setOf(BreathPalette.Lagoon),still=true)) }
+        rule.onNodeWithText("Pool").performScrollTo().assertIsOn()
+        rule.onNodeWithText("Cobalt").performScrollTo().assertIsOff()
+    }
+    @Test fun aChosenAppGetsItsOwnRuleFromItsTuneButtonAndOthersDoNot() {
+        val c=org.robolectric.RuntimeEnvironment.getApplication()
+        BreathPrefs.prefs(c).edit().clear().commit()
+        BreathPrefs.select(c,"fixture.chess",true)
+        val apps=listOf(AppEntry("fixture.chess","Chess"),AppEntry("fixture.claude","Claude"))
+        rule.setContent { LibrePodsTheme(m3eEnabled=false) { AppsScreen(preset=apps) } }
+        rule.onNodeWithContentDescription("Rules for Claude").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Rules for Chess").performClick()
+        rule.onNodeWithText("Every time").performClick()
+        rule.onNodeWithText("10 s").performClick()
+        rule.runOnIdle {
+            org.junit.Assert.assertEquals(me.kavishdevar.librepods.breathing.AppRule(me.kavishdevar.librepods.breathing.PauseMode.EveryTime,10_000L),BreathPrefs.appRules(c)["fixture.chess"])
+        }
+        rule.onNodeWithText("Default (New opens)").performClick()
+        rule.onNodeWithText("Default (3 s)").performClick()
+        rule.runOnIdle { org.junit.Assert.assertTrue("back to the general rule, nothing stored",BreathPrefs.appRules(c).isEmpty()) }
     }
     @Test fun pickerSearchFindsOrdinaryAppsByActualLabel() {
         val apps=listOf(AppEntry("fixture.chess","Chess"),AppEntry("fixture.claude","Claude"),

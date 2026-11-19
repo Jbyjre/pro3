@@ -38,12 +38,9 @@ import kotlin.math.sin
 class BreathView(context: Context) : View(context) {
     var destination = ""
         set(value) { field = value; invalidate() }
-    /** Which of [BreathWords.sayings] this pause shows. */
-    var sayingIndex = 0
-        set(value) {
-            val next = value.coerceIn(0, BreathWords.sayings.lastIndex)
-            if (next != field) { field = next; words = null; describe(); invalidate() }
-        }
+    /** What this pause says. The verse reference and your own words are one steady phrase. */
+    var saying: Saying = BreathWords.sayingFor(BreathWords.Verse, "")
+        set(value) { if (value != field) { field = value; words = null; describe(); invalidate() } }
     var onFirstFrame: (() -> Unit)? = null
     var onSystemBarAppearance: ((Int) -> Unit)? = null
     var renderAt: Long? = null // Preview/evidence clock; real pauses always use the display's frame clock.
@@ -84,7 +81,7 @@ class BreathView(context: Context) : View(context) {
     private var touchY = 0f
     private var touchLevel = 0f
 
-    private class Gradient(val width: Int, val height: Int, val sheet: Shader, val rim: Shader, val glow: Shader, val glowRadius: Float)
+    private class Gradient(val width: Int, val height: Int, val sheet: Shader, val rim: Shader, val rimVertical: Shader, val glow: Shader, val glowRadius: Float)
     private class Words(
         val headSize: Float, val noteSize: Float, val margin: Float, val firstBaseline: Float, val lineHeight: Float,
         val inLines: List<String>, val outLines: List<String>, val inNote: String, val outNote: String, val noteGap: Float,
@@ -112,8 +109,8 @@ class BreathView(context: Context) : View(context) {
     private fun rebuildTimeline() { timeline = BreathTimeline(options.durationMs, options.transition, motionReduced) }
 
     private fun describe() {
-        val saying = BreathWords.sayings[sayingIndex]
-        contentDescription = "Breathing pause, ${options.seconds.roundToInt()} seconds. ${saying.inHead} Then ${saying.outHead}"
+        val said = if (saying.inHead == saying.outHead) saying.inHead else "${saying.inHead} Then ${saying.outHead}"
+        contentDescription = "Breathing pause, ${options.seconds.roundToInt()} seconds. $said"
     }
 
     /** Reuse the prepared native layer without carrying a previous pause's clock. */
@@ -157,6 +154,10 @@ class BreathView(context: Context) : View(context) {
         val sheetP = tl.sheet(t)
         val alpha = tl.layerAlpha(t)
         val lift = tl.lift(t)
+        val drop = tl.drop(t)
+        val iris = tl.iris(t)
+        val slide = tl.slide(t)
+        val zoom = tl.zoom(t)
 
         // Where the gradient's leading edge is, and how much it curves. Curve is zero when still.
         val front = h * (1.02f - 1.24f * sheetP)
@@ -177,9 +178,23 @@ class BreathView(context: Context) : View(context) {
             mask.reset(); mask.moveTo(0f, 0f); mask.lineTo(w, 0f); mask.lineTo(w, edgeY - b)
             mask.cubicTo(w * 0.67f, edgeY - b, w * 0.35f, edgeY + b, 0f, edgeY + b); mask.close()
             canvas.clipPath(mask)
+        } else if (drop > 0f) {
+            // The curtain falls: what is left is the part below a curved, descending edge.
+            val edgeY = h * drop
+            val b = sin(PI * drop).toFloat() * minOf(w * 0.14f, h * 0.05f)
+            mask.reset(); mask.moveTo(0f, h); mask.lineTo(w, h); mask.lineTo(w, edgeY - b)
+            mask.cubicTo(w * 0.67f, edgeY - b, w * 0.35f, edgeY + b, 0f, edgeY + b); mask.close()
+            canvas.clipPath(mask)
+        } else if (iris > 0f) {
+            // A lens opens from the middle: everything outside a growing circle is what remains.
+            mask.reset(); mask.addCircle(w / 2f, h / 2f, irisRadius(w, h) * iris, Path.Direction.CW)
+            canvas.clipOutPath(mask)
         }
         val content = canvas.save()
         if (lift > 0f) canvas.translate(0f, -lift * h * 0.10f)
+        if (drop > 0f) canvas.translate(0f, drop * h * 0.10f)
+        if (slide > 0f) canvas.translate(slide * w, 0f)
+        if (zoom > 0f) { val scale = 1f + 0.12f * zoom; canvas.scale(scale, scale, w / 2f, h / 2f) }
 
         fill.shader = null; fill.color = palette.deep
         canvas.drawRect(0f, 0f, w, h, fill)
@@ -187,7 +202,7 @@ class BreathView(context: Context) : View(context) {
         canvas.drawPath(sheet, fill)
         fill.shader = null
 
-        if (!reduce && sheetP > 0.01f && sheetP < 0.99f) drawRim(canvas, edge, g, d, minOf(1f, sheetP * 10f) * minOf(1f, (1f - sheetP) * 8f))
+        if (!reduce && sheetP > 0.01f && sheetP < 0.99f) drawRim(canvas, edge, g, d, minOf(1f, sheetP * 10f) * minOf(1f, (1f - sheetP) * 8f), false)
 
         // A soft light follows a finger, so there is something to do besides wait.
         touchLevel += ((if (touching && !reduce) 1f else 0f) - touchLevel) * (if (touching) 0.35f else 0.12f)
@@ -210,10 +225,19 @@ class BreathView(context: Context) : View(context) {
         drawProgress(canvas, w, h, t, d, if (front + bend < h - paddingBottom / 2f) palette.ink else BreathPalette.BASE_INK)
         canvas.restoreToCount(content)
 
-        if (lift > 0f) {
-            edge.reset(); val edgeY = h * (1f - lift); val b = sin(PI * lift).toFloat() * minOf(w * 0.14f, h * 0.05f)
-            edge.moveTo(w, edgeY - b); edge.cubicTo(w * 0.67f, edgeY - b, w * 0.35f, edgeY + b, 0f, edgeY + b)
-            drawRim(canvas, edge, g, d, minOf(1f, lift * 10f) * minOf(1f, (1f - lift) * 8f))
+        // Light catching the leading edge of whichever transition is running.
+        if (lift > 0f || drop > 0f) {
+            val p = maxOf(lift, drop)
+            val edgeY = if (lift > 0f) h * (1f - lift) else h * drop
+            val b = sin(PI * p).toFloat() * minOf(w * 0.14f, h * 0.05f)
+            edge.reset(); edge.moveTo(w, edgeY - b); edge.cubicTo(w * 0.67f, edgeY - b, w * 0.35f, edgeY + b, 0f, edgeY + b)
+            drawRim(canvas, edge, g, d, minOf(1f, p * 10f) * minOf(1f, (1f - p) * 8f), false)
+        } else if (iris > 0f) {
+            edge.reset(); edge.addCircle(w / 2f, h / 2f, irisRadius(w, h) * iris, Path.Direction.CW)
+            drawRim(canvas, edge, g, d, minOf(1f, iris * 10f) * minOf(1f, (1f - iris) * 8f), false)
+        } else if (slide > 0f) {
+            edge.reset(); edge.moveTo(slide * w, 0f); edge.lineTo(slide * w, h)
+            drawRim(canvas, edge, g, d, minOf(1f, slide * 10f) * minOf(1f, (1f - slide) * 8f), true)
         }
         canvas.restoreToCount(layerSave)
 
@@ -223,6 +247,9 @@ class BreathView(context: Context) : View(context) {
         }
     }
 
+    /** Far enough to clear every corner, so the opened lens ends with nothing left. */
+    private fun irisRadius(w: Float, h: Float): Float = kotlin.math.hypot(w, h) / 2f * 1.06f
+
     private fun buildGradient(palette: BreathPalette): Gradient {
         val w = width.toFloat(); val h = height.toFloat()
         val radius = minOf(w, h) * 0.55f
@@ -230,15 +257,16 @@ class BreathView(context: Context) : View(context) {
             width, height,
             LinearGradient(0f, h, w * 0.35f, 0f, palette.gradientColors, null, Shader.TileMode.CLAMP),
             LinearGradient(0f, 0f, w, 0f, intArrayOf(0x00ffffff, 0xd9ffffff.toInt(), 0x00ffffff), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP),
+            LinearGradient(0f, 0f, 0f, h, intArrayOf(0x00ffffff, 0xd9ffffff.toInt(), 0x00ffffff), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP),
             RadialGradient(0f, 0f, radius, intArrayOf(0x3dffffff, 0x17ffffff, 0x00ffffff), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP),
             radius,
         )
     }
 
     /** Light catching a glass edge: a wide soft halo, a tighter one, and a thin bright line, brightest in the middle. */
-    private fun drawRim(canvas: Canvas, path: Path, g: Gradient, d: Float, visible: Float) {
+    private fun drawRim(canvas: Canvas, path: Path, g: Gradient, d: Float, visible: Float, vertical: Boolean) {
         if (visible <= 0.01f) return
-        rim.shader = g.rim
+        rim.shader = if (vertical) g.rimVertical else g.rim
         rim.strokeWidth = 22f * d; rim.alpha = (255f * 0.07f * visible).roundToInt(); canvas.drawPath(path, rim)
         rim.strokeWidth = 8f * d; rim.alpha = (255f * 0.16f * visible).roundToInt(); canvas.drawPath(path, rim)
         rim.strokeWidth = 1.5f * d; rim.alpha = (255f * 0.85f * visible).roundToInt(); canvas.drawPath(path, rim)
@@ -267,7 +295,6 @@ class BreathView(context: Context) : View(context) {
     private fun layoutWords(w: Float, h: Float): Words {
         val d = resources.displayMetrics.density
         val scale = resources.configuration.fontScale.coerceIn(1f, 1.6f)
-        val saying = BreathWords.sayings[sayingIndex]
         val inLines = BreathWords.split(saying.inHead)
         val outLines = BreathWords.split(saying.outHead)
         val lines = maxOf(inLines.size, outLines.size)
@@ -311,8 +338,8 @@ class BreathView(context: Context) : View(context) {
         val noteY = layout.firstBaseline + (maxOf(layout.inLines.size, layout.outLines.size) - 1) * layout.lineHeight + layout.noteGap + layout.noteSize
         text.typeface = noteFace; text.textSize = layout.noteSize; text.letterSpacing = 0.14f
         val inNote = tl.arriving(elapsed, BreathTimeline.Phase.In, BreathTimeline.NOTE_DELAY_MS)
-        drawLine(canvas, layout.inNote.uppercase(), layout.margin, noteY + (inNote.rise + leaving.rise) * layout.lineHeight, inNote.alpha * leaving.alpha * NOTE_ALPHA)
-        if (showOut) {
+        if (layout.inNote.isNotBlank()) drawLine(canvas, layout.inNote.uppercase(), layout.margin, noteY + (inNote.rise + leaving.rise) * layout.lineHeight, inNote.alpha * leaving.alpha * NOTE_ALPHA)
+        if (showOut && layout.outNote.isNotBlank()) {
             val outNote = tl.arriving(elapsed, BreathTimeline.Phase.Out, BreathTimeline.NOTE_DELAY_MS)
             drawLine(canvas, layout.outNote.uppercase(), layout.margin, noteY + outNote.rise * layout.lineHeight, outNote.alpha * NOTE_ALPHA)
         }
