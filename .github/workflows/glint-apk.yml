@@ -144,9 +144,13 @@ jobs:
           python3 android/tools/release-metadata.py "out/$ASSET" "$PRO_CHANNEL" "$AAPT" > out/update.json
           CODE=$(python3 -c "import json; print(json.load(open('out/update.json'))['versionCode'])")
           TAG="pro-$PRO_CHANNEL-$CODE"
+          # The release says what changed: the merged change's title and summary, without bot trailer lines.
+          SUBJECT=$(git log -1 --format=%s "$GITHUB_SHA")
+          DETAILS=$({ git log -1 --format=%b "$GITHUB_SHA" | grep -v -i -E '^(co-authored-by|claude-session):' || true; })
+          NOTES=$(printf '%s\n\n%s\n\nSigned build %s from %s. Existing installations keep their data. Future updates are in pro > Phone > App updates.' "$SUBJECT" "$DETAILS" "$CODE" "$GITHUB_SHA")
           gh release create "$TAG" "${IMMUTABLE_FLAGS[@]}" --target "$GITHUB_SHA" \
             --title "pro $PRO_CHANNEL · build $CODE" \
-            --notes "Signed build $CODE from $GITHUB_SHA. Existing installations keep their data. Future updates are in pro > Phone > App updates." \
+            --notes "$NOTES" \
             "out/$ASSET" out/update.json
           # Never regress the channel pointer if a slower older build finishes later.
           mkdir -p previous
@@ -163,4 +167,4 @@ jobs:
           gh release upload "$POINTER" out/update.json --clobber
           gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$POINTER" -f sha="$GITHUB_SHA" -F force=true > /dev/null
           gh release edit "$POINTER" "${FLAGS[@]}" --title "pro $PRO_CHANNEL · build $CODE" \
-            --notes "Signed build $CODE from $GITHUB_SHA. Install $ASSET once, then use pro > Phone > App updates."
+            --notes "$(printf '%s\n\n%s\n\nSigned build %s from %s. Install %s once, then use pro > Phone > App updates.' "$SUBJECT" "$DETAILS" "$CODE" "$GITHUB_SHA" "$ASSET")"
