@@ -47,6 +47,12 @@ fun UpdatePanel(health: PermissionHealth? = null) {
     }
     if (prefs.getInt("session", -1) >= 0) {
         OutlinedButton(onClick = {
+            // A confirmation Android has waited on for a long time is stale: start a fresh install instead.
+            if (UpdateInstaller.sessionIsStale(context)) {
+                UpdateInstaller.cancel(context)
+                scope.launch { Updater.state.value = state.copy(busy = true); UpdateInstaller.install(context) }
+                return@OutlinedButton
+            }
             runCatching { UpdateInstaller.confirmation(context)?.send(context, 0, null, null, null, null,
                 ActivityOptions.makeBasic().apply {
                     if (android.os.Build.VERSION.SDK_INT >= 36) setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE)
@@ -55,11 +61,31 @@ fun UpdatePanel(health: PermissionHealth? = null) {
         }) { Text("Finish installation") }
         TextButton(onClick = { UpdateInstaller.cancel(context) }) { Text("Cancel pending installation") }
     }
+    val samsung = android.os.Build.MANUFACTURER.equals("samsung", ignoreCase = true)
+    val failed = remember(state) { prefs.contains("last_failure_status") }
+    fun copyDetails() {
+        context.getSystemService(android.content.ClipboardManager::class.java)
+            ?.setPrimaryClip(android.content.ClipData.newPlainText("pro update details", UpdateDiagnostics.text(context)))
+    }
+    if (failed) {
+        Text("The last install did not finish", style = MaterialTheme.typography.titleSmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (state.ready) OutlinedButton(enabled = !state.busy, onClick = {
+                scope.launch { UpdateInstaller.anotherWay(context)?.let { runCatching { context.startActivity(it) } } }
+            }) { Text("Install another way") }
+            if (samsung) OutlinedButton(onClick = {
+                if (!open(context, Intent(Settings.ACTION_SECURITY_SETTINGS))) open(context, Intent(Settings.ACTION_SETTINGS))
+            }) { Text("Open Security settings") }
+            TextButton(onClick = { copyDetails() }) { Text("Copy details") }
+        }
+    } else if (samsung && state.ready) {
+        Text(InstallFailure.AUTO_BLOCKER_HELP, style = MaterialTheme.typography.bodySmall)
+    }
     val automatic = checks && downloads && installs
     fun allowUpdates() = open(context, Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
         android.net.Uri.parse("package:${context.packageName}")))
     StyledToggle(label = "Automatic updates", checked = automatic,
-        description = "Download on an unmetered connection and install while your phone is idle. Android may ask you to confirm.",
+        description = "Download on an unmetered connection. Install while your phone is idle when Android allows it; otherwise you get a notification and one tap on Update finishes it.",
         onCheckedChange = { enabled ->
             installs = enabled
             val edit = prefs.edit().putBoolean("install", enabled)

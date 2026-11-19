@@ -8,9 +8,42 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.withLock
 import me.kavishdevar.librepods.breathing.BreathInteraction
+import androidx.core.content.FileProvider
 
 object UpdateInstaller {
     const val CONFIRM_REQUEST = 7181
+    /** A confirmation Android has waited this long for is treated as stale: start a fresh install instead. */
+    const val STALE_MS = 10 * 60_000L
+
+    /**
+     * True only when pro installed itself last time. Android lets an installer update an app without asking only
+     * when that installer is the app's installer of record, so only then is an install while you are away worth
+     * starting. Otherwise it would sit waiting for a tap and go stale, which is what made "didn't work".
+     */
+    fun canInstallSilently(c: Context): Boolean = android.os.Build.VERSION.SDK_INT >= 30 && runCatching {
+        c.packageManager.getInstallSourceInfo(c.packageName).installingPackageName == c.packageName
+    }.getOrDefault(false)
+
+    fun sessionIsStale(c: Context, now: Long = System.currentTimeMillis()): Boolean {
+        val started = Updater.prefs(c).getLong("session_at", 0L)
+        return started > 0 && (now - started < 0 || now - started >= STALE_MS)
+    }
+
+    /**
+     * Another way in: Android's own installer for the same, already verified file. Works when the session route
+     * fails for reasons of its own. Call off the main thread; start the returned intent from the screen.
+     */
+    suspend fun anotherWay(c: Context): Intent? = withContext(Dispatchers.IO) {
+        runCatching {
+            val release = Updater.release(c) ?: return@runCatching null
+            val file = Updater.apk(c)
+            if (!file.exists()) return@runCatching null
+            Updater.validate(c, file, release)
+            val uri = FileProvider.getUriForFile(c, "${c.packageName}.provider", file)
+            Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }.getOrNull()
+    }
     suspend fun install(c: Context, automatic: Boolean = false) = withContext(Dispatchers.IO) { Updater.mutex.withLock {
         runCatching {
             check(!BreathInteraction.active) { "Finish the breathing pause first" }
@@ -28,7 +61,7 @@ object UpdateInstaller {
                 setPackageSource(PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE)
             }
             val id = pi.createSession(params)
-            Updater.prefs(c).edit().putInt("session", id).putBoolean("manual_session", !automatic).putString("result", "Installation started").commit()
+            Updater.prefs(c).edit().putInt("session", id).putLong("session_at", System.currentTimeMillis()).putBoolean("manual_session", !automatic).putString("result", "Installation started").commit()
             try {
                 pi.openSession(id).use { session ->
                     file.inputStream().use { input -> session.openWrite("base.apk", 0, file.length()).use { output -> input.copyTo(output); session.fsync(output) } }
