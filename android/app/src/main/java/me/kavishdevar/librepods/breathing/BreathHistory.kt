@@ -3,7 +3,7 @@ package me.kavishdevar.librepods.breathing
 import android.content.Context
 
 /**
- * When each app last paused, and which saying came last. A file of its own: the service watches the
+ * When each app last paused, and which colour came last. A file of its own: the service watches the
  * settings file and reloads when it changes, and a pause starting must never trigger that reload in
  * the middle of its own animation.
  *
@@ -12,7 +12,7 @@ import android.content.Context
 object BreathHistory {
     private const val FILE = "breath_seen"
     private const val APP = "app:"
-    private const val SAYING = "saying"
+    private const val PALETTE = "palette"
     /** Entries older than this can never matter: the longest grace time is an hour. */
     private const val KEEP_MS = 24L * 60 * 60 * 1000
 
@@ -28,7 +28,8 @@ object BreathHistory {
 
     fun record(c: Context, pkg: String, wallNow: Long) { prefs(c).edit().putLong(APP + pkg, wallNow).apply() }
 
-    fun lastSaying(c: Context): Int = prefs(c).getInt(SAYING, -1)
+    /** The colour used by the last pause, so Random avoids repeating it and In order carries on from it. */
+    fun lastPalette(c: Context): BreathPalette? = prefs(c).getString(PALETTE, null)?.let { key -> BreathPalette.entries.firstOrNull { it.key == key } }
 
-    fun saveSaying(c: Context, index: Int) { prefs(c).edit().putInt(SAYING, index).apply() }
+    fun savePalette(c: Context, palette: BreathPalette) { prefs(c).edit().putString(PALETTE, palette.key).apply() }
 }

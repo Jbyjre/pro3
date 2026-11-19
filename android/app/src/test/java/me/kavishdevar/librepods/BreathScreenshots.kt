@@ -27,7 +27,7 @@ class BreathScreenshots {
         val bitmap=Bitmap.createBitmap(200,400,Bitmap.Config.ARGB_8888)
         view.draw(Canvas(bitmap))
         org.junit.Assert.assertEquals(BreathPalette.BASE,bitmap.getPixel(5,395))
-        view.options=BreathOptions(BreathPalette.Coral,true)
+        view.options=BreathOptions(palettes=setOf(BreathPalette.Coral),still=true)
         view.draw(Canvas(bitmap))
         val loaded=bitmap.getPixel(5,395)
         org.junit.Assert.assertTrue(android.graphics.Color.red(loaded)>android.graphics.Color.blue(loaded))
@@ -35,12 +35,12 @@ class BreathScreenshots {
     }
     @Test fun colorPresetsAndStillFrames() {
         BreathPalette.entries.forEach { palette ->
-            frames("${palette.key}-",options=BreathOptions(palette))
+            frames("${palette.key}-",options=BreathOptions(palettes=setOf(palette)))
         }
         BreathPalette.entries.forEach { palette ->
             // A column left of the text margin: in still mode nothing on it may move before the layer clears.
-            val first=render(0L,BreathOptions(palette,true),200,400)
-            val last=render(999L,BreathOptions(palette,true),200,400)
+            val first=render(0L,BreathOptions(palettes=setOf(palette),still=true),200,400)
+            val last=render(999L,BreathOptions(palettes=setOf(palette),still=true),200,400)
             for (y in 0 until 400) org.junit.Assert.assertEquals("${palette.label} still mode must not animate (row $y)",first.getPixel(5,y),last.getPixel(5,y))
             first.recycle();last.recycle()
         }
@@ -99,7 +99,7 @@ class BreathScreenshots {
     }
     @Test fun theFirstFrameCoversEverythingInTheSameHueAsTheGradient() {
         BreathPalette.entries.forEach { palette ->
-            val bitmap=render(0L,BreathOptions(palette),200,400)
+            val bitmap=render(0L,BreathOptions(palettes=setOf(palette)),200,400)
             for (x in listOf(0,50,100,150,199)) for (y in listOf(0,100,200,300,399))
                 org.junit.Assert.assertEquals("${palette.label} first frame must be opaque at $x,$y",255,android.graphics.Color.alpha(bitmap.getPixel(x,y)))
             val corner=bitmap.getPixel(195,5)
@@ -143,8 +143,9 @@ class BreathScreenshots {
         named.recycle();plain.recycle()
     }
     @Test fun everySayingAndBothMomentsAndTransitionRender() {
-        for (index in BreathWords.sayings.indices) for ((moment,time) in listOf("in" to 900L,"out" to 1750L)) {
-            val view=BreathView(RuntimeEnvironment.getApplication()).apply { sayingIndex=index;renderAt=time;options=BreathOptions(durationMs=3000) }
+        val sayings = BreathWords.entries.mapNotNull { it.saying }
+        for ((index, saying) in sayings.withIndex()) for ((moment,time) in listOf("in" to 900L,"out" to 1750L)) {
+            val view=BreathView(RuntimeEnvironment.getApplication()).apply { this.saying=saying;renderAt=time;options=BreathOptions(durationMs=3000) }
             view.layout(0,0,1236,2745)
             val bitmap=Bitmap.createBitmap(1236,2745,Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
             File("build/screenshots/breathe").mkdirs()
@@ -152,5 +153,43 @@ class BreathScreenshots {
             bitmap.recycle()
         }
         for (transition in BreathTransition.entries) frames("${transition.key}-",options=BreathOptions(transition=transition))
+        frames("mono-",options=BreathOptions(palettes=setOf(BreathPalette.Mono)))
+    }
+
+    // ---- The new exits: each clears to nothing, never rises again, and shows the app where it should. ----
+    private fun pixel(time:Long,options:BreathOptions,x:Int,y:Int):Int {
+        val bitmap=render(time,options,200,400)
+        return bitmap.getPixel(x,y).also { bitmap.recycle() }
+    }
+    private fun a(p:Int)=android.graphics.Color.alpha(p)
+    @Test fun dropRevealsTheAppFromTheTopDown() {
+        val o=BreathOptions(transition=BreathTransition.Drop)
+        org.junit.Assert.assertEquals("bottom still covered",255,a(pixel(2250L,o,100,395)))
+        org.junit.Assert.assertEquals("top already shows the app",0,a(pixel(2250L,o,100,5)))
+        org.junit.Assert.assertEquals("gone at the end",0,a(pixel(3000L,o,100,395)))
+    }
+    @Test fun irisOpensALensFromTheMiddleUntilNothingIsLeft() {
+        val o=BreathOptions(transition=BreathTransition.Iris)
+        org.junit.Assert.assertEquals("hole in the middle",0,a(pixel(2250L,o,100,200)))
+        org.junit.Assert.assertEquals("corner still covered",255,a(pixel(2250L,o,2,2)))
+        org.junit.Assert.assertEquals("every corner clear at the end",0,a(pixel(3000L,o,2,2)))
+        org.junit.Assert.assertEquals(0,a(pixel(3000L,o,197,397)))
+    }
+    @Test fun slideMovesTheLayerOffToTheSideUntilGone() {
+        val o=BreathOptions(transition=BreathTransition.Slide)
+        org.junit.Assert.assertEquals("left already shows the app",0,a(pixel(2250L,o,20,200)))
+        org.junit.Assert.assertEquals("right still covered",255,a(pixel(2250L,o,195,200)))
+        org.junit.Assert.assertEquals(0,a(pixel(3000L,o,195,200)))
+    }
+    @Test fun zoomSwellsAndClearsByFading() {
+        val o=BreathOptions(transition=BreathTransition.Zoom)
+        org.junit.Assert.assertEquals(255,a(pixel(1500L,o,195,5)))
+        val mid=a(pixel(2250L,o,100,300)); org.junit.Assert.assertTrue("fading ($mid)",mid in 1..254)
+        org.junit.Assert.assertEquals(0,a(pixel(3000L,o,195,5)))
+    }
+    @Test fun monoIsOpaqueFromTheFirstFrameAndItsInkReadsOnTheLightSheet() {
+        val bitmap=render(0L,BreathOptions(palettes=setOf(BreathPalette.Mono)),200,400)
+        for (x in listOf(0,100,199)) for (y in listOf(0,200,399)) org.junit.Assert.assertEquals(255,a(bitmap.getPixel(x,y)))
+        bitmap.recycle()
     }
 }

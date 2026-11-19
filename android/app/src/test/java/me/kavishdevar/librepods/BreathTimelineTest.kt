@@ -79,4 +79,40 @@ class BreathTimelineTest {
             assertEquals(0f, f(0f), 1e-6f); assertEquals(1f, f(1f), 1e-6f)
         }
     }
+
+    private fun at(transition: BreathTransition, reduced: Boolean = false) = BreathTimeline(3000, transition, reduced)
+
+    @Test fun everyMovingTransitionStartsAtZeroFinishesAtOneAndNeverGoesBackwards() {
+        listOf(BreathTransition.Lift to BreathTimeline::lift, BreathTransition.Drop to BreathTimeline::drop, BreathTransition.Iris to BreathTimeline::iris,
+            BreathTransition.Slide to BreathTimeline::slide, BreathTransition.Zoom to BreathTimeline::zoom).forEach { (transition, progress) ->
+            val t = at(transition)
+            assertEquals("$transition before the exit", 0f, progress(t, 0.5f), 0f)
+            assertEquals("$transition at the end", 1f, progress(t, 1f), 0f)
+            var previous = -1f
+            for (i in 0..100) { val v = progress(t, i / 100f); assertTrue("$transition never goes back ($i)", v >= previous); previous = v }
+        }
+    }
+    @Test fun onlyTheMatchingTransitionMoves() {
+        val drop = at(BreathTransition.Drop)
+        assertEquals(0f, drop.lift(0.8f), 0f); assertEquals(0f, drop.iris(0.8f), 0f); assertEquals(0f, drop.slide(0.8f), 0f); assertEquals(0f, drop.zoom(0.8f), 0f)
+        assertTrue(drop.drop(0.8f) > 0f)
+        assertEquals("a moving layer stays fully opaque until gone", 1f, drop.layerAlpha(0.99f), 0f)
+        val iris = at(BreathTransition.Iris); assertEquals(1f, iris.layerAlpha(0.99f), 0f)
+        val slide = at(BreathTransition.Slide); assertEquals(1f, slide.layerAlpha(0.99f), 0f)
+    }
+    @Test fun zoomClearsByFadingWhileItSwells() {
+        val z = at(BreathTransition.Zoom)
+        assertEquals(0f, z.layerAlpha(1f), 0f)
+        assertTrue(z.layerAlpha(0.8f) < 1f); assertTrue(z.zoom(0.8f) > 0f)
+        assertEquals(1f, z.layerAlpha(0.5f), 0f)
+    }
+    @Test fun withoutMotionEveryMovingTransitionBecomesAFadeAndInstantStaysInstant() {
+        BreathTransition.entries.filter { it != BreathTransition.Instant && it != BreathTransition.Fade }.forEach {
+            val t = at(it, reduced = true)
+            assertEquals(BreathTransition.Fade, t.effective)
+            assertEquals(0f, t.layerAlpha(1f), 0f)
+            assertEquals(0f, t.lift(0.9f) + t.drop(0.9f) + t.iris(0.9f) + t.slide(0.9f) + t.zoom(0.9f), 0f)
+        }
+        assertEquals(BreathTransition.Instant, at(BreathTransition.Instant, reduced = true).effective)
+    }
 }

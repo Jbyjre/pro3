@@ -62,7 +62,7 @@ class BreathLaunchTest {
         controller.pause().stop().destroy()
     }
     @Test fun savedCustomizationReachesTheRealLaunchWithoutChangingItsDeadline() {
-        val chosen=BreathOptions(BreathPalette.Coral,still=true)
+        val chosen=BreathOptions(palettes=setOf(BreathPalette.Coral),still=true)
         BreathPrefs.setOptions(c,chosen)
         val controller=Robolectric.buildActivity(BreathActivity::class.java,request()).create().start().resume()
         val a=controller.get();resolve()

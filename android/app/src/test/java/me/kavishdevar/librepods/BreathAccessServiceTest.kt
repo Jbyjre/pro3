@@ -1,7 +1,9 @@
 package me.kavishdevar.librepods
 
 import android.app.Application
+import android.content.ComponentName
 import android.content.Context
+import android.content.IntentFilter
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.ApplicationInfo
@@ -35,6 +37,7 @@ class BreathAccessServiceTest {
     private val chess = "fixture.chess"
     private val chat = "fixture.chat"
     private val home = "fixture.home"
+    private val launcher = "fixture.launcher"
     private fun install(pkg: String, activityName: String = "$pkg.Main") {
         val app = ApplicationInfo().apply { packageName = pkg; enabled = true; nonLocalizedLabel = pkg }
         val info = ActivityInfo().apply { packageName = pkg; name = activityName; applicationInfo = app; enabled = true; exported = true }
@@ -47,12 +50,19 @@ class BreathAccessServiceTest {
     private val webAppWindow = "org.chromium.chrome.browser.webapps.SameTaskWebApkActivity"
     @Before fun setup() {
         listOf(chess, chat, home).forEach(::install)
+        install(launcher, "$launcher.Home")
+        // The phone's Home app, as Android would list it for the HOME intent.
+        shadowOf(context.packageManager).addResolveInfoForIntent(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
+            android.content.pm.ResolveInfo().apply { activityInfo = ActivityInfo().apply { packageName = launcher; name = "$launcher.Home"
+                applicationInfo = ApplicationInfo().apply { packageName = launcher } } })
+        BreathLog.clear()
         BreathAccess.wallClock = { clock }
         BreathAccess.gate.reset(); BreathAccess.gate.forgetPauses()
         context.getSharedPreferences("breath_seen", Context.MODE_PRIVATE).edit().clear().commit()
-        // The older tests below describe one pause per open, so they run with the memory off.
+        // The older tests below describe one pause per open, so they run in "every time" mode.
+        // The newer ones switch to the real rule with withMode(PauseMode.NewOpens).
         BreathPrefs.prefs(context).edit().clear().putStringSet("apps", setOf(chess, chat))
-            .putBoolean("enabled", false).putLong("paused_until", Long.MAX_VALUE).putInt("grace_min", 0).commit()
+            .putBoolean("enabled", false).putLong("paused_until", Long.MAX_VALUE).putString("mode", "every").commit()
         startService()
     }
     private fun startService() {
@@ -63,6 +73,7 @@ class BreathAccessServiceTest {
         assertTrue(BreathAccess.connected.value)
     }
     @After fun cleanup() { controller.destroy(); BreathAccess.wallClock = { System.currentTimeMillis() } }
+    private fun withMode(mode: PauseMode) { BreathPrefs.setOptions(context, BreathPrefs.options(context).copy(mode = mode)); resolve() }
     private fun withGrace(minutes: Int) { BreathPrefs.setOptions(context, BreathPrefs.options(context).copy(graceMinutes = minutes)); resolve() }
     private fun resolve() { repeat(50) { Thread.sleep(5); ShadowLooper.idleMainLooper() } }
     private fun event(pkg: String, cls: String = "$pkg.Main", type: Int = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
@@ -166,17 +177,6 @@ class BreathAccessServiceTest {
         ShadowLooper.idleMainLooper(1, MILLISECONDS)
         assertTrue(layers().isEmpty())
     }
-    @Test fun returningFromTheShadeDoesNotRepauseWithinTheGraceTimeButDoesAfterIt() {
-        withGrace(10)
-        event(chess); draw(); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
-        event("com.android.systemui", "android.widget.FrameLayout")
-        event(chess)
-        assertTrue("pulling the shade and coming back is not a new visit", layers().isEmpty())
-        clock += 10 * 60_000L + 1
-        event("com.android.systemui", "android.widget.FrameLayout")
-        event(chess)
-        assertEquals(1, layers().size)
-    }
     @Test fun backLeavesForHomeWithoutLaunchingOrKeepingATouchTarget() {
         event(chess); draw()
         val view = layers().single()
@@ -258,49 +258,6 @@ class BreathAccessServiceTest {
         assertEquals(1, layers().size)
         draw()
     }
-    @Test fun lateEventsAfterScreenOffWaitForAnInteractiveDisplay() {
-        val power = context.getSystemService(android.os.PowerManager::class.java)
-        shadowOf(context.getSystemService(android.app.KeyguardManager::class.java)).setKeyguardLocked(false)
-        shadowOf(power).setIsInteractive(false)
-        event(chess)
-        assertTrue(layers().isEmpty())
-        resolve()
-        assertFalse(BreathInteraction.active)
-        shadowOf(power).setIsInteractive(true)
-        event(chess)
-        assertEquals(1, layers().size)
-        draw()
-    }
-
-    @Test fun pendingActivityLookupRechecksDisplayBeforePresenting() {
-        install(chess, "$chess.NewActivity")
-        event(chess, "$chess.NewActivity")
-        val power = context.getSystemService(android.os.PowerManager::class.java)
-        shadowOf(power).setIsInteractive(false)
-        resolve()
-        assertTrue(layers().isEmpty())
-        assertFalse(BreathInteraction.active)
-        shadowOf(power).setIsInteractive(true)
-        event(chess, "$chess.NewActivity")
-        assertEquals(1, layers().size)
-        draw()
-    }
-
-    @Test fun movingBetweenAppsAlreadyOpenedDoesNotPauseAgainUntilTheGraceTimePasses() {
-        withGrace(10)
-        event(chess); draw(); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
-        event(chat); draw(); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
-        event(chess); assertTrue("Gmail to Claude and back must stay quiet", layers().isEmpty())
-        event(chat); assertTrue(layers().isEmpty())
-        clock += 9 * 60_000L + 59_000L
-        event(chess); assertTrue("one second short of ten minutes", layers().isEmpty())
-        clock += 2_000L
-        event(chat)
-        assertEquals("ten minutes later it pauses once more", 1, layers().size)
-        draw(); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
-        event(chess)
-        assertEquals(1, layers().size)
-    }
     @Test fun aLayerThatNeverDrewDoesNotUseUpTheGraceTime() {
         withGrace(10)
         event(chess)
@@ -310,34 +267,6 @@ class BreathAccessServiceTest {
         event(chess)
         assertEquals("the next real event still pauses", 1, layers().size)
     }
-    @Test fun leavingEarlyStillCountsAsHavingPaused() {
-        withGrace(10)
-        event(chess); draw()
-        val view = layers().single()
-        view.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_BACK))
-        view.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_BACK))
-        event(home); resolve()
-        event(chess)
-        assertTrue(layers().isEmpty())
-    }
-    @Test fun theGraceTimeSurvivesTheServiceRestarting() {
-        withGrace(10)
-        event(chess); draw(); resolve()
-        assertTrue(BreathHistory.load(context, clock).containsKey(chess))
-        controller.destroy()
-        BreathAccess.gate.forgetPauses() // what a restarted process would start with
-        startService()
-        event(chess)
-        assertTrue("remembered from the saved history", layers().isEmpty())
-    }
-    @Test fun aGraceOfZeroMeansEveryOpen() {
-        withGrace(0)
-        event(chess); draw(); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
-        event(home); resolve()
-        event(chess)
-        assertEquals(1, layers().size)
-    }
-
     private fun installChrome() {
         val app = ApplicationInfo().apply { packageName = chrome; enabled = true; nonLocalizedLabel = "Chrome" }
         val infos = listOf("$chrome.Main", webAppWindow).map { name ->
@@ -390,21 +319,193 @@ class BreathAccessServiceTest {
         ShadowLooper.idleMainLooper(1, MILLISECONDS)
         assertTrue(layers().isEmpty())
     }
-    @Test fun aMixStepsThroughTheSayingsAndAPickAlwaysShowsItself() {
-        val seen = ArrayList<Int>()
-        repeat(4) {
-            event(chess); draw()
-            seen += layers().single().sayingIndex
-            ShadowLooper.idleMainLooper(3000, MILLISECONDS)
-            event(home); resolve()
-        }
-        assertEquals(listOf(0, 1, 2, 0), seen)
-        BreathPrefs.setOptions(context, BreathOptions(words = BreathWords.Reset, graceMinutes = 0)); resolve()
-        event(chess); draw()
-        assertEquals(2, layers().single().sayingIndex)
-    }
     @Test fun theLastPausesRealSpeedIsRecordedForThePhone() {
         event(chess); draw()
         assertNotNull(BreathAccess.lastTiming.value)
+    }
+
+    // ---- The real rule: new opens pause, switching back does not. ----
+    private fun pauseEnds() = ShadowLooper.idleMainLooper(3000, MILLISECONDS)
+    private fun homeScreen() = event(launcher, "$launcher.Home")
+
+    @Test fun movingThroughAnotherAppAndBackStaysQuietButClosingAndReopeningFromHomePauses() {
+        withMode(PauseMode.NewOpens)
+        event(chess); draw(); pauseEnds()
+        event(chat); draw(); pauseEnds()
+        event(chess)
+        assertTrue("Gmail to Claude and back through Recents or a swipe: no pause", layers().isEmpty())
+        homeScreen(); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
+        event(chess)
+        assertEquals("closed, then opened again from Home: pause", 1, layers().size)
+    }
+    @Test fun aQuickPeekAtHomeOrRecentsIsNotAnOpen() {
+        withMode(PauseMode.NewOpens)
+        event(chess); draw(); pauseEnds()
+        homeScreen(); ShadowLooper.idleMainLooper(1000, MILLISECONDS)
+        event(chess)
+        assertTrue(layers().isEmpty())
+        val log = BreathLog.entries.value.joinToString { it.text }
+        assertTrue(log, log.contains("within a moment"))
+    }
+    @Test fun anAppOpenedFromANotificationPauses() {
+        withMode(PauseMode.NewOpens)
+        event(chess); draw(); pauseEnds()
+        event(chat); draw(); pauseEnds()
+        event("com.android.systemui", "com.android.systemui.shade.NotificationShadeWindowView")
+        event(chess)
+        assertEquals(1, layers().size)
+    }
+    @Test fun otherSystemWindowsAndTheRecentsWindowAreTreatedAsSuch() {
+        withMode(PauseMode.NewOpens)
+        event(chess); draw(); pauseEnds()
+        event("com.android.systemui", "android.widget.FrameLayout")   // volume panel and the like: ignored
+        event("com.android.systemui", "com.android.systemui.recents.RecentsActivity"); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
+        event(chess)
+        assertEquals("a Recents window counts like Home", 1, layers().size)
+    }
+    @Test fun everyTimeAppsPauseEvenWhenYouJustSwitchBackAndAfterABreakAppsDoNot() {
+        withMode(PauseMode.EveryTime)
+        event(chess); draw(); pauseEnds(); event(chat); draw(); pauseEnds()
+        event(chess); assertEquals(1, layers().size); draw(); pauseEnds()
+        withMode(PauseMode.AfterBreak)
+        homeScreen(); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
+        event(chess)
+        assertTrue("an after-a-break app waits for its break even from Home", layers().isEmpty())
+    }
+    @Test fun theBreakTimeStillBringsThePauseBackWhenYouOnlySwitchBack() {
+        withMode(PauseMode.NewOpens)
+        event(chess); draw(); pauseEnds(); event(chat); draw(); pauseEnds()
+        clock += 10 * 60_000L
+        event(chess)
+        assertEquals("ten minutes after its last pause", 1, layers().size)
+    }
+    @Test fun wakingThePhoneIntoTheSameAppPausesOnlyAfterALongTimeOff() {
+        withMode(PauseMode.NewOpens)
+        event(chess); draw(); pauseEnds()
+        context.sendBroadcast(Intent(Intent.ACTION_SCREEN_OFF)); ShadowLooper.idleMainLooper()
+        ShadowLooper.idleMainLooper(9 * 60_000L, MILLISECONDS)
+        event(chess)
+        assertTrue("short sleep", layers().isEmpty())
+        context.sendBroadcast(Intent(Intent.ACTION_SCREEN_OFF)); ShadowLooper.idleMainLooper()
+        ShadowLooper.idleMainLooper(11 * 60_000L, MILLISECONDS)
+        clock += 11 * 60_000L
+        event(chess)
+        assertEquals("long sleep", 1, layers().size)
+    }
+    @Test fun anAppOpenedFromTheLockScreenPausesAsSoonAsThePhoneIsUnlocked() {
+        val keyguard = shadowOf(context.getSystemService(android.app.KeyguardManager::class.java))
+        keyguard.setKeyguardLocked(true)
+        event(chess)
+        assertTrue(layers().isEmpty())
+        keyguard.setKeyguardLocked(false)
+        context.sendBroadcast(Intent(Intent.ACTION_USER_PRESENT)); ShadowLooper.idleMainLooper()
+        assertEquals(1, layers().size)
+        draw()
+    }
+    @Test fun anEventWhileTheScreenIsOffPausesOnceTheScreenIsOnAndUnlocked() {
+        val power = context.getSystemService(android.os.PowerManager::class.java)
+        shadowOf(context.getSystemService(android.app.KeyguardManager::class.java)).setKeyguardLocked(false)
+        shadowOf(power).setIsInteractive(false)
+        event(chess)
+        assertTrue(layers().isEmpty()); assertFalse(BreathInteraction.active)
+        shadowOf(power).setIsInteractive(true)
+        context.sendBroadcast(Intent(Intent.ACTION_USER_PRESENT)); ShadowLooper.idleMainLooper()
+        assertEquals("the turn was kept, not lost", 1, layers().size)
+        draw()
+    }
+    @Test fun leavingForHomeEndsAPauseButNotInItsFirstInstant() {
+        event(chess); draw()
+        homeScreen()
+        assertEquals("launchers report their own windows while an app is still opening", 1, layers().size)
+        ShadowLooper.idleMainLooper(800, MILLISECONDS)
+        homeScreen()
+        assertTrue("Home pressed during the pause ends it", layers().isEmpty())
+    }
+    @Test fun leavingEarlyStillCountsAsHavingPausedForTheBreakTime() {
+        withMode(PauseMode.AfterBreak)
+        event(chess); draw()
+        val view = layers().single()
+        view.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_BACK))
+        view.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_BACK))
+        event(home); resolve()
+        event(chess)
+        assertTrue(layers().isEmpty())
+    }
+    @Test fun theLastPauseTimesSurviveTheServiceRestarting() {
+        withMode(PauseMode.AfterBreak)
+        event(chess); draw(); resolve()
+        assertTrue(BreathHistory.load(context, clock).containsKey(chess))
+        controller.destroy()
+        BreathAccess.gate.forgetPauses()
+        startService()
+        assertNotNull("restored from the saved history", BreathAccess.gate.lastPauseOf(chess))
+        event(chess)
+        assertTrue("an after-a-break app remembers its pause across the restart", layers().isEmpty())
+    }
+    @Test fun aLayerThatNeverDrewDoesNotUseUpTheTurnEvenInAfterABreakMode() {
+        withMode(PauseMode.AfterBreak)
+        event(chess)
+        layers().single().visibility = android.view.View.INVISIBLE
+        ShadowLooper.idleMainLooper(1000, MILLISECONDS)
+        assertTrue(layers().isEmpty())
+        event(chess)
+        assertEquals(1, layers().size)
+    }
+
+    // ---- Per-app rules, colours, grayscale, words and the log. ----
+    @Test fun oneAppCanBeMadeHarderThanTheRest() {
+        withMode(PauseMode.NewOpens)
+        BreathPrefs.setAppRule(context, chess, AppRule(PauseMode.EveryTime, 8_000)); resolve()
+        event(chess); draw()
+        assertEquals(8_000L, layers().single().options.durationMs)
+        ShadowLooper.idleMainLooper(7_999, MILLISECONDS); assertEquals(1, layers().size)
+        ShadowLooper.idleMainLooper(1, MILLISECONDS); assertTrue(layers().isEmpty())
+        event(home); resolve(); event(chess)
+        assertEquals("this app pauses every time", 1, layers().size); draw(); ShadowLooper.idleMainLooper(8_000, MILLISECONDS)
+        event(chat); draw(); pauseEnds()
+        event(home); resolve(); event(chat)
+        assertTrue("the other app follows the general rule", layers().isEmpty())
+    }
+    @Test fun coloursRotateInOrderAndRandomNeverRepeats() {
+        BreathPrefs.setOptions(context, BreathPrefs.options(context).copy(palettes = setOf(BreathPalette.Electric, BreathPalette.Coral, BreathPalette.Lagoon),
+            paletteOrder = PaletteOrder.InOrder)); resolve()
+        val seen = ArrayList<BreathPalette>()
+        repeat(4) { event(chess); draw(); seen += layers().single().options.palette; pauseEnds(); event(home); resolve() }
+        assertEquals(listOf(BreathPalette.Electric, BreathPalette.Coral, BreathPalette.Lagoon, BreathPalette.Electric), seen)
+        BreathPrefs.setOptions(context, BreathPrefs.options(context).copy(paletteOrder = PaletteOrder.Random)); resolve()
+        val random = ArrayList<BreathPalette>()
+        repeat(8) { event(chess); draw(); random += layers().single().options.palette; pauseEnds(); event(home); resolve() }
+        random.zipWithNext().forEach { (a, b) -> assertNotEquals(a, b) }
+    }
+    @Test fun aGrayscalePhoneGetsTheLightAndDarkLook() {
+        BreathPrefs.setOptions(context, BreathPrefs.options(context).copy(gray = GrayMode.On)); resolve()
+        event(chess); draw()
+        assertEquals(BreathPalette.Mono, layers().single().options.palette)
+        pauseEnds(); event(home); resolve()
+        BreathPrefs.setOptions(context, BreathPrefs.options(context).copy(gray = GrayMode.Off)); resolve()
+        event(chess); draw()
+        assertNotEquals(BreathPalette.Mono, layers().single().options.palette)
+    }
+    @Test fun theLayerShowsTheVerseReferenceOnlyByDefaultAndYourOwnWordsWhenChosen() {
+        event(chess); draw()
+        assertEquals("Psalm 51:10", layers().single().saying.inHead)
+        assertEquals(layers().single().saying.inHead, layers().single().saying.outHead)
+        pauseEnds(); event(home); resolve()
+        BreathPrefs.setOptions(context, BreathPrefs.options(context).copy(words = BreathWords.Custom, customText = "Be still")); resolve()
+        event(chess); draw()
+        assertEquals("Be still", layers().single().saying.inHead)
+    }
+    @Test fun everyDecisionIsWrittenInPlainWordsToTheLog() {
+        withMode(PauseMode.NewOpens)
+        event(chess); draw(); pauseEnds()
+        event(chat); draw(); pauseEnds()
+        event(chess)
+        val text = BreathLog.asText()
+        assertTrue(text, text.contains("pausing: first open of this app"))
+        assertTrue(text, text.contains("no pause: switched back through another app"))
+    }
+    @Test fun aChosenAppsNonScreenWindowIsLoggedSoItCanBeExplained() {
+        event(chess, "android.app.Dialog"); resolve()
+        assertTrue(BreathLog.asText(), BreathLog.asText().contains("ignored a window that is not a screen of the app"))
     }
 }

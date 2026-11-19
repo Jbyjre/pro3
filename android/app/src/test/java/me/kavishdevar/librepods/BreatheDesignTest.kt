@@ -106,9 +106,9 @@ class BreatheDesignTest {
         BreathPrefs.select(c, "fixture.chess", true)
         rule.setContent { LibrePodsTheme(darkTheme = true) { BreatheScreen() } }
         rule.onRoot().captureRoboImage("build/screenshots/breathe/design-dark-top.png")
-        rule.onNodeWithText("Tangerine").performScrollTo().performClick().assertIsSelected()
+        rule.onNodeWithText("Tangerine").performScrollTo().performClick().assertIsOff()
         rule.onNodeWithText("Still color layer").performScrollTo().performClick().assertIsOn()
         rule.onRoot().captureRoboImage("build/screenshots/breathe/design-dark-controls.png")
-        assertEquals(BreathOptions(BreathPalette.Coral, true), BreathPrefs.options(c))
+        assertEquals(BreathOptions(palettes = BreathPalette.COLORS - BreathPalette.Coral, still = true), BreathPrefs.options(c))
     }
 }

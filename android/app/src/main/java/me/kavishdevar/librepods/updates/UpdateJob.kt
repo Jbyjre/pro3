@@ -33,9 +33,14 @@ class UpdateJob : JobService() {
                 if (Updater.check(this@UpdateJob, open).isFailure) return@launch
                 if (Updater.state.value.available && !Updater.state.value.ready && Updater.prefs(this@UpdateJob).getBoolean("download", true)) Updater.download(this@UpdateJob, open)
                 val audio = getSystemService(AudioManager::class.java)
-                if (Updater.state.value.ready && Updater.prefs(this@UpdateJob).getBoolean("install", false) &&
-                    !getSystemService(PowerManager::class.java).isInteractive && !BreathInteraction.active &&
-                    !audio.isMusicActive && audio.mode == AudioManager.MODE_NORMAL) UpdateInstaller.install(this@UpdateJob, automatic = true)
+                if (Updater.state.value.ready) {
+                    // Only start an install nobody is there to confirm when Android will really do it silently.
+                    // Otherwise it would wait for a tap, go stale, and fail: tell you instead, and one tap installs.
+                    val silently = Updater.prefs(this@UpdateJob).getBoolean("install", false) && UpdateInstaller.canInstallSilently(this@UpdateJob)
+                    if (!silently) UpdateNotice.readyToTap(this@UpdateJob)
+                    else if (!getSystemService(PowerManager::class.java).isInteractive && !BreathInteraction.active &&
+                        !audio.isMusicActive && audio.mode == AudioManager.MODE_NORMAL) UpdateInstaller.install(this@UpdateJob, automatic = true)
+                }
             } finally { if (isActive) jobFinished(params, false) }
         }
         return true

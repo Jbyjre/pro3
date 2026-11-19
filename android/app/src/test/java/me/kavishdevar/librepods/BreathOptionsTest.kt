@@ -37,14 +37,17 @@ class BreathOptionsTest {
 
     @Test fun everyChoiceSurvivesSavingAndLoading() {
         val c=RuntimeEnvironment.getApplication()
-        val chosen=BreathOptions(BreathPalette.Lagoon,true,7_000,BreathTransition.Lift,BreathWords.SlowDown,false,true,30)
+        val chosen=BreathOptions(setOf(BreathPalette.Lagoon,BreathPalette.Violet),PaletteOrder.InOrder,true,7_000,BreathTransition.Iris,BreathWords.Custom,"Be still",false,true,30,PauseMode.AfterBreak,GrayMode.On)
         BreathPrefs.setOptions(c,chosen)
         assertEquals(chosen,BreathPrefs.options(c))
     }
-    @Test fun theDefaultsAreThreeSecondsFadeMixHapticsOnNameOffTenMinutes() {
+    @Test fun theDefaultsAreTheVerseThreeSecondsFadeAllColorsRandomNewOpensTenMinutes() {
         val d=BreathOptions()
-        assertEquals(3_000L,d.durationMs); assertEquals(BreathTransition.Fade,d.transition); assertEquals(BreathWords.Mix,d.words)
+        assertEquals(3_000L,d.durationMs); assertEquals(BreathTransition.Fade,d.transition); assertEquals(BreathWords.Verse,d.words)
+        assertEquals(BreathPalette.COLORS,d.palettes); assertEquals(PaletteOrder.Random,d.paletteOrder)
+        assertEquals(PauseMode.NewOpens,d.mode); assertEquals(GrayMode.Auto,d.gray)
         assertTrue(d.haptics); assertFalse(d.showAppName); assertEquals(10,d.graceMinutes); assertEquals(600_000L,d.graceMs)
+        assertEquals("Psalm 51:10",d.saying.inHead)
     }
     @Test fun anOutOfRangeSavedLengthIsClamped() {
         val c=RuntimeEnvironment.getApplication()
@@ -52,6 +55,22 @@ class BreathOptionsTest {
         assertEquals(2_000L,BreathPrefs.options(c).durationMs)
         BreathPrefs.prefs(c).edit().putLong("duration_ms",120_000).commit()
         assertEquals(10_000L,BreathPrefs.options(c).durationMs)
+    }
+    @Test fun oldSavedChoicesMigrateTheWayTheUserAsked() {
+        val c=RuntimeEnvironment.getApplication()
+        // Before this version: one colour, "mix" words, and "0 minutes" meaning every open.
+        BreathPrefs.prefs(c).edit().clear().putString("palette","coral").putString("words","mix").putInt("grace_min",0).commit()
+        val o=BreathPrefs.options(c)
+        assertEquals("mix becomes the verse",BreathWords.Verse,o.words)
+        assertEquals("every colour may appear",BreathPalette.COLORS,o.palettes)
+        assertEquals("zero minutes meant every open",PauseMode.EveryTime,o.mode)
+        assertEquals(10,o.graceMinutes)
+    }
+    @Test fun anEmptyOrUnknownSavedColourSetFallsBackToAllColours() {
+        val c=RuntimeEnvironment.getApplication()
+        BreathPrefs.prefs(c).edit().clear().putStringSet("palettes",setOf("nonsense")).commit()
+        assertEquals(BreathPalette.COLORS,BreathPrefs.options(c).palettes)
+        assertEquals(BreathPalette.COLORS.toList().sortedBy{it.ordinal},BreathOptions(palettes=emptySet()).chosenPalettes)
     }
     @Test fun theDeepBaseIsTheSameHueMuchDarkerAndReadableUnderCream() {
         BreathPalette.entries.forEach { p ->
@@ -67,5 +86,34 @@ class BreathOptionsTest {
         assertEquals(setOf("fixture.chess"),BreathPrefs.selected(c))
         BreathPrefs.select(c,"org.chromium.webapk.xyz",true)
         assertEquals(setOf("fixture.chess"),BreathPrefs.selected(c))
+    }
+    @Test fun appRulesAreSavedPerAppAndCleared() {
+        val c=RuntimeEnvironment.getApplication()
+        BreathPrefs.prefs(c).edit().clear().commit()
+        BreathPrefs.setAppRule(c,"gmail",AppRule(PauseMode.EveryTime,15_000))
+        assertEquals(AppRule(PauseMode.EveryTime,15_000),BreathPrefs.appRules(c)["gmail"])
+        BreathPrefs.setAppRule(c,"gmail",AppRule())
+        assertTrue(BreathPrefs.appRules(c).isEmpty())
+    }
+    @Test fun randomNeverRepeatsTheLastColourAndInOrderStepsAndWraps() {
+        val three=listOf(BreathPalette.Electric,BreathPalette.Coral,BreathPalette.Lagoon)
+        var last: BreathPalette?=null
+        repeat(200) { val next=BreathPalette.pick(three,PaletteOrder.Random,last,kotlin.random.Random(it)); assertNotEquals(last,next); assertTrue(next in three); last=next }
+        assertEquals(BreathPalette.Coral,BreathPalette.pick(three,PaletteOrder.InOrder,BreathPalette.Electric))
+        assertEquals(BreathPalette.Electric,BreathPalette.pick(three,PaletteOrder.InOrder,BreathPalette.Lagoon))
+        assertEquals(BreathPalette.Electric,BreathPalette.pick(three,PaletteOrder.InOrder,null))
+        assertEquals(BreathPalette.Violet,BreathPalette.pick(listOf(BreathPalette.Violet),PaletteOrder.Random,BreathPalette.Violet))
+        assertEquals(BreathPalette.Electric,BreathPalette.pick(emptyList(),PaletteOrder.Random,null))
+    }
+    @Test fun everyColourAppearsEventuallyWhenRandom() {
+        val seen=HashSet<BreathPalette>(); var last: BreathPalette?=null
+        repeat(300) { last=BreathPalette.pick(BreathOptions().chosenPalettes,PaletteOrder.Random,last,kotlin.random.Random(it*31)); seen+=last!! }
+        assertEquals(BreathPalette.COLORS,seen)
+    }
+    @Test fun monoIsTheStrongestLightAndDarkContrastForGrayscale() {
+        val m=BreathPalette.Mono
+        assertTrue(androidx.core.graphics.ColorUtils.calculateContrast(m.ink,m.gradientColors.first())>=7.0)
+        assertTrue("sheet against its own dark base",androidx.core.graphics.ColorUtils.calculateContrast(m.gradientColors.first(),m.deep)>=7.0)
+        BreathPalette.COLORS.forEach { assertTrue(it.label,androidx.core.graphics.ColorUtils.calculateContrast(it.gradientColors.first(),it.deep)>=1.5) }
     }
 }

@@ -61,6 +61,7 @@ fun BreatheScreen(navigateToApps: () -> Unit = {}) {
     val connected by BreathAccess.connected.collectAsState()
     val needsAttention by BreathAccess.needsAttention.collectAsState()
     val lastTiming by BreathAccess.lastTiming.collectAsState()
+    val decisions by BreathLog.entries.collectAsState()
     val owner = LocalLifecycleOwner.current
     DisposableEffect(prefs, owner) {
         fun refresh() {
@@ -108,7 +109,7 @@ fun BreatheScreen(navigateToApps: () -> Unit = {}) {
                 Column {
                     BreatheActionRow(if (selected == 0) "Choose apps" else "Edit chosen apps",
                         if (selected == 0) "Start with the apps you reach for most."
-                        else if (ready) "$selected ${if (selected == 1) "app" else "apps"} · ${secondsLabel(appearance)} · ${appearance.graceSummary()}"
+                        else if (ready) "$selected ${if (selected == 1) "app" else "apps"} · ${secondsLabel(appearance)} · ${appearance.mode.label}"
                         else "$selected ${if (selected == 1) "app" else "apps"} chosen · ${secondsLabel(appearance)} pause",
                         colors, navigateToApps)
                     if (!ready) {
@@ -138,22 +139,37 @@ fun BreatheScreen(navigateToApps: () -> Unit = {}) {
                 Text("Make it yours", color = colors.ink, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("Saved automatically", color = colors.secondary, style = MaterialTheme.typography.labelSmall)
             }
-            BoxWithConstraints(Modifier.fillMaxWidth().selectableGroup()) {
-                val stacked = maxWidth < 340.dp || LocalDensity.current.fontScale > 1.3f
-                val choose: (BreathPalette) -> Unit = { palette ->
-                    if (appearance.palette != palette) {
-                        haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
-                        appearance = appearance.copy(palette = palette)
-                        BreathPrefs.setOptions(context, appearance)
+            fun save(next: BreathOptions) { appearance = next; BreathPrefs.setOptions(context, next) }
+            BreatheCard("Colors", "${appearance.chosenPalettes.size} of ${BreathPalette.entries.size}", colors) {
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val stacked = maxWidth < 340.dp || LocalDensity.current.fontScale > 1.3f
+                    FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = if (stacked) 2 else 3,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        BreathPalette.entries.forEach { palette ->
+                            val on = palette in appearance.chosenPalettes
+                            PaletteChoice(palette, on, colors, reduced, true, Modifier.weight(1f)) {
+                                // At least one colour always stays on.
+                                if (on && appearance.chosenPalettes.size == 1) return@PaletteChoice
+                                haptics.performHapticFeedback(if (on) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
+                                save(appearance.copy(palettes = if (on) appearance.chosenPalettes.toSet() - palette else appearance.chosenPalettes.toSet() + palette))
+                            }
+                        }
                     }
                 }
-                if (stacked) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    BreathPalette.entries.forEach { PaletteChoice(it, appearance.palette == it, colors, reduced, true, Modifier.fillMaxWidth()) { choose(it) } }
-                } else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    BreathPalette.entries.forEach { PaletteChoice(it, appearance.palette == it, colors, reduced, false, Modifier.weight(1f)) { choose(it) } }
+                BreatheChoices(PaletteOrder.entries, appearance.paletteOrder, colors, reduced, { it.label }) {
+                    haptics.performHapticFeedback(HapticFeedbackType.ToggleOn); save(appearance.copy(paletteOrder = it))
                 }
+                Text(if (appearance.chosenPalettes.size == 1) "Only this color will appear."
+                    else if (appearance.paletteOrder == PaletteOrder.Random) "Each pause uses one of your colors at random, never the same one twice in a row."
+                    else "Each pause uses the next of your colors, then starts over.", color = colors.secondary, style = MaterialTheme.typography.bodySmall)
             }
-            fun save(next: BreathOptions) { appearance = next; BreathPrefs.setOptions(context, next) }
+            BreatheCard("Grayscale phone", appearance.gray.label, colors) {
+                BreatheChoices(GrayMode.entries, appearance.gray, colors, reduced, { it.label }) {
+                    haptics.performHapticFeedback(HapticFeedbackType.ToggleOn); save(appearance.copy(gray = it))
+                }
+                Text("On a grayscale screen colors look alike, so the layer switches to a light-and-dark Mono look. Automatic follows Android's grayscale color filter. Choose Always if your phone's own grayscale mode is not noticed.",
+                    color = colors.secondary, style = MaterialTheme.typography.bodySmall)
+            }
             BreatheCard("Length", secondsLabel(appearance), colors) {
                 var slider by remember(appearance.durationMs) { mutableFloatStateOf(appearance.seconds) }
                 Slider(
@@ -181,7 +197,20 @@ fun BreatheScreen(navigateToApps: () -> Unit = {}) {
                 BreatheChoices(BreathWords.entries, appearance.words, colors, reduced, { it.label }) {
                     haptics.performHapticFeedback(HapticFeedbackType.ToggleOn); save(appearance.copy(words = it))
                 }
-                Text(if (appearance.words == BreathWords.Mix) "Each pause shows the next saying." else "Always this saying.", color = colors.secondary, style = MaterialTheme.typography.bodySmall)
+                if (appearance.words == BreathWords.Custom) {
+                    var draft by rememberSaveable { mutableStateOf(appearance.customText) }
+                    OutlinedTextField(
+                        value = draft, onValueChange = { draft = it.take(BreathOptions.CUSTOM_TEXT_MAX); save(appearance.copy(customText = draft)) },
+                        singleLine = true, label = { Text("Your words") }, modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = colors.ink, unfocusedTextColor = colors.ink, focusedBorderColor = colors.ink,
+                            unfocusedBorderColor = colors.line, focusedLabelColor = colors.ink, unfocusedLabelColor = colors.secondary, cursorColor = colors.ink),
+                    )
+                }
+                Text(when (appearance.words) {
+                    BreathWords.Verse -> "Shows the reference only, one steady phrase. The verse's words are never printed."
+                    BreathWords.Custom -> "One short line, up to ${BreathOptions.CUSTOM_TEXT_MAX} characters. Empty falls back to the verse reference."
+                    else -> "Breathe in, then breathe out."
+                }, color = colors.secondary, style = MaterialTheme.typography.bodySmall)
             }
             BreatheSwitchRow("Still color layer", if (reduced) "Reduced motion is on in your settings." else "A steady color, without the sweep.", appearance.still, colors) { save(appearance.copy(still = it)) }
             BreatheSwitchRow("Gentle haptics", "A soft tick as you breathe out, and one as it ends.", appearance.haptics, colors) { save(appearance.copy(haptics = it)) }
@@ -189,21 +218,43 @@ fun BreatheScreen(navigateToApps: () -> Unit = {}) {
         }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("How often", color = colors.ink, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            BreatheCard("When to pause", appearance.mode.label, colors) {
+                BreatheChoices(PauseMode.entries, appearance.mode, colors, reduced, { it.label }) {
+                    haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
+                    appearance = appearance.copy(mode = it); BreathPrefs.setOptions(context, appearance)
+                }
+                Text(appearance.mode.note + " You can choose differently for a single app in Choose apps.", color = colors.secondary, style = MaterialTheme.typography.bodySmall)
+            }
             BreatheCard("Pause again after", appearance.graceLabel(), colors) {
                 BreatheChoices(BreathOptions.GRACE_CHOICES, appearance.graceMinutes, colors, reduced, { BreathOptions(graceMinutes = it).graceLabel() }) {
                     haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
                     appearance = appearance.copy(graceMinutes = it); BreathPrefs.setOptions(context, appearance)
                 }
-                Text(if (appearance.graceMinutes == 0) "Every time a chosen app opens."
-                    else "A chosen app pauses the first time you open it. Moving between apps you already opened will not pause again until ${appearance.graceLabel()} has passed.",
+                Text(if (appearance.graceMinutes == 0) "Never by time: only the rule above decides."
+                    else "Even when you only switch back to an app, it pauses again once ${appearance.graceLabel()} has passed since its last pause.",
                     color = colors.secondary, style = MaterialTheme.typography.bodySmall)
             }
         }
         BreatheDisclosure("How Breathe works", colors, reduced) {
-            Text("Keep your usual app icons, notifications and links. Breathe adds a ${secondsLabel(appearance)} pause the first time you open a chosen app${if (appearance.graceMinutes == 0) "" else ", and again once ${appearance.graceLabel()} has passed"}, without changing where they open. Your app keeps loading underneath.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
+            Text("Keep your usual app icons, notifications and links. Breathe adds a ${secondsLabel(appearance)} pause when you open a chosen app, without changing where it opens. Your app keeps loading underneath.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
             Text("Android reports an app after its window starts opening, so a brief glimpse can occur. Home or Back leaves the pause. Websites you installed from Chrome never pause.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
             lastTiming?.let { Text("Last pause: the layer was attached ${it.reportedToShownMs} ms after Android reported the app, and drew ${it.shownToDrawnMs} ms after that.", color = colors.secondary, style = MaterialTheme.typography.bodySmall) }
             Text("No screen text, messages or typing are read. No Bluetooth connection is needed. Android controls Accessibility access; reconnect here if it is removed.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
+            Text("Android cannot tell a service like this whether an app was closed or only switched away from, so Breathe uses what it can see: coming from Home or Recents after a moment, or from a notification, counts as opening. Going through another app and back does not.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
+        }
+        BreatheDisclosure("Recent decisions", colors, reduced) {
+            if (decisions.isEmpty()) Text("Nothing yet. Open a chosen app and come back: each choice Breathe makes is listed here in plain words.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
+            else {
+                val clock = remember { java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US) }
+                decisions.take(14).forEach { Text("${clock.format(java.util.Date(it.at))}  ${it.app}: ${it.text}", color = colors.secondary, style = MaterialTheme.typography.bodySmall) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = {
+                        val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+                        clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Breathe decisions", BreathLog.asText()))
+                    }, colors = ButtonDefaults.textButtonColors(contentColor = colors.ink)) { Text("Copy") }
+                    TextButton(onClick = { BreathLog.clear() }, colors = ButtonDefaults.textButtonColors(contentColor = colors.ink)) { Text("Clear") }
+                }
+            }
         }
         Spacer(Modifier.height(LocalTabBarSpace.current + 20.dp))
     }
@@ -226,7 +277,7 @@ private fun PaletteChoice(palette: BreathPalette, chosen: Boolean, colors: Breat
     val outline by animateColorAsState(if (chosen) colors.ink else colors.line, tween(if (reduced) 0 else 160), label = "Palette outline")
     val gradient = remember(palette) { Brush.linearGradient(palette.gradientColors.map { Color(it) }) }
     Column(modifier.clip(RoundedCornerShape(18.dp)).border(if (chosen) 2.dp else 1.dp, outline, RoundedCornerShape(18.dp))
-        .background(colors.surface).selectable(chosen, role = Role.RadioButton, onClick = choose).padding(8.dp)) {
+        .background(colors.surface).toggleable(chosen, role = Role.Checkbox, onValueChange = { choose() }).padding(8.dp)) {
         Box(Modifier.fillMaxWidth().height(if (stacked) 56.dp else 78.dp).clip(RoundedCornerShape(11.dp)).background(gradient))
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(palette.label, color = colors.ink, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
@@ -261,10 +312,9 @@ private fun BreathPreviewCard(appearance: BreathOptions, reduced: Boolean, color
     // At rest the card shows the moment the color has fully risen, with the first words, not the empty end of the run.
     val rest = (duration * 0.48f).toLong()
     var elapsed by remember(duration) { mutableLongStateOf(rest) }
-    var saying by remember { mutableIntStateOf(0) }
-    val renderer = remember(appearance, reduced) { BreathView(context).apply { options = appearance; systemReduced = reduced; sayingIndex = saying } }
+    var shown by remember(appearance.palettes) { mutableStateOf(appearance.palette) }
+    val renderer = remember(appearance, reduced, shown) { BreathView(context).apply { options = appearance.copy(palettes = setOf(shown)); saying = appearance.saying; systemReduced = reduced } }
     LaunchedEffect(replay, renderer, lifecycle) {
-        renderer.sayingIndex = saying
         elapsed = rest
         playing = false
         if (replay == 0 || renderer.motionReduced) return@LaunchedEffect
@@ -282,7 +332,7 @@ private fun BreathPreviewCard(appearance: BreathOptions, reduced: Boolean, color
     }
     Surface(color = colors.surface, shape = RoundedCornerShape(28.dp)) {
         Column {
-            Canvas(Modifier.fillMaxWidth().height(230.dp).semantics { contentDescription = "${secondsLabel(appearance)} breathing preview. Breathe in, then breathe out." }) {
+            Canvas(Modifier.fillMaxWidth().height(230.dp).semantics { contentDescription = "${secondsLabel(appearance)} breathing preview. ${appearance.saying.inHead}" }) {
                 drawIntoCanvas { canvas ->
                     renderer.layout(0, 0, size.width.toInt(), size.height.toInt())
                     renderer.renderAt = elapsed
@@ -298,9 +348,9 @@ private fun BreathPreviewCard(appearance: BreathOptions, reduced: Boolean, color
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f)) {
                     Text(secondsLabel(appearance), color = colors.ink, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(if (renderer.motionReduced) "Still, by design" else "Breathe in, then breathe out", color = colors.secondary, style = MaterialTheme.typography.bodySmall)
+                    Text(if (renderer.motionReduced) "Still, by design" else if (appearance.saying.inHead == appearance.saying.outHead) "One steady phrase" else "Breathe in, then breathe out", color = colors.secondary, style = MaterialTheme.typography.bodySmall)
                 }
-                TextButton(onClick = { saying = BreathWords.pick(appearance.words, saying); replay++ }, enabled = !playing, colors = ButtonDefaults.textButtonColors(contentColor = colors.ink, disabledContentColor = colors.secondary)) {
+                TextButton(onClick = { shown = BreathPalette.pick(appearance.chosenPalettes, appearance.paletteOrder, shown); replay++ }, enabled = !playing, colors = ButtonDefaults.textButtonColors(contentColor = colors.ink, disabledContentColor = colors.secondary)) {
                     Icon(Icons.Default.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(if (playing) "Playing" else "Replay")
                 }
             }
@@ -309,12 +359,11 @@ private fun BreathPreviewCard(appearance: BreathOptions, reduced: Boolean, color
 }
 
 private fun secondsLabel(options: BreathOptions) = "${options.seconds.roundToInt()} seconds"
-private fun BreathOptions.graceLabel(): String = when (graceMinutes) { 0 -> "Every open"; 60 -> "1 hour"; else -> "$graceMinutes min" }
-private fun BreathOptions.graceSummary(): String = if (graceMinutes == 0) "Every open" else "Again after ${graceLabel()}"
+private fun BreathOptions.graceLabel(): String = when (graceMinutes) { 0 -> "Never"; 60 -> "1 hour"; else -> "$graceMinutes min" }
 
 /** A titled card holding one setting, with its current value on the right. */
 @Composable
-private fun BreatheCard(title: String, value: String, colors: BreatheColors, content: @Composable ColumnScope.() -> Unit) {
+internal fun BreatheCard(title: String, value: String, colors: BreatheColors, content: @Composable ColumnScope.() -> Unit) {
     Surface(color = colors.surface, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -328,7 +377,7 @@ private fun BreatheCard(title: String, value: String, colors: BreatheColors, con
 
 /** Pill choices that behave as one radio group: roomy targets, a clear outline on the chosen one. */
 @Composable
-private fun <T> BreatheChoices(items: List<T>, chosen: T, colors: BreatheColors, reduced: Boolean, label: (T) -> String, onChoose: (T) -> Unit) {
+internal fun <T> BreatheChoices(items: List<T>, chosen: T, colors: BreatheColors, reduced: Boolean, label: (T) -> String, onChoose: (T) -> Unit) {
     FlowRow(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items.forEach { item ->
             val on = item == chosen

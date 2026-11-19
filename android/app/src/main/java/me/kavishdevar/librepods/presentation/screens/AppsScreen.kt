@@ -34,6 +34,9 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -53,7 +56,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import me.kavishdevar.librepods.breathing.AppRule
+import me.kavishdevar.librepods.breathing.BreathOptions
 import me.kavishdevar.librepods.breathing.BreathPrefs
+import me.kavishdevar.librepods.breathing.PauseMode
 import me.kavishdevar.librepods.breathing.BreathWebApps
 import kotlin.math.roundToInt
 import me.kavishdevar.librepods.services.SoundSource
@@ -95,6 +101,8 @@ fun AppsScreen(preset: List<AppEntry>? = null, onDone: () -> Unit = {}) {
     }
     val apps = loadedApps.orEmpty().filterNot { BreathWebApps.isWebAppPackage(it.pkg) }
     var selected by remember { mutableStateOf(BreathPrefs.selected(context)) }
+    var rules by remember { mutableStateOf(BreathPrefs.appRules(context)) }
+    var editing by remember { mutableStateOf<AppEntry?>(null) }
     val query = rememberTextFieldState()
     val text = query.text.toString().trim()
     var onlyChosen by rememberSaveable { mutableStateOf(false) }
@@ -174,21 +182,30 @@ fun AppsScreen(preset: List<AppEntry>? = null, onDone: () -> Unit = {}) {
                 Column(movement.fillMaxWidth()
                     .clip(RoundedCornerShape(topStart = first, topEnd = first, bottomStart = last, bottomEnd = last))
                     .background(colors.surface)) {
-                    Row(Modifier.fillMaxWidth().background(fill).heightIn(min = 72.dp)
-                        .toggleable(value = on, role = Role.Checkbox, onValueChange = { chosen ->
-                            haptics.performHapticFeedback(if (chosen) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
-                            BreathPrefs.select(context, app.pkg, chosen)
-                            selected = BreathPrefs.selected(context)
-                        }).padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (icon != null) androidx.compose.foundation.Image(bitmap = icon!!, contentDescription = null, modifier = Modifier.size(40.dp))
-                        else Box(Modifier.size(40.dp).background(colors.line, RoundedCornerShape(12.dp)))
-                        Spacer(Modifier.width(14.dp))
-                        Text(app.label, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = colors.ink, modifier = Modifier.weight(1f))
-                        Checkbox(checked = on, onCheckedChange = null,
-                            colors = CheckboxDefaults.colors(checkedColor = colors.ink, checkmarkColor = colors.surface, uncheckedColor = colors.secondary))
+                    Row(Modifier.fillMaxWidth().background(fill).heightIn(min = 72.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.weight(1f).heightIn(min = 72.dp)
+                            .toggleable(value = on, role = Role.Checkbox, onValueChange = { chosen ->
+                                haptics.performHapticFeedback(if (chosen) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
+                                BreathPrefs.select(context, app.pkg, chosen)
+                                selected = BreathPrefs.selected(context)
+                            }).padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = if (on) 4.dp else 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (icon != null) androidx.compose.foundation.Image(bitmap = icon!!, contentDescription = null, modifier = Modifier.size(40.dp))
+                            else Box(Modifier.size(40.dp).background(colors.line, RoundedCornerShape(12.dp)))
+                            Spacer(Modifier.width(14.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(app.label, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = colors.ink)
+                                rules[app.pkg]?.takeIf { on }?.let { Text(ruleSummary(it), color = colors.secondary, style = MaterialTheme.typography.bodySmall) }
+                            }
+                            Checkbox(checked = on, onCheckedChange = null,
+                                colors = CheckboxDefaults.colors(checkedColor = colors.ink, checkmarkColor = colors.surface, uncheckedColor = colors.secondary))
+                        }
+                        // A chosen app can have its own rule: how strict, and how long.
+                        if (on) IconButton(onClick = { editing = app }, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Default.Settings, "Rules for ${app.label}", tint = colors.secondary)
+                        }
                     }
                     if (index < shown.lastIndex) HorizontalDivider(Modifier.padding(start = 70.dp), color = colors.line, thickness = 0.5.dp)
                 }
@@ -209,4 +226,40 @@ fun AppsScreen(preset: List<AppEntry>? = null, onDone: () -> Unit = {}) {
             }
         }
     }
+    editing?.let { app ->
+        val general = remember { BreathPrefs.options(context) }
+        AppRuleDialog(app.label, rules[app.pkg] ?: AppRule(), general, colors, reduced,
+            onChange = { rule ->
+                BreathPrefs.setAppRule(context, app.pkg, rule)
+                rules = BreathPrefs.appRules(context)
+            }, onDismiss = { editing = null })
+    }
+}
+
+private fun ruleSummary(rule: AppRule): String = listOfNotNull(rule.mode?.label, rule.durationMs?.let { "${it / 1000} s" }).joinToString(" · ")
+
+/** One app's own rule. Anything left on "Default" follows the general Breathe settings. */
+@Composable
+private fun AppRuleDialog(label: String, rule: AppRule, general: BreathOptions, colors: BreatheColors, reduced: Boolean,
+                          onChange: (AppRule) -> Unit, onDismiss: () -> Unit) {
+    var current by remember { mutableStateOf(rule) }
+    fun update(next: AppRule) { current = next; onChange(next) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = colors.surface, titleContentColor = colors.ink, textContentColor = colors.ink,
+        title = { Text(label) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text("When to pause", style = MaterialTheme.typography.labelLarge, color = colors.secondary)
+                BreatheChoices(listOf<PauseMode?>(null) + PauseMode.entries, current.mode, colors, reduced,
+                    { it?.label ?: "Default (${general.mode.label})" }) { update(current.copy(mode = it)) }
+                Text(current.mode?.note ?: general.mode.note, style = MaterialTheme.typography.bodySmall, color = colors.secondary)
+                Text("Length", style = MaterialTheme.typography.labelLarge, color = colors.secondary)
+                BreatheChoices(listOf<Long?>(null, 5_000L, 8_000L, 10_000L, 15_000L, 20_000L, 30_000L), current.durationMs, colors, reduced,
+                    { if (it == null) "Default (${general.seconds.roundToInt()} s)" else "${it / 1000} s" }) { update(current.copy(durationMs = it)) }
+                Text("A longer pause and \"Every time\" make one app much harder to open than the rest.", style = MaterialTheme.typography.bodySmall, color = colors.secondary)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = colors.ink)) { Text("Done") } },
+    )
 }

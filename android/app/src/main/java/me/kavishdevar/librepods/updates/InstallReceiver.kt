@@ -36,7 +36,7 @@ class InstallReceiver : BroadcastReceiver() {
                 "Android needs confirmation. Tap Finish installation."
             }
             InstallResult.SUCCESS -> {
-                Updater.prefs(c).edit().remove("session").apply()
+                Updater.prefs(c).edit().remove("session").remove("last_failure_message").remove("last_failure_status").apply()
                 Updater.apk(c).delete()
                 "Update installed"
             }
@@ -45,12 +45,13 @@ class InstallReceiver : BroadcastReceiver() {
                 if (sessionId >= 0) runCatching { c.packageManager.packageInstaller.abandonSession(sessionId) }
                 Updater.prefs(c).edit().remove("session").apply()
                 UpdateInstaller.confirmation(c)?.cancel()
-                when (status) {
-                    PackageInstaller.STATUS_FAILURE_STORAGE -> "Not enough storage to install. Free some space, then retry."
-                    PackageInstaller.STATUS_FAILURE_BLOCKED -> "Android or Samsung blocked installation. Check Install unknown apps and Auto Blocker, then retry."
-                    PackageInstaller.STATUS_FAILURE_ABORTED -> "Installation cancelled. The download is kept; retry when ready."
-                    else -> "Installation failed ($status). The download is kept; retry."
-                }
+                // Say exactly why, in plain words, and keep it so the Phone page can show it and copy it.
+                val reason = InstallFailure.explain(status, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE),
+                    android.os.Build.MANUFACTURER.equals("samsung", ignoreCase = true))
+                Updater.prefs(c).edit().putInt("last_failure_status", status)
+                    .putString("last_failure_message", intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE).orEmpty())
+                    .putLong("last_failure_at", System.currentTimeMillis()).apply()
+                reason.text
             }
         }
         Updater.prefs(c).edit().putString("result", message).apply()
