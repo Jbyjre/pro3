@@ -1,3 +1,18 @@
+# Check the pause rule, colors, exits and updates on the phone — 19 November
+
+Cloud tests cannot see a real Galaxy's Home screen, Recents, notifications, grayscale mode or installer. Do these on the S26 FE and write down what you see.
+
+1. **Get this build first.** The updater on your phone is the old one, so open the newest "pro stable" release page in your browser (github.com/Jbyjre/pro3/releases/latest) and install `pro.apk` over pro, or use Phone → App updates → Check now. After that, opening pro checks by itself.
+2. **The pause rule.** In Breathe choose Gmail and Claude. (a) Open Gmail, open Claude, then go back to Gmail by swiping or Recents: no pause. (b) Close Gmail from Recents, then open it from its icon a few seconds later: a pause. (c) Open Recents and return to Gmail at once: no pause. (d) Get a notification from Gmail and tap it: a pause. (e) Lock and unlock into Gmail: no pause (unless it was off a long time). After each, open Breathe → **Recent decisions** and read the reasons; tap Copy and send me the list if anything is wrong. It also lists the Home/Recents window names Samsung uses, which settle the one thing I could not verify.
+3. **Per-app rules.** In Choose apps tap the gear on one app: set Every time and a 10 s length; it should pause every time and run 10 s while other apps follow the general rule.
+4. **Verse and colors.** The layer should say only PSALM 51:10, steady, no other words. Try Your words. Choose a few colors and Random vs In order; confirm the text turns dark or light as the color passes over it.
+5. **Exits.** Try Fade, Lift, Drop, Iris, Slide, Zoom and Instant, looking for any flash or hard cut.
+6. **Grayscale.** Turn on Android's grayscale (Settings → Accessibility → Color adjustment, or Digital Wellbeing's grayscale). With Grayscale phone on Automatic, the layer should switch to Mono; if your phone's own grayscale is not noticed, choose Always and tell me which setting you used.
+7. **Updates.** With Auto Blocker **on**, tap Update: expect the plain explanation and the Security settings button. Turn Auto Blocker off (Settings → Security and privacy → Auto Blocker), update, turn it back on. Try Install another way, and Copy details. Overnight, if an update was downloaded, a "pro update ready" notification should appear instead of a stalled install.
+8. **Release.** After the merge, the repository's Releases page should show a new "pro stable · build N" (not marked pre-release), with the change written in its notes.
+
+Everything below is the earlier checklist, kept for reference.
+
 # Check the smoother, once-per-visit Breathe on the phone — 18 November
 
 Cloud tests cannot measure a real Galaxy's event delivery, screen compositing, gestures or haptics. These are the checks that can only be done on the S26 FE. Write down what you see; never assume it is fine because tests are green.

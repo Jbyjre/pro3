@@ -1,3 +1,5 @@
+> **Updated 19 November:** pauses now follow your rule (new opens pause; switching back through another app does not), the words are the Psalm 51:10 reference only, and updates explain themselves. See [the last section](#the-pause-rule-verse-colors-exits-and-updates--19-november). Earlier rules, durations and totals below are historical.
+
 > **Updated 18 November:** the default pause is now **3 seconds** (customizable 2 to 10 s), happens **once per visit** (again after a grace time, default 10 minutes), and installed Chrome web apps never pause. See [the last section](#smoother-once-per-visit-pause--18-november). Earlier durations and verification totals below are historical.
 
 # App-open breathing — 16 November 2026
@@ -106,3 +108,45 @@ Verified against the live release server on 18 November: `glint-latest/update.js
 - New or rewritten checks: the 10-minute rule (gate and real service, including restart, failed first draw, leaving early, clock moves), Chrome web-app rules (packages, windows, picker, saved choices), the timeline math, words, custom length and transitions, check-on-open, and rendering guards against flicker (opaque first frame in every palette, a fade that never rises or blinks and ends invisible, lift reveals bottom-up, instant stays solid, length scales the whole shape).
 - Rendered frames inspected for all three colors, all three sayings (both moments), Fade, Lift, and landscape at 1.8x text under `android/app/build/screenshots/breathe`. They show shape and color, not frame rate.
 - **Not verified, needs the S26 FE** (see [TESTING](../TESTING.md)): event-to-layer latency and exposure of the first frame; smoothness at 120 Hz; behaviour with three-button navigation and the tappable-inset fit; the Chrome web-app windows on the real Chrome; haptic feel; battery over a day; background survival on One UI.
+
+
+## The pause rule, verse, colors, exits and updates — 19 November
+
+Jake reported that Breathe still felt spotty (it worked for one app and not another), clarified exactly when it should pause, asked for the Psalm 51:10 reference as the only words, random and selectable colors, more smooth exits, grayscale readiness, and a reliable update on his Galaxy S26 FE even with Auto Blocker.
+
+### When it pauses (and what Android cannot tell us)
+Jake's rule: switching back to an app through Recents or a swipe must **not** pause; closing an app and opening it again **must**. Two facts, both read in Android's own source on 19 November 2026, mean a service that does not read the screen cannot know "closed" for certain:
+- The usage log hides the event for a destroyed screen. `UserUsageStatsService` calls `ACTIVITY_DESTROYED` "a private event" that is dropped or converted to "stopped".
+- A brand-new screen gets a new window id, which would settle it, but `AbstractAccessibilityServiceConnection` removes the source (including the window id) from every event sent to a service without content access (`event.setSource((View) null)`).
+Jake was asked and chose to **keep screen-content access off**. So `BreathAppGate` uses what it can see: what was in front just before, whether another app was in front since this app left, how long it was away, and when it last paused.
+- **New opens** (default): pauses on the first open; when you come from Home or Recents after at least 2.5 seconds with no other app in between (closing and reopening looks exactly like this); or from a notification (the shade, or a heads-up, appeared within 4 seconds). Going through another app and back does not pause. Coming back from Home or Recents faster than 2.5 seconds is a peek.
+- **Every time**: pauses every time the app comes forward. **After a break**: first open, then only after the break time. All three can be set per app (Choose apps → the gear), with a per-app length up to 30 seconds. "Pause again after" (Never / 5 min / 10 min / 30 min / 1 hour) applies on top: after that long since its last pause even a simple switch-back pauses.
+- The one case it cannot catch: closing an app, opening a *different* app, then going back to the first (Android's event stream for that is identical to switching through Recents). This is documented in the app under How Breathe works.
+- Launcher and Recents are recognised by the Home app (`queryIntentActivities` for the HOME intent) and by SystemUI windows whose class names contain "recent" or "shade/notification". Samsung's real class names are **not verified**; the "Recent decisions" list shows them so they can be confirmed on the phone.
+
+### Why it seemed spotty, and what was hardened
+- **The earlier 10-minute rule was the wrong model.** After closing and reopening an app inside 10 minutes nothing happened, which looked like a random failure. Replaced by the rule above.
+- Unlock and screen-off no longer lose an entry: an app opened from the lock screen or while the screen is off keeps its turn and pauses when the phone is on and unlocked; waking into the same app is judged by how long the screen was off. The screen turning off no longer forgets which app is in front.
+- Only the Home launcher gets a 0.7-second grace after a layer appears (launchers report stray windows while an app opens). Any other app taking over ends the pause at once, and a different chosen app's pause replaces the old one.
+- **Recent decisions** (Breathe page) lists, in plain words, every choice: "pausing: opened from Home or Recents", "no pause: switched back through another app", "ignored a window that is not a screen of the app", "waiting for unlock", with a Copy button. It is kept in memory only and holds app names and window names, never screen text.
+
+### Words, colors, exits
+- Words default to **Psalm 51:10**, shown as the reference only; the verse itself is never printed (a test enforces it). One steady phrase, no second phrase and no notes. The NIV wording Jake gave ("pure heart ... steadfast spirit") matches the reference ([Bible.com, NIV](https://www.bible.com/bible-verses/111/PSA.51.NIV), [Blue Letter Bible](https://www.blueletterbible.org/verse/niv/psa/51/10)). "Your words" lets you type your own line (28 characters); the old three sayings remain as options; an old saved "Mix" becomes the verse.
+- Colors: six gradients. New **Violet** (text contrast 4.80:1), **Crimson** (4.82:1) and **Mono** (11.77:1), beside Cobalt, Tangerine and Pool. Choose which may appear (at least one stays on); each pause uses one at random (never the same twice in a row) or in order. The text changes ink as the gradient passes over it. An old single saved color becomes "all colors may appear".
+- **Grayscale:** Android's grayscale color filter is the secure setting pair `accessibility_display_daltonizer_enabled = 1` with `accessibility_display_daltonizer = 0`. When detected (or set to Always) every pause uses Mono: a bright sheet with near-black type, so light and dark carry the design when color is gone. A grayscale mode a phone maker implements another way (for example a wellbeing schedule) may not be detected, which is why Always exists. Not verified on Jake's phone.
+- Exits: Fade, Lift, **Drop**, **Iris**, **Slide**, **Zoom**, Instant. Each starts after the words, finishes exactly when the run ends, is covered by timeline and rendering tests, and becomes a Fade when motion is off.
+
+### Updates on the Galaxy S26 FE
+Discovery and download were already verified against the live release server. The failure was at install. Two likely causes, from how the code works and Samsung's own documentation:
+- **Samsung Auto Blocker** only lets Google Play and Galaxy Store install or update apps, even for an app that holds the install permission ([Samsung support](https://www.samsung.com/us/support/answer/ANS10003636), [Neowin](https://www.neowin.net/guides/samsung-phones-running-one-ui-611-block-sideloading-by-default-heres-how-to-fix-it/)). No app can bypass it. I found no documented settings key to read its state, so it is not detected; instead the Phone page explains it beside Update on Samsung phones and after a failure, with a button to Security settings and the path Settings → Security and privacy → Auto Blocker.
+- **A stale install session.** The overnight job started an install that Android held for a confirmation nobody was there to give; tapping it hours later failed. Now the job installs by itself only when Android will do it silently (pro installed itself last time), otherwise it posts "pro update ready" and one tap starts a fresh install; a pending confirmation older than 10 minutes is replaced by a fresh session.
+- Real reasons are now shown and kept: each Android status code has a plain explanation, "Install another way" hands the verified file to Android's own installer, and **Copy details** copies the build, phone, installer of record, permission state and the exact failure.
+
+### Releases
+Merging to main already published a stable (not pre-release) "pro stable · build N" release and moved the "latest" pointer that pro's updater reads (checked for build 257). The workflow now also writes the merged change's title and summary into the release notes, tested in isolation under the workflow's strict shell settings.
+
+### Verification
+- Full `testFossDebugUnitTest`: **499 tests across 60 classes, zero failures, errors or skips (breathing, update, install, UI-flow, rendering and the retained headphone, timer and navigation suites)**
+- `lintFossRelease`: **0 errors, 252 warnings (249 before; the new ones are style suggestions in touched files)**. `assembleFossRelease`: **succeeded, including native compilation, R8 and resource shrinking. This local build is for validation only; installable updates come from the CI workflow with the retained signing identity, which this work does not touch**.
+- Rendered frames inspected: verse in all six colors, all seven exits at two moments, Mono, and the settings screen.
+- **Not verified, needs the S26 FE** ([TESTING](../TESTING.md)): the new-open rule on real Home/Recents/notification flows (read the Recent decisions list), Samsung's launcher and Recents window names, grayscale detection, 120 Hz smoothness, three-button navigation, installing over Auto Blocker, and the update path end to end.

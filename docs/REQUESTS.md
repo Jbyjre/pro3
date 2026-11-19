@@ -6,7 +6,24 @@
 - Jake's exact words are not stored in the repository. This list is rebuilt from `DECISIONS.md` (each section marks "your request" or "your choice" where Jake asked), `CLAUDE.md`, `POLISH_LEDGER.md`, `TESTING.md` and the git history (30 merged pull requests from 2026-09-30 to 2026-10-02, then this file's own session on 2026-10-06). Section numbers like "D12" mean `DECISIONS.md` section 12.
 - **When Jake asks for something new, add a row here. When a status changes, change the row.** Keep it true: if something was not checked on his phone, say so.
 
-## Latest request — 18 November 2026 (second session): smoother, once-per-visit Breathe
+## Latest request — 19 November 2026: reliable pause rule, verse, colors, exits, grayscale, updates
+
+Jake said Breathe still felt spotty, clarified the rule (switching back through Recents or a swipe must not pause; closing an app and opening it again must), asked for the Psalm 51:10 reference as the only words, random and selectable colors, more smooth exits, grayscale readiness, per-app strictness and more options, and an update that installs on his Galaxy S26 FE even with Auto Blocker. Details, sources and limits: [the last section of APP_OPEN_BREATHING](APP_OPEN_BREATHING.md#the-pause-rule-verse-colors-exits-and-updates--19-november).
+
+| Request | State | Implementation and verification |
+|---|---|---|
+| Make it reliable: it works for one app and not another | CLOUD CHECKS PASSED; DEVICE CHECK | The old 10-minute memory made reopening an app look like a random failure; replaced. Entries from the lock screen or while the screen is off keep their turn; system windows and screen-off no longer reset what is in front; a new chosen app replaces a running pause. **Recent decisions** on the Breathe page explains every choice in plain words (Copy button). |
+| Pause on a new open, not when switching back through Recents or a swipe | IMPLEMENTED AS BEST POSSIBLE; DEVICE CHECK | Verified in Android's source that a service without screen-content access cannot learn "closed" (usage destroyed-event is private; window ids are stripped). Jake chose to keep content access off, so the rule uses Home/Recents-after-a-moment, notifications, other apps in between and time. One case cannot be caught: close app A, open a different app, return to A. Samsung's Home/Recents window names are not verified; the decision list shows them. |
+| Make specific apps harder to open | IMPLEMENTED | Choose apps → gear per app: Default / New opens / Every time / After a break, and its own length up to 30 s. |
+| Words: only the Psalm 51:10 reference, one phrase, no "breathe" or "reset" | IMPLEMENTED | NIV wording confirmed; only the reference is ever shown (a test forbids the verse text). Your own words and the older sayings remain optional. |
+| Colors: random, more of them, choose which appear, text changes color as it passes | IMPLEMENTED | Cobalt, Tangerine, Pool plus Violet, Crimson, Mono; choose the set; random (never the same twice) or in order; ink flips as the gradient passes. All keep at least 4.5:1 text contrast. |
+| More smooth exits | IMPLEMENTED | Fade, Lift, Drop, Iris, Slide, Zoom, Instant; tested and rendered. |
+| Grayscale phone | IMPLEMENTED; DEVICE CHECK | Android's grayscale color filter is detected; those pauses use the light-and-dark Mono look. A phone maker's own grayscale may not be detected, so Always exists. |
+| More features and customization | IMPLEMENTED | Per-app rules, Your words, color set and order, grayscale choice, pause mode and break time, decision log. |
+| Automatic update that works on the S26 FE, including with Auto Blocker | IMPLEMENTED; DEVICE INSTALL CHECK | Auto Blocker only lets Google Play and Galaxy Store install or update, so no app can bypass it: pro explains it beside Update and after a failure (with a Security settings button). Fixed a stale-session failure (overnight install nobody confirmed); installs by itself only when Android allows it silently, otherwise "update ready" and one tap. Real failure reasons, Install another way, Copy details. |
+| Always merge and always make a stable release made with the PR | DONE FOR THE MERGE; RELEASE TO CONFIRM | Merging to main publishes "pro stable · build N" (not pre-release) and moves the latest pointer (checked for build 257). Release notes now carry the merged change. |
+
+## Earlier request — 18 November 2026 (second session): smoother, once-per-visit Breathe
 
 Jake wanted Breathe to lay over an app instantly while it keeps loading, never flicker or cut off, feel smoother with nicer text, run once per visit instead of on every app switch, take 3 seconds, be customizable, skip his Chrome web apps, and be genuinely useful so he takes the time to breathe. Details, root causes, sources and honest limits: [the last section of APP_OPEN_BREATHING](APP_OPEN_BREATHING.md#smoother-once-per-visit-pause--18-november).
 
