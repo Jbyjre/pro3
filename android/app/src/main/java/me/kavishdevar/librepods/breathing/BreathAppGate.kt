@@ -164,7 +164,7 @@ class BreathAppGate {
     companion object {
         const val SHORTCUT_HANDOFF_MS = 5_000L
         /** Coming back from Home or Recents faster than this is a peek, not a new open. */
-        const val HOME_GAP_MS = 2_500L
+        const val HOME_GAP_MS = 1_200L
         /** An app opening this soon after the notification shade appeared was opened from it. */
         const val NOTIFICATION_MS = 4_000L
     }

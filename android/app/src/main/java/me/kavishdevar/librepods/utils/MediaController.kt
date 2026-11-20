@@ -224,13 +224,30 @@ object MediaController {
      * the auto-pause bookkeeping right: a pause you chose is never undone when a bud goes back
      * in, and a play you chose counts as yours.
      */
+    private var autoPausedAtMs: Long = 0L
+
+    /**
+     * True while the phone is in a call or an app (such as voice typing or a voice message) is
+     * actively recording from the microphone.
+     */
+    fun isVoiceOrCallActive(): Boolean {
+        if (!this::audioManager.isInitialized) return false
+        val mode = runCatching { audioManager.mode }.getOrDefault(AudioManager.MODE_NORMAL)
+        if (mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION || mode == AudioManager.MODE_RINGTONE) {
+            return true
+        }
+        return runCatching { audioManager.activeRecordingConfigurations.isNotEmpty() }.getOrDefault(false)
+    }
+
     @Synchronized
     fun userPlayback(play: Boolean) {
         if (!this::audioManager.isInitialized) return
         iPausedTheMedia = false
+        autoPausedAtMs = 0L
         userPlayedTheMedia = play
         if (play) pausedWhileTakingOver = false
         lastSelfActionAt = SystemClock.uptimeMillis()
+        me.kavishdevar.librepods.services.NowPlaying.markOwnAction()
     }
 
     @Synchronized
@@ -274,6 +291,7 @@ object MediaController {
         Log.d("MediaController", "Sending pause with iPausedTheMedia: $iPausedTheMedia, userPlayedTheMedia: $userPlayedTheMedia, isMusicActive: ${audioManager.isMusicActive}, force: $force")
         if ((audioManager.isMusicActive) && (!userPlayedTheMedia || force)) {
             iPausedTheMedia = if (force) audioManager.isMusicActive else true
+            autoPausedAtMs = if (iPausedTheMedia) SystemClock.uptimeMillis() else 0L
             userPlayedTheMedia = false
             audioManager.dispatchMediaKeyEvent(
                 KeyEvent(
@@ -288,19 +306,30 @@ object MediaController {
                 )
             )
             lastSelfActionAt = SystemClock.uptimeMillis()
+            me.kavishdevar.librepods.services.NowPlaying.markOwnAction()
         }
     }
 
     @Synchronized
     fun sendPlay(replayWhenPaused: Boolean = false, force: Boolean = false) {
         Log.d("MediaController", "Sending play with iPausedTheMedia: $iPausedTheMedia, replayWhenPaused: $replayWhenPaused, force: $force")
+        val now = SystemClock.uptimeMillis()
+        if (!force && !me.kavishdevar.librepods.services.SmartAudioRules.shouldAutoResume(iPausedTheMedia, autoPausedAtMs, now, isVoiceOrCallActive())) {
+            if (iPausedTheMedia && autoPausedAtMs > 0L && now - autoPausedAtMs > me.kavishdevar.librepods.services.SmartAudioRules.AUTO_RESUME_WINDOW_MS) {
+                Log.d("MediaController", "Auto-pause expired after 15 minutes; not auto-resuming old media")
+                iPausedTheMedia = false
+                autoPausedAtMs = 0L
+            }
+            return
+        }
         if (replayWhenPaused) {
             lastPlayWithReplay = true
-            lastPlayTime = SystemClock.uptimeMillis()
+            lastPlayTime = now
         }
         if (iPausedTheMedia || force) { // very creative, ik. thanks.
             Log.d("MediaController", "Sending play and setting userPlayedTheMedia to false")
             userPlayedTheMedia = false
+            autoPausedAtMs = 0L
             audioManager.dispatchMediaKeyEvent(
                 KeyEvent(
                     KeyEvent.ACTION_DOWN,
@@ -313,11 +342,13 @@ object MediaController {
                     KeyEvent.KEYCODE_MEDIA_PLAY
                 )
             )
-            lastSelfActionAt = SystemClock.uptimeMillis()
+            lastSelfActionAt = now
+            me.kavishdevar.librepods.services.NowPlaying.markOwnAction()
         }
         if (!audioManager.isMusicActive) {
             Log.d("MediaController", "Setting iPausedTheMedia to false")
             iPausedTheMedia = false
+            autoPausedAtMs = 0L
         }
         if (pausedWhileTakingOver) {
             Log.d("MediaController", "Setting pausedWhileTakingOver to false")
@@ -336,6 +367,11 @@ object MediaController {
 
     @Synchronized
     fun startSpeaking() {
+        // Speaking into the microphone for voice typing or a call is not a side conversation over music.
+        if (isVoiceOrCallActive()) {
+            if (initialVolume != null) cancelConversationDucking(restoreVolume = true)
+            return
+        }
         Log.d("MediaController", "Starting speaking max vol: ${audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)}, current vol: ${audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)}, conversationalAwarenessVolume: $conversationalAwarenessVolume, relativeVolume: $relativeVolume")
         // Talking again before the music came back: keep it down, don't bounce.
         restoreTask?.let { handler.removeCallbacks(it) }
@@ -385,6 +421,29 @@ object MediaController {
         handler.postDelayed(task, wait)
     }
 
+    /**
+     * Immediately ends Conversation Awareness volume ducking (for example when the AirPods come
+     * out of both ears, disconnect, or enter voice typing) without sending a media play key.
+     */
+    @Synchronized
+    fun cancelConversationDucking(restoreVolume: Boolean = true) {
+        restoreTask?.let { handler.removeCallbacks(it) }
+        restoreTask = null
+        stuckTask?.let { handler.removeCallbacks(it) }
+        stuckTask = null
+        rampTask?.let { handler.removeCallbacks(it) }
+        rampTask = null
+        val start = initialVolume
+        if (restoreVolume && start != null && this::audioManager.isInitialized) {
+            val now = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+            val youChangedIt = duckedTo != null && now != duckedTo
+            if (!youChangedIt) runCatching { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, start, 0) }
+        }
+        initialVolume = null
+        duckedTo = null
+        ConversationTiming.setTalking(false)
+    }
+
     @Synchronized
     private fun restoreAfterConversation() {
         restoreTask = null
@@ -395,7 +454,7 @@ object MediaController {
         // If you changed the volume yourself while talking, your choice wins.
         val youChangedIt = rampTask == null && duckedTo != null && now != duckedTo
         if (!youChangedIt) smoothVolumeTransition(now, start)
-        if (conversationalAwarenessPauseMusic) sendPlay()
+        if (conversationalAwarenessPauseMusic && !isVoiceOrCallActive()) sendPlay()
         initialVolume = null
         duckedTo = null
         ConversationTiming.setTalking(false)

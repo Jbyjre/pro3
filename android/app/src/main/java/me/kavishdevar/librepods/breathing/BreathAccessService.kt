@@ -96,7 +96,13 @@ class BreathAccessService : AccessibilityService() {
     }
     private val screenEvents = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == Intent.ACTION_USER_PRESENT) { unlocked(); return }
+            when (intent.action) {
+                Intent.ACTION_USER_PRESENT -> { unlocked(); return }
+                Intent.ACTION_SCREEN_ON -> {
+                    if (!getSystemService(KeyguardManager::class.java).isKeyguardLocked) unlocked()
+                    return
+                }
+            }
             // The phone went to sleep. The app in front stays in front: waking later is judged by how long it was off.
             hide()
             BreathAccess.gate.screenOff(SystemClock.elapsedRealtime())
@@ -150,7 +156,10 @@ class BreathAccessService : AccessibilityService() {
         BreathPrefs.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)
         getSharedPreferences("settings", MODE_PRIVATE).registerOnSharedPreferenceChangeListener(prefsListener)
         ContextCompat.registerReceiver(this, screenEvents,
-            IntentFilter(Intent.ACTION_SCREEN_OFF).apply { addAction(Intent.ACTION_USER_PRESENT) }, ContextCompat.RECEIVER_NOT_EXPORTED)
+            IntentFilter(Intent.ACTION_SCREEN_OFF).apply {
+                addAction(Intent.ACTION_USER_PRESENT)
+                addAction(Intent.ACTION_SCREEN_ON)
+            }, ContextCompat.RECEIVER_NOT_EXPORTED)
         contentResolver.registerContentObserver(Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE), false, motionObserver)
         for (uri in BreathGray.watched) contentResolver.registerContentObserver(uri, false, motionObserver)
         refresh()
@@ -203,6 +212,14 @@ class BreathAccessService : AccessibilityService() {
                     info.applicationInfo?.let { names[pkg] = packageManager.getApplicationLabel(it).toString() }
                     info.activities.orEmpty().forEach { components += ComponentName(pkg, it.name) }
                 }
+                // Preload every launchable app's main activity so switching through non-selected apps is synchronous (0 ms).
+                runCatching {
+                    packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+                        .forEach { info ->
+                            val ai = info.activityInfo ?: return@forEach
+                            if (ai.packageName != packageName) components += ComponentName(ai.packageName, ai.name)
+                        }
+                }
                 val options = BreathPrefs.options(this@BreathAccessService)
                 BreathPalette.entries.forEach { it.gradientColors; it.deep }
                 Prepared(
@@ -212,9 +229,9 @@ class BreathAccessService : AccessibilityService() {
                     if (loadHistory) BreathHistory.lastPalette(this@BreathAccessService) else null,
                     BreathPrefs.appRules(this@BreathAccessService),
                     runCatching {
-                        packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
-                            .map { it.activityInfo.packageName }.toSet() - packageName
-                    }.getOrDefault(emptySet()),
+                        (packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
+                            .map { it.activityInfo.packageName }.toSet() + KNOWN_LAUNCHERS) - packageName
+                    }.getOrDefault(KNOWN_LAUNCHERS),
                     BreathGray.active(this@BreathAccessService, options.gray),
                 )
             }
@@ -231,7 +248,16 @@ class BreathAccessService : AccessibilityService() {
             activities.clear()
             activities.addAll(loaded.components)
             rejectedWindows.evictAll()
-            layer?.systemReduced = loaded.reduced
+            layer?.let { view ->
+                view.systemReduced = loaded.reduced
+                view.options = loaded.options
+                view.saying = loaded.options.saying
+                runCatching {
+                    windowManager?.currentWindowMetrics?.bounds?.let { b ->
+                        view.prewarm(b.width(), b.height())
+                    }
+                }
+            }
             if (shownPackage != null && shownPackage !in selected) hide()
             BreathAccess.connection.value = true
             if (!prepared) {
@@ -242,13 +268,14 @@ class BreathAccessService : AccessibilityService() {
     }
 
     private fun kindOf(pkg: String, cls: String): Window = when {
-        pkg in launchers -> Window.Launcher
+        pkg in launchers || pkg in LAUNCHER_HELPERS -> Window.Launcher
         pkg == "com.android.systemui" -> when {
-            cls.contains("recent", ignoreCase = true) -> Window.Launcher
+            RECENTS_HINTS.any { cls.contains(it, ignoreCase = true) } -> Window.Launcher
             NOTIFICATION_HINTS.any { cls.contains(it, ignoreCase = true) } -> Window.Notification
             else -> Window.Ignore
         }
-        pkg == "android" || pkg == permissionController -> Window.Ignore
+        pkg == "android" || pkg == permissionController || pkg in SYSTEM_TRANSIENTS ||
+            cls.startsWith("android.inputmethodservice.") -> Window.Ignore
         else -> Window.App
     }
 
@@ -285,14 +312,15 @@ class BreathAccessService : AccessibilityService() {
             Window.Ignore -> return
             Window.Notification -> { BreathAccess.gate.notificationWindow(mono); return }
             Window.Launcher -> {
+                // Home pressed during a pause ends it. The first instant after the layer appears is ignored:
+                // launchers report their own windows while an app is still opening, and must not overwrite gate.foreground.
+                if (attached && mono < protectUntil) return
                 lastTransition = ++eventRevision
                 pendingForeground = null
                 pendingShow = null
                 BreathAccess.gate.enter(pkg, BreathAppGate.Kind.Launcher, selected, mono, BreathAccess.wallClock())
                 BreathLog.add("Home or Recents", "window ${cls.substringAfterLast('.')}")
-                // Home pressed during a pause ends it. The first instant after the layer appears is ignored:
-                // launchers report their own windows while an app is still opening.
-                if (attached && mono >= protectUntil) hide()
+                if (attached) hide()
                 return
             }
             Window.App -> Unit
@@ -434,6 +462,7 @@ class BreathAccessService : AccessibilityService() {
         session.cancel()
         main.removeCallbacks(finishPause)
         main.removeCallbacks(firstFrameTimeout)
+        layer?.stopAnimation()
         if (attached) {
             releaseBackDispatcher()
             runCatching { windowManager?.removeViewImmediate(layer) }
@@ -485,8 +514,36 @@ class BreathAccessService : AccessibilityService() {
     )
 
     private companion object {
+        /** Known launchers in case package visibility filters queryIntentActivities. */
+        val KNOWN_LAUNCHERS = setOf(
+            "com.sec.android.app.launcher",
+            "com.google.android.apps.nexuslauncher",
+        )
+        /** Samsung One UI launcher companions (Finder search, Edge Panels): launching from them is launching from Home. */
+        val LAUNCHER_HELPERS = setOf(
+            "com.samsung.android.app.galaxyfinder",
+            "com.samsung.android.app.cocktailbarservice",
+            "com.samsung.android.app.appsedge",
+            "com.samsung.android.app.taskedge",
+        )
+        /** SystemUI windows whose class name points at Recents / Overview. */
+        val RECENTS_HINTS = listOf("recent", "overview", "taskchanger", "quickstep")
         /** SystemUI windows whose class name points at the notification shade or a heads-up. */
-        val NOTIFICATION_HINTS = listOf("shade", "notification", "headsup", "heads_up", "panel")
+        val NOTIFICATION_HINTS = listOf("shade", "notification", "headsup", "heads_up", "panel", "statusbar", "status_bar", "keyguard")
+        /** System transient overlays (share sheet, biometric prompt, app lock, keyboards) that are never an app open. */
+        val SYSTEM_TRANSIENTS = setOf(
+            "com.android.intentresolver",
+            "com.samsung.android.intentresolver",
+            "com.samsung.android.biometrics.app.setting",
+            "com.samsung.android.applock",
+            "com.google.android.permissioncontroller",
+            "com.android.permissioncontroller",
+            "com.samsung.android.permissioncontroller",
+            "com.samsung.android.honeyboard",
+            "com.google.android.inputmethod.latin",
+            "com.samsung.android.app.smartcapture",
+            "com.samsung.android.game.gametools",
+        )
         /** Launchers report their own windows while an app is still opening; ignore Home for this long after the layer appears. */
         const val PROTECT_MS = 700L
     }

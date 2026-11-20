@@ -25,6 +25,7 @@ fun PhoneScreen(navigateToIsland: () -> Unit = {}, navigateToHeadphones: (() -> 
     val prefs = remember { IslandPrefs.prefs(context) }
     var popupOptions by remember { mutableStateOf(false) }
     var master by remember { mutableStateOf(prefs.getBoolean(IslandPrefs.PREF_MASTER, true)) }
+    var caseCard by remember { mutableStateOf(prefs.getBoolean(SmartAudioRules.PREF_CASE_POPUP, true)) }
     val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(owner) {
         val observer = object : androidx.lifecycle.DefaultLifecycleObserver {
@@ -57,6 +58,9 @@ fun PhoneScreen(navigateToIsland: () -> Unit = {}, navigateToHeadphones: (() -> 
         StyledToggle(label = "Temporary pop-ups", checked = master, onCheckedChange = {
             master = it; prefs.edit().putBoolean(IslandPrefs.PREF_MASTER, it).apply()
             if (!it) GlintOverlays.dismissAll()
+        })
+        StyledToggle(label = "Card when the case opens", checked = caseCard, onCheckedChange = {
+            caseCard = it; prefs.edit().putBoolean(SmartAudioRules.PREF_CASE_POPUP, it).apply()
         })
         if (health?.overlays == false) {
             Text("Allow pop-ups over other apps. Breathing shortcuts work without this access.")

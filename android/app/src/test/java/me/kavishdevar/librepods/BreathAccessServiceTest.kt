@@ -508,4 +508,33 @@ class BreathAccessServiceTest {
         event(chess, "android.app.Dialog"); resolve()
         assertTrue(BreathLog.asText(), BreathLog.asText().contains("ignored a window that is not a screen of the app"))
     }
+
+    @Test fun lateLauncherEventDuringGraceWindowDoesNotCorruptForegroundWhenAppTransitionsScreens() {
+        withMode(PauseMode.NewOpens)
+        install(chess, "$chess.SecondScreen")
+        resolve()
+        event(chess, "$chess.Main"); draw()
+        // Launcher reports a late window event while the app is still opening (within PROTECT_MS)
+        homeScreen()
+        assertEquals(1, layers().size)
+        assertEquals(chess, BreathAccess.gate.frontPackage())
+        pauseEnds()
+        // App transitions from its splash/main activity to a second activity: must stay SameApp, not re-trigger or corrupt state
+        event(chess, "$chess.SecondScreen")
+        assertTrue(layers().isEmpty())
+    }
+
+    @Test fun samsungFinderAndEdgePanelCountAsHomeAndTransientSystemWindowsAreIgnored() {
+        withMode(PauseMode.NewOpens)
+        event(chess); draw(); pauseEnds()
+        // Transient share sheet, biometric prompt, and keyboard must not count as switching to another app
+        event("com.samsung.android.intentresolver", "com.android.internal.app.ChooserActivity")
+        event("com.samsung.android.biometrics.app.setting", "com.samsung.android.biometrics.app.setting.BiometricPromptActivity")
+        event("com.samsung.android.honeyboard", "com.samsung.android.honeyboard.service.HoneyBoardService")
+        // User closes to Home / opens Samsung Finder or Edge Panel, then launches the app after 1.5s
+        event("com.samsung.android.app.galaxyfinder", "com.samsung.android.app.galaxyfinder.GalaxyFinderActivity")
+        ShadowLooper.idleMainLooper(1_500, MILLISECONDS)
+        event(chess)
+        assertEquals("launched from Samsung Finder counts as opening from Home", 1, layers().size)
+    }
 }

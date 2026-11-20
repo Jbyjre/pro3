@@ -113,6 +113,10 @@ object NowPlaying {
     @Volatile var lastOwnActionAt = 0L
         private set
 
+    fun markOwnAction() {
+        lastOwnActionAt = SystemClock.elapsedRealtime()
+    }
+
     private var appContext: Context? = null
     private var sessions: MediaSessionManager? = null
     private var current: MediaController? = null

@@ -81,7 +81,7 @@ class BreathView(context: Context) : View(context) {
     private var touchY = 0f
     private var touchLevel = 0f
 
-    private class Gradient(val width: Int, val height: Int, val sheet: Shader, val rim: Shader, val rimVertical: Shader, val glow: Shader, val glowRadius: Float)
+    private class Gradient(val width: Int, val height: Int, val palette: BreathPalette, val sheet: Shader, val rim: Shader, val rimVertical: Shader, val glow: Shader, val glowRadius: Float)
     private class Words(
         val headSize: Float, val noteSize: Float, val margin: Float, val firstBaseline: Float, val lineHeight: Float,
         val inLines: List<String>, val outLines: List<String>, val inNote: String, val outNote: String, val noteGap: Float,
@@ -120,6 +120,24 @@ class BreathView(context: Context) : View(context) {
         invalidate()
     }
 
+    /** Pre-build shaders and word layout before an app opens so the first frame does zero setup work. */
+    fun prewarm(w: Int, h: Int) {
+        if (w <= 0 || h <= 0) return
+        val palette = options.palette
+        if (gradient?.width != w || gradient?.height != h || gradient?.palette != palette) {
+            gradient = buildGradient(palette, w, h)
+        }
+        if (words == null) {
+            words = layoutWords(w.toFloat(), h.toFloat())
+        }
+    }
+
+    /** Stop any active touch glow or pending frame work when the layer is hidden. */
+    fun stopAnimation() {
+        touching = false
+        touchLevel = 0f
+    }
+
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) { super.onSizeChanged(w, h, oldw, oldh); gradient = null; words = null }
     override fun onConfigurationChanged(newConfig: Configuration?) { super.onConfigurationChanged(newConfig); words = null }
 
@@ -150,7 +168,8 @@ class BreathView(context: Context) : View(context) {
         val d = resources.displayMetrics.density
         val palette = options.palette
         val reduce = motionReduced
-        val g = gradient?.takeIf { it.width == width && it.height == height } ?: buildGradient(palette).also { gradient = it }
+        val g = gradient?.takeIf { it.width == width && it.height == height && it.palette == palette }
+            ?: buildGradient(palette, width, height).also { gradient = it }
         val sheetP = tl.sheet(t)
         val alpha = tl.layerAlpha(t)
         val lift = tl.lift(t)
@@ -250,11 +269,11 @@ class BreathView(context: Context) : View(context) {
     /** Far enough to clear every corner, so the opened lens ends with nothing left. */
     private fun irisRadius(w: Float, h: Float): Float = kotlin.math.hypot(w, h) / 2f * 1.06f
 
-    private fun buildGradient(palette: BreathPalette): Gradient {
-        val w = width.toFloat(); val h = height.toFloat()
+    private fun buildGradient(palette: BreathPalette, wInt: Int = width, hInt: Int = height): Gradient {
+        val w = wInt.toFloat(); val h = hInt.toFloat()
         val radius = minOf(w, h) * 0.55f
         return Gradient(
-            width, height,
+            wInt, hInt, palette,
             LinearGradient(0f, h, w * 0.35f, 0f, palette.gradientColors, null, Shader.TileMode.CLAMP),
             LinearGradient(0f, 0f, w, 0f, intArrayOf(0x00ffffff, 0xd9ffffff.toInt(), 0x00ffffff), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP),
             LinearGradient(0f, 0f, 0f, h, intArrayOf(0x00ffffff, 0xd9ffffff.toInt(), 0x00ffffff), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP),
@@ -337,9 +356,14 @@ class BreathView(context: Context) : View(context) {
         }
         val noteY = layout.firstBaseline + (maxOf(layout.inLines.size, layout.outLines.size) - 1) * layout.lineHeight + layout.noteGap + layout.noteSize
         text.typeface = noteFace; text.textSize = layout.noteSize; text.letterSpacing = 0.14f
+        val noteStays = layout.inNote == layout.outNote
         val inNote = tl.arriving(elapsed, BreathTimeline.Phase.In, BreathTimeline.NOTE_DELAY_MS)
-        if (layout.inNote.isNotBlank()) drawLine(canvas, layout.inNote.uppercase(), layout.margin, noteY + (inNote.rise + leaving.rise) * layout.lineHeight, inNote.alpha * leaving.alpha * NOTE_ALPHA)
-        if (showOut && layout.outNote.isNotBlank()) {
+        if (layout.inNote.isNotBlank()) {
+            val rise = if (noteStays) inNote.rise else inNote.rise + leaving.rise
+            val alpha = if (noteStays) inNote.alpha else inNote.alpha * leaving.alpha
+            drawLine(canvas, layout.inNote.uppercase(), layout.margin, noteY + rise * layout.lineHeight, alpha * NOTE_ALPHA)
+        }
+        if (showOut && !noteStays && layout.outNote.isNotBlank()) {
             val outNote = tl.arriving(elapsed, BreathTimeline.Phase.Out, BreathTimeline.NOTE_DELAY_MS)
             drawLine(canvas, layout.outNote.uppercase(), layout.margin, noteY + outNote.rise * layout.lineHeight, outNote.alpha * NOTE_ALPHA)
         }
@@ -373,14 +397,30 @@ class BreathView(context: Context) : View(context) {
         lastT = t
     }
 
-    /** Next frame with the display; a still layer sleeps until something actually changes. */
+    /** Next frame with the display; a still or settled layer sleeps until something actually changes. */
     private fun schedule(elapsed: Long, t: Float, reduce: Boolean) {
         if (!isAttachedToWindow || elapsed >= options.durationMs) return
-        // Sleep only while the words are settled and nothing is moving; the swap and the exit need every frame.
-        val quiet = reduce && !touching && touchLevel == 0f && t < BreathTimeline.EXHALE_AT &&
-            elapsed > BreathTimeline.ARRIVE_MS + 3 * LINE_STAGGER_MS
-        if (!quiet) { postInvalidateOnAnimation(); return }
-        postInvalidateDelayed((timeline.switchMs() - elapsed).coerceAtLeast(1L))
+        val settledInAt = BreathTimeline.ARRIVE_MS + BreathTimeline.NOTE_DELAY_MS + 3 * LINE_STAGGER_MS
+        val steadyWords = saying.inHead == saying.outHead && saying.inNote == saying.outNote
+        val exitStartMs = if (timeline.effective == BreathTransition.Instant) options.durationMs
+            else (options.durationMs * BreathTimeline.EXIT_FROM).toLong()
+        if (!touching && touchLevel == 0f && elapsed > settledInAt) {
+            if (reduce) {
+                val targetMs = when {
+                    t < BreathTimeline.EXHALE_AT && (!steadyWords || options.haptics) -> timeline.switchMs()
+                    steadyWords && elapsed < exitStartMs -> exitStartMs
+                    else -> null
+                }
+                if (targetMs != null && targetMs > elapsed) {
+                    postInvalidateDelayed((targetMs - elapsed).coerceAtLeast(1L))
+                    return
+                }
+            } else if (steadyWords && t >= BreathTimeline.EXHALE_AT && elapsed < exitStartMs) {
+                postInvalidateDelayed((exitStartMs - elapsed).coerceAtLeast(1L))
+                return
+            }
+        }
+        postInvalidateOnAnimation()
     }
 
     private companion object {

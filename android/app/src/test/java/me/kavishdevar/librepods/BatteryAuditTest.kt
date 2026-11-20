@@ -59,4 +59,28 @@ class BatteryAuditTest {
         )
         for (p in samples) assertEquals(p.toHexString(), p.toHexString().startsWith("04000400"), m.hasHeader(p))
     }
+
+    @Test fun nearbyPairedAirPodsAreAcceptedWhenIrkHasNotArrivedYet() {
+        assertTrue(BLEManager.acceptUnverifiedAirPods(paired = true, modelKnown = true, rssi = -48))
+        assertTrue(!BLEManager.acceptUnverifiedAirPods(paired = false, modelKnown = true, rssi = -48))
+        assertTrue(!BLEManager.acceptUnverifiedAirPods(paired = true, modelKnown = false, rssi = -48))
+        assertTrue(!BLEManager.acceptUnverifiedAirPods(paired = true, modelKnown = true, rssi = -75))
+    }
+
+    @Test fun aacpDisconnectClearsRuntimeStateWithoutWipingRegisteredControlCommandListeners() {
+        val m = AACPManager()
+        var called = 0
+        val listener = object : AACPManager.ControlCommandListener {
+            override fun onControlCommandReceived(controlCommand: AACPManager.ControlCommand) {
+                called++
+            }
+        }
+        m.registerControlCommandListener(AACPManager.Companion.ControlCommandIdentifiers.LISTENING_MODE, listener)
+        m.disconnected()
+        assertEquals(
+            1,
+            m.controlCommandListeners[AACPManager.Companion.ControlCommandIdentifiers.LISTENING_MODE]?.size ?: 0
+        )
+        assertEquals(0, called)
+    }
 }
