@@ -90,6 +90,8 @@ class BLEManager(private val context: Context) {
         0x0E20 to "AirPods Pro",
         0x1420 to "AirPods Pro 2",
         0x2420 to "AirPods Pro 2 (USB-C)",
+        0x2620 to "AirPods Pro 3",
+        0x2720 to "AirPods Pro 3",
         0x0220 to "AirPods 1",
         0x0F20 to "AirPods 2",
         0x1320 to "AirPods 3",
@@ -235,7 +237,7 @@ class BLEManager(private val context: Context) {
                 .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
                 .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                 .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
-                .setReportDelay(500L)
+                .setReportDelay(0L)
                 .build()
 
             val manufacturerData = ByteArray(27)
@@ -363,11 +365,17 @@ class BLEManager(private val context: Context) {
 
             if (!verifiedAddresses.contains(address)) {
                 val irk = getIrkFromPreferences()
-                if (irk == null || !BluetoothCryptography.verifyRPA(address, irk)) {
-                    return
+                val verified = irk != null && BluetoothCryptography.verifyRPA(address, irk)
+                if (verified) {
+                    verifiedAddresses.add(address)
+                    Log.d(TAG, "RPA verified and added to trusted list: $address")
+                } else {
+                    val paired = manufacturerData[2].toInt() == 1
+                    val modelId = ((manufacturerData[3].toInt() and 0xFF) shl 8) or (manufacturerData[4].toInt() and 0xFF)
+                    if (!acceptUnverifiedAirPods(paired = paired, modelKnown = modelId in modelNames, rssi = result.rssi)) {
+                        return
+                    }
                 }
-                verifiedAddresses.add(address)
-                Log.d(TAG, "RPA verified and added to trusted list: $address")
             }
 
             lastBroadcastTime = System.currentTimeMillis()
@@ -602,6 +610,14 @@ class BLEManager(private val context: Context) {
             seenInBatch?.add(address) ?: true
 
         /**
+         * When the phone has not yet received the AirPods' IRK over L2CAP (or the case rotates an
+         * address before the key refreshes), accept a paired AirPods proximity packet only when it
+         * is right next to the phone ([NEARBY_UNVERIFIED_RSSI], e.g. opened in the user's hand).
+         */
+        internal fun acceptUnverifiedAirPods(paired: Boolean, modelKnown: Boolean, rssi: Int): Boolean =
+            paired && modelKnown && rssi >= NEARBY_UNVERIFIED_RSSI
+
+        /**
          * Android refuses an app's 6th scan start within 30 seconds (it quietly stops scanning).
          * How long to wait before the next start so that never happens, given the last starts.
          */
@@ -616,6 +632,7 @@ class BLEManager(private val context: Context) {
         const val SCAN_START_WINDOW_MS = 30_000L
         const val SCREEN_OFF_SETTLE_MS = 10_000L
         const val SCREEN_BOOST_MS = 12_000L
+        const val NEARBY_UNVERIFIED_RSSI = -58
         private const val TAG = "AirPodsBLE"
         private const val CLEANUP_INTERVAL_MS = 10000L
         private const val STALE_DEVICE_TIMEOUT_MS = 15000L

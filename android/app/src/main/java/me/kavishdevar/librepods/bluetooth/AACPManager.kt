@@ -1321,7 +1321,6 @@ class AACPManager {
     fun disconnected() {
         Log.d(TAG, "Disconnected, clearing state")
         controlCommandStatusList.clear()
-        controlCommandListeners.clear()
         owns = false
         oldConnectedDevices = listOf()
         connectedDevices = listOf()
