@@ -275,6 +275,22 @@ object NowPlaying {
 
     // ---- Controls ----
 
+    /**
+     * Wakes the last active music session directly when Notification access is available,
+     * making auto-resume instant even after the music app has been paused for 15+ minutes.
+     */
+    fun resumeSessionIfAvailable(): Boolean {
+        val controller = current ?: return false
+        val state = controller.playbackState?.state
+        if (state == PlaybackState.STATE_PLAYING) return true
+        lastOwnActionAt = SystemClock.elapsedRealtime()
+        return runCatching {
+            controller.transportControls.play()
+            _state.value = _state.value.copy(playing = true)
+            true
+        }.getOrDefault(false)
+    }
+
     fun playPause(context: Context) {
         val playing = _state.value.playing
         lastOwnActionAt = SystemClock.elapsedRealtime()

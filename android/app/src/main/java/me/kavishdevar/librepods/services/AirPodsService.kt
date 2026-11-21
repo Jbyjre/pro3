@@ -343,10 +343,17 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             device: BLEManager.AirPodsStatus, leftInEar: Boolean, rightInEar: Boolean
         ) {
             Log.d(TAG, "Ear state changed - Left: $leftInEar, Right: $rightInEar")
-
-            // In BLE-only mode, ear detection is purely based on BLE data
-            if (config.bleOnlyMode) {
-                Log.d(TAG, "BLE-only mode: ear detection from BLE data")
+            if (!airPodsChosen()) return
+            // While L2CAP is still connecting after the case opens (or in BLE-only mode),
+            // act on the BLE ear sensor right away so putting a bud in starts audio/music immediately.
+            if (BluetoothConnectionManager.aacpSocket?.isConnected != true || config.bleOnlyMode) {
+                val packet = byteArrayOf(
+                    0x04, 0x00, 0x04, 0x00, 0x06, 0x00,
+                    if (leftInEar) 0x00 else 0x01,
+                    if (rightInEar) 0x00 else 0x01,
+                )
+                processEarDetectionChange(packet)
+                pushOverlaySnapshot()
             }
         }
 
@@ -1384,8 +1391,12 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     private var activeA2dpReceiver: BroadcastReceiver? = null
+    @Volatile private var waitingForA2dpToPlay = false
+    private var a2dpPlayFallbackJob: Job? = null
 
     private fun unregisterA2dpConnectionReceiver() {
+        a2dpPlayFallbackJob?.cancel()
+        a2dpPlayFallbackJob = null
         val receiver = activeA2dpReceiver ?: return
         activeA2dpReceiver = null
         try {
@@ -1399,7 +1410,6 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             earDetectionNotification.status[0] == 0x00.toByte(),
             earDetectionNotification.status[1] == 0x00.toByte()
         )
-        var justEnabledA2dp = false
         val voiceActive = isInCall || MediaController.isVoiceOrCallActive()
         // Read before the auto-pause below changes it.
         val wasPlaying = MediaController.getMusicActive()
@@ -1431,13 +1441,16 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 val alreadyConnected = device?.let(::isAudioLinkUp) == true
                 if (!alreadyConnected) {
                     connectAudio(this@AirPodsService, device)
-                    justEnabledA2dp = true
+                    waitingForA2dpToPlay = true
                     registerA2dpConnectionReceiver()
+                } else {
+                    waitingForA2dpToPlay = false
                 }
                 if (MediaController.getMusicActive()) {
                     MediaController.userPlayedTheMedia = true
                 }
             } else if (newInEarData == listOf(false, false)) {
+                waitingForA2dpToPlay = false
                 unregisterA2dpConnectionReceiver()
                 MediaController.sendPause(force = true)
                 if (config.disconnectWhenNotWearing) {
@@ -1448,9 +1461,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             val nowSingle = newInEarData.count { it } == 1
 
             if (wasNone && nowSingle) {
-                if (!justEnabledA2dp) {
-                    MediaController.sendPlay()
-                    MediaController.iPausedTheMedia = false
+                if (!waitingForA2dpToPlay) {
+                    MediaController.sendPlay(replayWhenPaused = true)
                 }
                 return
             }
@@ -1472,9 +1484,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
             if (newInEarData.sorted() != inEarData.sorted()) {
                 if (inEar) {
-                    if (!justEnabledA2dp) {
-                        MediaController.sendPlay()
-                        MediaController.iPausedTheMedia = false
+                    if (!waitingForA2dpToPlay) {
+                        MediaController.sendPlay(replayWhenPaused = true)
                     }
                 } else {
                     MediaController.sendPause()
@@ -1503,12 +1514,10 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     )
 
                     if (state == BluetoothProfile.STATE_CONNECTED && previousState != BluetoothProfile.STATE_CONNECTED && device?.address == this@AirPodsService.device?.address) {
-
                         Log.d("MediaController", "A2DP connected, sending play command")
-                        MediaController.sendPlay()
-                        MediaController.iPausedTheMedia = false
-
+                        waitingForA2dpToPlay = false
                         unregisterA2dpConnectionReceiver()
+                        MediaController.sendPlay(replayWhenPaused = true)
                     }
                 }
             }
@@ -1521,6 +1530,20 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             registerReceiver(a2dpConnectionStateReceiver, a2dpIntentFilter, RECEIVER_EXPORTED)
         } else {
             registerReceiver(a2dpConnectionStateReceiver, a2dpIntentFilter)
+        }
+        // Fallback in case A2DP finished connecting right before the broadcast receiver registered.
+        a2dpPlayFallbackJob = serviceScope.launch(Dispatchers.Main) {
+            for (waitMs in longArrayOf(350L, 550L, 900L)) {
+                delay(waitMs)
+                if (!waitingForA2dpToPlay) return@launch
+                if (device?.let(::isAudioLinkUp) == true) {
+                    Log.d("MediaController", "A2DP link already up on fallback check; resuming media")
+                    waitingForA2dpToPlay = false
+                    unregisterA2dpConnectionReceiver()
+                    MediaController.sendPlay(replayWhenPaused = true)
+                    return@launch
+                }
+            }
         }
     }
 
@@ -3654,6 +3677,11 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 }
             }
             if (BluetoothConnectionManager.aacpSocket?.isConnected != true) {
+                if (config.earDetectionEnabled && MediaController.getMusicActive() && !isInCall && !MediaController.isVoiceOrCallActive()) {
+                    MediaController.sendPause(force = true)
+                }
+                earDetectionNotification.status = listOf(0x01, 0x01)
+                waitingForA2dpToPlay = false
                 GlintStatus.set(LinkState.Idle)
             }
         }

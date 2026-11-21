@@ -73,6 +73,10 @@ object MediaController {
         this.audioManager = audioManager
         this.sharedPreferences = sharedPreferences
         Log.d("MediaController", "Initializing MediaController")
+        iPausedTheMedia = sharedPreferences.getBoolean(
+            me.kavishdevar.librepods.services.SmartAudioRules.PREF_AUTO_PAUSED_MEDIA,
+            false
+        )
         relativeVolume = sharedPreferences.getBoolean("relative_conversational_awareness_volume", false)
         conversationalAwarenessVolume = sharedPreferences.getInt("conversational_awareness_volume", (audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) / 0.4).toInt())
         conversationalAwarenessPauseMusic = sharedPreferences.getBoolean("conversational_awareness_pause_music", false)
@@ -225,6 +229,17 @@ object MediaController {
      * in, and a play you chose counts as yours.
      */
     private var autoPausedAtMs: Long = 0L
+    private var resumeRetryTask: Runnable? = null
+
+    private fun saveAutoPaused(paused: Boolean) {
+        iPausedTheMedia = paused
+        if (this::sharedPreferences.isInitialized) {
+            sharedPreferences.edit().putBoolean(
+                me.kavishdevar.librepods.services.SmartAudioRules.PREF_AUTO_PAUSED_MEDIA,
+                paused
+            ).apply()
+        }
+    }
 
     /**
      * True while the phone is in a call or an app (such as voice typing or a voice message) is
@@ -242,7 +257,9 @@ object MediaController {
     @Synchronized
     fun userPlayback(play: Boolean) {
         if (!this::audioManager.isInitialized) return
-        iPausedTheMedia = false
+        resumeRetryTask?.let { handler.removeCallbacks(it) }
+        resumeRetryTask = null
+        saveAutoPaused(false)
         autoPausedAtMs = 0L
         userPlayedTheMedia = play
         if (play) pausedWhileTakingOver = false
@@ -288,10 +305,13 @@ object MediaController {
 
     @Synchronized
     fun sendPause(force: Boolean = false) {
+        if (!this::audioManager.isInitialized) return
+        resumeRetryTask?.let { handler.removeCallbacks(it) }
+        resumeRetryTask = null
         Log.d("MediaController", "Sending pause with iPausedTheMedia: $iPausedTheMedia, userPlayedTheMedia: $userPlayedTheMedia, isMusicActive: ${audioManager.isMusicActive}, force: $force")
         if ((audioManager.isMusicActive) && (!userPlayedTheMedia || force)) {
-            iPausedTheMedia = if (force) audioManager.isMusicActive else true
-            autoPausedAtMs = if (iPausedTheMedia) SystemClock.uptimeMillis() else 0L
+            saveAutoPaused(true)
+            autoPausedAtMs = SystemClock.uptimeMillis()
             userPlayedTheMedia = false
             audioManager.dispatchMediaKeyEvent(
                 KeyEvent(
@@ -310,45 +330,61 @@ object MediaController {
         }
     }
 
+    private fun dispatchPlayCommand(now: Long) {
+        me.kavishdevar.librepods.services.NowPlaying.resumeSessionIfAvailable()
+        audioManager.dispatchMediaKeyEvent(
+            KeyEvent(
+                KeyEvent.ACTION_DOWN,
+                KeyEvent.KEYCODE_MEDIA_PLAY
+            )
+        )
+        audioManager.dispatchMediaKeyEvent(
+            KeyEvent(
+                KeyEvent.ACTION_UP,
+                KeyEvent.KEYCODE_MEDIA_PLAY
+            )
+        )
+        lastSelfActionAt = now
+        me.kavishdevar.librepods.services.NowPlaying.markOwnAction()
+    }
+
     @Synchronized
     fun sendPlay(replayWhenPaused: Boolean = false, force: Boolean = false) {
+        if (!this::audioManager.isInitialized) return
         Log.d("MediaController", "Sending play with iPausedTheMedia: $iPausedTheMedia, replayWhenPaused: $replayWhenPaused, force: $force")
         val now = SystemClock.uptimeMillis()
         if (!force && !me.kavishdevar.librepods.services.SmartAudioRules.shouldAutoResume(iPausedTheMedia, autoPausedAtMs, now, isVoiceOrCallActive())) {
-            if (iPausedTheMedia && autoPausedAtMs > 0L && now - autoPausedAtMs > me.kavishdevar.librepods.services.SmartAudioRules.AUTO_RESUME_WINDOW_MS) {
-                Log.d("MediaController", "Auto-pause expired after 15 minutes; not auto-resuming old media")
-                iPausedTheMedia = false
-                autoPausedAtMs = 0L
-            }
+            return
+        }
+        if (audioManager.isMusicActive && !force) {
+            saveAutoPaused(false)
+            autoPausedAtMs = 0L
             return
         }
         if (replayWhenPaused) {
             lastPlayWithReplay = true
             lastPlayTime = now
         }
-        if (iPausedTheMedia || force) { // very creative, ik. thanks.
+        if (iPausedTheMedia || force) {
             Log.d("MediaController", "Sending play and setting userPlayedTheMedia to false")
             userPlayedTheMedia = false
+            saveAutoPaused(false)
             autoPausedAtMs = 0L
-            audioManager.dispatchMediaKeyEvent(
-                KeyEvent(
-                    KeyEvent.ACTION_DOWN,
-                    KeyEvent.KEYCODE_MEDIA_PLAY
-                )
-            )
-            audioManager.dispatchMediaKeyEvent(
-                KeyEvent(
-                    KeyEvent.ACTION_UP,
-                    KeyEvent.KEYCODE_MEDIA_PLAY
-                )
-            )
-            lastSelfActionAt = now
-            me.kavishdevar.librepods.services.NowPlaying.markOwnAction()
-        }
-        if (!audioManager.isMusicActive) {
-            Log.d("MediaController", "Setting iPausedTheMedia to false")
-            iPausedTheMedia = false
-            autoPausedAtMs = 0L
+            dispatchPlayCommand(now)
+            // If the music app was sleeping after 15+ minutes or A2DP audio routing was still
+            // settling on the first key, verify at 380 ms and give it one smooth second nudge.
+            resumeRetryTask?.let { handler.removeCallbacks(it) }
+            val retry = Runnable {
+                synchronized(this@MediaController) {
+                    resumeRetryTask = null
+                    if (this::audioManager.isInitialized && !audioManager.isMusicActive && !isVoiceOrCallActive()) {
+                        Log.d("MediaController", "Music still inactive 380ms after auto-play; sending follow-up play nudge")
+                        dispatchPlayCommand(SystemClock.uptimeMillis())
+                    }
+                }
+            }
+            resumeRetryTask = retry
+            handler.postDelayed(retry, 380L)
         }
         if (pausedWhileTakingOver) {
             Log.d("MediaController", "Setting pausedWhileTakingOver to false")

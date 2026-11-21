@@ -11,12 +11,8 @@ object SmartAudioRules {
     /** Show the bottom case card when the AirPods case opens nearby (on by default). */
     const val PREF_CASE_POPUP = "show_bottom_sheet_popup"
 
-    /**
-     * Auto-play resumes media when you put an AirPod back in within 15 minutes of an
-     * ear-detection auto-pause. After 15 minutes away, the pause expires so putting your
-     * AirPods in hours later never blasts old music by surprise.
-     */
-    const val AUTO_RESUME_WINDOW_MS = 15 * 60_000L
+    /** Persisted flag so auto-paused music resumes even after the AirPods sit in the case for 15+ minutes or hours. */
+    const val PREF_AUTO_PAUSED_MEDIA = "auto_paused_media"
 
     /**
      * How long to wait before announcing an unexpected Bluetooth disconnect while the AirPods
@@ -134,17 +130,17 @@ object SmartAudioRules {
 
     /**
      * Whether putting an AirPod back in should auto-resume playback that pro previously paused.
+     * Never expires by time: putting your AirPods back in after 15 minutes or hours brings your
+     * music right back unless a call or voice typing is currently using the microphone.
      */
+    @Suppress("UNUSED_PARAMETER")
     fun shouldAutoResume(
         iPausedTheMedia: Boolean,
-        pausedAtMs: Long,
-        nowMs: Long,
+        pausedAtMs: Long = 0L,
+        nowMs: Long = 0L,
         voiceOrCallActive: Boolean,
     ): Boolean {
-        if (!iPausedTheMedia || voiceOrCallActive) return false
-        if (pausedAtMs <= 0L) return true
-        val elapsed = nowMs - pausedAtMs
-        return elapsed < 0L || elapsed <= AUTO_RESUME_WINDOW_MS
+        return iPausedTheMedia && !voiceOrCallActive
     }
 
     /**
