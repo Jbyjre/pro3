@@ -133,7 +133,7 @@ class SmartAudioRulesTest {
         assertFalse(SmartAudioRules.shouldAllowConversationAwareness(voiceOrCallActive = false, leftInEar = false, rightInEar = false))
     }
 
-    @Test fun autoResumeExpiresAfterFifteenMinutesAndNeverFiresDuringVoiceTyping() {
+    @Test fun autoResumeAlwaysResumesEvenAfterFifteenMinutesOrHoursExceptDuringVoiceTyping() {
         val pausedAt = 10_000L
         assertTrue(
             SmartAudioRules.shouldAutoResume(
@@ -143,12 +143,12 @@ class SmartAudioRulesTest {
                 voiceOrCallActive = false,
             )
         )
-        assertFalse(
-            "stale auto-pause after 15+ minutes does not surprise the user with music",
+        assertTrue(
+            "putting AirPods in after 15+ minutes or hours still brings the music right back",
             SmartAudioRules.shouldAutoResume(
                 iPausedTheMedia = true,
                 pausedAtMs = pausedAt,
-                nowMs = pausedAt + SmartAudioRules.AUTO_RESUME_WINDOW_MS + 1L,
+                nowMs = pausedAt + 2 * 60 * 60_000L,
                 voiceOrCallActive = false,
             )
         )
