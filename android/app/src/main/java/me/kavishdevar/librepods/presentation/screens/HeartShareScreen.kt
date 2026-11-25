@@ -19,7 +19,9 @@ package me.kavishdevar.librepods.presentation.screens
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -60,7 +62,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -73,9 +77,11 @@ import me.kavishdevar.librepods.presentation.components.InfoTip
 import me.kavishdevar.librepods.presentation.components.StyledToggle
 import me.kavishdevar.librepods.presentation.theme.glintFontFamily
 import me.kavishdevar.librepods.services.HeartLink
+import me.kavishdevar.librepods.services.HeartLocal
 import me.kavishdevar.librepods.services.HeartRate
 import me.kavishdevar.librepods.services.PREF_LINK_BLE
 import me.kavishdevar.librepods.services.PREF_LINK_BROADCAST
+import me.kavishdevar.librepods.services.PREF_LINK_LOCAL
 import me.kavishdevar.librepods.services.PREF_LINK_WEBHOOK
 import me.kavishdevar.librepods.services.PREF_LINK_WEBHOOK_SECS
 import me.kavishdevar.librepods.services.PREF_LINK_WEBHOOK_URL
@@ -109,6 +115,10 @@ fun HeartShareScreen() {
     var every by remember { mutableIntStateOf(prefs.getInt(PREF_LINK_WEBHOOK_SECS, HeartLink.DEFAULT_WEBHOOK_SECS)) }
     var cast by remember { mutableStateOf(prefs.getBoolean(PREF_LINK_BROADCAST, false)) }
     var testResult by remember { mutableStateOf<String?>(null) }
+    val local by HeartLocal.status.collectAsState()
+    var jwr by remember { mutableStateOf(prefs.getBoolean(PREF_LINK_LOCAL, false)) }
+    var code by remember { mutableStateOf(if (prefs.getBoolean(PREF_LINK_LOCAL, false)) HeartLocal.token(context) else "") }
+    val clipboard = LocalClipboardManager.current
 
     fun setBle(on: Boolean) {
         ble = on
@@ -139,7 +149,7 @@ fun HeartShareScreen() {
             Spacer(Modifier.width(10.dp))
             Text(
                 when {
-                    !ble && !hook && !cast -> "Nothing is shared"
+                    !ble && !hook && !cast && !jwr -> "Nothing is shared"
                     measuring -> "Sharing while you measure"
                     else -> "Starts when you measure"
                 },
@@ -151,6 +161,55 @@ fun HeartShareScreen() {
                 "Each option is off until you turn it on, and only sends while heart rate is being measured. " +
                     "When you stop, the web address and automation apps get a final \"stopped\" message."
             )
+        }
+
+        // JWR workout app on this phone: nothing leaves the phone.
+        Column(Modifier.fillMaxWidth().background(card, RoundedCornerShape(28.dp)).padding(horizontal = 4.dp)) {
+            StyledToggle(
+                label = "JWR workout app",
+                description = when {
+                    !jwr -> "Live heart rate in your JWR workouts, only on this phone"
+                    local.error != null -> local.error
+                    !local.running -> "Starting…"
+                    local.lastAskMs > 0 && System.currentTimeMillis() - local.lastAskMs < 15_000 -> "JWR is connected"
+                    else -> "Ready: JWR asks while a workout runs"
+                },
+                checked = jwr,
+                onCheckedChange = { on ->
+                    jwr = on
+                    prefs.edit { putBoolean(PREF_LINK_LOCAL, on) }
+                    if (on) code = HeartLocal.token(context)
+                    HeartLocal.refresh()
+                }
+            )
+            if (jwr) {
+                Column(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Pairing code", style = label, modifier = Modifier.weight(1f))
+                        InfoTip(
+                            "JWR workout app",
+                            "pro opens a tiny link that only apps on this phone can reach: not Wi-Fi, not the internet. " +
+                                "JWR asks it for your heart rate every couple of seconds during a workout, which also makes the AirPods measure; " +
+                                "about 90 seconds after JWR stops asking, the AirPods stop on their own. " +
+                                "Every request needs the pairing code below. \"Open JWR to pair\" fills it in for you. " +
+                                "Chrome may ask once to let JWR reach other apps on this device; allow it."
+                        )
+                    }
+                    Box(Modifier.fillMaxWidth().background(if (dark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.05f), RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 12.dp)) {
+                        Text(code, style = TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 15.sp, color = ink))
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                        val action = TextStyle(fontFamily = glintFontFamily, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = accent)
+                        Text("Open JWR to pair", style = action, modifier = Modifier.clickable {
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(HeartLocal.pairingUrl(context))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                        }.padding(vertical = 6.dp))
+                        Text("Copy code", style = action, modifier = Modifier.clickable { clipboard.setText(AnnotatedString(code)) }.padding(vertical = 6.dp))
+                        Text("New code", style = action, modifier = Modifier.clickable { code = HeartLocal.newToken(context) }.padding(vertical = 6.dp))
+                    }
+                }
+            }
         }
 
         // Bluetooth heart-rate sensor.

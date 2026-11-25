@@ -439,6 +439,10 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
         HeartLink.attach(this, serviceScope)
+        HeartLocal.attach(this, serviceScope, object : HeartLocal.Host {
+            override fun requestLive(ms: Long) = liveHeartRate(ms)
+            override fun airpodsConnected() = BluetoothConnectionManager.aacpSocket?.isConnected == true
+        })
         VolumeGuard.attach(this)
 
         localMac = config.selfMacAddress.takeIf(SmartAudioRules::isRealLocalMac).orEmpty()
@@ -2068,11 +2072,33 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             hrGlance = true
             startHeartRate(background = false, glance = true)
         }
+        scheduleGlanceEnd(ms)
+    }
+
+    private fun scheduleGlanceEnd(ms: Long) {
         hrGlanceJob?.cancel()
         hrGlanceJob = serviceScope.launch {
             delay(ms)
             if (hrGlance) endGlance()
         }
+    }
+
+    /**
+     * Live heart rate for the JWR workout app ([HeartLocal]): a glance that its polling renews
+     * every few seconds, so it measures only while a workout is asking. Unlike a plain glance
+     * it also takes over from the always-on battery pace (one reading every 5 s, or spot
+     * checks), because a workout needs a steady stream; always-on resumes when the asking
+     * stops. A session started in pro itself is left alone: it already streams every second.
+     */
+    fun liveHeartRate(ms: Long) {
+        if (BluetoothConnectionManager.aacpSocket?.isConnected != true) return
+        if (hrService != 0 && hrBackground && !hrGlance) {
+            hrGlance = true
+            startHeartRate(background = false, glance = true)
+            scheduleGlanceEnd(ms)
+            return
+        }
+        glanceHeartRate(ms)
     }
 
     /** The glance is over: stop quietly (the readings go to the history), then let always-on decide. */
@@ -4207,6 +4233,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
         HeartLink.detach()
+        HeartLocal.detach()
         VolumeGuard.detach(this)
         unregisterA2dpConnectionReceiver()
 

@@ -6,6 +6,17 @@
 - Jake's exact words are not stored in the repository. This list is rebuilt from `DECISIONS.md` (each section marks "your request" or "your choice" where Jake asked), `CLAUDE.md`, `POLISH_LEDGER.md`, `TESTING.md` and the git history (30 merged pull requests from 2026-09-30 to 2026-10-02, then this file's own session on 2026-10-06). Section numbers like "D12" mean `DECISIONS.md` section 12.
 - **When Jake asks for something new, add a row here. When a status changes, change the row.** Keep it true: if something was not checked on his phone, say so.
 
+## Latest request — 25 November 2026: AirPods heart rate inside the JWR workout app
+
+Jake asked for the heart-rate tracking to be brought into his workout app (JWR) to work with his insights, during the workout, and with JWR efficiently. JWR is a web page, so pro carries the number to it. Chosen: "a few solid options that work consistently", so there are three routes (see DECISIONS 55).
+
+| Request | State | Implementation and verification |
+|---|---|---|
+| Live heart rate in JWR during a workout, saved with the workout, in JWR's trends and coach notes | CLOUD CHECKS PASSED; PHONE CHECK NOT DONE | pro: `services/HeartLocal.kt` (loopback server, pairing code), `AirPodsService.liveHeartRate`, `screens/HeartShareScreen.kt` card "JWR workout app"; JWR repo v8.121.0 (`src/heart/`, Settings > Heart rate). `HeartLocalTest` passes (13 cases). Not checked on the phone: Chrome's permission prompt for reaching pro, and the "Open JWR to pair" button opening the installed JWR. |
+| Route 2: Bluetooth sensor to JWR | EXISTING FEATURE, PHONE CHECK NOT DONE | pro's Bluetooth sensor (`HeartLink`); JWR connects with Chrome's picker. A phone seeing its own Bluetooth signal is not verified. |
+| Route 3: internet relay to JWR | NEEDS A RELAY DEPLOY | pro's "Send to a web address" with the address JWR shows; relay change is in the JWR repo and must be deployed by hand. |
+| Wi-Fi server for other devices | STILL NOT BUILT | D14: only if Jake explicitly asks. The new link is phone-only (127.0.0.1). |
+
 ## Latest request — 19 November 2026: reliable pause rule, verse, colors, exits, grayscale, updates
 
 Jake said Breathe still felt spotty, clarified the rule (switching back through Recents or a swipe must not pause; closing an app and opening it again must), asked for the Psalm 51:10 reference as the only words, random and selectable colors, more smooth exits, grayscale readiness, per-app strictness and more options, and an update that installs on his Galaxy S26 FE even with Auto Blocker. Details, sources and limits: [the last section of APP_OPEN_BREATHING](APP_OPEN_BREATHING.md#the-pause-rule-verse-colors-exits-and-updates--19-november).
