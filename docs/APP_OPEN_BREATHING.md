@@ -1,4 +1,6 @@
-> **Updated 19 November:** pauses now follow your rule (new opens pause; switching back through another app does not), the words are the Psalm 51:10 reference only, and updates explain themselves. See [the last section](#the-pause-rule-verse-colors-exits-and-updates--19-november). Earlier rules, durations and totals below are historical.
+> **Updated 27 November:** after any verse popup opens, Breathe now enforces a **15-minute cooldown** before opening again, so it can open **at most 4 times in one hour** across your chosen apps. Existing installs migrate automatically. See [the last section](#15-minute-cooldown-max-4-per-hour--27-november).
+
+> **Updated 19 November:** pauses now follow your rule (new opens pause; switching back through another app does not), the words are the Psalm 51:10 reference only, and updates explain themselves. See [the 19 November section](#the-pause-rule-verse-colors-exits-and-updates--19-november). Earlier rules, durations and totals below are historical.
 
 > **Updated 18 November:** the default pause is now **3 seconds** (customizable 2 to 10 s), happens **once per visit** (again after a grace time, default 10 minutes), and installed Chrome web apps never pause. See [the last section](#smoother-once-per-visit-pause--18-november). Earlier durations and verification totals below are historical.
 
@@ -171,4 +173,26 @@ Merging to main already published a stable (not pre-release) "pro stable · buil
 - `lintFossRelease`: **0 errors, 252 warnings**.
 - `assembleFossRelease`: **BUILD SUCCESSFUL** (native compilation, R8 minification and resource shrinking).
 - **Not verified on your physical Galaxy S26 FE**: real BLE case-open latency, HFP/SCO voice-typing handover stability with your AirPods firmware, and 120 Hz Breathe overlay timing on One UI 9.
+
+
+## 15-minute cooldown (max 4 per hour) — 27 November
+
+Jake reported that the verse popups were getting annoying and asked for the verse popup (`Psalm 51:10`) to happen when he opens a chosen app, followed by a **15-minute cooldown** before it can open again — capping it at **at most 4 times in one hour**.
+
+### What changed
+1. **15-minute cooldown across Breathe (`BreathAppGate`, `BreathOptions`, `BreathAccessService`):**
+   - `BreathOptions.DEFAULT_GRACE_MINUTES` is now **15** (`900,000 ms`), and `15 min` is offered in **Breathe → Cooldown** (`Off / 5 min / 10 min / 15 min / 30 min / 1 hour`).
+   - Previously, `NewOpens` mode ignored `graceMinutes` whenever an app opened from Home, Recents, a notification, or a fresh session, and tracked pause times only per app — so opening chosen apps repeatedly or opening several chosen apps could show the popup many times within a few minutes.
+   - Now, as soon as a pause draws its first frame (`recordPause`), `BreathAppGate` starts a **15-minute cooldown** (`lastPauseAt`, persisted as `last_pause` in `breath_seen` so service restarts cannot reset it). While `inCooldown` is true (`0 <= wallNow - lastPauseAt < cooldownMs`), every chosen app stays quiet (`Why.Cooldown`: `"cooling down after a recent pause"`), including deferred lockscreen unlocks. In any 60-minute window, pauses can occur at most 4 times (for example at minutes 0, 15, 30 and 45).
+   - Once the 15-minute cooldown finishes, the next open of a chosen app shows the verse popup immediately and starts a new 15-minute cooldown. Failed attachments or undrawn layers still never consume an open or start a false cooldown.
+2. **Automatic upgrade migration (`BreathPrefs`, `FeatureMigration`):**
+   - `BreathPrefs` stores the cooldown under `cooldown_min` (defaulting immediately to 15 minutes on upgraded installs before background tasks finish), and `FeatureMigration` (`breath_cooldown_15m_v1`) migrates existing installs once to `cooldown_min = 15` and `NewOpens` mode (clearing any old `EveryTime` override while keeping chosen apps, colors, words, transitions, and custom per-app pause lengths).
+
+### Verification
+- Full `testFossDebugUnitTest`: **528 tests across 62 classes, zero failures, errors or skips** (including 60-minute simulation tests in both `BreathAppGateTest` and `BreathAccessServiceTest` confirming at most 4 verse popups per hour, upgrade migration tests in `BreathOptionsTest`, and Cooldown card UI tests in `BreathingUiTest`).
+- `lintFossRelease`: **0 errors**.
+- `assembleFossRelease` and `release-metadata.py`: **BUILD SUCCESSFUL** (native CMake builds for all four ABIs, R8 minification, resource shrinking, and release metadata generation).
+- Rendered `cooldown-card.png` inspected visually. Physical S26 FE check remains in [TESTING](../TESTING.md).
+
+
 

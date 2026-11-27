@@ -226,6 +226,7 @@ class BreathAccessService : AccessibilityService() {
                     apps, names, components, options, GlintComfort.reduceMotion(this@BreathAccessService),
                     runCatching { packageManager.resolveActivity(Intent("android.content.pm.action.REQUEST_PERMISSIONS"), PackageManager.MATCH_SYSTEM_ONLY)?.activityInfo?.packageName }.getOrNull(),
                     if (loadHistory) BreathHistory.load(this@BreathAccessService, BreathAccess.wallClock()) else null,
+                    if (loadHistory) BreathHistory.lastPause(this@BreathAccessService, BreathAccess.wallClock()) else null,
                     if (loadHistory) BreathHistory.lastPalette(this@BreathAccessService) else null,
                     BreathPrefs.appRules(this@BreathAccessService),
                     runCatching {
@@ -243,7 +244,10 @@ class BreathAccessService : AccessibilityService() {
             launchers = loaded.launchers
             gray = loaded.gray
             permissionController = loaded.permissionController
-            loaded.history?.let { BreathAccess.gate.restore(it); historyLoaded = true }
+            if (loaded.history != null || loaded.lastPause != null) {
+                BreathAccess.gate.restore(loaded.history.orEmpty(), loaded.lastPause)
+                historyLoaded = true
+            }
             loaded.lastPalette?.let { lastPalette = it }
             activities.clear()
             activities.addAll(loaded.components)
@@ -391,6 +395,11 @@ class BreathAccessService : AccessibilityService() {
         pendingShow = null
         if (!acceptingEvents || !prepared || pkg !in selected || BreathAccess.gate.frontPackage() != pkg) return
         if (!getSystemService(PowerManager::class.java).isInteractive || BreathInteraction.active) return
+        val rule = ruleFor(pkg)
+        if (rule.mode != PauseMode.EveryTime && BreathAccess.gate.inCooldown(BreathAccess.wallClock(), rule.graceMs)) {
+            note(pkg, "no pause: " + BreathAppGate.Why.Cooldown.text)
+            return
+        }
         note(pkg, "unlocked, pausing now")
         show(pkg)
     }
@@ -509,7 +518,7 @@ class BreathAccessService : AccessibilityService() {
     private data class Prepared(
         val apps: Set<String>, val names: Map<String, String>, val components: Set<ComponentName>,
         val options: BreathOptions, val reduced: Boolean, val permissionController: String?,
-        val history: Map<String, Long>?, val lastPalette: BreathPalette?,
+        val history: Map<String, Long>?, val lastPause: Long?, val lastPalette: BreathPalette?,
         val rules: Map<String, AppRule>, val launchers: Set<String>, val gray: Boolean,
     )
 

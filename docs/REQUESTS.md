@@ -6,7 +6,15 @@
 - Jake's exact words are not stored in the repository. This list is rebuilt from `DECISIONS.md` (each section marks "your request" or "your choice" where Jake asked), `CLAUDE.md`, `POLISH_LEDGER.md`, `TESTING.md` and the git history (30 merged pull requests from 2026-09-30 to 2026-10-02, then this file's own session on 2026-10-06). Section numbers like "D12" mean `DECISIONS.md` section 12.
 - **When Jake asks for something new, add a row here. When a status changes, change the row.** Keep it true: if something was not checked on his phone, say so.
 
-## Latest request — 25 November 2026: AirPods heart rate inside the JWR workout app
+## Latest request — 27 November 2026: 15-minute cooldown on the verse popup (max 4 per hour)
+
+Jake said the verse popups were getting annoying and asked for the verse popup to happen when opening a chosen app, followed by a 15-minute cooldown before it can open again — so it can open at most 4 times in one hour — with a clean merge and working `.apk`.
+
+| Request | State | Implementation and verification |
+|---|---|---|
+| Show the verse popup when opening a chosen app, then enforce a 15-minute cooldown before it can open again (max 4 per hour) | CLOUD CHECKS PASSED; PHONE CHECK NOT DONE | `BreathOptions.DEFAULT_GRACE_MINUTES = 15` (`15 min` added to `GRACE_CHOICES`), `BreathAppGate` enforces a global 15-minute cooldown (`Why.Cooldown`, persisted via `BreathHistory.lastPause` in `breath_seen` across restarts), `BreathPrefs` (`cooldown_min`) + `FeatureMigration` (`breath_cooldown_15m_v1`) migrate existing installs once while keeping chosen apps, colors, Psalm 51:10 and custom lengths, and `BreatheScreen` / `AppsScreen` explain the 15-minute (max 4/hr) cooldown. Verified by 528 unit/UI/service tests across 62 classes (0 failures), `lintFossRelease` (0 errors), and `assembleFossRelease`. |
+
+## Earlier request — 25 November 2026: AirPods heart rate inside the JWR workout app
 
 Jake asked for the heart-rate tracking to be brought into his workout app (JWR) to work with his insights, during the workout, and with JWR efficiently. JWR is a web page, so pro carries the number to it. Chosen: "a few solid options that work consistently", so there are three routes (see DECISIONS 55).
 

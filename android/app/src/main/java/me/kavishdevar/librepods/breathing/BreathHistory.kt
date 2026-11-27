@@ -12,8 +12,9 @@ import android.content.Context
 object BreathHistory {
     private const val FILE = "breath_seen"
     private const val APP = "app:"
+    private const val LAST_PAUSE = "last_pause"
     private const val PALETTE = "palette"
-    /** Entries older than this can never matter: the longest grace time is an hour. */
+    /** Entries older than this can never matter: the longest cooldown is a day. */
     private const val KEEP_MS = 24L * 60 * 60 * 1000
 
     private fun prefs(c: Context) = c.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -26,7 +27,15 @@ object BreathHistory {
         return saved
     }
 
-    fun record(c: Context, pkg: String, wallNow: Long) { prefs(c).edit().putLong(APP + pkg, wallNow).apply() }
+    /** When any pause most recently happened, so the cooldown survives a service restart. */
+    fun lastPause(c: Context, wallNow: Long = System.currentTimeMillis()): Long? {
+        val at = (prefs(c).all[LAST_PAUSE] as? Long)?.takeIf { wallNow - it in 0..KEEP_MS }
+        return at ?: load(c, wallNow).values.maxOrNull()
+    }
+
+    fun record(c: Context, pkg: String, wallNow: Long) {
+        prefs(c).edit().putLong(APP + pkg, wallNow).putLong(LAST_PAUSE, wallNow).apply()
+    }
 
     /** The colour used by the last pause, so Random avoids repeating it and In order carries on from it. */
     fun lastPalette(c: Context): BreathPalette? = prefs(c).getString(PALETTE, null)?.let { key -> BreathPalette.entries.firstOrNull { it.key == key } }

@@ -1,3 +1,8 @@
+# Check the 15-minute verse popup cooldown on the phone — 27 November
+
+1. **Install the updated `pro.apk`** from `Phone → App updates → Check now` (or the latest GitHub release). Your chosen apps, colors and Psalm 51:10 setting stay untouched, and **Breathe → Cooldown** now defaults to **15 min**.
+2. **First open pauses, then 15 minutes of quiet.** Open a chosen app: the `PSALM 51:10` layer appears. Close it to Home and reopen it, tap a notification for it, or open another chosen app inside the next 15 minutes: **no popup appears** (`Recent decisions` shows `"no pause: cooling down after a recent pause"`). After 15 minutes pass, the next chosen app you open shows the popup again — at most 4 times in an hour.
+
 # Check the pause rule, colors, exits and updates on the phone — 19 November
 
 Cloud tests cannot see a real Galaxy's Home screen, Recents, notifications, grayscale mode or installer. Do these on the S26 FE and write down what you see.

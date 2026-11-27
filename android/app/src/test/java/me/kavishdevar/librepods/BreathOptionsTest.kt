@@ -41,12 +41,13 @@ class BreathOptionsTest {
         BreathPrefs.setOptions(c,chosen)
         assertEquals(chosen,BreathPrefs.options(c))
     }
-    @Test fun theDefaultsAreTheVerseThreeSecondsFadeAllColorsRandomNewOpensTenMinutes() {
+    @Test fun theDefaultsAreTheVerseThreeSecondsFadeAllColorsRandomNewOpensFifteenMinutes() {
         val d=BreathOptions()
         assertEquals(3_000L,d.durationMs); assertEquals(BreathTransition.Fade,d.transition); assertEquals(BreathWords.Verse,d.words)
         assertEquals(BreathPalette.COLORS,d.palettes); assertEquals(PaletteOrder.Random,d.paletteOrder)
         assertEquals(PauseMode.NewOpens,d.mode); assertEquals(GrayMode.Auto,d.gray)
-        assertTrue(d.haptics); assertFalse(d.showAppName); assertEquals(10,d.graceMinutes); assertEquals(600_000L,d.graceMs)
+        assertTrue(d.haptics); assertFalse(d.showAppName); assertEquals(15,d.graceMinutes); assertEquals(900_000L,d.graceMs)
+        assertTrue(15 in BreathOptions.GRACE_CHOICES)
         assertEquals("Psalm 51:10",d.saying.inHead)
     }
     @Test fun anOutOfRangeSavedLengthIsClamped() {
@@ -58,13 +59,35 @@ class BreathOptionsTest {
     }
     @Test fun oldSavedChoicesMigrateTheWayTheUserAsked() {
         val c=RuntimeEnvironment.getApplication()
-        // Before this version: one colour, "mix" words, and "0 minutes" meaning every open.
+        // Before pause modes existed: one colour, "mix" words, and "0 minutes" meaning every open.
         BreathPrefs.prefs(c).edit().clear().putString("palette","coral").putString("words","mix").putInt("grace_min",0).commit()
         val o=BreathPrefs.options(c)
         assertEquals("mix becomes the verse",BreathWords.Verse,o.words)
         assertEquals("every colour may appear",BreathPalette.COLORS,o.palettes)
         assertEquals("zero minutes meant every open",PauseMode.EveryTime,o.mode)
-        assertEquals(10,o.graceMinutes)
+        assertEquals(15,o.graceMinutes)
+    }
+    @Test fun existingInstallMigratesOnceToFifteenMinuteCooldownWithoutLosingChosenAppsOrColors() {
+        val c=RuntimeEnvironment.getApplication()
+        c.getSharedPreferences("settings",0).edit().clear().commit()
+        BreathPrefs.prefs(c).edit().clear()
+            .putStringSet("apps",setOf("fixture.chess","fixture.chat"))
+            .putStringSet("palettes",setOf(BreathPalette.Lagoon.key))
+            .putInt("grace_min",10)
+            .putString("mode","every")
+            .putString("app_rules",BreathRules.encode(mapOf("fixture.chess" to AppRule(PauseMode.EveryTime,12_000L))))
+            .commit()
+        me.kavishdevar.librepods.services.FeatureMigration.retireCamera(c)
+        val migrated=BreathPrefs.options(c)
+        assertEquals(15,migrated.graceMinutes)
+        assertEquals(PauseMode.NewOpens,migrated.mode)
+        assertEquals(setOf("fixture.chess","fixture.chat"),BreathPrefs.selected(c))
+        assertEquals(setOf(BreathPalette.Lagoon),migrated.palettes)
+        assertEquals("custom app length stays while old every-time override resets",AppRule(null,12_000L),BreathPrefs.appRules(c)["fixture.chess"])
+        // Once migrated, future user choices stick across restarts.
+        BreathPrefs.setOptions(c,migrated.copy(graceMinutes=30))
+        me.kavishdevar.librepods.services.FeatureMigration.retireCamera(c)
+        assertEquals(30,BreathPrefs.options(c).graceMinutes)
     }
     @Test fun anEmptyOrUnknownSavedColourSetFallsBackToAllColours() {
         val c=RuntimeEnvironment.getApplication()

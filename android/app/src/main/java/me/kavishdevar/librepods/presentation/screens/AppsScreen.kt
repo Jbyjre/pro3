@@ -119,8 +119,10 @@ fun AppsScreen(preset: List<AppEntry>? = null, onDone: () -> Unit = {}) {
             item(key = "instructions") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Choose your apps.", color = colors.ink, style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.8).sp))
-                    val seconds = remember { BreathPrefs.options(context).seconds.roundToInt() }
-                    Text("Keep your usual icons. Add a $seconds-second pause the first time you open each one. Websites you installed from Chrome never pause.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
+                    val options = remember { BreathPrefs.options(context) }
+                    val seconds = options.seconds.roundToInt()
+                    val cooldownNote = if (options.graceMinutes > 0 && options.mode != PauseMode.EveryTime) ", with a ${options.graceMinutes}-minute cooldown before it opens again" else ""
+                    Text("Keep your usual icons. Add a $seconds-second pause when you open a chosen app$cooldownNote. Websites you installed from Chrome never pause.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
                 }
             }
             item(key = "search") {
