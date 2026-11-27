@@ -225,18 +225,21 @@ fun BreatheScreen(navigateToApps: () -> Unit = {}) {
                 }
                 Text(appearance.mode.note + " You can choose differently for a single app in Choose apps.", color = colors.secondary, style = MaterialTheme.typography.bodySmall)
             }
-            BreatheCard("Pause again after", appearance.graceLabel(), colors) {
+            BreatheCard("Cooldown", appearance.graceLabel(), colors) {
                 BreatheChoices(BreathOptions.GRACE_CHOICES, appearance.graceMinutes, colors, reduced, { BreathOptions(graceMinutes = it).graceLabel() }) {
                     haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
                     appearance = appearance.copy(graceMinutes = it); BreathPrefs.setOptions(context, appearance)
                 }
-                Text(if (appearance.graceMinutes == 0) "Never by time: only the rule above decides."
-                    else "Even when you only switch back to an app, it pauses again once ${appearance.graceLabel()} has passed since its last pause.",
-                    color = colors.secondary, style = MaterialTheme.typography.bodySmall)
+                Text(when {
+                    appearance.mode == PauseMode.EveryTime -> "Every time ignores the cooldown and pauses whenever a chosen app comes forward."
+                    appearance.graceMinutes == 0 -> "No cooldown: only the rule above decides when a pause opens."
+                    appearance.graceMinutes == 15 -> "After a pause opens, Breathe waits 15 minutes before opening again — at most 4 times in an hour."
+                    else -> "After a pause opens, Breathe waits ${appearance.graceLabel()} before opening again."
+                }, color = colors.secondary, style = MaterialTheme.typography.bodySmall)
             }
         }
         BreatheDisclosure("How Breathe works", colors, reduced) {
-            Text("Keep your usual app icons, notifications and links. Breathe adds a ${secondsLabel(appearance)} pause when you open a chosen app, without changing where it opens. Your app keeps loading underneath.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
+            Text("Keep your usual app icons, notifications and links. Breathe adds a ${secondsLabel(appearance)} pause when you open a chosen app${if (appearance.graceMinutes > 0 && appearance.mode != PauseMode.EveryTime) ", then waits ${appearance.graceLabel()} before opening again" else ""}, without changing where it opens. Your app keeps loading underneath.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
             Text("Android reports an app after its window starts opening, so a brief glimpse can occur. Home or Back leaves the pause. Websites you installed from Chrome never pause.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
             lastTiming?.let { Text("Last pause: the layer was attached ${it.reportedToShownMs} ms after Android reported the app, and drew ${it.shownToDrawnMs} ms after that.", color = colors.secondary, style = MaterialTheme.typography.bodySmall) }
             Text("No screen text, messages or typing are read. No Bluetooth connection is needed. Android controls Accessibility access; reconnect here if it is removed.", color = colors.secondary, style = MaterialTheme.typography.bodyMedium)
@@ -359,7 +362,7 @@ private fun BreathPreviewCard(appearance: BreathOptions, reduced: Boolean, color
 }
 
 private fun secondsLabel(options: BreathOptions) = "${options.seconds.roundToInt()} seconds"
-private fun BreathOptions.graceLabel(): String = when (graceMinutes) { 0 -> "Never"; 60 -> "1 hour"; else -> "$graceMinutes min" }
+private fun BreathOptions.graceLabel(): String = when (graceMinutes) { 0 -> "Off"; 60 -> "1 hour"; else -> "$graceMinutes min" }
 
 /** A titled card holding one setting, with its current value on the right. */
 @Composable

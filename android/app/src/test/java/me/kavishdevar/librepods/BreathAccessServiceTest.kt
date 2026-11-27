@@ -324,12 +324,30 @@ class BreathAccessServiceTest {
         assertNotNull(BreathAccess.lastTiming.value)
     }
 
-    // ---- The real rule: new opens pause, switching back does not. ----
+    // ---- The real rule: new opens pause, with a 15-minute cooldown (max 4 per hour). ----
     private fun pauseEnds() = ShadowLooper.idleMainLooper(3000, MILLISECONDS)
     private fun homeScreen() = event(launcher, "$launcher.Home")
 
+    @Test fun versePopupOpensOnFirstAppOpenThenCoolsDownForFifteenMinutesMaxFourPerHour() {
+        BreathPrefs.setOptions(context, BreathOptions()); resolve() // Real defaults: Verse + NewOpens + 15m cooldown
+        var count = 0
+        for (minute in 0 until 60) {
+            homeScreen(); ShadowLooper.idleMainLooper(2_000, MILLISECONDS)
+            val target = if (minute % 2 == 0) chess else chat
+            event(target)
+            if (layers().isNotEmpty()) {
+                assertEquals("Psalm 51:10", layers().single().saying.inHead)
+                draw()
+                pauseEnds()
+                count++
+            }
+            clock += 60_000L
+        }
+        assertEquals("at most 4 verse popups in one hour", 4, count)
+    }
+
     @Test fun movingThroughAnotherAppAndBackStaysQuietButClosingAndReopeningFromHomePauses() {
-        withMode(PauseMode.NewOpens)
+        withMode(PauseMode.NewOpens); withGrace(0)
         event(chess); draw(); pauseEnds()
         event(chat); draw(); pauseEnds()
         event(chess)
@@ -341,16 +359,19 @@ class BreathAccessServiceTest {
     @Test fun aQuickPeekAtHomeOrRecentsIsNotAnOpen() {
         withMode(PauseMode.NewOpens)
         event(chess); draw(); pauseEnds()
+        clock += 15 * 60_000L
         homeScreen(); ShadowLooper.idleMainLooper(1000, MILLISECONDS)
         event(chess)
         assertTrue(layers().isEmpty())
         val log = BreathLog.entries.value.joinToString { it.text }
         assertTrue(log, log.contains("within a moment"))
     }
-    @Test fun anAppOpenedFromANotificationPauses() {
+    @Test fun anAppOpenedFromANotificationPausesAfterCooldown() {
         withMode(PauseMode.NewOpens)
         event(chess); draw(); pauseEnds()
-        event(chat); draw(); pauseEnds()
+        event(chat)
+        assertTrue("second chosen app inside 15-minute cooldown stays quiet", layers().isEmpty())
+        clock += 15 * 60_000L
         event("com.android.systemui", "com.android.systemui.shade.NotificationShadeWindowView")
         event(chess)
         assertEquals(1, layers().size)
@@ -359,9 +380,10 @@ class BreathAccessServiceTest {
         withMode(PauseMode.NewOpens)
         event(chess); draw(); pauseEnds()
         event("com.android.systemui", "android.widget.FrameLayout")   // volume panel and the like: ignored
+        clock += 15 * 60_000L
         event("com.android.systemui", "com.android.systemui.recents.RecentsActivity"); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
         event(chess)
-        assertEquals("a Recents window counts like Home", 1, layers().size)
+        assertEquals("a Recents window counts like Home once cooldown has passed", 1, layers().size)
     }
     @Test fun everyTimeAppsPauseEvenWhenYouJustSwitchBackAndAfterABreakAppsDoNot() {
         withMode(PauseMode.EveryTime)
@@ -370,25 +392,30 @@ class BreathAccessServiceTest {
         withMode(PauseMode.AfterBreak)
         homeScreen(); ShadowLooper.idleMainLooper(3000, MILLISECONDS)
         event(chess)
-        assertTrue("an after-a-break app waits for its break even from Home", layers().isEmpty())
+        assertTrue("an after-a-break app waits for its cooldown even from Home", layers().isEmpty())
     }
-    @Test fun theBreakTimeStillBringsThePauseBackWhenYouOnlySwitchBack() {
+    @Test fun theCooldownTimeBringsThePauseBackWhenYouSwitchBackAfterFifteenMinutes() {
         withMode(PauseMode.NewOpens)
-        event(chess); draw(); pauseEnds(); event(chat); draw(); pauseEnds()
-        clock += 10 * 60_000L
+        event(chess); draw(); pauseEnds(); event(chat)
+        clock += 14 * 60_000L
         event(chess)
-        assertEquals("ten minutes after its last pause", 1, layers().size)
+        assertTrue("still inside 15-minute cooldown", layers().isEmpty())
+        event(chat)
+        clock += 60_000L
+        event(chess)
+        assertEquals("fifteen minutes after its last pause", 1, layers().size)
     }
     @Test fun wakingThePhoneIntoTheSameAppPausesOnlyAfterALongTimeOff() {
         withMode(PauseMode.NewOpens)
         event(chess); draw(); pauseEnds()
         context.sendBroadcast(Intent(Intent.ACTION_SCREEN_OFF)); ShadowLooper.idleMainLooper()
-        ShadowLooper.idleMainLooper(9 * 60_000L, MILLISECONDS)
+        ShadowLooper.idleMainLooper(14 * 60_000L, MILLISECONDS)
+        clock += 14 * 60_000L
         event(chess)
         assertTrue("short sleep", layers().isEmpty())
         context.sendBroadcast(Intent(Intent.ACTION_SCREEN_OFF)); ShadowLooper.idleMainLooper()
-        ShadowLooper.idleMainLooper(11 * 60_000L, MILLISECONDS)
-        clock += 11 * 60_000L
+        ShadowLooper.idleMainLooper(16 * 60_000L, MILLISECONDS)
+        clock += 16 * 60_000L
         event(chess)
         assertEquals("long sleep", 1, layers().size)
     }
@@ -421,26 +448,33 @@ class BreathAccessServiceTest {
         homeScreen()
         assertTrue("Home pressed during the pause ends it", layers().isEmpty())
     }
-    @Test fun leavingEarlyStillCountsAsHavingPausedForTheBreakTime() {
-        withMode(PauseMode.AfterBreak)
+    @Test fun leavingEarlyStillCountsAsHavingPausedForTheCooldown() {
+        withMode(PauseMode.NewOpens)
         event(chess); draw()
         val view = layers().single()
         view.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_BACK))
         view.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_BACK))
         event(home); resolve()
         event(chess)
-        assertTrue(layers().isEmpty())
+        assertTrue("cooldown started on first frame even when user backed out early", layers().isEmpty())
+        event(chat)
+        assertTrue("cooldown also covers other chosen apps", layers().isEmpty())
     }
-    @Test fun theLastPauseTimesSurviveTheServiceRestarting() {
-        withMode(PauseMode.AfterBreak)
+    @Test fun theCooldownSurvivesTheServiceRestarting() {
+        withMode(PauseMode.NewOpens)
         event(chess); draw(); resolve()
         assertTrue(BreathHistory.load(context, clock).containsKey(chess))
+        assertEquals(clock, BreathHistory.lastPause(context, clock))
         controller.destroy()
         BreathAccess.gate.forgetPauses()
+        clock += 5 * 60_000L // Only 5 minutes passed (< 15m cooldown)
         startService()
         assertNotNull("restored from the saved history", BreathAccess.gate.lastPauseOf(chess))
+        assertNotNull("restored global cooldown", BreathAccess.gate.lastPauseTime())
         event(chess)
-        assertTrue("an after-a-break app remembers its pause across the restart", layers().isEmpty())
+        assertTrue("cooldown remembers the pause across a service restart", layers().isEmpty())
+        event(chat)
+        assertTrue("cooldown also covers another chosen app across a service restart", layers().isEmpty())
     }
     @Test fun aLayerThatNeverDrewDoesNotUseUpTheTurnEvenInAfterABreakMode() {
         withMode(PauseMode.AfterBreak)
@@ -462,9 +496,13 @@ class BreathAccessServiceTest {
         ShadowLooper.idleMainLooper(1, MILLISECONDS); assertTrue(layers().isEmpty())
         event(home); resolve(); event(chess)
         assertEquals("this app pauses every time", 1, layers().size); draw(); ShadowLooper.idleMainLooper(8_000, MILLISECONDS)
-        event(chat); draw(); pauseEnds()
+        event(chat)
+        assertTrue("the other app respects the 15-minute cooldown", layers().isEmpty())
+        clock += 15 * 60_000L
         event(home); resolve(); event(chat)
-        assertTrue("the other app follows the general rule", layers().isEmpty())
+        assertEquals("once cooldown passes, opening chat pauses", 1, layers().size); draw(); pauseEnds()
+        event(home); resolve(); event(chat)
+        assertTrue("and then chat cools down again", layers().isEmpty())
     }
     @Test fun coloursRotateInOrderAndRandomNeverRepeats() {
         BreathPrefs.setOptions(context, BreathPrefs.options(context).copy(palettes = setOf(BreathPalette.Electric, BreathPalette.Coral, BreathPalette.Lagoon),
@@ -498,10 +536,12 @@ class BreathAccessServiceTest {
     @Test fun everyDecisionIsWrittenInPlainWordsToTheLog() {
         withMode(PauseMode.NewOpens)
         event(chess); draw(); pauseEnds()
-        event(chat); draw(); pauseEnds()
-        event(chess)
+        event(chat) // blocked by cooldown; chat is now foreground
+        withGrace(0)
+        event(chess) // switched from chat back to chess: no pause ("switched back through another app")
         val text = BreathLog.asText()
         assertTrue(text, text.contains("pausing: first open of this app"))
+        assertTrue(text, text.contains("no pause: cooling down after a recent pause"))
         assertTrue(text, text.contains("no pause: switched back through another app"))
     }
     @Test fun aChosenAppsNonScreenWindowIsLoggedSoItCanBeExplained() {
@@ -531,7 +571,8 @@ class BreathAccessServiceTest {
         event("com.samsung.android.intentresolver", "com.android.internal.app.ChooserActivity")
         event("com.samsung.android.biometrics.app.setting", "com.samsung.android.biometrics.app.setting.BiometricPromptActivity")
         event("com.samsung.android.honeyboard", "com.samsung.android.honeyboard.service.HoneyBoardService")
-        // User closes to Home / opens Samsung Finder or Edge Panel, then launches the app after 1.5s
+        // User closes to Home / opens Samsung Finder or Edge Panel, then launches the app after the 15m cooldown
+        clock += 15 * 60_000L
         event("com.samsung.android.app.galaxyfinder", "com.samsung.android.app.galaxyfinder.GalaxyFinderActivity")
         ShadowLooper.idleMainLooper(1_500, MILLISECONDS)
         event(chess)

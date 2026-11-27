@@ -37,6 +37,19 @@ class BreathingUiTest {
         rule.onNodeWithText("Pool").performScrollTo().assertIsOn()
         rule.onNodeWithText("Cobalt").performScrollTo().assertIsOff()
     }
+    @Test fun cooldownCardDefaultsToFifteenMinutesAndSavesChanges() {
+        val c=org.robolectric.RuntimeEnvironment.getApplication()
+        BreathPrefs.prefs(c).edit().clear().commit()
+        rule.setContent { LibrePodsTheme(m3eEnabled=false) { BreatheScreen() } }
+        rule.onNodeWithText("Cooldown").performScrollTo().assertIsDisplayed()
+        rule.onNode(hasText("15 min") and hasClickAction()).performScrollTo().assertIsSelected()
+        rule.onNodeWithText("After a pause opens, Breathe waits 15 minutes before opening again — at most 4 times in an hour.").performScrollTo().assertIsDisplayed()
+        rule.onRoot().captureRoboImage("build/screenshots/breathe/cooldown-card.png")
+        rule.onNode(hasText("30 min") and hasClickAction()).performClick().assertIsSelected()
+        rule.runOnIdle { org.junit.Assert.assertEquals(30,BreathPrefs.options(c).graceMinutes) }
+        rule.onNode(hasText("Off") and hasClickAction()).performClick().assertIsSelected()
+        rule.runOnIdle { org.junit.Assert.assertEquals(0,BreathPrefs.options(c).graceMinutes) }
+    }
     @Test fun aChosenAppGetsItsOwnRuleFromItsTuneButtonAndOthersDoNot() {
         val c=org.robolectric.RuntimeEnvironment.getApplication()
         BreathPrefs.prefs(c).edit().clear().commit()

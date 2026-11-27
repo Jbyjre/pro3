@@ -28,9 +28,9 @@ enum class PaletteOrder(val key: String, val label: String) {
 
 /** When a chosen app gets a pause. Each app can use its own. */
 enum class PauseMode(val key: String, val label: String, val note: String) {
-    NewOpens("new", "New opens", "Pauses when you open an app from Home, from Recents after a moment, or from a notification. Switching through another app does not."),
-    EveryTime("every", "Every time", "Pauses every single time the app comes to the front. The strictest choice."),
-    AfterBreak("break", "After a break", "Pauses on the first open, then only after your break time.");
+    NewOpens("new", "New opens", "Pauses when you open an app from Home, from Recents after a moment, or from a notification, then waits for your cooldown. Switching through another app stays quiet."),
+    EveryTime("every", "Every time", "Pauses every single time the app comes to the front, ignoring cooldown. The strictest choice."),
+    AfterBreak("break", "After a break", "Pauses on the first open, then only after your cooldown.");
 
     companion object { fun from(key: String?): PauseMode? = entries.firstOrNull { it.key == key } }
 }
@@ -60,7 +60,7 @@ data class BreathOptions(
     val customText: String = "",
     val haptics: Boolean = true,
     val showAppName: Boolean = false,
-    /** A chosen app pauses again after this many minutes since its last pause. 0 means never by time. */
+    /** Cooldown in minutes after any pause before another pause may open (15 min = max 4 per hour). 0 means no cooldown. */
     val graceMinutes: Int = DEFAULT_GRACE_MINUTES,
     val mode: PauseMode = PauseMode.NewOpens,
     val gray: GrayMode = GrayMode.Auto,
@@ -81,8 +81,8 @@ data class BreathOptions(
         const val MAX_MS = 10_000L
         /** A single app may be made much harder than the rest. */
         const val APP_MAX_MS = 30_000L
-        const val DEFAULT_GRACE_MINUTES = 10
-        val GRACE_CHOICES = listOf(0, 5, 10, 30, 60)
+        const val DEFAULT_GRACE_MINUTES = 15
+        val GRACE_CHOICES = listOf(0, 5, 10, 15, 30, 60)
         const val CUSTOM_TEXT_MAX = 28
         fun clampDuration(ms: Long): Long = ms.coerceIn(MIN_MS, MAX_MS)
         fun clampAppDuration(ms: Long): Long = ms.coerceIn(MIN_MS, APP_MAX_MS)

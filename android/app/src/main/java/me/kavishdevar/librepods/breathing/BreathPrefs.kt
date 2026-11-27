@@ -20,9 +20,10 @@ object BreathPrefs {
         // Colours: a saved set wins. Otherwise everything colourful may appear, which is what randomized means.
         val palettes = (values["palettes"] as? Set<*>)?.mapNotNull { (it as? String)?.let { k -> BreathPalette.entries.firstOrNull { p -> p.key == k } } }
             ?.toSet()?.takeIf { it.isNotEmpty() } ?: defaults.palettes
+        val savedCooldown = (values["cooldown_min"] as? Number)?.toInt()
         val savedGrace = (values["grace_min"] as? Number)?.toInt()
-        // Before pause modes existed, "0 minutes" meant "every open". Keep that meaning.
-        val legacyEvery = !values.containsKey("mode") && savedGrace == 0
+        // Before pause modes existed, "0 minutes" meant "every open". Keep that meaning when no cooldown was set.
+        val legacyEvery = !values.containsKey("mode") && !values.containsKey("cooldown_min") && savedGrace == 0
         return BreathOptions(
             palettes = palettes,
             paletteOrder = PaletteOrder.from(values["palette_order"] as? String),
@@ -33,7 +34,7 @@ object BreathPrefs {
             customText = BreathOptions.cleanCustom(values["custom_text"] as? String ?: ""),
             haptics = values["haptics"] as? Boolean ?: defaults.haptics,
             showAppName = values["show_name"] as? Boolean ?: defaults.showAppName,
-            graceMinutes = if (legacyEvery) defaults.graceMinutes else (savedGrace ?: defaults.graceMinutes).coerceIn(0, 24 * 60),
+            graceMinutes = (savedCooldown ?: defaults.graceMinutes).coerceIn(0, 24 * 60),
             mode = if (legacyEvery) PauseMode.EveryTime else PauseMode.from(values["mode"] as? String) ?: defaults.mode,
             gray = GrayMode.from(values["gray"] as? String),
         )
@@ -50,7 +51,8 @@ object BreathPrefs {
             .putString("custom_text", BreathOptions.cleanCustom(value.customText))
             .putBoolean("haptics", value.haptics)
             .putBoolean("show_name", value.showAppName)
-            .putInt("grace_min", value.graceMinutes.coerceIn(0, 24 * 60))
+            .putInt("cooldown_min", value.graceMinutes.coerceIn(0, 24 * 60))
+            .remove("grace_min")
             .putString("mode", value.mode.key)
             .putString("gray", value.gray.key)
             .apply()

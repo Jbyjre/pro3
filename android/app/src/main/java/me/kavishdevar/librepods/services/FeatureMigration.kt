@@ -20,6 +20,22 @@ object FeatureMigration {
             edit.putBoolean("case_popup_default_v1", true)
             changed = true
         }
+        if (!p.getBoolean("breath_cooldown_15m_v1", false)) {
+            val bp = me.kavishdevar.librepods.breathing.BreathPrefs.prefs(c)
+            val cleanedRules = me.kavishdevar.librepods.breathing.BreathPrefs.appRules(c)
+                .mapValues { (_, r) ->
+                    if (r.mode == me.kavishdevar.librepods.breathing.PauseMode.EveryTime) r.copy(mode = null) else r
+                }
+                .filterValues { !it.isDefault }
+            bp.edit()
+                .putInt("cooldown_min", me.kavishdevar.librepods.breathing.BreathOptions.DEFAULT_GRACE_MINUTES)
+                .putString("mode", me.kavishdevar.librepods.breathing.PauseMode.NewOpens.key)
+                .putString("app_rules", me.kavishdevar.librepods.breathing.BreathRules.encode(cleanedRules))
+                .remove("grace_min")
+                .apply()
+            edit.putBoolean("breath_cooldown_15m_v1", true)
+            changed = true
+        }
         if (changed) edit.apply()
     }
 }
